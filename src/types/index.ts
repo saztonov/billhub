@@ -34,7 +34,7 @@ export interface Counterparty {
 }
 
 /** Роль сотрудника в системе */
-export type EmployeeRole = 'admin' | 'manager' | 'viewer'
+export type EmployeeRole = 'admin' | 'user'
 
 /** Сотрудник */
 export interface Employee {
@@ -94,6 +94,8 @@ export interface Invoice {
   fileKey: string
   fileName: string
   ocrResult: string | null
+  isMarkedForDeletion: boolean
+  markedForDeletionAt: string | null
   createdAt: string
   counterpartyName?: string
 }
@@ -119,6 +121,8 @@ export interface Document {
   siteId: string
   fileName: string
   fileKey: string
+  isMarkedForDeletion: boolean
+  markedForDeletionAt: string | null
   uploadedAt: string
   documentTypeName?: string
   siteName?: string
@@ -201,13 +205,14 @@ export interface OcrModel {
 // Аутентификация
 
 /** Роль пользователя */
-export type UserRole = 'admin' | 'manager' | 'viewer'
+export type UserRole = 'admin' | 'user' | 'counterparty_user'
 
 /** Пользователь системы */
 export interface User {
   id: string
   email: string
   role: UserRole
+  counterpartyId: string | null
 }
 
 /** Состояние аутентификации */

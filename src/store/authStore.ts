@@ -28,12 +28,18 @@ export const useAuthStore = create<AuthStoreState>((set) => ({
 
       const { data: userData, error: userError } = await supabase
         .from('users')
-        .select('id, email, role')
+        .select('id, email, role, counterparty_id')
         .eq('id', authData.user.id)
         .single()
       if (userError) throw userError
 
-      set({ user: userData as User, isAuthenticated: true, isLoading: false })
+      const user: User = {
+        id: userData.id,
+        email: userData.email,
+        role: userData.role,
+        counterpartyId: userData.counterparty_id,
+      }
+      set({ user, isAuthenticated: true, isLoading: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка авторизации'
       set({ error: message, isLoading: false })
@@ -63,12 +69,18 @@ export const useAuthStore = create<AuthStoreState>((set) => ({
 
       const { data: userData, error: userError } = await supabase
         .from('users')
-        .select('id, email, role')
+        .select('id, email, role, counterparty_id')
         .eq('id', session.user.id)
         .single()
       if (userError) throw userError
 
-      set({ user: userData as User, isAuthenticated: true, isLoading: false })
+      const user: User = {
+        id: userData.id,
+        email: userData.email,
+        role: userData.role,
+        counterpartyId: userData.counterparty_id,
+      }
+      set({ user, isAuthenticated: true, isLoading: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка проверки сессии'
       set({ user: null, isAuthenticated: false, error: message, isLoading: false })

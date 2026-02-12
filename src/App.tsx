@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import MainLayout from '@/layout/MainLayout'
 import AuthLayout from '@/layout/AuthLayout'
+import RoleGuard from '@/components/RoleGuard'
 import DashboardPage from '@/pages/DashboardPage'
 import LoginPage from '@/pages/LoginPage'
 import CounterpartiesPage from '@/pages/CounterpartiesPage'
@@ -24,17 +25,26 @@ const App = () => {
 
       {/* Основное приложение */}
       <Route element={<MainLayout />}>
+        {/* Доступно всем авторизованным */}
         <Route path="/" element={<DashboardPage />} />
-        <Route path="/counterparties" element={<CounterpartiesPage />} />
         <Route path="/invoices" element={<InvoicesPage />} />
-        <Route path="/distribution-letters" element={<DistributionLettersPage />} />
-        <Route path="/approvals" element={<ApprovalsPage />} />
-        <Route path="/employees" element={<EmployeesPage />} />
-        <Route path="/sites" element={<ConstructionSitesPage />} />
-        <Route path="/document-types" element={<DocumentTypesPage />} />
-        <Route path="/approval-chains" element={<ApprovalChainsPage />} />
-        <Route path="/site-documents" element={<SiteDocumentsPage />} />
-        <Route path="/settings/ocr" element={<OcrSettingsPage />} />
+
+        {/* Только admin и user (внутренние сотрудники) */}
+        <Route element={<RoleGuard allowedRoles={['admin', 'user']} />}>
+          <Route path="/counterparties" element={<CounterpartiesPage />} />
+          <Route path="/distribution-letters" element={<DistributionLettersPage />} />
+          <Route path="/approvals" element={<ApprovalsPage />} />
+          <Route path="/employees" element={<EmployeesPage />} />
+          <Route path="/sites" element={<ConstructionSitesPage />} />
+          <Route path="/document-types" element={<DocumentTypesPage />} />
+        </Route>
+
+        {/* Только admin */}
+        <Route element={<RoleGuard allowedRoles={['admin']} />}>
+          <Route path="/approval-chains" element={<ApprovalChainsPage />} />
+          <Route path="/site-documents" element={<SiteDocumentsPage />} />
+          <Route path="/settings/ocr" element={<OcrSettingsPage />} />
+        </Route>
       </Route>
 
       {/* Редирект для неизвестных роутов */}
