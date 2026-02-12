@@ -9,7 +9,7 @@ import {
   Select,
   message,
 } from 'antd'
-import { PlusOutlined, EyeOutlined } from '@ant-design/icons'
+import { PlusOutlined, EyeOutlined, DeleteOutlined } from '@ant-design/icons'
 import { usePaymentRequestStore } from '@/store/paymentRequestStore'
 import { useStatusStore } from '@/store/statusStore'
 import { useAuthStore } from '@/store/authStore'
@@ -38,11 +38,13 @@ const PaymentRequestsPage = () => {
 
   const user = useAuthStore((s) => s.user)
   const isCounterpartyUser = user?.role === 'counterparty_user'
+  const isAdmin = user?.role === 'admin'
 
   const {
     requests,
     isLoading,
     fetchRequests,
+    deleteRequest,
     withdrawRequest,
     updateRequestStatus,
   } = usePaymentRequestStore()
@@ -65,6 +67,11 @@ const PaymentRequestsPage = () => {
     if (isCounterpartyUser && user?.counterpartyId) {
       fetchRequests(user.counterpartyId)
     }
+  }
+
+  const handleDelete = async (id: string) => {
+    await deleteRequest(id)
+    message.success('Заявка удалена')
   }
 
   const handleStatusChange = async (requestId: string, statusId: string) => {
@@ -156,6 +163,19 @@ const PaymentRequestsPage = () => {
               loading={statusChanging === record.id}
               onChange={(val) => handleStatusChange(record.id, val)}
             />
+          )}
+
+          {/* admin: удаление заявки */}
+          {isAdmin && (
+            <Popconfirm
+              title="Удалить заявку?"
+              description="Заявка и все файлы будут удалены безвозвратно"
+              onConfirm={() => handleDelete(record.id)}
+            >
+              <Button icon={<DeleteOutlined />} danger size="small">
+                Удалить
+              </Button>
+            </Popconfirm>
           )}
         </Space>
       ),

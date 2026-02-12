@@ -9,7 +9,7 @@ import {
   Space,
   Spin,
 } from 'antd'
-import { DownloadOutlined } from '@ant-design/icons'
+import { DownloadOutlined, EyeOutlined } from '@ant-design/icons'
 import { usePaymentRequestStore } from '@/store/paymentRequestStore'
 import { getDownloadUrl } from '@/services/s3'
 import type { PaymentRequest } from '@/types'
@@ -45,12 +45,23 @@ function formatDate(dateStr: string): string {
 const ViewRequestModal = ({ open, request, onClose }: ViewRequestModalProps) => {
   const { currentRequestFiles, fetchRequestFiles, isLoading } = usePaymentRequestStore()
   const [downloading, setDownloading] = useState<string | null>(null)
+  const [previewing, setPreviewing] = useState<string | null>(null)
 
   useEffect(() => {
     if (open && request) {
       fetchRequestFiles(request.id)
     }
   }, [open, request, fetchRequestFiles])
+
+  const handlePreview = async (fileKey: string) => {
+    setPreviewing(fileKey)
+    try {
+      const url = await getDownloadUrl(fileKey)
+      window.open(url, '_blank')
+    } finally {
+      setPreviewing(null)
+    }
+  }
 
   const handleDownload = async (fileKey: string, fileName: string) => {
     setDownloading(fileKey)
@@ -106,6 +117,15 @@ const ViewRequestModal = ({ open, request, onClose }: ViewRequestModalProps) => 
           renderItem={(file) => (
             <List.Item
               actions={[
+                <Button
+                  key="preview"
+                  icon={<EyeOutlined />}
+                  size="small"
+                  loading={previewing === file.fileKey}
+                  onClick={() => handlePreview(file.fileKey)}
+                >
+                  Просмотр
+                </Button>,
                 <Button
                   key="download"
                   icon={<DownloadOutlined />}

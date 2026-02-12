@@ -28,6 +28,7 @@ interface PaymentRequestStoreState {
     counterpartyName: string,
     userId: string,
   ) => Promise<void>
+  deleteRequest: (id: string) => Promise<void>
   withdrawRequest: (id: string) => Promise<void>
   updateRequestStatus: (id: string, statusId: string) => Promise<void>
   fetchRequestFiles: (requestId: string) => Promise<void>
@@ -163,6 +164,35 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
       const message = err instanceof Error ? err.message : 'Ошибка создания заявки'
       set({ error: message, isSubmitting: false })
       throw err
+    }
+  },
+
+  deleteRequest: async (id) => {
+    set({ isLoading: true, error: null })
+    try {
+      // Загружаем файлы заявки для удаления из S3
+      const { data: files, error: filesError } = await supabase
+        .from('payment_request_files')
+        .select('file_key')
+        .eq('payment_request_id', id)
+      if (filesError) throw filesError
+
+      // Удаляем файлы из S3
+      for (const file of files ?? []) {
+        await deleteFile(file.file_key).catch(() => {})
+      }
+
+      // Удаляем заявку из БД (каскад удалит payment_request_files)
+      const { error } = await supabase
+        .from('payment_requests')
+        .delete()
+        .eq('id', id)
+      if (error) throw error
+
+      await get().fetchRequests()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Ошибка удаления заявки'
+      set({ error: message, isLoading: false })
     }
   },
 

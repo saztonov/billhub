@@ -6,6 +6,7 @@ import {
   ListObjectsV2Command,
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+import { sanitizeForS3 } from '@/utils/transliterate'
 
 // Конфигурация S3 из переменных окружения
 const S3_ENDPOINT = import.meta.env.VITE_S3_ENDPOINT as string
@@ -58,9 +59,10 @@ async function uploadToS3(key: string, file: File): Promise<void> {
 
 /** Генерирует уникальный ключ для файла внутри папки контрагента */
 function generateFileKey(counterpartyName: string, fileName: string): string {
-  const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_')
+  const safeFolder = sanitizeForS3(counterpartyName)
+  const safeName = sanitizeForS3(fileName)
   const timestamp = Date.now()
-  return `${counterpartyName}/${timestamp}_${safeName}`
+  return `${safeFolder}/${timestamp}_${safeName}`
 }
 
 /** Загружает файл в S3 в папку контрагента */
@@ -79,9 +81,11 @@ export async function uploadRequestFile(
   requestNumber: string,
   file: File,
 ): Promise<{ key: string }> {
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+  const safeFolder = sanitizeForS3(counterpartyName)
+  const safeNumber = sanitizeForS3(requestNumber)
+  const safeName = sanitizeForS3(file.name)
   const timestamp = Date.now()
-  const key = `${counterpartyName}/${requestNumber}/${timestamp}_${safeName}`
+  const key = `${safeFolder}/${safeNumber}/${timestamp}_${safeName}`
   await uploadToS3(key, file)
   return { key }
 }
@@ -135,9 +139,10 @@ export async function deleteFile(key: string): Promise<void> {
 export async function listFiles(
   counterpartyName: string,
 ): Promise<Array<{ key: string; size: number; lastModified: Date }>> {
+  const safeFolder = sanitizeForS3(counterpartyName)
   const command = new ListObjectsV2Command({
     Bucket: S3_BUCKET,
-    Prefix: `${counterpartyName}/`,
+    Prefix: `${safeFolder}/`,
   })
 
   const response = await s3Client.send(command)
