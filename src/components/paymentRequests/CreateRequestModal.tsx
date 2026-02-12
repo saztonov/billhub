@@ -111,6 +111,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
           shippingConditionId: values.shippingConditionId,
           siteId: values.siteId,
           comment: values.comment,
+          totalFiles: fileList.length,
         },
         user.counterpartyId,
         user.id,

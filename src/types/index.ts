@@ -89,6 +89,7 @@ export interface Status {
   color: string | null
   isActive: boolean
   displayOrder: number
+  visibleRoles: string[]
   createdAt: string
 }
 
@@ -117,6 +118,8 @@ export interface PaymentRequest {
   shippingConditionId: string
   comment: string | null
   createdBy: string
+  totalFiles: number
+  uploadedFiles: number
   createdAt: string
   withdrawnAt: string | null
   // Joined

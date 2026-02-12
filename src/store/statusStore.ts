@@ -41,6 +41,7 @@ export const useStatusStore = create<StatusStoreState>((set, get) => ({
         color: (row.color as string) ?? null,
         isActive: row.is_active as boolean,
         displayOrder: row.display_order as number,
+        visibleRoles: (row.visible_roles as string[]) ?? [],
         createdAt: row.created_at as string,
       }))
       set({ statuses, isLoading: false })

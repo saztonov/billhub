@@ -7,6 +7,7 @@ import {
   Space,
   Popconfirm,
   Select,
+  Tooltip,
   message,
 } from 'antd'
 import {
@@ -17,11 +18,12 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined,
   ReloadOutlined,
+  RollbackOutlined,
 } from '@ant-design/icons'
 import { usePaymentRequestStore } from '@/store/paymentRequestStore'
 import { useStatusStore } from '@/store/statusStore'
 import { useAuthStore } from '@/store/authStore'
-import { useUploadQueueStore, type UploadTask } from '@/store/uploadQueueStore'
+import { useUploadQueueStore } from '@/store/uploadQueueStore'
 import CreateRequestModal from '@/components/paymentRequests/CreateRequestModal'
 import ViewRequestModal from '@/components/paymentRequests/ViewRequestModal'
 import type { PaymentRequest } from '@/types'
@@ -59,8 +61,8 @@ const PaymentRequestsPage = () => {
   } = usePaymentRequestStore()
 
   const { statuses, fetchStatuses } = useStatusStore()
-  const uploadTasks = useUploadQueueStore((s) => s.tasks)
   const retryTask = useUploadQueueStore((s) => s.retryTask)
+  const uploadTasks = useUploadQueueStore((s) => s.tasks)
 
   useEffect(() => {
     fetchStatuses('payment_request')
@@ -74,7 +76,6 @@ const PaymentRequestsPage = () => {
   const handleWithdraw = async (id: string) => {
     await withdrawRequest(id)
     message.success('Заявка отозвана')
-    // Перезагрузка с учётом роли
     if (isCounterpartyUser && user?.counterpartyId) {
       fetchRequests(user.counterpartyId)
     }
@@ -93,7 +94,14 @@ const PaymentRequestsPage = () => {
   }
 
   const statusOptions = statuses
-    .filter((s) => s.isActive)
+    .filter((s) => {
+      if (!s.isActive) return false
+      // Фильтрация по видимости ролей
+      if (s.visibleRoles && s.visibleRoles.length > 0 && user?.role) {
+        return s.visibleRoles.includes(user.role)
+      }
+      return true
+    })
     .map((s) => ({ label: s.name, value: s.id }))
 
   const columns = [
@@ -143,22 +151,11 @@ const PaymentRequestsPage = () => {
       key: 'upload',
       width: 110,
       render: (_: unknown, record: PaymentRequest) => {
-        const task: UploadTask | undefined = uploadTasks[record.id]
-        if (!task) return null
-        if (task.status === 'uploading') {
-          return (
-            <Space size={4}>
-              <SyncOutlined spin style={{ color: '#fa8c16' }} />
-              <span style={{ color: '#fa8c16', fontSize: 12 }}>
-                {task.uploaded}/{task.total}
-              </span>
-            </Space>
-          )
-        }
-        if (task.status === 'success') {
-          return <CheckCircleOutlined style={{ color: '#52c41a' }} />
-        }
-        if (task.status === 'error') {
+        if (record.totalFiles === 0) return null
+
+        // Проверяем in-memory очередь для ошибок текущей сессии
+        const inMemoryTask = uploadTasks[record.id]
+        if (inMemoryTask?.status === 'error') {
           return (
             <Space size={4}>
               <CloseCircleOutlined style={{ color: '#f5222d' }} />
@@ -168,31 +165,44 @@ const PaymentRequestsPage = () => {
                 icon={<ReloadOutlined />}
                 onClick={() => retryTask(record.id)}
                 style={{ padding: 0 }}
-              >
-                Повторить
-              </Button>
+              />
             </Space>
           )
         }
-        if (task.status === 'pending') {
-          return <SyncOutlined style={{ color: '#d9d9d9' }} />
+
+        // Все загружены
+        if (record.uploadedFiles >= record.totalFiles) {
+          return (
+            <Tooltip title={`${record.uploadedFiles}/${record.totalFiles}`}>
+              <CheckCircleOutlined style={{ color: '#52c41a' }} />
+            </Tooltip>
+          )
         }
-        return null
+
+        // Ещё загружаются
+        return (
+          <Space size={4}>
+            <SyncOutlined spin style={{ color: '#fa8c16' }} />
+            <span style={{ color: '#fa8c16', fontSize: 12 }}>
+              {record.uploadedFiles}/{record.totalFiles}
+            </span>
+          </Space>
+        )
       },
     },
     {
       title: 'Действия',
       key: 'actions',
-      width: 280,
+      width: 180,
       render: (_: unknown, record: PaymentRequest) => (
-        <Space wrap>
-          <Button
-            icon={<EyeOutlined />}
-            size="small"
-            onClick={() => setViewRecord(record)}
-          >
-            Просмотр
-          </Button>
+        <Space>
+          <Tooltip title="Просмотр">
+            <Button
+              icon={<EyeOutlined />}
+              size="small"
+              onClick={() => setViewRecord(record)}
+            />
+          </Tooltip>
 
           {/* counterparty_user: отзыв заявки */}
           {isCounterpartyUser && (
@@ -200,9 +210,9 @@ const PaymentRequestsPage = () => {
               title="Отозвать заявку?"
               onConfirm={() => handleWithdraw(record.id)}
             >
-              <Button danger size="small">
-                Отозвать
-              </Button>
+              <Tooltip title="Отозвать">
+                <Button icon={<RollbackOutlined />} danger size="small" />
+              </Tooltip>
             </Popconfirm>
           )}
 
@@ -225,9 +235,9 @@ const PaymentRequestsPage = () => {
               description="Заявка и все файлы будут удалены безвозвратно"
               onConfirm={() => handleDelete(record.id)}
             >
-              <Button icon={<DeleteOutlined />} danger size="small">
-                Удалить
-              </Button>
+              <Tooltip title="Удалить">
+                <Button icon={<DeleteOutlined />} danger size="small" />
+              </Tooltip>
             </Popconfirm>
           )}
         </Space>

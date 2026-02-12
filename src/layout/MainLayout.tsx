@@ -31,7 +31,6 @@ const allMenuItems: MenuProps['items'] = [
     label: 'Справочники',
     children: [
       { key: '/counterparties', icon: <TeamOutlined />, label: 'Контрагенты' },
-      { key: '/employees', icon: <UserOutlined />, label: 'Сотрудники' },
       { key: '/sites', icon: <BankOutlined />, label: 'Объекты' },
       { key: '/document-types', icon: <FolderOutlined />, label: 'Типы документов' },
     ],
@@ -59,7 +58,6 @@ const userMenuItems: MenuProps['items'] = [
     label: 'Справочники',
     children: [
       { key: '/counterparties', icon: <TeamOutlined />, label: 'Контрагенты' },
-      { key: '/employees', icon: <UserOutlined />, label: 'Сотрудники' },
       { key: '/sites', icon: <BankOutlined />, label: 'Объекты' },
       { key: '/document-types', icon: <FolderOutlined />, label: 'Типы документов' },
     ],

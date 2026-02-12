@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { supabase } from '@/services/supabase'
 import { uploadRequestFile } from '@/services/s3'
+import { usePaymentRequestStore } from '@/store/paymentRequestStore'
 
 interface FileToUpload {
   file: File
@@ -23,7 +24,6 @@ interface UploadQueueStoreState {
   tasks: Record<string, UploadTask>
   addTask: (task: Omit<UploadTask, 'status' | 'uploaded' | 'total'>) => void
   retryTask: (requestId: string) => void
-  getTaskStatus: (requestId: string) => UploadTask | null
 }
 
 /** Флаг, что очередь обрабатывается */
@@ -64,10 +64,6 @@ export const useUploadQueueStore = create<UploadQueueStoreState>((set, get) => (
       },
     }))
     processQueue(get, set)
-  },
-
-  getTaskStatus: (requestId) => {
-    return get().tasks[requestId] ?? null
   },
 }))
 
@@ -118,16 +114,26 @@ async function processQueue(
             })
           if (fileError) throw fileError
 
-          // Обновляем прогресс
+          // Обновляем uploaded_files в БД
+          const newUploaded = get().tasks[requestId].uploaded + 1
+          await supabase
+            .from('payment_requests')
+            .update({ uploaded_files: newUploaded })
+            .eq('id', task.requestId)
+
+          // Обновляем прогресс в очереди
           set((state) => ({
             tasks: {
               ...state.tasks,
               [requestId]: {
                 ...state.tasks[requestId],
-                uploaded: state.tasks[requestId].uploaded + 1,
+                uploaded: newUploaded,
               },
             },
           }))
+
+          // Обновляем локальное состояние таблицы
+          usePaymentRequestStore.getState().incrementUploadedFiles(task.requestId)
         }
 
         // Успех

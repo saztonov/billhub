@@ -67,6 +67,7 @@ const PaymentRequestSettingsPage = () => {
       code: record.code,
       name: record.name,
       color: record.color,
+      visible_roles: record.visibleRoles ?? [],
       is_active: record.isActive,
       display_order: record.displayOrder,
     })
@@ -102,6 +103,18 @@ const PaymentRequestSettingsPage = () => {
     {
       title: 'Активен', dataIndex: 'isActive', key: 'isActive', width: 100,
       render: (val: boolean) => <Tag color={val ? 'green' : 'default'}>{val ? 'Да' : 'Нет'}</Tag>,
+    },
+    {
+      title: 'Видимость', dataIndex: 'visibleRoles', key: 'visibleRoles', width: 200,
+      render: (roles: string[]) => {
+        if (!roles || roles.length === 0) return <Tag>Все роли</Tag>
+        const labels: Record<string, string> = {
+          admin: 'Админ',
+          user: 'Сотрудник',
+          counterparty_user: 'Контрагент',
+        }
+        return roles.map((r) => <Tag key={r}>{labels[r] ?? r}</Tag>)
+      },
     },
     { title: 'Порядок', dataIndex: 'displayOrder', key: 'displayOrder', width: 100 },
     {
@@ -251,6 +264,17 @@ const PaymentRequestSettingsPage = () => {
                 { label: 'Синий', value: 'blue' },
                 { label: 'Серый', value: 'default' },
                 { label: 'Фиолетовый', value: 'purple' },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item name="visible_roles" label="Видимость для ролей">
+            <Select
+              mode="multiple"
+              placeholder="Все роли (по умолчанию)"
+              options={[
+                { label: 'Администратор', value: 'admin' },
+                { label: 'Сотрудник', value: 'user' },
+                { label: 'Контрагент', value: 'counterparty_user' },
               ]}
             />
           </Form.Item>

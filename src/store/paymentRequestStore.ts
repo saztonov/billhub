@@ -10,6 +10,7 @@ interface CreateRequestData {
   shippingConditionId: string
   siteId?: string
   comment?: string
+  totalFiles: number
 }
 
 interface PaymentRequestStoreState {
@@ -27,6 +28,7 @@ interface PaymentRequestStoreState {
   deleteRequest: (id: string) => Promise<void>
   withdrawRequest: (id: string) => Promise<void>
   updateRequestStatus: (id: string, statusId: string) => Promise<void>
+  incrementUploadedFiles: (requestId: string) => void
   fetchRequestFiles: (requestId: string) => Promise<void>
 }
 
@@ -78,6 +80,8 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
           comment: row.comment as string | null,
           createdBy: row.created_by as string,
           createdAt: row.created_at as string,
+          totalFiles: (row.total_files as number) ?? 0,
+          uploadedFiles: (row.uploaded_files as number) ?? 0,
           withdrawnAt: row.withdrawn_at as string | null,
           counterpartyName: counterparties?.name as string | undefined,
           siteName: site?.name as string | undefined,
@@ -125,6 +129,8 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
           delivery_days: data.deliveryDays,
           shipping_condition_id: data.shippingConditionId,
           comment: data.comment || null,
+          total_files: data.totalFiles,
+          uploaded_files: 0,
           created_by: userId,
         })
         .select('id')
@@ -212,6 +218,14 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
       const message = err instanceof Error ? err.message : 'Ошибка изменения статуса'
       set({ error: message, isLoading: false })
     }
+  },
+
+  incrementUploadedFiles: (requestId) => {
+    set((state) => ({
+      requests: state.requests.map((r) =>
+        r.id === requestId ? { ...r, uploadedFiles: r.uploadedFiles + 1 } : r,
+      ),
+    }))
   },
 
   fetchRequestFiles: async (requestId) => {
