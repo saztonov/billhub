@@ -51,6 +51,28 @@ export async function uploadFile(
   return { key }
 }
 
+/** Загружает файл заявки в S3: /{контрагент}/{номер_заявки}/{timestamp}_{имя} */
+export async function uploadRequestFile(
+  counterpartyName: string,
+  requestNumber: string,
+  file: File,
+): Promise<{ key: string }> {
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+  const timestamp = Date.now()
+  const key = `${counterpartyName}/${requestNumber}/${timestamp}_${safeName}`
+  const arrayBuffer = await file.arrayBuffer()
+
+  const command = new PutObjectCommand({
+    Bucket: S3_BUCKET,
+    Key: key,
+    Body: new Uint8Array(arrayBuffer),
+    ContentType: file.type,
+  })
+
+  await s3Client.send(command)
+  return { key }
+}
+
 /** Получает presigned URL для скачивания файла (время жизни 1 час) */
 export async function getDownloadUrl(
   key: string,

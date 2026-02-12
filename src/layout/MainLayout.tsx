@@ -26,7 +26,7 @@ const { Text } = Typography
 const allMenuItems: MenuProps['items'] = [
   { key: '/', icon: <DashboardOutlined />, label: 'Дашборд' },
   { key: '/counterparties', icon: <TeamOutlined />, label: 'Контрагенты' },
-  { key: '/invoices', icon: <FileTextOutlined />, label: 'Счета' },
+  { key: '/payment-requests', icon: <FileTextOutlined />, label: 'Заявки на оплату' },
   { key: '/distribution-letters', icon: <SendOutlined />, label: 'Распред. письма' },
   { key: '/approvals', icon: <CheckCircleOutlined />, label: 'Согласования' },
   {
@@ -45,6 +45,7 @@ const allMenuItems: MenuProps['items'] = [
       { key: '/approval-chains', icon: <ApartmentOutlined />, label: 'Цепочки согласований' },
       { key: '/site-documents', icon: <SafetyOutlined />, label: 'Документы объектов' },
       { key: '/settings/ocr', icon: <SettingOutlined />, label: 'Настройки OCR' },
+      { key: '/settings/payment-requests', icon: <SettingOutlined />, label: 'Настройки заявок' },
       { key: '/users', icon: <UserSwitchOutlined />, label: 'Пользователи' },
     ],
   },
@@ -54,7 +55,7 @@ const allMenuItems: MenuProps['items'] = [
 const userMenuItems: MenuProps['items'] = [
   { key: '/', icon: <DashboardOutlined />, label: 'Дашборд' },
   { key: '/counterparties', icon: <TeamOutlined />, label: 'Контрагенты' },
-  { key: '/invoices', icon: <FileTextOutlined />, label: 'Счета' },
+  { key: '/payment-requests', icon: <FileTextOutlined />, label: 'Заявки на оплату' },
   { key: '/distribution-letters', icon: <SendOutlined />, label: 'Распред. письма' },
   { key: '/approvals', icon: <CheckCircleOutlined />, label: 'Согласования' },
   {
@@ -71,7 +72,7 @@ const userMenuItems: MenuProps['items'] = [
 /** Меню для роли counterparty_user (только счета) */
 const counterpartyMenuItems: MenuProps['items'] = [
   { key: '/', icon: <DashboardOutlined />, label: 'Дашборд' },
-  { key: '/invoices', icon: <FileTextOutlined />, label: 'Счета' },
+  { key: '/payment-requests', icon: <FileTextOutlined />, label: 'Заявки на оплату' },
 ]
 
 /** Возвращает меню для указанной роли */

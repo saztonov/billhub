@@ -78,39 +78,67 @@ export interface SiteRequiredDocument {
   documentTypeName?: string
 }
 
-// Документооборот
+// Универсальные статусы
 
-/** Статус счёта */
-export type InvoiceStatus = 'new' | 'recognized' | 'processed' | 'error'
-
-/** Счёт (загруженный с OCR-распознаванием) */
-export interface Invoice {
+/** Статус (универсальная таблица для всех документов) */
+export interface Status {
   id: string
-  counterpartyId: string
-  number: string
-  date: string
-  totalAmount: number
-  status: InvoiceStatus
-  fileKey: string
-  fileName: string
-  ocrResult: string | null
-  isMarkedForDeletion: boolean
-  markedForDeletionAt: string | null
+  entityType: string
+  code: string
+  name: string
+  color: string | null
+  isActive: boolean
+  displayOrder: number
   createdAt: string
-  counterpartyName?: string
 }
 
-/** Спецификация — строка счёта (создаётся на основе OCR) */
-export interface Specification {
+// Заявки на оплату
+
+/** Опция dropdown-поля заявки (справочник) */
+export interface PaymentRequestFieldOption {
   id: string
-  invoiceId: string
-  position: number
-  name: string
-  unit: string
-  quantity: number
-  price: number
-  amount: number
+  fieldCode: string
+  value: string
+  isActive: boolean
+  displayOrder: number
   createdAt: string
+}
+
+/** Заявка на оплату */
+export interface PaymentRequest {
+  id: string
+  requestNumber: string
+  counterpartyId: string
+  statusId: string
+  urgencyId: string
+  urgencyReason: string | null
+  deliveryDays: number
+  shippingConditionId: string
+  comment: string | null
+  createdBy: string
+  createdAt: string
+  withdrawnAt: string | null
+  // Joined
+  counterpartyName?: string
+  statusName?: string
+  statusColor?: string | null
+  urgencyValue?: string
+  shippingConditionValue?: string
+}
+
+/** Файл заявки на оплату */
+export interface PaymentRequestFile {
+  id: string
+  paymentRequestId: string
+  documentTypeId: string
+  fileName: string
+  fileKey: string
+  fileSize: number | null
+  mimeType: string | null
+  createdBy: string
+  createdAt: string
+  // Joined
+  documentTypeName?: string
 }
 
 /** Прикреплённый документ контрагента/поставки */

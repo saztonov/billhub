@@ -8,7 +8,8 @@ import RoleGuard from '@/components/RoleGuard'
 import DashboardPage from '@/pages/DashboardPage'
 import LoginPage from '@/pages/LoginPage'
 import CounterpartiesPage from '@/pages/CounterpartiesPage'
-import InvoicesPage from '@/pages/InvoicesPage'
+import PaymentRequestsPage from '@/pages/PaymentRequestsPage'
+import PaymentRequestSettingsPage from '@/pages/PaymentRequestSettingsPage'
 import DistributionLettersPage from '@/pages/DistributionLettersPage'
 import ApprovalsPage from '@/pages/ApprovalsPage'
 import EmployeesPage from '@/pages/EmployeesPage'
@@ -54,7 +55,7 @@ const App = () => {
           <Route element={<MainLayout />}>
             {/* Доступно всем авторизованным */}
             <Route path="/" element={<DashboardPage />} />
-            <Route path="/invoices" element={<InvoicesPage />} />
+            <Route path="/payment-requests" element={<PaymentRequestsPage />} />
 
             {/* Только admin и user (внутренние сотрудники) */}
             <Route element={<RoleGuard allowedRoles={['admin', 'user']} />}>
@@ -71,6 +72,7 @@ const App = () => {
               <Route path="/approval-chains" element={<ApprovalChainsPage />} />
               <Route path="/site-documents" element={<SiteDocumentsPage />} />
               <Route path="/settings/ocr" element={<OcrSettingsPage />} />
+              <Route path="/settings/payment-requests" element={<PaymentRequestSettingsPage />} />
               <Route path="/users" element={<UsersPage />} />
             </Route>
           </Route>

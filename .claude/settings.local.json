@@ -6,7 +6,9 @@
       "Bash(npm install:*)",
       "Bash(npx tsc:*)",
       "Bash(npx vite build)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(del \"c:\\\\Users\\\\Usr\\\\billhub\\\\src\\\\store\\\\invoiceStore.ts\")",
+      "Bash(del \"c:\\\\Users\\\\Usr\\\\billhub\\\\src\\\\pages\\\\InvoicesPage.tsx\")"
     ]
   }
 }
