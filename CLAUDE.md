@@ -7,7 +7,8 @@ BillHub — портал для поставщиков: прикрепление
 
 **Стек:**
 - Frontend: React 18 + Vite + TypeScript + Ant Design 5 + Zustand
-- Backend: Supabase (Auth, Database, Storage, Edge Functions)
+- Backend: Supabase (Auth, Database, Edge Functions)
+- Storage: Cloud.ru S3 (S3-совместимый API, @aws-sdk/client-s3)
 - OCR: OpenRouter.ai API (выбор модели в настройках портала)
 
 ## Быстрый старт
@@ -23,7 +24,7 @@ src/
 ├── pages/          # Страницы-роуты
 ├── components/     # UI-компоненты
 ├── hooks/          # Кастомные хуки
-├── services/       # API-сервисы (Supabase клиент, OpenRouter)
+├── services/       # API-сервисы (Supabase клиент, OpenRouter, S3)
 ├── store/          # Zustand stores
 ├── types/          # TypeScript типы/интерфейсы
 ├── utils/          # Утилиты
@@ -70,12 +71,15 @@ src/
 - Настройка OCR-моделей (добавление и выбор модели из списка OpenRouter)
 
 ## Интеграции
-- **Supabase:** Auth (без RLS), Database (PostgreSQL), Storage (файлы счетов/документов), Edge Functions
+- **Supabase:** Auth (без RLS), Database (PostgreSQL), Edge Functions
+- **Cloud.ru S3:** хранение файлов счетов и документов (S3-совместимый API, presigned URL)
 - **OpenRouter.ai:** OCR через vision-модели, выбор модели в настройках
 
 ## Переменные окружения
 - `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` — облачный Supabase
 - `VITE_OPENROUTER_API_KEY` — ключ OpenRouter.ai
+- `VITE_S3_ENDPOINT`, `VITE_S3_REGION`, `VITE_S3_ACCESS_KEY`, `VITE_S3_SECRET_KEY` — Cloud.ru S3
+- `VITE_S3_BUCKET_INVOICES`, `VITE_S3_BUCKET_DOCUMENTS` — имена бакетов S3
 - НЕ читать, НЕ искать, НЕ модифицировать файлы `.env`
 - При необходимости указать какие переменные нужны, но не запрашивать значения
 
@@ -98,7 +102,7 @@ src/
 ## Ключевые принципы
 - Ant Design 5 для всех UI-компонентов
 - Responsive design (desktop + mobile)
-- Файлы хранить ТОЛЬКО через Supabase Storage
+- Файлы хранить ТОЛЬКО через Cloud.ru S3 (сервис src/services/s3.ts)
 
 ## Работа с задачами
 **ОБЯЗАТЕЛЬНО перед выполнением:**
