@@ -3,7 +3,6 @@ import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { Layout, Menu, Typography, Avatar, Flex } from 'antd'
 import type { MenuProps } from 'antd'
 import {
-  DashboardOutlined,
   TeamOutlined,
   FileTextOutlined,
   SendOutlined,
@@ -24,7 +23,6 @@ const { Text } = Typography
 
 /** Полное меню (admin видит всё) */
 const allMenuItems: MenuProps['items'] = [
-  { key: '/', icon: <DashboardOutlined />, label: 'Дашборд' },
   { key: '/counterparties', icon: <TeamOutlined />, label: 'Контрагенты' },
   { key: '/payment-requests', icon: <FileTextOutlined />, label: 'Заявки на оплату' },
   { key: '/distribution-letters', icon: <SendOutlined />, label: 'Распред. письма' },
@@ -53,7 +51,6 @@ const allMenuItems: MenuProps['items'] = [
 
 /** Меню для роли user (без администрирования) */
 const userMenuItems: MenuProps['items'] = [
-  { key: '/', icon: <DashboardOutlined />, label: 'Дашборд' },
   { key: '/counterparties', icon: <TeamOutlined />, label: 'Контрагенты' },
   { key: '/payment-requests', icon: <FileTextOutlined />, label: 'Заявки на оплату' },
   { key: '/distribution-letters', icon: <SendOutlined />, label: 'Распред. письма' },
@@ -71,7 +68,6 @@ const userMenuItems: MenuProps['items'] = [
 
 /** Меню для роли counterparty_user (только счета) */
 const counterpartyMenuItems: MenuProps['items'] = [
-  { key: '/', icon: <DashboardOutlined />, label: 'Дашборд' },
   { key: '/payment-requests', icon: <FileTextOutlined />, label: 'Заявки на оплату' },
 ]
 

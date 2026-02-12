@@ -112,8 +112,9 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
       setFileList([])
       setFormValues({})
       onClose()
-    } catch {
-      // Ошибка уже обработана в store
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Ошибка создания заявки'
+      message.error(errorMsg)
     }
   }
 

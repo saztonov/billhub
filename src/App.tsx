@@ -5,7 +5,6 @@ import MainLayout from '@/layout/MainLayout'
 import AuthLayout from '@/layout/AuthLayout'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import RoleGuard from '@/components/RoleGuard'
-import DashboardPage from '@/pages/DashboardPage'
 import LoginPage from '@/pages/LoginPage'
 import CounterpartiesPage from '@/pages/CounterpartiesPage'
 import PaymentRequestsPage from '@/pages/PaymentRequestsPage'
@@ -54,7 +53,7 @@ const App = () => {
         <Route element={<ProtectedRoute />}>
           <Route element={<MainLayout />}>
             {/* Доступно всем авторизованным */}
-            <Route path="/" element={<DashboardPage />} />
+            <Route path="/" element={<Navigate to="/payment-requests" replace />} />
             <Route path="/payment-requests" element={<PaymentRequestsPage />} />
 
             {/* Только admin и user (внутренние сотрудники) */}

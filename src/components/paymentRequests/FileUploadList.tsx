@@ -44,22 +44,31 @@ const FileUploadList = ({ fileList, onChange }: FileUploadListProps) => {
   const { documentTypes } = useDocumentTypeStore()
   const [dragKey, setDragKey] = useState(0)
 
-  const handleBeforeUpload = (file: File) => {
-    // Проверка по расширению, т.к. MIME может быть пустым
-    const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+  const handleBeforeUpload = (file: File, batch: File[]) => {
+    // Обрабатываем всю пачку только на первом файле, чтобы избежать stale closure
+    if (file !== batch[0]) return false
+
     const validExts = ['doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png', 'tiff', 'tif', 'bmp', 'pdf']
-    if (!validExts.includes(ext) && !ACCEPTED_TYPES.includes(file.type)) {
-      message.error(`Неподдерживаемый формат: ${file.name}`)
-      return false
+    const validItems: FileItem[] = []
+
+    for (const f of batch) {
+      const ext = f.name.split('.').pop()?.toLowerCase() ?? ''
+      if (!validExts.includes(ext) && !ACCEPTED_TYPES.includes(f.type)) {
+        message.error(`Неподдерживаемый формат: ${f.name}`)
+        continue
+      }
+      validItems.push({
+        uid: `${Date.now()}_${Math.random().toString(36).slice(2)}_${validItems.length}`,
+        file: f,
+        documentTypeId: null,
+      })
     }
-    const newItem: FileItem = {
-      uid: `${Date.now()}_${Math.random().toString(36).slice(2)}`,
-      file,
-      documentTypeId: null,
+
+    if (validItems.length > 0) {
+      onChange([...fileList, ...validItems])
+      setDragKey((k) => k + 1)
     }
-    onChange([...fileList, newItem])
-    setDragKey((k) => k + 1)
-    return false // Предотвращаем автозагрузку
+    return false
   }
 
   const handleRemove = (uid: string) => {
