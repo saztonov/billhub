@@ -1,19 +1,21 @@
 import { Form, Input, Button, Typography, message } from 'antd'
 import { LockOutlined, MailOutlined } from '@ant-design/icons'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 
 const { Title } = Typography
 
 const LoginPage = () => {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { login, isLoading, error } = useAuthStore()
 
   const onFinish = async (values: { email: string; password: string }) => {
     await login(values.email, values.password)
     const { isAuthenticated } = useAuthStore.getState()
     if (isAuthenticated) {
-      navigate('/')
+      const returnUrl = searchParams.get('returnUrl') || '/'
+      navigate(returnUrl)
     } else {
       message.error(error || 'Ошибка авторизации')
     }

@@ -14,6 +14,7 @@ import {
   ApartmentOutlined,
   SafetyOutlined,
   SettingOutlined,
+  UserSwitchOutlined,
 } from '@ant-design/icons'
 import { useAuthStore } from '@/store/authStore'
 import type { UserRole } from '@/types'
@@ -44,6 +45,7 @@ const allMenuItems: MenuProps['items'] = [
       { key: '/approval-chains', icon: <ApartmentOutlined />, label: 'Цепочки согласований' },
       { key: '/site-documents', icon: <SafetyOutlined />, label: 'Документы объектов' },
       { key: '/settings/ocr', icon: <SettingOutlined />, label: 'Настройки OCR' },
+      { key: '/users', icon: <UserSwitchOutlined />, label: 'Пользователи' },
     ],
   },
 ]
