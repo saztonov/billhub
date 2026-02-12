@@ -78,8 +78,9 @@ src/
 ## Переменные окружения
 - `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY` — облачный Supabase
 - `VITE_OPENROUTER_API_KEY` — ключ OpenRouter.ai
+- `VITE_SUPABASE_TENANT_ID` — ID тенанта Supabase
 - `VITE_S3_ENDPOINT`, `VITE_S3_REGION`, `VITE_S3_ACCESS_KEY`, `VITE_S3_SECRET_KEY` — Cloud.ru S3
-- `VITE_S3_BUCKET_INVOICES`, `VITE_S3_BUCKET_DOCUMENTS` — имена бакетов S3
+- `VITE_S3_BUCKET` — имя единственного бакета S3 (файлы раскладываются по папкам контрагентов)
 - НЕ читать, НЕ искать, НЕ модифицировать файлы `.env`
 - При необходимости указать какие переменные нужны, но не запрашивать значения
 

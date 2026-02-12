@@ -91,7 +91,7 @@ export interface Invoice {
   date: string
   totalAmount: number
   status: InvoiceStatus
-  fileUrl: string
+  fileKey: string
   fileName: string
   ocrResult: string | null
   createdAt: string
@@ -118,7 +118,7 @@ export interface Document {
   documentTypeId: string
   siteId: string
   fileName: string
-  fileUrl: string
+  fileKey: string
   uploadedAt: string
   documentTypeName?: string
   siteName?: string
