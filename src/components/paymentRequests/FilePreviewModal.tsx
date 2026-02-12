@@ -64,7 +64,7 @@ const FilePreviewModal = ({ open, onClose, fileKey, fileName, mimeType }: FilePr
           <img
             src={url}
             alt={fileName}
-            style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain' }}
+            style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain' }}
           />
         </div>
       )
@@ -75,7 +75,7 @@ const FilePreviewModal = ({ open, onClose, fileKey, fileName, mimeType }: FilePr
         <iframe
           src={url}
           title={fileName}
-          style={{ width: '100%', height: '70vh', border: 'none' }}
+          style={{ width: '100%', height: '80vh', border: 'none' }}
         />
       )
     }
@@ -86,7 +86,7 @@ const FilePreviewModal = ({ open, onClose, fileKey, fileName, mimeType }: FilePr
         <iframe
           src={viewerUrl}
           title={fileName}
-          style={{ width: '100%', height: '70vh', border: 'none' }}
+          style={{ width: '100%', height: '80vh', border: 'none' }}
         />
       )
     }
@@ -104,7 +104,8 @@ const FilePreviewModal = ({ open, onClose, fileKey, fileName, mimeType }: FilePr
       open={open}
       onCancel={onClose}
       footer={null}
-      width={900}
+      width="80vw"
+      style={{ top: 20 }}
       destroyOnClose
     >
       {renderContent()}

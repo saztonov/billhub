@@ -23,7 +23,6 @@ const { Text } = Typography
 
 /** Полное меню (admin видит всё) */
 const allMenuItems: MenuProps['items'] = [
-  { key: '/counterparties', icon: <TeamOutlined />, label: 'Контрагенты' },
   { key: '/payment-requests', icon: <FileTextOutlined />, label: 'Заявки на оплату' },
   { key: '/distribution-letters', icon: <SendOutlined />, label: 'Распред. письма' },
   { key: '/approvals', icon: <CheckCircleOutlined />, label: 'Согласования' },
@@ -31,6 +30,7 @@ const allMenuItems: MenuProps['items'] = [
     type: 'group',
     label: 'Справочники',
     children: [
+      { key: '/counterparties', icon: <TeamOutlined />, label: 'Контрагенты' },
       { key: '/employees', icon: <UserOutlined />, label: 'Сотрудники' },
       { key: '/sites', icon: <BankOutlined />, label: 'Объекты' },
       { key: '/document-types', icon: <FolderOutlined />, label: 'Типы документов' },
@@ -51,7 +51,6 @@ const allMenuItems: MenuProps['items'] = [
 
 /** Меню для роли user (без администрирования) */
 const userMenuItems: MenuProps['items'] = [
-  { key: '/counterparties', icon: <TeamOutlined />, label: 'Контрагенты' },
   { key: '/payment-requests', icon: <FileTextOutlined />, label: 'Заявки на оплату' },
   { key: '/distribution-letters', icon: <SendOutlined />, label: 'Распред. письма' },
   { key: '/approvals', icon: <CheckCircleOutlined />, label: 'Согласования' },
@@ -59,6 +58,7 @@ const userMenuItems: MenuProps['items'] = [
     type: 'group',
     label: 'Справочники',
     children: [
+      { key: '/counterparties', icon: <TeamOutlined />, label: 'Контрагенты' },
       { key: '/employees', icon: <UserOutlined />, label: 'Сотрудники' },
       { key: '/sites', icon: <BankOutlined />, label: 'Объекты' },
       { key: '/document-types', icon: <FolderOutlined />, label: 'Типы документов' },
