@@ -76,7 +76,7 @@ src/
 - **OpenRouter.ai:** OCR через vision-модели, выбор модели в настройках
 
 ## Переменные окружения
-- `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` — облачный Supabase
+- `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY` — облачный Supabase
 - `VITE_OPENROUTER_API_KEY` — ключ OpenRouter.ai
 - `VITE_S3_ENDPOINT`, `VITE_S3_REGION`, `VITE_S3_ACCESS_KEY`, `VITE_S3_SECRET_KEY` — Cloud.ru S3
 - `VITE_S3_BUCKET_INVOICES`, `VITE_S3_BUCKET_DOCUMENTS` — имена бакетов S3
