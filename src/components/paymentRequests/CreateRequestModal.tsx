@@ -16,6 +16,7 @@ import { usePaymentRequestSettingsStore } from '@/store/paymentRequestSettingsSt
 import { useDocumentTypeStore } from '@/store/documentTypeStore'
 import { useAuthStore } from '@/store/authStore'
 import { useCounterpartyStore } from '@/store/counterpartyStore'
+import { useUploadQueueStore } from '@/store/uploadQueueStore'
 
 const { TextArea } = Input
 
@@ -44,6 +45,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
   const { fieldOptions, fetchFieldOptions, getOptionsByField } = usePaymentRequestSettingsStore()
   const { documentTypes, fetchDocumentTypes } = useDocumentTypeStore()
   const { counterparties, fetchCounterparties } = useCounterpartyStore()
+  const addUploadTask = useUploadQueueStore((s) => s.addTask)
 
   useEffect(() => {
     if (open) {
@@ -90,24 +92,32 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
         return
       }
 
-      await createRequest(
+      // Создаём заявку в БД (без загрузки файлов)
+      const { requestId, requestNumber } = await createRequest(
         {
           urgencyId: values.urgencyId,
           urgencyReason: values.urgencyReason,
           deliveryDays: values.deliveryDays,
           shippingConditionId: values.shippingConditionId,
           comment: values.comment,
-          files: fileList.map((f) => ({
-            file: f.file,
-            documentTypeId: f.documentTypeId!,
-          })),
         },
         user.counterpartyId,
-        cp.name,
         user.id,
       )
 
-      message.success('Заявка создана')
+      // Добавляем файлы в очередь фоновой загрузки
+      addUploadTask({
+        requestId,
+        requestNumber,
+        counterpartyName: cp.name,
+        files: fileList.map((f) => ({
+          file: f.file,
+          documentTypeId: f.documentTypeId!,
+        })),
+        userId: user.id,
+      })
+
+      message.success('Заявка создана, файлы загружаются...')
       form.resetFields()
       setFileList([])
       setFormValues({})

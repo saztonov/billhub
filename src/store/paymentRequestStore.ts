@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { supabase } from '@/services/supabase'
-import { uploadRequestFile, deleteFile } from '@/services/s3'
+import { deleteFile } from '@/services/s3'
 import type { PaymentRequest, PaymentRequestFile } from '@/types'
 
 interface CreateRequestData {
@@ -9,10 +9,6 @@ interface CreateRequestData {
   deliveryDays: number
   shippingConditionId: string
   comment?: string
-  files: Array<{
-    file: File
-    documentTypeId: string
-  }>
 }
 
 interface PaymentRequestStoreState {
@@ -25,9 +21,8 @@ interface PaymentRequestStoreState {
   createRequest: (
     data: CreateRequestData,
     counterpartyId: string,
-    counterpartyName: string,
     userId: string,
-  ) => Promise<void>
+  ) => Promise<{ requestId: string; requestNumber: string }>
   deleteRequest: (id: string) => Promise<void>
   withdrawRequest: (id: string) => Promise<void>
   updateRequestStatus: (id: string, statusId: string) => Promise<void>
@@ -95,9 +90,8 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
     }
   },
 
-  createRequest: async (data, counterpartyId, counterpartyName, userId) => {
+  createRequest: async (data, counterpartyId, userId) => {
     set({ isSubmitting: true, error: null })
-    const uploadedKeys: string[] = []
     try {
       // 1. Получаем id статуса "Отправлена"
       const { data: statusData, error: statusError } = await supabase
@@ -131,36 +125,11 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
         .single()
       if (reqError) throw reqError
 
-      // 4. Загрузка файлов в S3 и сохранение метаданных
-      for (const fileData of data.files) {
-        const { key } = await uploadRequestFile(
-          counterpartyName,
-          requestNumber as string,
-          fileData.file,
-        )
-        uploadedKeys.push(key)
-
-        const { error: fileError } = await supabase
-          .from('payment_request_files')
-          .insert({
-            payment_request_id: requestData.id,
-            document_type_id: fileData.documentTypeId,
-            file_name: fileData.file.name,
-            file_key: key,
-            file_size: fileData.file.size,
-            mime_type: fileData.file.type || null,
-            created_by: userId,
-          })
-        if (fileError) throw fileError
-      }
-
+      // Файлы загружаются отдельно через uploadQueueStore
       await get().fetchRequests(counterpartyId)
       set({ isSubmitting: false })
+      return { requestId: requestData.id as string, requestNumber: requestNumber as string }
     } catch (err) {
-      // Откат: удаляем загруженные файлы из S3
-      for (const key of uploadedKeys) {
-        await deleteFile(key).catch(() => {})
-      }
       const message = err instanceof Error ? err.message : 'Ошибка создания заявки'
       set({ error: message, isSubmitting: false })
       throw err

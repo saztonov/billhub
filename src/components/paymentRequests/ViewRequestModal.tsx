@@ -12,7 +12,8 @@ import {
 import { DownloadOutlined, EyeOutlined } from '@ant-design/icons'
 import { usePaymentRequestStore } from '@/store/paymentRequestStore'
 import { getDownloadUrl } from '@/services/s3'
-import type { PaymentRequest } from '@/types'
+import FilePreviewModal from './FilePreviewModal'
+import type { PaymentRequest, PaymentRequestFile } from '@/types'
 
 const { Text } = Typography
 
@@ -45,23 +46,13 @@ function formatDate(dateStr: string): string {
 const ViewRequestModal = ({ open, request, onClose }: ViewRequestModalProps) => {
   const { currentRequestFiles, fetchRequestFiles, isLoading } = usePaymentRequestStore()
   const [downloading, setDownloading] = useState<string | null>(null)
-  const [previewing, setPreviewing] = useState<string | null>(null)
+  const [previewFile, setPreviewFile] = useState<PaymentRequestFile | null>(null)
 
   useEffect(() => {
     if (open && request) {
       fetchRequestFiles(request.id)
     }
   }, [open, request, fetchRequestFiles])
-
-  const handlePreview = async (fileKey: string) => {
-    setPreviewing(fileKey)
-    try {
-      const url = await getDownloadUrl(fileKey)
-      window.open(url, '_blank')
-    } finally {
-      setPreviewing(null)
-    }
-  }
 
   const handleDownload = async (fileKey: string, fileName: string) => {
     setDownloading(fileKey)
@@ -80,75 +71,84 @@ const ViewRequestModal = ({ open, request, onClose }: ViewRequestModalProps) => 
   if (!request) return null
 
   return (
-    <Modal
-      title={`Заявка ${request.requestNumber}`}
-      open={open}
-      onCancel={onClose}
-      footer={<Button onClick={onClose}>Закрыть</Button>}
-      width={650}
-    >
-      <Descriptions column={1} size="small" bordered style={{ marginBottom: 16 }}>
-        <Descriptions.Item label="Номер">{request.requestNumber}</Descriptions.Item>
-        <Descriptions.Item label="Контрагент">{request.counterpartyName}</Descriptions.Item>
-        <Descriptions.Item label="Статус">
-          <Tag color={request.statusColor ?? 'default'}>{request.statusName}</Tag>
-        </Descriptions.Item>
-        <Descriptions.Item label="Срочность">{request.urgencyValue}</Descriptions.Item>
-        {request.urgencyReason && (
-          <Descriptions.Item label="Причина срочности">{request.urgencyReason}</Descriptions.Item>
-        )}
-        <Descriptions.Item label="Срок поставки">{request.deliveryDays} дн.</Descriptions.Item>
-        <Descriptions.Item label="Условия отгрузки">{request.shippingConditionValue}</Descriptions.Item>
-        {request.comment && (
-          <Descriptions.Item label="Комментарий">{request.comment}</Descriptions.Item>
-        )}
-        <Descriptions.Item label="Дата создания">{formatDate(request.createdAt)}</Descriptions.Item>
-      </Descriptions>
-
-      <Text strong style={{ marginBottom: 8, display: 'block' }}>
-        Файлы ({currentRequestFiles.length})
-      </Text>
-
-      <Spin spinning={isLoading}>
-        <List
-          size="small"
-          dataSource={currentRequestFiles}
-          locale={{ emptyText: 'Нет файлов' }}
-          renderItem={(file) => (
-            <List.Item
-              actions={[
-                <Button
-                  key="preview"
-                  icon={<EyeOutlined />}
-                  size="small"
-                  loading={previewing === file.fileKey}
-                  onClick={() => handlePreview(file.fileKey)}
-                >
-                  Просмотр
-                </Button>,
-                <Button
-                  key="download"
-                  icon={<DownloadOutlined />}
-                  size="small"
-                  loading={downloading === file.fileKey}
-                  onClick={() => handleDownload(file.fileKey, file.fileName)}
-                >
-                  Скачать
-                </Button>,
-              ]}
-            >
-              <Space>
-                <Text>{file.fileName}</Text>
-                <Text type="secondary">{formatSize(file.fileSize)}</Text>
-                {file.documentTypeName && (
-                  <Tag>{file.documentTypeName}</Tag>
-                )}
-              </Space>
-            </List.Item>
+    <>
+      <Modal
+        title={`Заявка ${request.requestNumber}`}
+        open={open}
+        onCancel={onClose}
+        footer={<Button onClick={onClose}>Закрыть</Button>}
+        width={650}
+      >
+        <Descriptions column={1} size="small" bordered style={{ marginBottom: 16 }}>
+          <Descriptions.Item label="Номер">{request.requestNumber}</Descriptions.Item>
+          <Descriptions.Item label="Контрагент">{request.counterpartyName}</Descriptions.Item>
+          <Descriptions.Item label="Статус">
+            <Tag color={request.statusColor ?? 'default'}>{request.statusName}</Tag>
+          </Descriptions.Item>
+          <Descriptions.Item label="Срочность">{request.urgencyValue}</Descriptions.Item>
+          {request.urgencyReason && (
+            <Descriptions.Item label="Причина срочности">{request.urgencyReason}</Descriptions.Item>
           )}
-        />
-      </Spin>
-    </Modal>
+          <Descriptions.Item label="Срок поставки">{request.deliveryDays} дн.</Descriptions.Item>
+          <Descriptions.Item label="Условия отгрузки">{request.shippingConditionValue}</Descriptions.Item>
+          {request.comment && (
+            <Descriptions.Item label="Комментарий">{request.comment}</Descriptions.Item>
+          )}
+          <Descriptions.Item label="Дата создания">{formatDate(request.createdAt)}</Descriptions.Item>
+        </Descriptions>
+
+        <Text strong style={{ marginBottom: 8, display: 'block' }}>
+          Файлы ({currentRequestFiles.length})
+        </Text>
+
+        <Spin spinning={isLoading}>
+          <List
+            size="small"
+            dataSource={currentRequestFiles}
+            locale={{ emptyText: 'Нет файлов' }}
+            renderItem={(file) => (
+              <List.Item
+                actions={[
+                  <Button
+                    key="preview"
+                    icon={<EyeOutlined />}
+                    size="small"
+                    onClick={() => setPreviewFile(file)}
+                  >
+                    Просмотр
+                  </Button>,
+                  <Button
+                    key="download"
+                    icon={<DownloadOutlined />}
+                    size="small"
+                    loading={downloading === file.fileKey}
+                    onClick={() => handleDownload(file.fileKey, file.fileName)}
+                  >
+                    Скачать
+                  </Button>,
+                ]}
+              >
+                <Space>
+                  <Text>{file.fileName}</Text>
+                  <Text type="secondary">{formatSize(file.fileSize)}</Text>
+                  {file.documentTypeName && (
+                    <Tag>{file.documentTypeName}</Tag>
+                  )}
+                </Space>
+              </List.Item>
+            )}
+          />
+        </Spin>
+      </Modal>
+
+      <FilePreviewModal
+        open={!!previewFile}
+        onClose={() => setPreviewFile(null)}
+        fileKey={previewFile?.fileKey ?? null}
+        fileName={previewFile?.fileName ?? ''}
+        mimeType={previewFile?.mimeType ?? null}
+      />
+    </>
   )
 }
 

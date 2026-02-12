@@ -9,13 +9,23 @@ import {
   Select,
   message,
 } from 'antd'
-import { PlusOutlined, EyeOutlined, DeleteOutlined } from '@ant-design/icons'
+import {
+  PlusOutlined,
+  EyeOutlined,
+  DeleteOutlined,
+  SyncOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  ReloadOutlined,
+} from '@ant-design/icons'
 import { usePaymentRequestStore } from '@/store/paymentRequestStore'
 import { useStatusStore } from '@/store/statusStore'
 import { useAuthStore } from '@/store/authStore'
+import { useUploadQueueStore } from '@/store/uploadQueueStore'
 import CreateRequestModal from '@/components/paymentRequests/CreateRequestModal'
 import ViewRequestModal from '@/components/paymentRequests/ViewRequestModal'
 import type { PaymentRequest } from '@/types'
+import { type UploadTask } from '@/store/uploadQueueStore'
 
 const { Title } = Typography
 
@@ -50,6 +60,7 @@ const PaymentRequestsPage = () => {
   } = usePaymentRequestStore()
 
   const { statuses, fetchStatuses } = useStatusStore()
+  const { retryTask, getTaskStatus } = useUploadQueueStore()
 
   useEffect(() => {
     fetchStatuses('payment_request')
@@ -126,6 +137,48 @@ const PaymentRequestsPage = () => {
       key: 'createdAt',
       width: 150,
       render: (date: string) => formatDate(date),
+    },
+    {
+      title: 'Загрузка',
+      key: 'upload',
+      width: 110,
+      render: (_: unknown, record: PaymentRequest) => {
+        const task: UploadTask | null = getTaskStatus(record.id)
+        if (!task) return null
+        if (task.status === 'uploading') {
+          return (
+            <Space size={4}>
+              <SyncOutlined spin style={{ color: '#fa8c16' }} />
+              <span style={{ color: '#fa8c16', fontSize: 12 }}>
+                {task.uploaded}/{task.total}
+              </span>
+            </Space>
+          )
+        }
+        if (task.status === 'success') {
+          return <CheckCircleOutlined style={{ color: '#52c41a' }} />
+        }
+        if (task.status === 'error') {
+          return (
+            <Space size={4}>
+              <CloseCircleOutlined style={{ color: '#f5222d' }} />
+              <Button
+                type="link"
+                size="small"
+                icon={<ReloadOutlined />}
+                onClick={() => retryTask(record.id)}
+                style={{ padding: 0 }}
+              >
+                Повторить
+              </Button>
+            </Space>
+          )
+        }
+        if (task.status === 'pending') {
+          return <SyncOutlined style={{ color: '#d9d9d9' }} />
+        }
+        return null
+      },
     },
     {
       title: 'Действия',
