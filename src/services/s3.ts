@@ -25,6 +25,37 @@ const s3Client = new S3Client({
   forcePathStyle: true,
 })
 
+// Базовый endpoint без trailing slash для корректной подмены в presigned URL
+const S3_BASE = S3_ENDPOINT.replace(/\/$/, '')
+
+/** Загрузка файла через presigned URL + fetch (обход CORS в dev через Vite proxy) */
+async function uploadToS3(key: string, file: File): Promise<void> {
+  const contentType = file.type || 'application/octet-stream'
+  const command = new PutObjectCommand({
+    Bucket: S3_BUCKET,
+    Key: key,
+    ContentType: contentType,
+  })
+
+  // Presigned URL генерируется локально, без HTTP-запроса
+  let url = await getSignedUrl(s3Client, command, { expiresIn: 300 })
+
+  // В dev-режиме подменяем endpoint на Vite proxy
+  if (import.meta.env.DEV) {
+    url = url.replace(S3_BASE, '/s3-proxy')
+  }
+
+  const res = await fetch(url, {
+    method: 'PUT',
+    body: file,
+    headers: { 'Content-Type': contentType },
+  })
+
+  if (!res.ok) {
+    throw new Error(`Ошибка загрузки файла: ${res.status} ${res.statusText}`)
+  }
+}
+
 /** Генерирует уникальный ключ для файла внутри папки контрагента */
 function generateFileKey(counterpartyName: string, fileName: string): string {
   const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_')
@@ -38,16 +69,7 @@ export async function uploadFile(
   file: File,
 ): Promise<{ key: string }> {
   const key = generateFileKey(counterpartyName, file.name)
-  const arrayBuffer = await file.arrayBuffer()
-
-  const command = new PutObjectCommand({
-    Bucket: S3_BUCKET,
-    Key: key,
-    Body: new Uint8Array(arrayBuffer),
-    ContentType: file.type,
-  })
-
-  await s3Client.send(command)
+  await uploadToS3(key, file)
   return { key }
 }
 
@@ -60,16 +82,7 @@ export async function uploadRequestFile(
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
   const timestamp = Date.now()
   const key = `${counterpartyName}/${requestNumber}/${timestamp}_${safeName}`
-  const arrayBuffer = await file.arrayBuffer()
-
-  const command = new PutObjectCommand({
-    Bucket: S3_BUCKET,
-    Key: key,
-    Body: new Uint8Array(arrayBuffer),
-    ContentType: file.type,
-  })
-
-  await s3Client.send(command)
+  await uploadToS3(key, file)
   return { key }
 }
 
@@ -105,7 +118,17 @@ export async function deleteFile(key: string): Promise<void> {
     Bucket: S3_BUCKET,
     Key: key,
   })
-  await s3Client.send(command)
+
+  let url = await getSignedUrl(s3Client, command, { expiresIn: 300 })
+
+  if (import.meta.env.DEV) {
+    url = url.replace(S3_BASE, '/s3-proxy')
+  }
+
+  const res = await fetch(url, { method: 'DELETE' })
+  if (!res.ok && res.status !== 404) {
+    throw new Error(`Ошибка удаления файла: ${res.status}`)
+  }
 }
 
 /** Получает список файлов контрагента */
