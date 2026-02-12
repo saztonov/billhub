@@ -21,11 +21,10 @@ import {
 import { usePaymentRequestStore } from '@/store/paymentRequestStore'
 import { useStatusStore } from '@/store/statusStore'
 import { useAuthStore } from '@/store/authStore'
-import { useUploadQueueStore } from '@/store/uploadQueueStore'
+import { useUploadQueueStore, type UploadTask } from '@/store/uploadQueueStore'
 import CreateRequestModal from '@/components/paymentRequests/CreateRequestModal'
 import ViewRequestModal from '@/components/paymentRequests/ViewRequestModal'
 import type { PaymentRequest } from '@/types'
-import { type UploadTask } from '@/store/uploadQueueStore'
 
 const { Title } = Typography
 
@@ -60,7 +59,8 @@ const PaymentRequestsPage = () => {
   } = usePaymentRequestStore()
 
   const { statuses, fetchStatuses } = useStatusStore()
-  const { retryTask, getTaskStatus } = useUploadQueueStore()
+  const uploadTasks = useUploadQueueStore((s) => s.tasks)
+  const retryTask = useUploadQueueStore((s) => s.retryTask)
 
   useEffect(() => {
     fetchStatuses('payment_request')
@@ -143,7 +143,7 @@ const PaymentRequestsPage = () => {
       key: 'upload',
       width: 110,
       render: (_: unknown, record: PaymentRequest) => {
-        const task: UploadTask | null = getTaskStatus(record.id)
+        const task: UploadTask | undefined = uploadTasks[record.id]
         if (!task) return null
         if (task.status === 'uploading') {
           return (
