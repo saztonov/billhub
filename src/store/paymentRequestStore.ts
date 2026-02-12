@@ -8,6 +8,7 @@ interface CreateRequestData {
   urgencyReason?: string
   deliveryDays: number
   shippingConditionId: string
+  siteId?: string
   comment?: string
 }
 
@@ -44,6 +45,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
         .select(`
           *,
           counterparties(name),
+          construction_sites(name),
           statuses!payment_requests_status_id_fkey(name, color),
           urgency:payment_request_field_options!payment_requests_urgency_id_fkey(value),
           shipping:payment_request_field_options!payment_requests_shipping_condition_id_fkey(value)
@@ -59,6 +61,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
 
       const requests: PaymentRequest[] = (data ?? []).map((row: Record<string, unknown>) => {
         const counterparties = row.counterparties as Record<string, unknown> | null
+        const site = row.construction_sites as Record<string, unknown> | null
         const statuses = row.statuses as Record<string, unknown> | null
         const urgency = row.urgency as Record<string, unknown> | null
         const shipping = row.shipping as Record<string, unknown> | null
@@ -66,6 +69,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
           id: row.id as string,
           requestNumber: row.request_number as string,
           counterpartyId: row.counterparty_id as string,
+          siteId: (row.site_id as string) ?? null,
           statusId: row.status_id as string,
           urgencyId: row.urgency_id as string,
           urgencyReason: row.urgency_reason as string | null,
@@ -76,6 +80,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
           createdAt: row.created_at as string,
           withdrawnAt: row.withdrawn_at as string | null,
           counterpartyName: counterparties?.name as string | undefined,
+          siteName: site?.name as string | undefined,
           statusName: statuses?.name as string | undefined,
           statusColor: (statuses?.color as string) ?? null,
           urgencyValue: urgency?.value as string | undefined,
@@ -113,6 +118,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
         .insert({
           request_number: requestNumber,
           counterparty_id: counterpartyId,
+          site_id: data.siteId || null,
           status_id: statusData.id,
           urgency_id: data.urgencyId,
           urgency_reason: data.urgencyReason || null,

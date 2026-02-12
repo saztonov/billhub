@@ -109,6 +109,7 @@ export interface PaymentRequest {
   id: string
   requestNumber: string
   counterpartyId: string
+  siteId: string | null
   statusId: string
   urgencyId: string
   urgencyReason: string | null
@@ -120,6 +121,7 @@ export interface PaymentRequest {
   withdrawnAt: string | null
   // Joined
   counterpartyName?: string
+  siteName?: string
   statusName?: string
   statusColor?: string | null
   urgencyValue?: string

@@ -5,6 +5,8 @@ import {
   Select,
   InputNumber,
   Input,
+  Row,
+  Col,
   message,
   Spin,
 } from 'antd'
@@ -16,6 +18,7 @@ import { usePaymentRequestSettingsStore } from '@/store/paymentRequestSettingsSt
 import { useDocumentTypeStore } from '@/store/documentTypeStore'
 import { useAuthStore } from '@/store/authStore'
 import { useCounterpartyStore } from '@/store/counterpartyStore'
+import { useConstructionSiteStore } from '@/store/constructionSiteStore'
 import { useUploadQueueStore } from '@/store/uploadQueueStore'
 
 const { TextArea } = Input
@@ -45,6 +48,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
   const { fieldOptions, fetchFieldOptions, getOptionsByField } = usePaymentRequestSettingsStore()
   const { documentTypes, fetchDocumentTypes } = useDocumentTypeStore()
   const { counterparties, fetchCounterparties } = useCounterpartyStore()
+  const { sites, fetchSites } = useConstructionSiteStore()
   const addUploadTask = useUploadQueueStore((s) => s.addTask)
 
   useEffect(() => {
@@ -52,14 +56,20 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
       fetchFieldOptions()
       if (documentTypes.length === 0) fetchDocumentTypes()
       if (counterparties.length === 0) fetchCounterparties()
+      if (sites.length === 0) fetchSites()
     }
-  }, [open, fetchFieldOptions, fetchDocumentTypes, fetchCounterparties, documentTypes.length, counterparties.length])
+  }, [open, fetchFieldOptions, fetchDocumentTypes, fetchCounterparties, fetchSites, documentTypes.length, counterparties.length, sites.length])
 
   // Определяем, выбрана ли "Срочная"
   const urgencyOptions = getOptionsByField('urgency')
   const urgentOption = urgencyOptions.find((o) => o.value === 'Срочная')
   const isUrgent = formValues.urgencyId === urgentOption?.id
   const shippingOptions = getOptionsByField('shipping_conditions')
+
+  // Опции объектов (только активные)
+  const siteOptions = sites
+    .filter((s) => s.isActive)
+    .map((s) => ({ label: s.name, value: s.id }))
 
   const handleValuesChange = (_: unknown, allValues: Record<string, unknown>) => {
     setFormValues(allValues)
@@ -99,6 +109,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
           urgencyReason: values.urgencyReason,
           deliveryDays: values.deliveryDays,
           shippingConditionId: values.shippingConditionId,
+          siteId: values.siteId,
           comment: values.comment,
         },
         user.counterpartyId,
@@ -144,7 +155,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
       okText="Создать"
       cancelText="Отмена"
       confirmLoading={isSubmitting}
-      width={700}
+      width={900}
       destroyOnClose
     >
       <Spin spinning={fieldOptions.length === 0 && open}>
@@ -153,22 +164,40 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
           <FileUploadList fileList={fileList} onChange={setFileList} />
         </div>
 
-        {/* Поля формы */}
+        {/* Поля формы — 2 колонки */}
         <Form
           form={form}
           layout="vertical"
           onValuesChange={handleValuesChange}
         >
-          <Form.Item
-            name="urgencyId"
-            label={fieldLabel('Срочность', !!formValues.urgencyId)}
-            rules={[{ required: true, message: 'Выберите срочность' }]}
-          >
-            <Select
-              placeholder="Выберите срочность"
-              options={urgencyOptions.map((o) => ({ label: o.value, value: o.id }))}
-            />
-          </Form.Item>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="siteId"
+                label={fieldLabel('Объект', !!formValues.siteId)}
+                rules={[{ required: true, message: 'Выберите объект' }]}
+              >
+                <Select
+                  placeholder="Выберите объект"
+                  showSearch
+                  optionFilterProp="label"
+                  options={siteOptions}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="urgencyId"
+                label={fieldLabel('Срочность', !!formValues.urgencyId)}
+                rules={[{ required: true, message: 'Выберите срочность' }]}
+              >
+                <Select
+                  placeholder="Выберите срочность"
+                  options={urgencyOptions.map((o) => ({ label: o.value, value: o.id }))}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
 
           {isUrgent && (
             <Form.Item
@@ -180,24 +209,29 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
             </Form.Item>
           )}
 
-          <Form.Item
-            name="deliveryDays"
-            label={fieldLabel('Срок поставки, дней', !!formValues.deliveryDays)}
-            rules={[{ required: true, message: 'Укажите срок поставки' }]}
-          >
-            <InputNumber min={1} style={{ width: '100%' }} placeholder="Количество дней" />
-          </Form.Item>
-
-          <Form.Item
-            name="shippingConditionId"
-            label={fieldLabel('Условия отгрузки', !!formValues.shippingConditionId)}
-            rules={[{ required: true, message: 'Выберите условия отгрузки' }]}
-          >
-            <Select
-              placeholder="Выберите условия"
-              options={shippingOptions.map((o) => ({ label: o.value, value: o.id }))}
-            />
-          </Form.Item>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="deliveryDays"
+                label={fieldLabel('Срок поставки, дней', !!formValues.deliveryDays)}
+                rules={[{ required: true, message: 'Укажите срок поставки' }]}
+              >
+                <InputNumber min={1} style={{ width: '100%' }} placeholder="Количество дней" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="shippingConditionId"
+                label={fieldLabel('Условия отгрузки', !!formValues.shippingConditionId)}
+                rules={[{ required: true, message: 'Выберите условия отгрузки' }]}
+              >
+                <Select
+                  placeholder="Выберите условия"
+                  options={shippingOptions.map((o) => ({ label: o.value, value: o.id }))}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
 
           <Form.Item name="comment" label="Комментарий">
             <TextArea rows={2} placeholder="Необязательное поле" />

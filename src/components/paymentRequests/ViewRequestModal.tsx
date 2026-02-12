@@ -82,6 +82,9 @@ const ViewRequestModal = ({ open, request, onClose }: ViewRequestModalProps) => 
         <Descriptions column={1} size="small" bordered style={{ marginBottom: 16 }}>
           <Descriptions.Item label="Номер">{request.requestNumber}</Descriptions.Item>
           <Descriptions.Item label="Контрагент">{request.counterpartyName}</Descriptions.Item>
+          {request.siteName && (
+            <Descriptions.Item label="Объект">{request.siteName}</Descriptions.Item>
+          )}
           <Descriptions.Item label="Статус">
             <Tag color={request.statusColor ?? 'default'}>{request.statusName}</Tag>
           </Descriptions.Item>
