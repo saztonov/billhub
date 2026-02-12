@@ -1,0 +1,58 @@
+import { Form, Input, Button, Typography, message } from 'antd'
+import { LockOutlined, MailOutlined } from '@ant-design/icons'
+import { useNavigate } from 'react-router-dom'
+import { useAuthStore } from '@/store/authStore'
+
+const { Title } = Typography
+
+const LoginPage = () => {
+  const navigate = useNavigate()
+  const { login, isLoading, error } = useAuthStore()
+
+  const onFinish = async (values: { email: string; password: string }) => {
+    await login(values.email, values.password)
+    const { isAuthenticated } = useAuthStore.getState()
+    if (isAuthenticated) {
+      navigate('/')
+    } else {
+      message.error(error || 'Ошибка авторизации')
+    }
+  }
+
+  return (
+    <div>
+      <Title level={3} style={{ textAlign: 'center', marginBottom: 24 }}>
+        Вход в систему
+      </Title>
+      <Form
+        name="login"
+        onFinish={onFinish}
+        layout="vertical"
+        size="large"
+      >
+        <Form.Item
+          name="email"
+          rules={[
+            { required: true, message: 'Введите email' },
+            { type: 'email', message: 'Некорректный email' },
+          ]}
+        >
+          <Input prefix={<MailOutlined />} placeholder="Email" />
+        </Form.Item>
+        <Form.Item
+          name="password"
+          rules={[{ required: true, message: 'Введите пароль' }]}
+        >
+          <Input.Password prefix={<LockOutlined />} placeholder="Пароль" />
+        </Form.Item>
+        <Form.Item>
+          <Button type="primary" htmlType="submit" loading={isLoading} block>
+            Войти
+          </Button>
+        </Form.Item>
+      </Form>
+    </div>
+  )
+}
+
+export default LoginPage
