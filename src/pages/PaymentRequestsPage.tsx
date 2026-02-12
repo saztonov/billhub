@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Typography,
   Table,
@@ -40,6 +40,12 @@ function formatDate(dateStr: string): string {
     hour: '2-digit',
     minute: '2-digit',
   })
+}
+
+/** Уникальные значения для фильтра */
+function uniqueFilters(items: (string | undefined)[]): { text: string; value: string }[] {
+  const unique = [...new Set(items.filter(Boolean) as string[])]
+  return unique.sort().map((v) => ({ text: v, value: v }))
 }
 
 const PaymentRequestsPage = () => {
@@ -96,7 +102,6 @@ const PaymentRequestsPage = () => {
   const statusOptions = statuses
     .filter((s) => {
       if (!s.isActive) return false
-      // Фильтрация по видимости ролей
       if (s.visibleRoles && s.visibleRoles.length > 0 && user?.role) {
         return s.visibleRoles.includes(user.role)
       }
@@ -104,22 +109,57 @@ const PaymentRequestsPage = () => {
     })
     .map((s) => ({ label: s.name, value: s.id }))
 
+  // Опции фильтров из данных таблицы
+  const counterpartyFilters = useMemo(
+    () => uniqueFilters(requests.map((r) => r.counterpartyName)),
+    [requests],
+  )
+  const statusFilters = useMemo(
+    () => uniqueFilters(requests.map((r) => r.statusName)),
+    [requests],
+  )
+  const urgencyFilters = useMemo(
+    () => uniqueFilters(requests.map((r) => r.urgencyValue)),
+    [requests],
+  )
+  const siteFilters = useMemo(
+    () => uniqueFilters(requests.map((r) => r.siteName)),
+    [requests],
+  )
+
   const columns = [
     {
       title: 'Номер',
       dataIndex: 'requestNumber',
       key: 'requestNumber',
       width: 170,
+      sorter: (a: PaymentRequest, b: PaymentRequest) =>
+        a.requestNumber.localeCompare(b.requestNumber),
     },
     {
       title: 'Контрагент',
       dataIndex: 'counterpartyName',
       key: 'counterpartyName',
+      filters: counterpartyFilters,
+      onFilter: (value: unknown, record: PaymentRequest) =>
+        record.counterpartyName === value,
+    },
+    {
+      title: 'Объект',
+      dataIndex: 'siteName',
+      key: 'siteName',
+      filters: siteFilters,
+      onFilter: (value: unknown, record: PaymentRequest) =>
+        record.siteName === value,
+      render: (name: string | undefined) => name ?? '—',
     },
     {
       title: 'Статус',
       key: 'status',
       width: 150,
+      filters: statusFilters,
+      onFilter: (value: unknown, record: PaymentRequest) =>
+        record.statusName === value,
       render: (_: unknown, record: PaymentRequest) => (
         <Tag color={record.statusColor ?? 'default'}>
           {record.statusName}
@@ -131,12 +171,17 @@ const PaymentRequestsPage = () => {
       dataIndex: 'urgencyValue',
       key: 'urgencyValue',
       width: 120,
+      filters: urgencyFilters,
+      onFilter: (value: unknown, record: PaymentRequest) =>
+        record.urgencyValue === value,
     },
     {
       title: 'Срок поставки',
       dataIndex: 'deliveryDays',
       key: 'deliveryDays',
       width: 130,
+      sorter: (a: PaymentRequest, b: PaymentRequest) =>
+        a.deliveryDays - b.deliveryDays,
       render: (days: number) => `${days} дн.`,
     },
     {
@@ -144,6 +189,9 @@ const PaymentRequestsPage = () => {
       dataIndex: 'createdAt',
       key: 'createdAt',
       width: 150,
+      sorter: (a: PaymentRequest, b: PaymentRequest) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+      defaultSortOrder: 'descend' as const,
       render: (date: string) => formatDate(date),
     },
     {
@@ -274,7 +322,7 @@ const PaymentRequestsPage = () => {
         dataSource={requests}
         rowKey="id"
         loading={isLoading}
-        scroll={{ x: 1000 }}
+        scroll={{ x: 1200 }}
       />
 
       {/* Модал создания */}
