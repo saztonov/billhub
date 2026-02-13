@@ -153,15 +153,11 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
       cancelText="Отмена"
       confirmLoading={isSubmitting}
       width={900}
+      styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}
       destroyOnClose
     >
       <Spin spinning={fieldOptions.length === 0 && open}>
-        {/* Загрузка файлов */}
-        <div style={{ marginBottom: 16 }}>
-          <FileUploadList fileList={fileList} onChange={setFileList} />
-        </div>
-
-        {/* Поля формы — 2 колонки */}
+        {/* Поля формы */}
         <Form
           form={form}
           layout="vertical"
@@ -229,6 +225,11 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
             <TextArea rows={2} placeholder="Необязательное поле" />
           </Form.Item>
         </Form>
+
+        {/* Загрузка файлов */}
+        <div style={{ marginTop: 8 }}>
+          <FileUploadList fileList={fileList} onChange={setFileList} />
+        </div>
       </Spin>
     </Modal>
   )
