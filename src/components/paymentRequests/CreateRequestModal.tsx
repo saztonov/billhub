@@ -154,6 +154,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
       confirmLoading={isSubmitting}
       width={900}
       styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}
+      maskClosable={false}
       destroyOnClose
     >
       <Spin spinning={fieldOptions.length === 0 && open}>
