@@ -276,6 +276,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit }: 
         onCancel={onClose}
         footer={modalFooter}
         width="80%"
+        maskClosable={false}
       >
         {/* Реквизиты */}
         <Descriptions column={2} size="small" bordered style={{ marginBottom: 16 }}>
