@@ -98,3 +98,73 @@ export async function checkAndNotifyMissingSpecialists(
     }
   }
 }
+
+/**
+ * Проверяет, назначен ли ответственный менеджер у контрагента заявки.
+ * Если нет — создаёт уведомления для пользователей отделов закупок и админов.
+ */
+export async function checkAndNotifyMissingManager(
+  paymentRequestId: string,
+  procurementDepartmentIds: string[],
+) {
+  if (procurementDepartmentIds.length === 0) return
+
+  // Загружаем данные заявки с контрагентом
+  const { data: prData } = await supabase
+    .from('payment_requests')
+    .select('counterparty_id, request_number, counterparties(name, responsible_user_id)')
+    .eq('id', paymentRequestId)
+    .single()
+  if (!prData) return
+
+  const counterparty = prData.counterparties as unknown as { name: string; responsible_user_id: string | null } | null
+  if (!counterparty) return
+
+  // Если ответственный назначен — всё в порядке
+  if (counterparty.responsible_user_id) return
+
+  const requestNumber = prData.request_number as string
+  const counterpartyName = counterparty.name
+
+  // Дедупликация: проверяем нет ли нерешённого уведомления
+  const { data: existing } = await supabase
+    .from('notifications')
+    .select('id')
+    .eq('type', 'missing_manager')
+    .eq('payment_request_id', paymentRequestId)
+    .eq('resolved', false)
+    .limit(1)
+  if (existing && existing.length > 0) return
+
+  // Получатели: пользователи из отделов закупок + все админы
+  const { data: procurementUsers } = await supabase
+    .from('users')
+    .select('id')
+    .in('department_id', procurementDepartmentIds)
+    .in('role', ['admin', 'user'])
+
+  const { data: adminUsers } = await supabase
+    .from('users')
+    .select('id')
+    .eq('role', 'admin')
+
+  const recipientIds = new Set<string>()
+  for (const u of procurementUsers ?? []) {
+    recipientIds.add((u as Record<string, unknown>).id as string)
+  }
+  for (const u of adminUsers ?? []) {
+    recipientIds.add((u as Record<string, unknown>).id as string)
+  }
+
+  const notifications = Array.from(recipientIds).map((uid) => ({
+    type: 'missing_manager',
+    title: 'Не назначен ответственный менеджер',
+    message: `Заявка №${requestNumber}: контрагент "${counterpartyName}" не имеет назначенного ответственного менеджера в отделе закупок`,
+    user_id: uid,
+    payment_request_id: paymentRequestId,
+  }))
+
+  if (notifications.length > 0) {
+    await supabase.from('notifications').insert(notifications)
+  }
+}

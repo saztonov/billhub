@@ -4,7 +4,7 @@ import { Layout, Menu, Typography, Avatar, Flex, Dropdown, Badge, Popover, List,
 import type { MenuProps } from 'antd'
 import {
   FileTextOutlined,
-  SendOutlined,
+
   UserOutlined,
   FolderOutlined,
   SettingOutlined,
@@ -21,7 +21,6 @@ const { Text } = Typography
 /** Полное меню (admin видит всё) */
 const allMenuItems: MenuProps['items'] = [
   { key: '/payment-requests', icon: <FileTextOutlined />, label: 'Заявки на оплату' },
-  { key: '/distribution-letters', icon: <SendOutlined />, label: 'Распред. письма' },
   { key: '/references', icon: <FolderOutlined />, label: 'Справочники' },
   { key: '/admin', icon: <SettingOutlined />, label: 'Администрирование' },
 ]
@@ -29,7 +28,6 @@ const allMenuItems: MenuProps['items'] = [
 /** Меню для роли user (без администрирования) */
 const userMenuItems: MenuProps['items'] = [
   { key: '/payment-requests', icon: <FileTextOutlined />, label: 'Заявки на оплату' },
-  { key: '/distribution-letters', icon: <SendOutlined />, label: 'Распред. письма' },
   { key: '/references', icon: <FolderOutlined />, label: 'Справочники' },
 ]
 

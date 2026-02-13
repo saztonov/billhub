@@ -27,6 +27,8 @@ export interface Counterparty {
   inn: string
   address: string
   alternativeNames: string[]
+  responsibleUserId: string | null
+  responsibleUserEmail: string | null
   createdAt: string
 }
 
@@ -60,6 +62,7 @@ export interface Department {
   name: string
   description: string
   isActive: boolean
+  isProcurement: boolean
   createdAt: string
 }
 
@@ -246,7 +249,7 @@ export interface User {
 }
 
 /** Тип уведомления */
-export type NotificationType = 'missing_specialist' | 'info' | 'error'
+export type NotificationType = 'missing_specialist' | 'missing_manager' | 'info' | 'error'
 
 /** Уведомление */
 export interface AppNotification {

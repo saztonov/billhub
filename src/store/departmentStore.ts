@@ -31,6 +31,7 @@ export const useDepartmentStore = create<DepartmentStoreState>((set, get) => ({
         name: row.name as string,
         description: row.description as string,
         isActive: row.is_active as boolean,
+        isProcurement: row.is_procurement as boolean,
         createdAt: row.created_at as string,
       }))
 
@@ -48,6 +49,7 @@ export const useDepartmentStore = create<DepartmentStoreState>((set, get) => ({
         name: data.name,
         description: data.description || '',
         is_active: data.isActive ?? true,
+        is_procurement: data.isProcurement ?? false,
       })
       if (error) throw error
       await get().fetchDepartments()
@@ -66,6 +68,7 @@ export const useDepartmentStore = create<DepartmentStoreState>((set, get) => ({
           name: data.name,
           description: data.description,
           is_active: data.isActive,
+          is_procurement: data.isProcurement,
         })
         .eq('id', id)
       if (error) throw error

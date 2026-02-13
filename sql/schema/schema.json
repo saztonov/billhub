@@ -229,6 +229,15 @@
               "position": 10,
               "max_length": null,
               "numeric_precision": null
+            },
+            {
+              "name": "responsible_user_id",
+              "type": "uuid",
+              "default": null,
+              "nullable": true,
+              "position": 11,
+              "max_length": null,
+              "numeric_precision": null
             }
           ]
         },
@@ -272,11 +281,20 @@
               "numeric_precision": null
             },
             {
+              "name": "is_procurement",
+              "type": "boolean",
+              "default": "false",
+              "nullable": false,
+              "position": 5,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
               "name": "created_at",
               "type": "timestamp with time zone",
               "default": "now()",
               "nullable": false,
-              "position": 5,
+              "position": 6,
               "max_length": null,
               "numeric_precision": null
             }
@@ -1828,6 +1846,17 @@
           "table_name": "approval_stages",
           "constraint_name": "approval_stages_department_id_fkey",
           "references_table": "departments",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "responsible_user_id"
+          ],
+          "table_name": "counterparties",
+          "constraint_name": "counterparties_responsible_user_id_fkey",
+          "references_table": "users",
           "references_columns": [
             "id"
           ]

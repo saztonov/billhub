@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { supabase } from '@/services/supabase'
-import { checkAndNotifyMissingSpecialists } from '@/utils/approvalNotifications'
+import { checkAndNotifyMissingSpecialists, checkAndNotifyMissingManager } from '@/utils/approvalNotifications'
 import type { ApprovalStage, ApprovalDecision, PaymentRequest } from '@/types'
 
 /** Сгруппированный этап для UI: номер этапа + массив подразделений */
@@ -268,6 +268,21 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
             paymentRequestId,
             nextStages.map((s: Record<string, unknown>) => ({ department_id: s.department_id as string })),
           )
+
+          // Проверяем, есть ли среди подразделений следующего этапа отдел закупок
+          const nextDeptIds = nextStages.map((s: Record<string, unknown>) => s.department_id as string)
+          const { data: procDepts } = await supabase
+            .from('departments')
+            .select('id')
+            .in('id', nextDeptIds)
+            .eq('is_procurement', true)
+
+          if (procDepts && procDepts.length > 0) {
+            await checkAndNotifyMissingManager(
+              paymentRequestId,
+              procDepts.map((d: Record<string, unknown>) => d.id as string),
+            )
+          }
         } else {
           // Все этапы пройдены — устанавливаем статус Согласована
           const { data: statusData, error: stError } = await supabase
@@ -354,6 +369,14 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
       // Получаем настройки объектов пользователя
       const { allSites, siteIds: userSiteIds } = await getUserSiteIds(userId)
 
+      // Проверяем, является ли подразделение отделом закупок
+      const { data: deptData } = await supabase
+        .from('departments')
+        .select('is_procurement')
+        .eq('id', departmentId)
+        .single()
+      const isProcurement = (deptData?.is_procurement as boolean) ?? false
+
       // Находим id заявок, ожидающих решения этого подразделения
       const { data: decisions, error: decError } = await supabase
         .from('approval_decisions')
@@ -388,7 +411,31 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
       const { data, error } = await query
       if (error) throw error
 
-      set({ pendingRequests: (data ?? []).map(mapRequest), isLoading: false })
+      let filteredRequests = (data ?? []).map(mapRequest)
+
+      // Для отдела закупок — фильтрация по ответственному менеджеру контрагента
+      if (isProcurement) {
+        const counterpartyIds = [...new Set(filteredRequests.map((r) => r.counterpartyId))]
+        if (counterpartyIds.length > 0) {
+          const { data: cpData } = await supabase
+            .from('counterparties')
+            .select('id, responsible_user_id')
+            .in('id', counterpartyIds)
+
+          const cpMap = new Map<string, string | null>()
+          for (const cp of cpData ?? []) {
+            const row = cp as Record<string, unknown>
+            cpMap.set(row.id as string, (row.responsible_user_id as string) ?? null)
+          }
+
+          filteredRequests = filteredRequests.filter((r) => {
+            const responsibleUserId = cpMap.get(r.counterpartyId)
+            return responsibleUserId === userId
+          })
+        }
+      }
+
+      set({ pendingRequests: filteredRequests, isLoading: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка загрузки заявок'
       set({ error: message, isLoading: false })

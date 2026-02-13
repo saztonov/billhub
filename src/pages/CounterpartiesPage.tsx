@@ -6,6 +6,7 @@ import {
   Modal,
   Form,
   Input,
+  Select,
   Popconfirm,
   message,
 } from 'antd'
@@ -19,8 +20,10 @@ const CounterpartiesPage = () => {
   const [form] = Form.useForm()
   const {
     counterparties,
+    procurementUsers,
     isLoading,
     fetchCounterparties,
+    fetchProcurementUsers,
     createCounterparty,
     updateCounterparty,
     deleteCounterparty,
@@ -28,7 +31,8 @@ const CounterpartiesPage = () => {
 
   useEffect(() => {
     fetchCounterparties()
-  }, [fetchCounterparties])
+    fetchProcurementUsers()
+  }, [fetchCounterparties, fetchProcurementUsers])
 
   const handleCreate = () => {
     setEditingRecord(null)
@@ -68,6 +72,12 @@ const CounterpartiesPage = () => {
       dataIndex: 'alternativeNames',
       key: 'alternativeNames',
       render: (names: string[]) => names?.join('; ') || '',
+    },
+    {
+      title: 'Ответственный менеджер',
+      dataIndex: 'responsibleUserEmail',
+      key: 'responsibleUserEmail',
+      render: (email: string | null) => email || '\u2014',
     },
     {
       title: 'Действия',
@@ -111,6 +121,15 @@ const CounterpartiesPage = () => {
           </Form.Item>
           <Form.Item name="inn" label="ИНН" rules={[{ required: true, message: 'Введите ИНН' }]}>
             <Input />
+          </Form.Item>
+          <Form.Item name="responsibleUserId" label="Ответственный менеджер (закупки)">
+            <Select
+              allowClear
+              placeholder="Выберите ответственного"
+              showSearch
+              optionFilterProp="label"
+              options={procurementUsers.map((u) => ({ value: u.id, label: u.email }))}
+            />
           </Form.Item>
           <Form.List name="alternativeNames">
             {(fields, { add, remove }) => (

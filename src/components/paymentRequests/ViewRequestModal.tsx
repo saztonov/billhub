@@ -58,6 +58,7 @@ const ViewRequestModal = ({ open, request, onClose }: ViewRequestModalProps) => 
   const user = useAuthStore((s) => s.user)
   const isCounterpartyUser = user?.role === 'counterparty_user'
   const [downloading, setDownloading] = useState<string | null>(null)
+  const [downloadingAll, setDownloadingAll] = useState(false)
   const [previewFile, setPreviewFile] = useState<PaymentRequestFile | null>(null)
 
   useEffect(() => {
@@ -85,6 +86,28 @@ const ViewRequestModal = ({ open, request, onClose }: ViewRequestModalProps) => 
     }
     return null
   }, [request, currentDecisions])
+
+  /** Скачать все файлы */
+  const handleDownloadAll = async () => {
+    if (!currentRequestFiles.length) return
+    setDownloadingAll(true)
+    try {
+      const downloads = currentRequestFiles.map(async (file) => {
+        const url = await getDownloadUrl(file.fileKey)
+        const resp = await fetch(url)
+        const blob = await resp.blob()
+        const blobUrl = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = blobUrl
+        a.download = file.fileName
+        a.click()
+        URL.revokeObjectURL(blobUrl)
+      })
+      await Promise.allSettled(downloads)
+    } finally {
+      setDownloadingAll(false)
+    }
+  }
 
   const handleDownload = async (fileKey: string, fileName: string) => {
     setDownloading(fileKey)
@@ -181,9 +204,21 @@ const ViewRequestModal = ({ open, request, onClose }: ViewRequestModalProps) => 
           )}
         </Descriptions>
 
-        <Text strong style={{ marginBottom: 8, display: 'block' }}>
-          Файлы ({currentRequestFiles.length})
-        </Text>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <Text strong>
+            Файлы ({currentRequestFiles.length})
+          </Text>
+          {currentRequestFiles.length > 0 && (
+            <Button
+              size="small"
+              icon={<DownloadOutlined />}
+              loading={downloadingAll}
+              onClick={handleDownloadAll}
+            >
+              Скачать все
+            </Button>
+          )}
+        </div>
 
         <Table
           size="small"

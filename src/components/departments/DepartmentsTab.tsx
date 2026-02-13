@@ -55,6 +55,7 @@ const DepartmentsTab = () => {
       name: values.name,
       description: values.description || '',
       isActive: values.isActive ?? true,
+      isProcurement: values.isProcurement ?? false,
     }
     if (editingRecord) {
       await updateDepartment(editingRecord.id, payload)
@@ -77,6 +78,12 @@ const DepartmentsTab = () => {
       render: (val: boolean) => (
         <Tag color={val ? 'green' : 'default'}>{val ? 'Да' : 'Нет'}</Tag>
       ),
+    },
+    {
+      title: 'Отдел закупок',
+      dataIndex: 'isProcurement',
+      key: 'isProcurement',
+      render: (val: boolean) => val ? <Tag color="blue">Закупки</Tag> : null,
     },
     {
       title: 'Действия',
@@ -122,6 +129,9 @@ const DepartmentsTab = () => {
             <Input.TextArea rows={3} />
           </Form.Item>
           <Form.Item name="isActive" label="Активен" valuePropName="checked" initialValue={true}>
+            <Switch />
+          </Form.Item>
+          <Form.Item name="isProcurement" label="Отдел закупок" valuePropName="checked" initialValue={false}>
             <Switch />
           </Form.Item>
         </Form>
