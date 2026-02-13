@@ -83,6 +83,9 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
           totalFiles: (row.total_files as number) ?? 0,
           uploadedFiles: (row.uploaded_files as number) ?? 0,
           withdrawnAt: row.withdrawn_at as string | null,
+          currentStage: (row.current_stage as number) ?? null,
+          approvedAt: row.approved_at as string | null,
+          rejectedAt: row.rejected_at as string | null,
           counterpartyName: counterparties?.name as string | undefined,
           siteName: site?.name as string | undefined,
           statusName: statuses?.name as string | undefined,
@@ -136,6 +139,27 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
         .select('id')
         .single()
       if (reqError) throw reqError
+
+      // 4. Проверяем наличие этапов согласования и запускаем цепочку
+      const { data: firstStage } = await supabase
+        .from('approval_stages')
+        .select('stage_order, department_id')
+        .eq('stage_order', 1)
+      if (firstStage && firstStage.length > 0) {
+        // Создаём pending-записи для подразделений 1 этапа
+        const decisions = firstStage.map((s: Record<string, unknown>) => ({
+          payment_request_id: requestData.id,
+          stage_order: 1,
+          department_id: s.department_id as string,
+          status: 'pending',
+        }))
+        await supabase.from('approval_decisions').insert(decisions)
+        // Устанавливаем текущий этап
+        await supabase
+          .from('payment_requests')
+          .update({ current_stage: 1 })
+          .eq('id', requestData.id)
+      }
 
       // Файлы загружаются отдельно через uploadQueueStore
       await get().fetchRequests(counterpartyId)

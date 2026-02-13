@@ -7,7 +7,7 @@ import UsersPage from './UsersPage'
 
 const { Title } = Typography
 
-const DEFAULT_TAB = 'approval-chains'
+const DEFAULT_TAB = 'approvals'
 
 const AdminPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -18,7 +18,7 @@ const AdminPage = () => {
   }
 
   const items = [
-    { key: 'approval-chains', label: 'Цепочки согласований', children: <ApprovalChainsPage /> },
+    { key: 'approvals', label: 'Согласования', children: <ApprovalChainsPage /> },
     { key: 'site-documents', label: 'Документы объектов', children: <SiteDocumentsPage /> },
     { key: 'payment-requests', label: 'Настройки заявок', children: <PaymentRequestSettingsPage /> },
     { key: 'users', label: 'Пользователи', children: <UsersPage /> },

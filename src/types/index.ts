@@ -124,6 +124,9 @@ export interface PaymentRequest {
   uploadedFiles: number
   createdAt: string
   withdrawnAt: string | null
+  currentStage: number | null
+  approvedAt: string | null
+  rejectedAt: string | null
   // Joined
   counterpartyName?: string
   siteName?: string
@@ -189,41 +192,31 @@ export interface DistributionLetter {
 
 // Согласования
 
-/** Цепочка согласования (конструктор) */
-export interface ApprovalChain {
+/** Этап цепочки согласования (конфигурация) */
+export interface ApprovalStage {
   id: string
-  name: string
-  description: string
-  isActive: boolean
+  stageOrder: number
+  departmentId: string
   createdAt: string
+  departmentName?: string
 }
 
-/** Этап (шаг) в цепочке согласования */
-export interface ApprovalStep {
-  id: string
-  chainId: string
-  stepOrder: number
-  employeeId: string
-  role: string
-  isRequired: boolean
-  employeeName?: string
-}
+/** Статус решения по согласованию */
+export type ApprovalDecisionStatus = 'pending' | 'approved' | 'rejected'
 
-/** Статус согласования */
-export type ApprovalStatus = 'pending' | 'approved' | 'rejected'
-
-/** Факт согласования/отклонения */
-export interface Approval {
+/** Решение по согласованию (факт) */
+export interface ApprovalDecision {
   id: string
-  distributionLetterId: string
-  stepId: string
-  employeeId: string
-  status: ApprovalStatus
+  paymentRequestId: string
+  stageOrder: number
+  departmentId: string
+  status: ApprovalDecisionStatus
+  userId: string | null
   comment: string
   decidedAt: string | null
   createdAt: string
-  employeeName?: string
-  stepOrder?: number
+  departmentName?: string
+  userEmail?: string
 }
 
 // Настройки
@@ -248,6 +241,7 @@ export interface User {
   email: string
   role: UserRole
   counterpartyId: string | null
+  departmentId: string | null
 }
 
 /** Состояние аутентификации */

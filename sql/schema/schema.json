@@ -6,7 +6,7 @@
       "schema": "public",
       "tables": [
         {
-          "name": "approval_chain_edges",
+          "name": "approval_decisions",
           "columns": [
             {
               "name": "id",
@@ -18,7 +18,7 @@
               "numeric_precision": null
             },
             {
-              "name": "chain_id",
+              "name": "payment_request_id",
               "type": "uuid",
               "default": null,
               "nullable": false,
@@ -27,58 +27,8 @@
               "numeric_precision": null
             },
             {
-              "name": "source_node_id",
-              "type": "uuid",
-              "default": null,
-              "nullable": false,
-              "position": 3,
-              "max_length": null,
-              "numeric_precision": null
-            },
-            {
-              "name": "target_node_id",
-              "type": "uuid",
-              "default": null,
-              "nullable": false,
-              "position": 4,
-              "max_length": null,
-              "numeric_precision": null
-            },
-            {
-              "name": "created_at",
-              "type": "timestamp with time zone",
-              "default": "now()",
-              "nullable": false,
-              "position": 5,
-              "max_length": null,
-              "numeric_precision": null
-            }
-          ]
-        },
-        {
-          "name": "approval_chain_nodes",
-          "columns": [
-            {
-              "name": "id",
-              "type": "uuid",
-              "default": "gen_random_uuid()",
-              "nullable": false,
-              "position": 1,
-              "max_length": null,
-              "numeric_precision": null
-            },
-            {
-              "name": "chain_id",
-              "type": "uuid",
-              "default": null,
-              "nullable": false,
-              "position": 2,
-              "max_length": null,
-              "numeric_precision": null
-            },
-            {
-              "name": "node_type",
-              "type": "text",
+              "name": "stage_order",
+              "type": "integer",
               "default": null,
               "nullable": false,
               "position": 3,
@@ -87,192 +37,6 @@
             },
             {
               "name": "department_id",
-              "type": "uuid",
-              "default": null,
-              "nullable": true,
-              "position": 4,
-              "max_length": null,
-              "numeric_precision": null
-            },
-            {
-              "name": "label",
-              "type": "text",
-              "default": "''::text",
-              "nullable": false,
-              "position": 5,
-              "max_length": null,
-              "numeric_precision": null
-            },
-            {
-              "name": "position_x",
-              "type": "double precision",
-              "default": "0",
-              "nullable": false,
-              "position": 6,
-              "max_length": null,
-              "numeric_precision": 53
-            },
-            {
-              "name": "position_y",
-              "type": "double precision",
-              "default": "0",
-              "nullable": false,
-              "position": 7,
-              "max_length": null,
-              "numeric_precision": 53
-            },
-            {
-              "name": "created_at",
-              "type": "timestamp with time zone",
-              "default": "now()",
-              "nullable": false,
-              "position": 8,
-              "max_length": null,
-              "numeric_precision": null
-            }
-          ]
-        },
-        {
-          "name": "approval_chains",
-          "columns": [
-            {
-              "name": "id",
-              "type": "uuid",
-              "default": "gen_random_uuid()",
-              "nullable": false,
-              "position": 1,
-              "max_length": null,
-              "numeric_precision": null
-            },
-            {
-              "name": "name",
-              "type": "text",
-              "default": null,
-              "nullable": false,
-              "position": 2,
-              "max_length": null,
-              "numeric_precision": null
-            },
-            {
-              "name": "description",
-              "type": "text",
-              "default": "''::text",
-              "nullable": false,
-              "position": 3,
-              "max_length": null,
-              "numeric_precision": null
-            },
-            {
-              "name": "is_active",
-              "type": "boolean",
-              "default": "true",
-              "nullable": false,
-              "position": 4,
-              "max_length": null,
-              "numeric_precision": null
-            },
-            {
-              "name": "created_at",
-              "type": "timestamp with time zone",
-              "default": "now()",
-              "nullable": false,
-              "position": 5,
-              "max_length": null,
-              "numeric_precision": null
-            }
-          ]
-        },
-        {
-          "name": "approval_steps",
-          "columns": [
-            {
-              "name": "id",
-              "type": "uuid",
-              "default": "gen_random_uuid()",
-              "nullable": false,
-              "position": 1,
-              "max_length": null,
-              "numeric_precision": null
-            },
-            {
-              "name": "chain_id",
-              "type": "uuid",
-              "default": null,
-              "nullable": false,
-              "position": 2,
-              "max_length": null,
-              "numeric_precision": null
-            },
-            {
-              "name": "step_order",
-              "type": "integer",
-              "default": "1",
-              "nullable": false,
-              "position": 3,
-              "max_length": null,
-              "numeric_precision": 32
-            },
-            {
-              "name": "employee_id",
-              "type": "uuid",
-              "default": null,
-              "nullable": false,
-              "position": 4,
-              "max_length": null,
-              "numeric_precision": null
-            },
-            {
-              "name": "role",
-              "type": "text",
-              "default": "''::text",
-              "nullable": false,
-              "position": 5,
-              "max_length": null,
-              "numeric_precision": null
-            },
-            {
-              "name": "is_required",
-              "type": "boolean",
-              "default": "true",
-              "nullable": false,
-              "position": 6,
-              "max_length": null,
-              "numeric_precision": null
-            }
-          ]
-        },
-        {
-          "name": "approvals",
-          "columns": [
-            {
-              "name": "id",
-              "type": "uuid",
-              "default": "gen_random_uuid()",
-              "nullable": false,
-              "position": 1,
-              "max_length": null,
-              "numeric_precision": null
-            },
-            {
-              "name": "distribution_letter_id",
-              "type": "uuid",
-              "default": null,
-              "nullable": false,
-              "position": 2,
-              "max_length": null,
-              "numeric_precision": null
-            },
-            {
-              "name": "step_id",
-              "type": "uuid",
-              "default": null,
-              "nullable": false,
-              "position": 3,
-              "max_length": null,
-              "numeric_precision": null
-            },
-            {
-              "name": "employee_id",
               "type": "uuid",
               "default": null,
               "nullable": false,
@@ -290,11 +54,20 @@
               "numeric_precision": null
             },
             {
+              "name": "user_id",
+              "type": "uuid",
+              "default": null,
+              "nullable": true,
+              "position": 6,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
               "name": "comment",
               "type": "text",
               "default": "''::text",
               "nullable": false,
-              "position": 6,
+              "position": 7,
               "max_length": null,
               "numeric_precision": null
             },
@@ -303,7 +76,7 @@
               "type": "timestamp with time zone",
               "default": null,
               "nullable": true,
-              "position": 7,
+              "position": 8,
               "max_length": null,
               "numeric_precision": null
             },
@@ -312,7 +85,48 @@
               "type": "timestamp with time zone",
               "default": "now()",
               "nullable": false,
-              "position": 8,
+              "position": 9,
+              "max_length": null,
+              "numeric_precision": null
+            }
+          ]
+        },
+        {
+          "name": "approval_stages",
+          "columns": [
+            {
+              "name": "id",
+              "type": "uuid",
+              "default": "gen_random_uuid()",
+              "nullable": false,
+              "position": 1,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "stage_order",
+              "type": "integer",
+              "default": null,
+              "nullable": false,
+              "position": 2,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "department_id",
+              "type": "uuid",
+              "default": null,
+              "nullable": false,
+              "position": 3,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "created_at",
+              "type": "timestamp with time zone",
+              "default": "now()",
+              "nullable": false,
+              "position": 4,
               "max_length": null,
               "numeric_precision": null
             }
@@ -1204,6 +1018,33 @@
               "position": 15,
               "max_length": null,
               "numeric_precision": 32
+            },
+            {
+              "name": "current_stage",
+              "type": "integer",
+              "default": null,
+              "nullable": true,
+              "position": 16,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "approved_at",
+              "type": "timestamp with time zone",
+              "default": null,
+              "nullable": true,
+              "position": 17,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "rejected_at",
+              "type": "timestamp with time zone",
+              "default": null,
+              "nullable": true,
+              "position": 18,
+              "max_length": null,
+              "numeric_precision": null
             }
           ]
         },
@@ -1505,54 +1346,19 @@
       ],
       "indexes": [
         {
-          "name": "approval_chain_edges_pkey",
-          "definition": "CREATE UNIQUE INDEX approval_chain_edges_pkey ON public.approval_chain_edges USING btree (id)",
-          "table_name": "approval_chain_edges"
+          "name": "approval_decisions_pkey",
+          "definition": "CREATE UNIQUE INDEX approval_decisions_pkey ON public.approval_decisions USING btree (id)",
+          "table_name": "approval_decisions"
         },
         {
-          "name": "idx_chain_edges_chain",
-          "definition": "CREATE INDEX idx_chain_edges_chain ON public.approval_chain_edges USING btree (chain_id)",
-          "table_name": "approval_chain_edges"
+          "name": "idx_approval_decisions_payment_request_id",
+          "definition": "CREATE INDEX idx_approval_decisions_payment_request_id ON public.approval_decisions USING btree (payment_request_id)",
+          "table_name": "approval_decisions"
         },
         {
-          "name": "approval_chain_nodes_pkey",
-          "definition": "CREATE UNIQUE INDEX approval_chain_nodes_pkey ON public.approval_chain_nodes USING btree (id)",
-          "table_name": "approval_chain_nodes"
-        },
-        {
-          "name": "idx_chain_nodes_chain",
-          "definition": "CREATE INDEX idx_chain_nodes_chain ON public.approval_chain_nodes USING btree (chain_id)",
-          "table_name": "approval_chain_nodes"
-        },
-        {
-          "name": "approval_chains_pkey",
-          "definition": "CREATE UNIQUE INDEX approval_chains_pkey ON public.approval_chains USING btree (id)",
-          "table_name": "approval_chains"
-        },
-        {
-          "name": "approval_steps_chain_id_step_order_key",
-          "definition": "CREATE UNIQUE INDEX approval_steps_chain_id_step_order_key ON public.approval_steps USING btree (chain_id, step_order)",
-          "table_name": "approval_steps"
-        },
-        {
-          "name": "approval_steps_pkey",
-          "definition": "CREATE UNIQUE INDEX approval_steps_pkey ON public.approval_steps USING btree (id)",
-          "table_name": "approval_steps"
-        },
-        {
-          "name": "idx_approval_steps_chain_id",
-          "definition": "CREATE INDEX idx_approval_steps_chain_id ON public.approval_steps USING btree (chain_id)",
-          "table_name": "approval_steps"
-        },
-        {
-          "name": "approvals_pkey",
-          "definition": "CREATE UNIQUE INDEX approvals_pkey ON public.approvals USING btree (id)",
-          "table_name": "approvals"
-        },
-        {
-          "name": "idx_approvals_distribution_letter_id",
-          "definition": "CREATE INDEX idx_approvals_distribution_letter_id ON public.approvals USING btree (distribution_letter_id)",
-          "table_name": "approvals"
+          "name": "approval_stages_pkey",
+          "definition": "CREATE UNIQUE INDEX approval_stages_pkey ON public.approval_stages USING btree (id)",
+          "table_name": "approval_stages"
         },
         {
           "name": "construction_sites_pkey",
@@ -1747,33 +1553,11 @@
       "foreign_keys": [
         {
           "columns": [
-            "target_node_id"
+            "payment_request_id"
           ],
-          "table_name": "approval_chain_edges",
-          "constraint_name": "approval_chain_edges_target_node_id_fkey",
-          "references_table": "approval_chain_nodes",
-          "references_columns": [
-            "id"
-          ]
-        },
-        {
-          "columns": [
-            "source_node_id"
-          ],
-          "table_name": "approval_chain_edges",
-          "constraint_name": "approval_chain_edges_source_node_id_fkey",
-          "references_table": "approval_chain_nodes",
-          "references_columns": [
-            "id"
-          ]
-        },
-        {
-          "columns": [
-            "chain_id"
-          ],
-          "table_name": "approval_chain_edges",
-          "constraint_name": "approval_chain_edges_chain_id_fkey",
-          "references_table": "approval_chains",
+          "table_name": "approval_decisions",
+          "constraint_name": "approval_decisions_payment_request_id_fkey",
+          "references_table": "payment_requests",
           "references_columns": [
             "id"
           ]
@@ -1782,8 +1566,8 @@
           "columns": [
             "department_id"
           ],
-          "table_name": "approval_chain_nodes",
-          "constraint_name": "approval_chain_nodes_department_id_fkey",
+          "table_name": "approval_decisions",
+          "constraint_name": "approval_decisions_department_id_fkey",
           "references_table": "departments",
           "references_columns": [
             "id"
@@ -1791,66 +1575,22 @@
         },
         {
           "columns": [
-            "chain_id"
+            "user_id"
           ],
-          "table_name": "approval_chain_nodes",
-          "constraint_name": "approval_chain_nodes_chain_id_fkey",
-          "references_table": "approval_chains",
+          "table_name": "approval_decisions",
+          "constraint_name": "approval_decisions_user_id_fkey",
+          "references_table": "users",
           "references_columns": [
             "id"
           ]
         },
         {
           "columns": [
-            "chain_id"
+            "department_id"
           ],
-          "table_name": "approval_steps",
-          "constraint_name": "approval_steps_chain_id_fkey",
-          "references_table": "approval_chains",
-          "references_columns": [
-            "id"
-          ]
-        },
-        {
-          "columns": [
-            "employee_id"
-          ],
-          "table_name": "approval_steps",
-          "constraint_name": "approval_steps_employee_id_fkey",
-          "references_table": "employees",
-          "references_columns": [
-            "id"
-          ]
-        },
-        {
-          "columns": [
-            "step_id"
-          ],
-          "table_name": "approvals",
-          "constraint_name": "approvals_step_id_fkey",
-          "references_table": "approval_steps",
-          "references_columns": [
-            "id"
-          ]
-        },
-        {
-          "columns": [
-            "distribution_letter_id"
-          ],
-          "table_name": "approvals",
-          "constraint_name": "approvals_distribution_letter_id_fkey",
-          "references_table": "distribution_letters",
-          "references_columns": [
-            "id"
-          ]
-        },
-        {
-          "columns": [
-            "employee_id"
-          ],
-          "table_name": "approvals",
-          "constraint_name": "approvals_employee_id_fkey",
-          "references_table": "employees",
+          "table_name": "approval_stages",
+          "constraint_name": "approval_stages_department_id_fkey",
+          "references_table": "departments",
           "references_columns": [
             "id"
           ]
@@ -2102,36 +1842,15 @@
           "columns": [
             "id"
           ],
-          "table_name": "approval_chain_edges",
-          "constraint_name": "approval_chain_edges_pkey"
+          "table_name": "approval_decisions",
+          "constraint_name": "approval_decisions_pkey"
         },
         {
           "columns": [
             "id"
           ],
-          "table_name": "approval_chain_nodes",
-          "constraint_name": "approval_chain_nodes_pkey"
-        },
-        {
-          "columns": [
-            "id"
-          ],
-          "table_name": "approval_chains",
-          "constraint_name": "approval_chains_pkey"
-        },
-        {
-          "columns": [
-            "id"
-          ],
-          "table_name": "approval_steps",
-          "constraint_name": "approval_steps_pkey"
-        },
-        {
-          "columns": [
-            "id"
-          ],
-          "table_name": "approvals",
-          "constraint_name": "approvals_pkey"
+          "table_name": "approval_stages",
+          "constraint_name": "approval_stages_pkey"
         },
         {
           "columns": [
@@ -2255,164 +1974,64 @@
       ],
       "check_constraints": [
         {
-          "table_name": "approval_chain_edges",
-          "check_clause": "created_at IS NOT NULL",
-          "constraint_name": "2200_19195_5_not_null"
-        },
-        {
-          "table_name": "approval_chain_edges",
-          "check_clause": "chain_id IS NOT NULL",
-          "constraint_name": "2200_19195_2_not_null"
-        },
-        {
-          "table_name": "approval_chain_edges",
+          "table_name": "approval_decisions",
           "check_clause": "id IS NOT NULL",
-          "constraint_name": "2200_19195_1_not_null"
+          "constraint_name": "approval_decisions_id_not_null"
         },
         {
-          "table_name": "approval_chain_edges",
-          "check_clause": "target_node_id IS NOT NULL",
-          "constraint_name": "2200_19195_4_not_null"
+          "table_name": "approval_decisions",
+          "check_clause": "payment_request_id IS NOT NULL",
+          "constraint_name": "approval_decisions_payment_request_id_not_null"
         },
         {
-          "table_name": "approval_chain_edges",
-          "check_clause": "source_node_id IS NOT NULL",
-          "constraint_name": "2200_19195_3_not_null"
+          "table_name": "approval_decisions",
+          "check_clause": "stage_order IS NOT NULL",
+          "constraint_name": "approval_decisions_stage_order_not_null"
         },
         {
-          "table_name": "approval_chain_nodes",
-          "check_clause": "id IS NOT NULL",
-          "constraint_name": "2200_19172_1_not_null"
+          "table_name": "approval_decisions",
+          "check_clause": "department_id IS NOT NULL",
+          "constraint_name": "approval_decisions_department_id_not_null"
         },
         {
-          "table_name": "approval_chain_nodes",
-          "check_clause": "(node_type = ANY (ARRAY['counterparty'::text, 'department'::text, 'approved'::text]))",
-          "constraint_name": "approval_chain_nodes_node_type_check"
-        },
-        {
-          "table_name": "approval_chain_nodes",
-          "check_clause": "position_y IS NOT NULL",
-          "constraint_name": "2200_19172_7_not_null"
-        },
-        {
-          "table_name": "approval_chain_nodes",
-          "check_clause": "position_x IS NOT NULL",
-          "constraint_name": "2200_19172_6_not_null"
-        },
-        {
-          "table_name": "approval_chain_nodes",
-          "check_clause": "label IS NOT NULL",
-          "constraint_name": "2200_19172_5_not_null"
-        },
-        {
-          "table_name": "approval_chain_nodes",
-          "check_clause": "node_type IS NOT NULL",
-          "constraint_name": "2200_19172_3_not_null"
-        },
-        {
-          "table_name": "approval_chain_nodes",
-          "check_clause": "chain_id IS NOT NULL",
-          "constraint_name": "2200_19172_2_not_null"
-        },
-        {
-          "table_name": "approval_chain_nodes",
-          "check_clause": "created_at IS NOT NULL",
-          "constraint_name": "2200_19172_8_not_null"
-        },
-        {
-          "table_name": "approval_chains",
-          "check_clause": "name IS NOT NULL",
-          "constraint_name": "2200_17632_2_not_null"
-        },
-        {
-          "table_name": "approval_chains",
-          "check_clause": "created_at IS NOT NULL",
-          "constraint_name": "2200_17632_5_not_null"
-        },
-        {
-          "table_name": "approval_chains",
-          "check_clause": "id IS NOT NULL",
-          "constraint_name": "2200_17632_1_not_null"
-        },
-        {
-          "table_name": "approval_chains",
-          "check_clause": "description IS NOT NULL",
-          "constraint_name": "2200_17632_3_not_null"
-        },
-        {
-          "table_name": "approval_chains",
-          "check_clause": "is_active IS NOT NULL",
-          "constraint_name": "2200_17632_4_not_null"
-        },
-        {
-          "table_name": "approval_steps",
-          "check_clause": "chain_id IS NOT NULL",
-          "constraint_name": "2200_17643_2_not_null"
-        },
-        {
-          "table_name": "approval_steps",
-          "check_clause": "is_required IS NOT NULL",
-          "constraint_name": "2200_17643_6_not_null"
-        },
-        {
-          "table_name": "approval_steps",
-          "check_clause": "role IS NOT NULL",
-          "constraint_name": "2200_17643_5_not_null"
-        },
-        {
-          "table_name": "approval_steps",
-          "check_clause": "employee_id IS NOT NULL",
-          "constraint_name": "2200_17643_4_not_null"
-        },
-        {
-          "table_name": "approval_steps",
-          "check_clause": "step_order IS NOT NULL",
-          "constraint_name": "2200_17643_3_not_null"
-        },
-        {
-          "table_name": "approval_steps",
-          "check_clause": "id IS NOT NULL",
-          "constraint_name": "2200_17643_1_not_null"
-        },
-        {
-          "table_name": "approvals",
+          "table_name": "approval_decisions",
           "check_clause": "status IS NOT NULL",
-          "constraint_name": "2200_17666_5_not_null"
+          "constraint_name": "approval_decisions_status_not_null"
         },
         {
-          "table_name": "approvals",
-          "check_clause": "step_id IS NOT NULL",
-          "constraint_name": "2200_17666_3_not_null"
-        },
-        {
-          "table_name": "approvals",
-          "check_clause": "distribution_letter_id IS NOT NULL",
-          "constraint_name": "2200_17666_2_not_null"
-        },
-        {
-          "table_name": "approvals",
-          "check_clause": "id IS NOT NULL",
-          "constraint_name": "2200_17666_1_not_null"
-        },
-        {
-          "table_name": "approvals",
+          "table_name": "approval_decisions",
           "check_clause": "(status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text]))",
-          "constraint_name": "approvals_status_check"
+          "constraint_name": "approval_decisions_status_check"
         },
         {
-          "table_name": "approvals",
-          "check_clause": "created_at IS NOT NULL",
-          "constraint_name": "2200_17666_8_not_null"
-        },
-        {
-          "table_name": "approvals",
+          "table_name": "approval_decisions",
           "check_clause": "comment IS NOT NULL",
-          "constraint_name": "2200_17666_6_not_null"
+          "constraint_name": "approval_decisions_comment_not_null"
         },
         {
-          "table_name": "approvals",
-          "check_clause": "employee_id IS NOT NULL",
-          "constraint_name": "2200_17666_4_not_null"
+          "table_name": "approval_decisions",
+          "check_clause": "created_at IS NOT NULL",
+          "constraint_name": "approval_decisions_created_at_not_null"
+        },
+        {
+          "table_name": "approval_stages",
+          "check_clause": "id IS NOT NULL",
+          "constraint_name": "approval_stages_id_not_null"
+        },
+        {
+          "table_name": "approval_stages",
+          "check_clause": "stage_order IS NOT NULL",
+          "constraint_name": "approval_stages_stage_order_not_null"
+        },
+        {
+          "table_name": "approval_stages",
+          "check_clause": "department_id IS NOT NULL",
+          "constraint_name": "approval_stages_department_id_not_null"
+        },
+        {
+          "table_name": "approval_stages",
+          "check_clause": "created_at IS NOT NULL",
+          "constraint_name": "approval_stages_created_at_not_null"
         },
         {
           "table_name": "construction_sites",
@@ -3011,14 +2630,6 @@
         }
       ],
       "unique_constraints": [
-        {
-          "columns": [
-            "chain_id",
-            "step_order"
-          ],
-          "table_name": "approval_steps",
-          "constraint_name": "approval_steps_chain_id_step_order_key"
-        },
         {
           "columns": [
             "request_number"

@@ -1,57 +1,23 @@
 import { useEffect, useMemo, useState } from 'react'
-import {
-  Typography,
-  Table,
-  Button,
-  Tag,
-  Space,
-  Popconfirm,
-  Select,
-  Tooltip,
-  message,
-} from 'antd'
-import {
-  PlusOutlined,
-  EyeOutlined,
-  DeleteOutlined,
-  SyncOutlined,
-  CheckCircleOutlined,
-  CloseCircleOutlined,
-  ReloadOutlined,
-  RollbackOutlined,
-} from '@ant-design/icons'
+import { Typography, Button, Tabs, message } from 'antd'
+import { PlusOutlined } from '@ant-design/icons'
 import { usePaymentRequestStore } from '@/store/paymentRequestStore'
 import { useStatusStore } from '@/store/statusStore'
 import { useAuthStore } from '@/store/authStore'
 import { useUploadQueueStore } from '@/store/uploadQueueStore'
+import { useApprovalStore } from '@/store/approvalStore'
 import CreateRequestModal from '@/components/paymentRequests/CreateRequestModal'
 import ViewRequestModal from '@/components/paymentRequests/ViewRequestModal'
+import RequestsTable from '@/components/paymentRequests/RequestsTable'
 import type { PaymentRequest } from '@/types'
 
 const { Title } = Typography
-
-/** Форматирование даты */
-function formatDate(dateStr: string): string {
-  const d = new Date(dateStr)
-  return d.toLocaleDateString('ru-RU', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
-/** Уникальные значения для фильтра */
-function uniqueFilters(items: (string | undefined)[]): { text: string; value: string }[] {
-  const unique = [...new Set(items.filter(Boolean) as string[])]
-  return unique.sort().map((v) => ({ text: v, value: v }))
-}
 
 const PaymentRequestsPage = () => {
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [viewRecord, setViewRecord] = useState<PaymentRequest | null>(null)
   const [statusChanging, setStatusChanging] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState('all')
 
   const user = useAuthStore((s) => s.user)
   const isCounterpartyUser = user?.role === 'counterparty_user'
@@ -70,14 +36,47 @@ const PaymentRequestsPage = () => {
   const retryTask = useUploadQueueStore((s) => s.retryTask)
   const uploadTasks = useUploadQueueStore((s) => s.tasks)
 
+  const {
+    stages,
+    pendingRequests,
+    approvedRequests,
+    rejectedRequests,
+    isLoading: approvalLoading,
+    fetchStages,
+    fetchPendingRequests,
+    fetchApprovedRequests,
+    fetchRejectedRequests,
+    approveRequest,
+    rejectRequest,
+  } = useApprovalStore()
+
+  // Проверяем, участвует ли подразделение пользователя в цепочке
+  const userDeptInChain = useMemo(() => {
+    if (!user?.departmentId || stages.length === 0) return false
+    return stages.some((s) => s.departmentId === user.departmentId)
+  }, [user?.departmentId, stages])
+
   useEffect(() => {
     fetchStatuses('payment_request')
     if (isCounterpartyUser && user?.counterpartyId) {
       fetchRequests(user.counterpartyId)
     } else {
       fetchRequests()
+      fetchStages()
     }
-  }, [fetchStatuses, fetchRequests, isCounterpartyUser, user?.counterpartyId])
+  }, [fetchStatuses, fetchRequests, fetchStages, isCounterpartyUser, user?.counterpartyId])
+
+  // Загружаем данные при переключении вкладок
+  useEffect(() => {
+    if (isCounterpartyUser) return
+    if (activeTab === 'pending' && user?.departmentId) {
+      fetchPendingRequests(user.departmentId)
+    } else if (activeTab === 'approved') {
+      fetchApprovedRequests()
+    } else if (activeTab === 'rejected') {
+      fetchRejectedRequests()
+    }
+  }, [activeTab, isCounterpartyUser, user?.departmentId, fetchPendingRequests, fetchApprovedRequests, fetchRejectedRequests])
 
   const handleWithdraw = async (id: string) => {
     await withdrawRequest(id)
@@ -99,6 +98,22 @@ const PaymentRequestsPage = () => {
     setStatusChanging(null)
   }
 
+  const handleApprove = async (requestId: string, comment: string) => {
+    if (!user?.departmentId || !user?.id) return
+    await approveRequest(requestId, user.departmentId, user.id, comment)
+    message.success('Заявка согласована')
+    fetchPendingRequests(user.departmentId)
+    fetchRequests()
+  }
+
+  const handleReject = async (requestId: string, comment: string) => {
+    if (!user?.departmentId || !user?.id) return
+    await rejectRequest(requestId, user.departmentId, user.id, comment)
+    message.success('Заявка отклонена')
+    fetchPendingRequests(user.departmentId)
+    fetchRequests()
+  }
+
   const statusOptions = statuses
     .filter((s) => {
       if (!s.isActive) return false
@@ -109,239 +124,109 @@ const PaymentRequestsPage = () => {
     })
     .map((s) => ({ label: s.name, value: s.id }))
 
-  // Опции фильтров из данных таблицы
-  const counterpartyFilters = useMemo(
-    () => uniqueFilters(requests.map((r) => r.counterpartyName)),
-    [requests],
-  )
-  const statusFilters = useMemo(
-    () => uniqueFilters(requests.map((r) => r.statusName)),
-    [requests],
-  )
-  const urgencyFilters = useMemo(
-    () => uniqueFilters(requests.map((r) => r.urgencyValue)),
-    [requests],
-  )
-  const siteFilters = useMemo(
-    () => uniqueFilters(requests.map((r) => r.siteName)),
-    [requests],
-  )
+  // Для counterparty_user — без вкладок
+  if (isCounterpartyUser) {
+    return (
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <Title level={2} style={{ margin: 0 }}>Заявки на оплату</Title>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsCreateOpen(true)}>
+            Добавить
+          </Button>
+        </div>
+        <RequestsTable
+          requests={requests}
+          isLoading={isLoading}
+          onView={setViewRecord}
+          isCounterpartyUser
+          onWithdraw={handleWithdraw}
+          uploadTasks={uploadTasks}
+          onRetryUpload={retryTask}
+        />
+        <CreateRequestModal
+          open={isCreateOpen}
+          onClose={() => {
+            setIsCreateOpen(false)
+            if (user?.counterpartyId) fetchRequests(user.counterpartyId)
+          }}
+        />
+        <ViewRequestModal open={!!viewRecord} request={viewRecord} onClose={() => setViewRecord(null)} />
+      </div>
+    )
+  }
 
-  const columns = [
+  // Формируем вкладки для admin/user
+  const tabItems = [
     {
-      title: 'Номер',
-      dataIndex: 'requestNumber',
-      key: 'requestNumber',
-      width: 170,
-      sorter: (a: PaymentRequest, b: PaymentRequest) =>
-        a.requestNumber.localeCompare(b.requestNumber),
-    },
-    {
-      title: 'Контрагент',
-      dataIndex: 'counterpartyName',
-      key: 'counterpartyName',
-      filters: counterpartyFilters,
-      onFilter: (value: unknown, record: PaymentRequest) =>
-        record.counterpartyName === value,
-    },
-    {
-      title: 'Объект',
-      dataIndex: 'siteName',
-      key: 'siteName',
-      filters: siteFilters,
-      onFilter: (value: unknown, record: PaymentRequest) =>
-        record.siteName === value,
-      render: (name: string | undefined) => name ?? '—',
-    },
-    {
-      title: 'Статус',
-      key: 'status',
-      width: 150,
-      filters: statusFilters,
-      onFilter: (value: unknown, record: PaymentRequest) =>
-        record.statusName === value,
-      render: (_: unknown, record: PaymentRequest) => (
-        <Tag color={record.statusColor ?? 'default'}>
-          {record.statusName}
-        </Tag>
-      ),
-    },
-    {
-      title: 'Срочность',
-      dataIndex: 'urgencyValue',
-      key: 'urgencyValue',
-      width: 120,
-      filters: urgencyFilters,
-      onFilter: (value: unknown, record: PaymentRequest) =>
-        record.urgencyValue === value,
-    },
-    {
-      title: 'Срок поставки',
-      dataIndex: 'deliveryDays',
-      key: 'deliveryDays',
-      width: 130,
-      sorter: (a: PaymentRequest, b: PaymentRequest) =>
-        a.deliveryDays - b.deliveryDays,
-      render: (days: number) => `${days} дн.`,
-    },
-    {
-      title: 'Дата',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      width: 150,
-      sorter: (a: PaymentRequest, b: PaymentRequest) =>
-        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-      defaultSortOrder: 'descend' as const,
-      render: (date: string) => formatDate(date),
-    },
-    {
-      title: 'Загрузка',
-      key: 'upload',
-      width: 110,
-      render: (_: unknown, record: PaymentRequest) => {
-        if (record.totalFiles === 0) return null
-
-        // Проверяем in-memory очередь для ошибок текущей сессии
-        const inMemoryTask = uploadTasks[record.id]
-        if (inMemoryTask?.status === 'error') {
-          return (
-            <Space size={4}>
-              <CloseCircleOutlined style={{ color: '#f5222d' }} />
-              <Button
-                type="link"
-                size="small"
-                icon={<ReloadOutlined />}
-                onClick={() => retryTask(record.id)}
-                style={{ padding: 0 }}
-              />
-            </Space>
-          )
-        }
-
-        // Все загружены
-        if (record.uploadedFiles >= record.totalFiles) {
-          return (
-            <Tooltip title={`${record.uploadedFiles}/${record.totalFiles}`}>
-              <CheckCircleOutlined style={{ color: '#52c41a' }} />
-            </Tooltip>
-          )
-        }
-
-        // Ещё загружаются
-        return (
-          <Space size={4}>
-            <SyncOutlined spin style={{ color: '#fa8c16' }} />
-            <span style={{ color: '#fa8c16', fontSize: 12 }}>
-              {record.uploadedFiles}/{record.totalFiles}
-            </span>
-          </Space>
-        )
-      },
-    },
-    {
-      title: 'Действия',
-      key: 'actions',
-      width: 180,
-      render: (_: unknown, record: PaymentRequest) => (
-        <Space>
-          <Tooltip title="Просмотр">
-            <Button
-              icon={<EyeOutlined />}
-              size="small"
-              onClick={() => setViewRecord(record)}
-            />
-          </Tooltip>
-
-          {/* counterparty_user: отзыв заявки */}
-          {isCounterpartyUser && (
-            <Popconfirm
-              title="Отозвать заявку?"
-              onConfirm={() => handleWithdraw(record.id)}
-            >
-              <Tooltip title="Отозвать">
-                <Button icon={<RollbackOutlined />} danger size="small" />
-              </Tooltip>
-            </Popconfirm>
-          )}
-
-          {/* admin/user: изменение статуса */}
-          {!isCounterpartyUser && (
-            <Select
-              size="small"
-              style={{ width: 150 }}
-              value={record.statusId}
-              options={statusOptions}
-              loading={statusChanging === record.id}
-              onChange={(val) => handleStatusChange(record.id, val)}
-            />
-          )}
-
-          {/* admin: удаление заявки */}
-          {isAdmin && (
-            <Popconfirm
-              title="Удалить заявку?"
-              description="Заявка и все файлы будут удалены безвозвратно"
-              onConfirm={() => handleDelete(record.id)}
-            >
-              <Tooltip title="Удалить">
-                <Button icon={<DeleteOutlined />} danger size="small" />
-              </Tooltip>
-            </Popconfirm>
-          )}
-        </Space>
+      key: 'all',
+      label: 'Все',
+      children: (
+        <RequestsTable
+          requests={requests}
+          isLoading={isLoading}
+          onView={setViewRecord}
+          statusOptions={statusOptions}
+          onStatusChange={handleStatusChange}
+          statusChangingId={statusChanging}
+          isAdmin={isAdmin}
+          onDelete={handleDelete}
+          uploadTasks={uploadTasks}
+          onRetryUpload={retryTask}
+        />
       ),
     },
   ]
 
+  // Вкладка "На согласование" — только если подразделение в цепочке
+  if (userDeptInChain) {
+    tabItems.push({
+      key: 'pending',
+      label: 'На согласование',
+      children: (
+        <RequestsTable
+          requests={pendingRequests}
+          isLoading={approvalLoading}
+          onView={setViewRecord}
+          showApprovalActions
+          onApprove={handleApprove}
+          onReject={handleReject}
+        />
+      ),
+    })
+  }
+
+  tabItems.push(
+    {
+      key: 'approved',
+      label: 'Согласовано',
+      children: (
+        <RequestsTable
+          requests={approvedRequests}
+          isLoading={approvalLoading}
+          onView={setViewRecord}
+          showApprovedDate
+        />
+      ),
+    },
+    {
+      key: 'rejected',
+      label: 'Отклонено',
+      children: (
+        <RequestsTable
+          requests={rejectedRequests}
+          isLoading={approvalLoading}
+          onView={setViewRecord}
+          showRejectedDate
+        />
+      ),
+    },
+  )
+
   return (
     <div>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 16,
-        }}
-      >
-        <Title level={2} style={{ margin: 0 }}>
-          Заявки на оплату
-        </Title>
-        {isCounterpartyUser && (
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => setIsCreateOpen(true)}
-          >
-            Добавить
-          </Button>
-        )}
-      </div>
-
-      <Table
-        columns={columns}
-        dataSource={requests}
-        rowKey="id"
-        loading={isLoading}
-        scroll={{ x: 1200 }}
-      />
-
-      {/* Модал создания */}
-      <CreateRequestModal
-        open={isCreateOpen}
-        onClose={() => {
-          setIsCreateOpen(false)
-          if (isCounterpartyUser && user?.counterpartyId) {
-            fetchRequests(user.counterpartyId)
-          }
-        }}
-      />
-
-      {/* Модал просмотра */}
-      <ViewRequestModal
-        open={!!viewRecord}
-        request={viewRecord}
-        onClose={() => setViewRecord(null)}
-      />
+      <Title level={2} style={{ marginBottom: 16 }}>Заявки на оплату</Title>
+      <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} />
+      <ViewRequestModal open={!!viewRecord} request={viewRecord} onClose={() => setViewRecord(null)} />
     </div>
   )
 }

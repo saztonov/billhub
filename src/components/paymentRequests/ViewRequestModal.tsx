@@ -9,8 +9,16 @@ import {
   Space,
   Spin,
 } from 'antd'
-import { DownloadOutlined, EyeOutlined } from '@ant-design/icons'
+import {
+  DownloadOutlined,
+  EyeOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  ClockCircleOutlined,
+} from '@ant-design/icons'
 import { usePaymentRequestStore } from '@/store/paymentRequestStore'
+import { useApprovalStore } from '@/store/approvalStore'
+import { useAuthStore } from '@/store/authStore'
 import { getDownloadUrl } from '@/services/s3'
 import FilePreviewModal from './FilePreviewModal'
 import type { PaymentRequest, PaymentRequestFile } from '@/types'
@@ -45,14 +53,20 @@ function formatDate(dateStr: string): string {
 
 const ViewRequestModal = ({ open, request, onClose }: ViewRequestModalProps) => {
   const { currentRequestFiles, fetchRequestFiles, isLoading } = usePaymentRequestStore()
+  const { currentDecisions, fetchDecisions } = useApprovalStore()
+  const user = useAuthStore((s) => s.user)
+  const isCounterpartyUser = user?.role === 'counterparty_user'
   const [downloading, setDownloading] = useState<string | null>(null)
   const [previewFile, setPreviewFile] = useState<PaymentRequestFile | null>(null)
 
   useEffect(() => {
     if (open && request) {
       fetchRequestFiles(request.id)
+      if (!isCounterpartyUser) {
+        fetchDecisions(request.id)
+      }
     }
-  }, [open, request, fetchRequestFiles])
+  }, [open, request, fetchRequestFiles, fetchDecisions, isCounterpartyUser])
 
   const handleDownload = async (fileKey: string, fileName: string) => {
     setDownloading(fileKey)
@@ -142,6 +156,52 @@ const ViewRequestModal = ({ open, request, onClose }: ViewRequestModalProps) => 
             )}
           />
         </Spin>
+
+        {/* Секция согласования — только для admin/user */}
+        {!isCounterpartyUser && currentDecisions.length > 0 && (
+          <>
+            <Text strong style={{ marginTop: 16, marginBottom: 8, display: 'block' }}>
+              Согласование
+            </Text>
+            <List
+              size="small"
+              dataSource={currentDecisions}
+              renderItem={(decision) => {
+                const icon = decision.status === 'approved'
+                  ? <CheckCircleOutlined style={{ color: '#52c41a' }} />
+                  : decision.status === 'rejected'
+                    ? <CloseCircleOutlined style={{ color: '#f5222d' }} />
+                    : <ClockCircleOutlined style={{ color: '#faad14' }} />
+                const statusText = decision.status === 'approved'
+                  ? 'Согласовано'
+                  : decision.status === 'rejected'
+                    ? 'Отклонено'
+                    : 'Ожидает'
+                return (
+                  <List.Item>
+                    <Space>
+                      {icon}
+                      <Text>Этап {decision.stageOrder}</Text>
+                      <Tag>{decision.departmentName}</Tag>
+                      <Text type="secondary">{statusText}</Text>
+                      {decision.userEmail && (
+                        <Text type="secondary">({decision.userEmail})</Text>
+                      )}
+                      {decision.decidedAt && (
+                        <Text type="secondary">{formatDate(decision.decidedAt)}</Text>
+                      )}
+                    </Space>
+                    {decision.comment && (
+                      <Text type="secondary" style={{ display: 'block', marginLeft: 22 }}>
+                        {decision.comment}
+                      </Text>
+                    )}
+                  </List.Item>
+                )
+              }}
+            />
+          </>
+        )}
       </Modal>
 
       <FilePreviewModal
