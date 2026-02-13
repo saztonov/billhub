@@ -340,29 +340,11 @@
               "numeric_precision": null
             },
             {
-              "name": "address",
-              "type": "text",
-              "default": "''::text",
-              "nullable": false,
-              "position": 3,
-              "max_length": null,
-              "numeric_precision": null
-            },
-            {
-              "name": "description",
-              "type": "text",
-              "default": "''::text",
-              "nullable": false,
-              "position": 4,
-              "max_length": null,
-              "numeric_precision": null
-            },
-            {
               "name": "is_active",
               "type": "boolean",
               "default": "true",
               "nullable": false,
-              "position": 5,
+              "position": 3,
               "max_length": null,
               "numeric_precision": null
             },
@@ -371,7 +353,7 @@
               "type": "timestamp with time zone",
               "default": "now()",
               "nullable": false,
-              "position": 6,
+              "position": 4,
               "max_length": null,
               "numeric_precision": null
             }
@@ -405,10 +387,11 @@
               "nullable": false,
               "position": 3,
               "max_length": null,
-              "numeric_precision": null
+              "numeric_precision": null,
+              "unique": true
             },
             {
-              "name": "kpp",
+              "name": "address",
               "type": "text",
               "default": "''::text",
               "nullable": false,
@@ -417,38 +400,11 @@
               "numeric_precision": null
             },
             {
-              "name": "address",
-              "type": "text",
-              "default": "''::text",
+              "name": "alternative_names",
+              "type": "jsonb",
+              "default": "'[]'::jsonb",
               "nullable": false,
               "position": 5,
-              "max_length": null,
-              "numeric_precision": null
-            },
-            {
-              "name": "contact_person",
-              "type": "text",
-              "default": "''::text",
-              "nullable": false,
-              "position": 6,
-              "max_length": null,
-              "numeric_precision": null
-            },
-            {
-              "name": "phone",
-              "type": "text",
-              "default": "''::text",
-              "nullable": false,
-              "position": 7,
-              "max_length": null,
-              "numeric_precision": null
-            },
-            {
-              "name": "email",
-              "type": "text",
-              "default": "''::text",
-              "nullable": false,
-              "position": 8,
               "max_length": null,
               "numeric_precision": null
             },
@@ -457,7 +413,7 @@
               "type": "timestamp with time zone",
               "default": "now()",
               "nullable": false,
-              "position": 9,
+              "position": 6,
               "max_length": null,
               "numeric_precision": null
             }
@@ -621,29 +577,11 @@
               "numeric_precision": null
             },
             {
-              "name": "description",
-              "type": "text",
-              "default": "''::text",
-              "nullable": false,
-              "position": 3,
-              "max_length": null,
-              "numeric_precision": null
-            },
-            {
-              "name": "is_required",
-              "type": "boolean",
-              "default": "false",
-              "nullable": false,
-              "position": 4,
-              "max_length": null,
-              "numeric_precision": null
-            },
-            {
               "name": "created_at",
               "type": "timestamp with time zone",
               "default": "now()",
               "nullable": false,
-              "position": 5,
+              "position": 3,
               "max_length": null,
               "numeric_precision": null
             }

@@ -16,8 +16,6 @@ import { useConstructionSiteStore } from '@/store/constructionSiteStore'
 import { useAuthStore } from '@/store/authStore'
 import type { ConstructionSite } from '@/types'
 
-const { TextArea } = Input
-
 const ConstructionSitesPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingRecord, setEditingRecord] = useState<ConstructionSite | null>(null)
@@ -75,17 +73,6 @@ const ConstructionSitesPage = () => {
       title: 'Наименование',
       dataIndex: 'name',
       key: 'name',
-    },
-    {
-      title: 'Адрес',
-      dataIndex: 'address',
-      key: 'address',
-    },
-    {
-      title: 'Описание',
-      dataIndex: 'description',
-      key: 'description',
-      ellipsis: true,
     },
     {
       title: 'Активен',
@@ -155,12 +142,6 @@ const ConstructionSitesPage = () => {
             rules={[{ required: true, message: 'Введите наименование' }]}
           >
             <Input />
-          </Form.Item>
-          <Form.Item name="address" label="Адрес">
-            <Input />
-          </Form.Item>
-          <Form.Item name="description" label="Описание">
-            <TextArea rows={3} />
           </Form.Item>
           <Form.Item name="isActive" label="Активен" valuePropName="checked">
             <Switch />

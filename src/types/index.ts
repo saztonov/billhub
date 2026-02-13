@@ -25,11 +25,8 @@ export interface Counterparty {
   id: string
   name: string
   inn: string
-  kpp: string
   address: string
-  contactPerson: string
-  phone: string
-  email: string
+  alternativeNames: string[]
   createdAt: string
 }
 
@@ -53,8 +50,6 @@ export interface Employee {
 export interface ConstructionSite {
   id: string
   name: string
-  address: string
-  description: string
   isActive: boolean
   createdAt: string
 }
@@ -72,8 +67,6 @@ export interface Department {
 export interface DocumentType {
   id: string
   name: string
-  description: string
-  isRequired: boolean
   createdAt: string
 }
 

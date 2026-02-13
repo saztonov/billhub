@@ -29,8 +29,6 @@ export const useConstructionSiteStore = create<ConstructionSiteStoreState>((set,
       const sites: ConstructionSite[] = (data ?? []).map((row: Record<string, unknown>) => ({
         id: row.id as string,
         name: row.name as string,
-        address: row.address as string,
-        description: row.description as string,
         isActive: row.is_active as boolean,
         createdAt: row.created_at as string,
       }))
@@ -47,8 +45,6 @@ export const useConstructionSiteStore = create<ConstructionSiteStoreState>((set,
     try {
       const { error } = await supabase.from('construction_sites').insert({
         name: data.name,
-        address: data.address || '',
-        description: data.description || '',
         is_active: data.isActive ?? true,
       })
       if (error) throw error
@@ -66,8 +62,6 @@ export const useConstructionSiteStore = create<ConstructionSiteStoreState>((set,
         .from('construction_sites')
         .update({
           name: data.name,
-          address: data.address,
-          description: data.description,
           is_active: data.isActive,
         })
         .eq('id', id)

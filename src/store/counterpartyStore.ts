@@ -25,7 +25,17 @@ export const useCounterpartyStore = create<CounterpartyStoreState>((set, get) =>
         .select('*')
         .order('created_at', { ascending: false })
       if (error) throw error
-      set({ counterparties: data as Counterparty[], isLoading: false })
+
+      const counterparties: Counterparty[] = (data ?? []).map((row: Record<string, unknown>) => ({
+        id: row.id as string,
+        name: row.name as string,
+        inn: row.inn as string,
+        address: row.address as string,
+        alternativeNames: (row.alternative_names as string[]) ?? [],
+        createdAt: row.created_at as string,
+      }))
+
+      set({ counterparties, isLoading: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка загрузки'
       set({ error: message, isLoading: false })
@@ -35,7 +45,12 @@ export const useCounterpartyStore = create<CounterpartyStoreState>((set, get) =>
   createCounterparty: async (data) => {
     set({ isLoading: true, error: null })
     try {
-      const { error } = await supabase.from('counterparties').insert(data)
+      const { error } = await supabase.from('counterparties').insert({
+        name: data.name,
+        inn: data.inn,
+        address: data.address || '',
+        alternative_names: data.alternativeNames ?? [],
+      })
       if (error) throw error
       await get().fetchCounterparties()
     } catch (err) {
@@ -47,7 +62,15 @@ export const useCounterpartyStore = create<CounterpartyStoreState>((set, get) =>
   updateCounterparty: async (id, data) => {
     set({ isLoading: true, error: null })
     try {
-      const { error } = await supabase.from('counterparties').update(data).eq('id', id)
+      const { error } = await supabase
+        .from('counterparties')
+        .update({
+          name: data.name,
+          inn: data.inn,
+          address: data.address,
+          alternative_names: data.alternativeNames,
+        })
+        .eq('id', id)
       if (error) throw error
       await get().fetchCounterparties()
     } catch (err) {

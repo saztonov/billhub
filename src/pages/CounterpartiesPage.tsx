@@ -9,7 +9,7 @@ import {
   Popconfirm,
   message,
 } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DeleteOutlined, MinusCircleOutlined } from '@ant-design/icons'
 import { useCounterpartyStore } from '@/store/counterpartyStore'
 import type { Counterparty } from '@/types'
 
@@ -63,10 +63,13 @@ const CounterpartiesPage = () => {
   const columns = [
     { title: 'Наименование', dataIndex: 'name', key: 'name' },
     { title: 'ИНН', dataIndex: 'inn', key: 'inn' },
-    { title: 'КПП', dataIndex: 'kpp', key: 'kpp' },
-    { title: 'Контактное лицо', dataIndex: 'contactPerson', key: 'contactPerson' },
-    { title: 'Телефон', dataIndex: 'phone', key: 'phone' },
-    { title: 'Email', dataIndex: 'email', key: 'email' },
+    { title: 'Адрес', dataIndex: 'address', key: 'address' },
+    {
+      title: 'Альтернативное наименование',
+      dataIndex: 'alternativeNames',
+      key: 'alternativeNames',
+      render: (names: string[]) => names?.join('; ') || '',
+    },
     {
       title: 'Действия',
       key: 'actions',
@@ -110,21 +113,42 @@ const CounterpartiesPage = () => {
           <Form.Item name="inn" label="ИНН" rules={[{ required: true, message: 'Введите ИНН' }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="kpp" label="КПП">
-            <Input />
-          </Form.Item>
           <Form.Item name="address" label="Адрес">
             <Input />
           </Form.Item>
-          <Form.Item name="contactPerson" label="Контактное лицо">
-            <Input />
-          </Form.Item>
-          <Form.Item name="phone" label="Телефон">
-            <Input />
-          </Form.Item>
-          <Form.Item name="email" label="Email">
-            <Input />
-          </Form.Item>
+          <Form.List name="alternativeNames">
+            {(fields, { add, remove }) => (
+              <>
+                <div style={{ marginBottom: 8 }}>
+                  <span>Альтернативные наименования</span>
+                  <Button
+                    type="link"
+                    icon={<PlusOutlined />}
+                    onClick={() => add('')}
+                    size="small"
+                    style={{ marginLeft: 8 }}
+                  >
+                    Добавить
+                  </Button>
+                </div>
+                {fields.map((field) => (
+                  <Space key={field.key} align="baseline" style={{ display: 'flex', marginBottom: 8 }}>
+                    <Form.Item
+                      {...field}
+                      rules={[{ required: true, message: 'Введите наименование' }]}
+                      style={{ marginBottom: 0, flex: 1 }}
+                    >
+                      <Input placeholder="Альтернативное наименование" style={{ width: 380 }} />
+                    </Form.Item>
+                    <MinusCircleOutlined
+                      onClick={() => remove(field.name)}
+                      style={{ color: '#ff4d4f' }}
+                    />
+                  </Space>
+                ))}
+              </>
+            )}
+          </Form.List>
         </Form>
       </Modal>
     </div>

@@ -25,7 +25,14 @@ export const useDocumentTypeStore = create<DocumentTypeStoreState>((set, get) =>
         .select('*')
         .order('created_at', { ascending: false })
       if (error) throw error
-      set({ documentTypes: data as DocumentType[], isLoading: false })
+
+      const documentTypes: DocumentType[] = (data ?? []).map((row: Record<string, unknown>) => ({
+        id: row.id as string,
+        name: row.name as string,
+        createdAt: row.created_at as string,
+      }))
+
+      set({ documentTypes, isLoading: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка загрузки'
       set({ error: message, isLoading: false })
@@ -35,7 +42,9 @@ export const useDocumentTypeStore = create<DocumentTypeStoreState>((set, get) =>
   createDocumentType: async (data) => {
     set({ isLoading: true, error: null })
     try {
-      const { error } = await supabase.from('document_types').insert(data)
+      const { error } = await supabase.from('document_types').insert({
+        name: data.name,
+      })
       if (error) throw error
       await get().fetchDocumentTypes()
     } catch (err) {
@@ -47,7 +56,12 @@ export const useDocumentTypeStore = create<DocumentTypeStoreState>((set, get) =>
   updateDocumentType: async (id, data) => {
     set({ isLoading: true, error: null })
     try {
-      const { error } = await supabase.from('document_types').update(data).eq('id', id)
+      const { error } = await supabase
+        .from('document_types')
+        .update({
+          name: data.name,
+        })
+        .eq('id', id)
       if (error) throw error
       await get().fetchDocumentTypes()
     } catch (err) {

@@ -6,8 +6,6 @@ import {
   Modal,
   Form,
   Input,
-  Switch,
-  Tag,
   Popconfirm,
   message,
 } from 'antd'
@@ -51,16 +49,11 @@ const DocumentTypesPage = () => {
 
   const handleSubmit = async () => {
     const values = await form.validateFields()
-    const payload = {
-      name: values.name,
-      description: values.description || '',
-      is_required: values.isRequired || false,
-    }
     if (editingRecord) {
-      await updateDocumentType(editingRecord.id, payload)
+      await updateDocumentType(editingRecord.id, { name: values.name })
       message.success('Тип документа обновлён')
     } else {
-      await createDocumentType(payload)
+      await createDocumentType({ name: values.name })
       message.success('Тип документа создан')
     }
     setIsModalOpen(false)
@@ -69,15 +62,6 @@ const DocumentTypesPage = () => {
 
   const columns = [
     { title: 'Наименование', dataIndex: 'name', key: 'name' },
-    { title: 'Описание', dataIndex: 'description', key: 'description' },
-    {
-      title: 'Обязательный',
-      dataIndex: 'isRequired',
-      key: 'isRequired',
-      render: (val: boolean) => (
-        <Tag color={val ? 'green' : 'default'}>{val ? 'Да' : 'Нет'}</Tag>
-      ),
-    },
     {
       title: 'Действия',
       key: 'actions',
@@ -117,12 +101,6 @@ const DocumentTypesPage = () => {
         <Form form={form} layout="vertical">
           <Form.Item name="name" label="Наименование" rules={[{ required: true, message: 'Введите наименование' }]}>
             <Input />
-          </Form.Item>
-          <Form.Item name="description" label="Описание">
-            <Input.TextArea rows={3} />
-          </Form.Item>
-          <Form.Item name="isRequired" label="Обязательный" valuePropName="checked">
-            <Switch />
           </Form.Item>
         </Form>
       </Modal>
