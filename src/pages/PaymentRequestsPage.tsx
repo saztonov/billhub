@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Typography, Button, Tabs, message } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
 import { usePaymentRequestStore } from '@/store/paymentRequestStore'
@@ -6,6 +6,7 @@ import { useStatusStore } from '@/store/statusStore'
 import { useAuthStore } from '@/store/authStore'
 import { useUploadQueueStore } from '@/store/uploadQueueStore'
 import { useApprovalStore } from '@/store/approvalStore'
+import { supabase } from '@/services/supabase'
 import CreateRequestModal from '@/components/paymentRequests/CreateRequestModal'
 import ViewRequestModal from '@/components/paymentRequests/ViewRequestModal'
 import RequestsTable from '@/components/paymentRequests/RequestsTable'
@@ -13,15 +14,37 @@ import type { PaymentRequest } from '@/types'
 
 const { Title } = Typography
 
+/** Загрузить объекты пользователя из БД */
+async function loadUserSiteIds(userId: string): Promise<{ allSites: boolean; siteIds: string[] }> {
+  const { data: userData } = await supabase
+    .from('users')
+    .select('all_sites')
+    .eq('id', userId)
+    .single()
+  const allSites = (userData?.all_sites as boolean) ?? false
+  if (allSites) return { allSites: true, siteIds: [] }
+
+  const { data: mappings } = await supabase
+    .from('user_construction_sites_mapping')
+    .select('construction_site_id')
+    .eq('user_id', userId)
+  const siteIds = (mappings ?? []).map((m: Record<string, unknown>) => m.construction_site_id as string)
+  return { allSites: false, siteIds }
+}
+
 const PaymentRequestsPage = () => {
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [viewRecord, setViewRecord] = useState<PaymentRequest | null>(null)
   const [statusChanging, setStatusChanging] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState('all')
+  const [userSiteIds, setUserSiteIds] = useState<string[]>([])
+  const [userAllSites, setUserAllSites] = useState(true)
+  const [sitesLoaded, setSitesLoaded] = useState(false)
 
   const user = useAuthStore((s) => s.user)
   const isCounterpartyUser = user?.role === 'counterparty_user'
   const isAdmin = user?.role === 'admin'
+  const isUser = user?.role === 'user'
 
   const {
     requests,
@@ -50,33 +73,57 @@ const PaymentRequestsPage = () => {
     rejectRequest,
   } = useApprovalStore()
 
+  // Загружаем объекты пользователя для role=user
+  useEffect(() => {
+    if (!user?.id || !isUser) {
+      setSitesLoaded(true)
+      return
+    }
+    loadUserSiteIds(user.id).then(({ allSites, siteIds }) => {
+      setUserAllSites(allSites)
+      setUserSiteIds(siteIds)
+      setSitesLoaded(true)
+    })
+  }, [user?.id, isUser])
+
   // Проверяем, участвует ли подразделение пользователя в цепочке
   const userDeptInChain = useMemo(() => {
     if (!user?.departmentId || stages.length === 0) return false
     return stages.some((s) => s.departmentId === user.departmentId)
   }, [user?.departmentId, stages])
 
+  // Параметры фильтрации для role=user
+  const siteFilterParams = useCallback((): [string[]?, boolean?] => {
+    if (!isUser) return [undefined, undefined]
+    return [userSiteIds, userAllSites]
+  }, [isUser, userSiteIds, userAllSites])
+
   useEffect(() => {
+    if (!sitesLoaded) return
     fetchStatuses('payment_request')
     if (isCounterpartyUser && user?.counterpartyId) {
       fetchRequests(user.counterpartyId)
-    } else {
+    } else if (isAdmin) {
       fetchRequests()
       fetchStages()
+    } else if (isUser) {
+      fetchRequests(undefined, userSiteIds, userAllSites)
+      fetchStages()
     }
-  }, [fetchStatuses, fetchRequests, fetchStages, isCounterpartyUser, user?.counterpartyId])
+  }, [fetchStatuses, fetchRequests, fetchStages, isCounterpartyUser, isAdmin, isUser, user?.counterpartyId, sitesLoaded, userSiteIds, userAllSites])
 
   // Загружаем данные при переключении вкладок
   useEffect(() => {
-    if (isCounterpartyUser) return
-    if (activeTab === 'pending' && user?.departmentId) {
-      fetchPendingRequests(user.departmentId)
+    if (isCounterpartyUser || !sitesLoaded) return
+    const [sIds, allS] = siteFilterParams()
+    if (activeTab === 'pending' && user?.departmentId && user?.id) {
+      fetchPendingRequests(user.departmentId, user.id)
     } else if (activeTab === 'approved') {
-      fetchApprovedRequests()
+      fetchApprovedRequests(sIds, allS)
     } else if (activeTab === 'rejected') {
-      fetchRejectedRequests()
+      fetchRejectedRequests(sIds, allS)
     }
-  }, [activeTab, isCounterpartyUser, user?.departmentId, fetchPendingRequests, fetchApprovedRequests, fetchRejectedRequests])
+  }, [activeTab, isCounterpartyUser, user?.departmentId, user?.id, sitesLoaded, siteFilterParams, fetchPendingRequests, fetchApprovedRequests, fetchRejectedRequests])
 
   const handleWithdraw = async (id: string, comment: string) => {
     await withdrawRequest(id, comment || undefined)
@@ -102,16 +149,26 @@ const PaymentRequestsPage = () => {
     if (!user?.departmentId || !user?.id) return
     await approveRequest(requestId, user.departmentId, user.id, comment)
     message.success('Заявка согласована')
-    fetchPendingRequests(user.departmentId)
-    fetchRequests()
+    fetchPendingRequests(user.departmentId, user.id)
+    const [sIds, allS] = siteFilterParams()
+    if (isUser) {
+      fetchRequests(undefined, sIds, allS)
+    } else {
+      fetchRequests()
+    }
   }
 
   const handleReject = async (requestId: string, comment: string) => {
     if (!user?.departmentId || !user?.id) return
     await rejectRequest(requestId, user.departmentId, user.id, comment)
     message.success('Заявка отклонена')
-    fetchPendingRequests(user.departmentId)
-    fetchRequests()
+    fetchPendingRequests(user.departmentId, user.id)
+    const [sIds, allS] = siteFilterParams()
+    if (isUser) {
+      fetchRequests(undefined, sIds, allS)
+    } else {
+      fetchRequests()
+    }
   }
 
   const statusOptions = statuses

@@ -28,7 +28,7 @@ export const useAuthStore = create<AuthStoreState>((set) => ({
 
       const { data: userData, error: userError } = await supabase
         .from('users')
-        .select('id, email, role, counterparty_id, department_id')
+        .select('id, email, role, counterparty_id, department_id, all_sites')
         .eq('id', authData.user.id)
         .single()
       if (userError) throw userError
@@ -39,6 +39,7 @@ export const useAuthStore = create<AuthStoreState>((set) => ({
         role: userData.role,
         counterpartyId: userData.counterparty_id,
         departmentId: userData.department_id,
+        allSites: userData.all_sites ?? false,
       }
       set({ user, isAuthenticated: true, isLoading: false })
     } catch (err) {
@@ -70,7 +71,7 @@ export const useAuthStore = create<AuthStoreState>((set) => ({
 
       const { data: userData, error: userError } = await supabase
         .from('users')
-        .select('id, email, role, counterparty_id, department_id')
+        .select('id, email, role, counterparty_id, department_id, all_sites')
         .eq('id', session.user.id)
         .single()
       if (userError) throw userError
@@ -81,6 +82,7 @@ export const useAuthStore = create<AuthStoreState>((set) => ({
         role: userData.role,
         counterpartyId: userData.counterparty_id,
         departmentId: userData.department_id,
+        allSites: userData.all_sites ?? false,
       }
       set({ user, isAuthenticated: true, isLoading: false })
     } catch (err) {

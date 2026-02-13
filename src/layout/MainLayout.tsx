@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
-import { Layout, Menu, Typography, Avatar, Flex, Dropdown } from 'antd'
+import { Layout, Menu, Typography, Avatar, Flex, Dropdown, Badge, Popover, List, Button } from 'antd'
 import type { MenuProps } from 'antd'
 import {
   FileTextOutlined,
@@ -9,9 +9,11 @@ import {
   FolderOutlined,
   SettingOutlined,
   LogoutOutlined,
+  BellOutlined,
 } from '@ant-design/icons'
 import { useAuthStore } from '@/store/authStore'
-import type { UserRole } from '@/types'
+import { useNotificationStore } from '@/store/notificationStore'
+import type { UserRole, AppNotification } from '@/types'
 
 const { Header, Sider, Content } = Layout
 const { Text } = Typography
@@ -62,10 +64,51 @@ function getRoleLabel(role: UserRole): string {
 
 const MainLayout = () => {
   const [collapsed, setCollapsed] = useState(false)
+  const [notifOpen, setNotifOpen] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
   const user = useAuthStore((s) => s.user)
   const logout = useAuthStore((s) => s.logout)
+
+  const {
+    notifications,
+    unreadCount,
+    fetchNotifications,
+    fetchUnreadCount,
+    markAsRead,
+    markAllAsRead,
+  } = useNotificationStore()
+
+  const showNotifications = user?.role !== 'counterparty_user'
+
+  // Polling счётчика непрочитанных уведомлений
+  useEffect(() => {
+    if (!user?.id || !showNotifications) return
+    fetchUnreadCount(user.id)
+    const interval = setInterval(() => fetchUnreadCount(user.id), 30000)
+    return () => clearInterval(interval)
+  }, [user?.id, showNotifications, fetchUnreadCount])
+
+  const handleNotifOpen = useCallback((open: boolean) => {
+    setNotifOpen(open)
+    if (open && user?.id) {
+      fetchNotifications(user.id)
+    }
+  }, [user?.id, fetchNotifications])
+
+  const handleNotifClick = useCallback((notif: AppNotification) => {
+    if (!notif.isRead) {
+      markAsRead(notif.id)
+    }
+    setNotifOpen(false)
+    navigate('/payment-requests')
+  }, [markAsRead, navigate])
+
+  const handleMarkAllRead = useCallback(() => {
+    if (user?.id) {
+      markAllAsRead(user.id)
+    }
+  }, [user?.id, markAllAsRead])
 
   const menuItems = useMemo(
     () => getMenuItems(user?.role ?? 'counterparty_user'),
@@ -75,6 +118,41 @@ const MainLayout = () => {
   const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
     navigate(key)
   }
+
+  const notificationContent = (
+    <div style={{ width: 380, maxHeight: 420, overflow: 'auto' }}>
+      <Flex justify="space-between" align="center" style={{ padding: '8px 12px', borderBottom: '1px solid #f0f0f0' }}>
+        <Text strong>Уведомления</Text>
+        {unreadCount > 0 && (
+          <Button type="link" size="small" onClick={handleMarkAllRead}>
+            Прочитать все
+          </Button>
+        )}
+      </Flex>
+      <List
+        dataSource={notifications}
+        renderItem={(item: AppNotification) => (
+          <List.Item
+            style={{
+              background: item.isRead ? 'transparent' : '#f0f5ff',
+              padding: '8px 12px',
+              cursor: 'pointer',
+            }}
+            onClick={() => handleNotifClick(item)}
+          >
+            <Flex vertical gap={2} style={{ width: '100%' }}>
+              <Text strong style={{ fontSize: 13 }}>{item.title}</Text>
+              <Text style={{ fontSize: 12 }}>{item.message}</Text>
+              <Text type="secondary" style={{ fontSize: 11 }}>
+                {new Date(item.createdAt).toLocaleString('ru-RU')}
+              </Text>
+            </Flex>
+          </List.Item>
+        )}
+        locale={{ emptyText: 'Нет уведомлений' }}
+      />
+    </div>
+  )
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -131,9 +209,23 @@ const MainLayout = () => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'flex-end',
+            gap: 16,
             borderBottom: '1px solid #f0f0f0',
           }}
         >
+          {showNotifications && (
+            <Popover
+              content={notificationContent}
+              trigger="click"
+              placement="bottomRight"
+              open={notifOpen}
+              onOpenChange={handleNotifOpen}
+            >
+              <Badge count={unreadCount} size="small">
+                <BellOutlined style={{ fontSize: 20, cursor: 'pointer' }} />
+              </Badge>
+            </Popover>
+          )}
           <Dropdown
             menu={{
               items: [

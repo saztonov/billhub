@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { supabase } from '@/services/supabase'
 import { deleteFile } from '@/services/s3'
+import { checkAndNotifyMissingSpecialists } from '@/utils/approvalNotifications'
 import type { PaymentRequest, PaymentRequestFile } from '@/types'
 
 interface CreateRequestData {
@@ -8,7 +9,7 @@ interface CreateRequestData {
   urgencyReason?: string
   deliveryDays: number
   shippingConditionId: string
-  siteId?: string
+  siteId: string
   comment?: string
   totalFiles: number
 }
@@ -19,7 +20,7 @@ interface PaymentRequestStoreState {
   isLoading: boolean
   isSubmitting: boolean
   error: string | null
-  fetchRequests: (counterpartyId?: string) => Promise<void>
+  fetchRequests: (counterpartyId?: string, userSiteIds?: string[], allSites?: boolean) => Promise<void>
   createRequest: (
     data: CreateRequestData,
     counterpartyId: string,
@@ -39,7 +40,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
   isSubmitting: false,
   error: null,
 
-  fetchRequests: async (counterpartyId?) => {
+  fetchRequests: async (counterpartyId?, userSiteIds?, allSites?) => {
     set({ isLoading: true, error: null })
     try {
       let query = supabase
@@ -58,6 +59,14 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
         query = query.eq('counterparty_id', counterpartyId)
       }
 
+      // Фильтрация по объектам для role=user
+      if (allSites === false && userSiteIds && userSiteIds.length > 0) {
+        query = query.in('site_id', userSiteIds)
+      } else if (allSites === false && userSiteIds && userSiteIds.length === 0) {
+        set({ requests: [], isLoading: false })
+        return
+      }
+
       const { data, error } = await query
       if (error) throw error
 
@@ -71,7 +80,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
           id: row.id as string,
           requestNumber: row.request_number as string,
           counterpartyId: row.counterparty_id as string,
-          siteId: (row.site_id as string) ?? null,
+          siteId: row.site_id as string,
           statusId: row.status_id as string,
           urgencyId: row.urgency_id as string,
           urgencyReason: row.urgency_reason as string | null,
@@ -126,7 +135,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
         .insert({
           request_number: requestNumber,
           counterparty_id: counterpartyId,
-          site_id: data.siteId || null,
+          site_id: data.siteId,
           status_id: statusData.id,
           urgency_id: data.urgencyId,
           urgency_reason: data.urgencyReason || null,
@@ -160,6 +169,12 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
           .from('payment_requests')
           .update({ current_stage: 1 })
           .eq('id', requestData.id)
+
+        // Проверяем наличие специалистов для первого этапа
+        await checkAndNotifyMissingSpecialists(
+          requestData.id,
+          firstStage.map((s: Record<string, unknown>) => ({ department_id: s.department_id as string })),
+        )
       }
 
       // Файлы загружаются отдельно через uploadQueueStore

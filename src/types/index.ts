@@ -112,7 +112,7 @@ export interface PaymentRequest {
   id: string
   requestNumber: string
   counterpartyId: string
-  siteId: string | null
+  siteId: string
   statusId: string
   urgencyId: string
   urgencyReason: string | null
@@ -243,6 +243,29 @@ export interface User {
   role: UserRole
   counterpartyId: string | null
   departmentId: string | null
+  allSites: boolean
+}
+
+/** Тип уведомления */
+export type NotificationType = 'missing_specialist' | 'info' | 'error'
+
+/** Уведомление */
+export interface AppNotification {
+  id: string
+  type: NotificationType
+  title: string
+  message: string
+  userId: string
+  isRead: boolean
+  paymentRequestId: string | null
+  departmentId: string | null
+  siteId: string | null
+  resolved: boolean
+  resolvedAt: string | null
+  createdAt: string
+  siteName?: string
+  departmentName?: string
+  requestNumber?: string
 }
 
 /** Состояние аутентификации */

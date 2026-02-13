@@ -166,17 +166,19 @@ const ViewRequestModal = ({ open, request, onClose }: ViewRequestModalProps) => 
           <Descriptions.Item label="Объект">{request.siteName ?? '—'}</Descriptions.Item>
           <Descriptions.Item label="Статус">
             <Tag color={request.statusColor ?? 'default'}>{request.statusName}</Tag>
+            {statusComment && (
+              <Text type="secondary" style={{ marginLeft: 8 }}>{statusComment}</Text>
+            )}
           </Descriptions.Item>
-          {statusComment && (
-            <Descriptions.Item label="Комментарий статуса" span={2}>{statusComment}</Descriptions.Item>
-          )}
-          <Descriptions.Item label="Срочность">{request.urgencyValue}</Descriptions.Item>
+          <Descriptions.Item label="Срочность">
+            {request.urgencyValue}
+            {request.urgencyReason && (
+              <Text type="secondary" style={{ marginLeft: 8 }}>({request.urgencyReason})</Text>
+            )}
+          </Descriptions.Item>
           <Descriptions.Item label="Срок поставки">{request.deliveryDays} дн.</Descriptions.Item>
           <Descriptions.Item label="Условия отгрузки">{request.shippingConditionValue}</Descriptions.Item>
           <Descriptions.Item label="Дата создания">{formatDate(request.createdAt)}</Descriptions.Item>
-          {request.urgencyReason && (
-            <Descriptions.Item label="Причина срочности" span={2}>{request.urgencyReason}</Descriptions.Item>
-          )}
           {request.comment && (
             <Descriptions.Item label="Комментарий" span={2}>{request.comment}</Descriptions.Item>
           )}

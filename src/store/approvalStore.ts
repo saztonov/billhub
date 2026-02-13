@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { supabase } from '@/services/supabase'
+import { checkAndNotifyMissingSpecialists } from '@/utils/approvalNotifications'
 import type { ApprovalStage, ApprovalDecision, PaymentRequest } from '@/types'
 
 /** Сгруппированный этап для UI: номер этапа + массив подразделений */
@@ -32,9 +33,9 @@ interface ApprovalStoreState {
   rejectRequest: (paymentRequestId: string, departmentId: string, userId: string, comment: string) => Promise<void>
 
   // Заявки по вкладкам
-  fetchPendingRequests: (departmentId: string) => Promise<void>
-  fetchApprovedRequests: () => Promise<void>
-  fetchRejectedRequests: () => Promise<void>
+  fetchPendingRequests: (departmentId: string, userId: string) => Promise<void>
+  fetchApprovedRequests: (userSiteIds?: string[], allSites?: boolean) => Promise<void>
+  fetchRejectedRequests: (userSiteIds?: string[], allSites?: boolean) => Promise<void>
 }
 
 /** Маппинг строки payment_requests из БД в PaymentRequest */
@@ -48,7 +49,7 @@ function mapRequest(row: Record<string, unknown>): PaymentRequest {
     id: row.id as string,
     requestNumber: row.request_number as string,
     counterpartyId: row.counterparty_id as string,
-    siteId: (row.site_id as string) ?? null,
+    siteId: row.site_id as string,
     statusId: row.status_id as string,
     urgencyId: row.urgency_id as string,
     urgencyReason: row.urgency_reason as string | null,
@@ -82,6 +83,26 @@ const PR_SELECT = `
   urgency:payment_request_field_options!payment_requests_urgency_id_fkey(value),
   shipping:payment_request_field_options!payment_requests_shipping_condition_id_fkey(value)
 `
+
+/** Получить объекты пользователя */
+async function getUserSiteIds(userId: string): Promise<{ allSites: boolean; siteIds: string[] }> {
+  const { data: userData } = await supabase
+    .from('users')
+    .select('all_sites')
+    .eq('id', userId)
+    .single()
+  const allSites = (userData?.all_sites as boolean) ?? false
+
+  if (allSites) return { allSites: true, siteIds: [] }
+
+  const { data: siteMappings } = await supabase
+    .from('user_construction_sites_mapping')
+    .select('construction_site_id')
+    .eq('user_id', userId)
+
+  const siteIds = (siteMappings ?? []).map((s: Record<string, unknown>) => s.construction_site_id as string)
+  return { allSites: false, siteIds }
+}
 
 export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
   stages: [],
@@ -245,6 +266,12 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
             .update({ current_stage: currentStage + 1 })
             .eq('id', paymentRequestId)
           if (upError) throw upError
+
+          // Проверяем наличие специалистов для нового этапа
+          await checkAndNotifyMissingSpecialists(
+            paymentRequestId,
+            nextStages.map((s: Record<string, unknown>) => ({ department_id: s.department_id as string })),
+          )
         } else {
           // Все этапы пройдены — устанавливаем статус Согласована
           const { data: statusData, error: stError } = await supabase
@@ -325,9 +352,12 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
     }
   },
 
-  fetchPendingRequests: async (departmentId) => {
+  fetchPendingRequests: async (departmentId, userId) => {
     set({ isLoading: true, error: null })
     try {
+      // Получаем настройки объектов пользователя
+      const { allSites, siteIds: userSiteIds } = await getUserSiteIds(userId)
+
       // Находим id заявок, ожидающих решения этого подразделения
       const { data: decisions, error: decError } = await supabase
         .from('approval_decisions')
@@ -342,11 +372,24 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
         return
       }
 
-      const { data, error } = await supabase
+      // Если нет назначенных объектов и не all_sites — пустой список
+      if (!allSites && userSiteIds.length === 0) {
+        set({ pendingRequests: [], isLoading: false })
+        return
+      }
+
+      let query = supabase
         .from('payment_requests')
         .select(PR_SELECT)
         .in('id', requestIds)
         .order('created_at', { ascending: false })
+
+      // Фильтрация по объектам
+      if (!allSites) {
+        query = query.in('site_id', userSiteIds)
+      }
+
+      const { data, error } = await query
       if (error) throw error
 
       set({ pendingRequests: (data ?? []).map(mapRequest), isLoading: false })
@@ -356,14 +399,24 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
     }
   },
 
-  fetchApprovedRequests: async () => {
+  fetchApprovedRequests: async (userSiteIds?, allSites?) => {
     set({ isLoading: true, error: null })
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('payment_requests')
         .select(PR_SELECT)
         .not('approved_at', 'is', null)
         .order('approved_at', { ascending: false })
+
+      // Фильтрация по объектам для role=user
+      if (allSites === false && userSiteIds && userSiteIds.length > 0) {
+        query = query.in('site_id', userSiteIds)
+      } else if (allSites === false && userSiteIds && userSiteIds.length === 0) {
+        set({ approvedRequests: [], isLoading: false })
+        return
+      }
+
+      const { data, error } = await query
       if (error) throw error
 
       set({ approvedRequests: (data ?? []).map(mapRequest), isLoading: false })
@@ -373,14 +426,24 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
     }
   },
 
-  fetchRejectedRequests: async () => {
+  fetchRejectedRequests: async (userSiteIds?, allSites?) => {
     set({ isLoading: true, error: null })
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('payment_requests')
         .select(PR_SELECT)
         .not('rejected_at', 'is', null)
         .order('rejected_at', { ascending: false })
+
+      // Фильтрация по объектам для role=user
+      if (allSites === false && userSiteIds && userSiteIds.length > 0) {
+        query = query.in('site_id', userSiteIds)
+      } else if (allSites === false && userSiteIds && userSiteIds.length === 0) {
+        set({ rejectedRequests: [], isLoading: false })
+        return
+      }
+
+      const { data, error } = await query
       if (error) throw error
 
       set({ rejectedRequests: (data ?? []).map(mapRequest), isLoading: false })
