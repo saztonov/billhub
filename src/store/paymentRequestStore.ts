@@ -30,6 +30,11 @@ interface PaymentRequestStoreState {
   updateRequestStatus: (id: string, statusId: string) => Promise<void>
   incrementUploadedFiles: (requestId: string) => void
   fetchRequestFiles: (requestId: string) => Promise<void>
+  resubmitRequest: (
+    id: string,
+    comment: string,
+    counterpartyId: string,
+  ) => Promise<void>
 }
 
 export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get) => ({
@@ -92,6 +97,8 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
           currentStage: (row.current_stage as number) ?? null,
           approvedAt: row.approved_at as string | null,
           rejectedAt: row.rejected_at as string | null,
+          resubmitComment: (row.resubmit_comment as string) ?? null,
+          resubmitCount: (row.resubmit_count as number) ?? 0,
           counterpartyName: counterparties?.name as string | undefined,
           siteName: site?.name as string | undefined,
           statusName: statuses?.name as string | undefined,
@@ -287,6 +294,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
             pageCount: row.page_count as number | null,
             createdBy: row.created_by as string,
             createdAt: row.created_at as string,
+            isResubmit: (row.is_resubmit as boolean) ?? false,
             documentTypeName: dt?.name as string | undefined,
           }
         },
@@ -296,6 +304,70 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка загрузки файлов'
       set({ error: message, isLoading: false })
+    }
+  },
+
+  resubmitRequest: async (id, comment, counterpartyId) => {
+    set({ isSubmitting: true, error: null })
+    try {
+      // 1. Получаем id статуса 'sent'
+      const { data: statusData, error: statusError } = await supabase
+        .from('statuses')
+        .select('id')
+        .eq('entity_type', 'payment_request')
+        .eq('code', 'sent')
+        .single()
+      if (statusError) throw statusError
+
+      // 2. Получаем текущее значение resubmit_count
+      const { data: currentReq, error: reqError } = await supabase
+        .from('payment_requests')
+        .select('resubmit_count')
+        .eq('id', id)
+        .single()
+      if (reqError) throw reqError
+
+      const newCount = ((currentReq.resubmit_count as number) ?? 0) + 1
+
+      // 3. Обновляем заявку: сброс статуса, сохранение комментария
+      const { error: updError } = await supabase
+        .from('payment_requests')
+        .update({
+          status_id: statusData.id,
+          rejected_at: null,
+          current_stage: 1,
+          resubmit_comment: comment || null,
+          resubmit_count: newCount,
+        })
+        .eq('id', id)
+      if (updError) throw updError
+
+      // 4. Создаём pending-записи для 1 этапа согласования
+      const { data: firstStage } = await supabase
+        .from('approval_stages')
+        .select('stage_order, department_id')
+        .eq('stage_order', 1)
+      if (firstStage && firstStage.length > 0) {
+        const decisions = firstStage.map((s: Record<string, unknown>) => ({
+          payment_request_id: id,
+          stage_order: 1,
+          department_id: s.department_id as string,
+          status: 'pending',
+        }))
+        await supabase.from('approval_decisions').insert(decisions)
+
+        await checkAndNotifyMissingSpecialists(
+          id,
+          firstStage.map((s: Record<string, unknown>) => ({ department_id: s.department_id as string })),
+        )
+      }
+
+      await get().fetchRequests(counterpartyId)
+      set({ isSubmitting: false })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Ошибка повторной отправки'
+      set({ error: message, isSubmitting: false })
+      throw err
     }
   },
 }))

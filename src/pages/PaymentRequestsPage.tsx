@@ -9,6 +9,8 @@ import { supabase } from '@/services/supabase'
 import CreateRequestModal from '@/components/paymentRequests/CreateRequestModal'
 import ViewRequestModal from '@/components/paymentRequests/ViewRequestModal'
 import RequestsTable from '@/components/paymentRequests/RequestsTable'
+import { useCounterpartyStore } from '@/store/counterpartyStore'
+import type { FileItem } from '@/components/paymentRequests/FileUploadList'
 import type { PaymentRequest } from '@/types'
 
 const { Title } = Typography
@@ -34,6 +36,7 @@ async function loadUserSiteIds(userId: string): Promise<{ allSites: boolean; sit
 const PaymentRequestsPage = () => {
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [viewRecord, setViewRecord] = useState<PaymentRequest | null>(null)
+  const [resubmitRecord, setResubmitRecord] = useState<PaymentRequest | null>(null)
   const [activeTab, setActiveTab] = useState('all')
   const [userSiteIds, setUserSiteIds] = useState<string[]>([])
   const [userAllSites, setUserAllSites] = useState(true)
@@ -50,7 +53,10 @@ const PaymentRequestsPage = () => {
     fetchRequests,
     deleteRequest,
     withdrawRequest,
+    resubmitRequest,
   } = usePaymentRequestStore()
+
+  const { counterparties, fetchCounterparties } = useCounterpartyStore()
 
   const retryTask = useUploadQueueStore((s) => s.retryTask)
   const uploadTasks = useUploadQueueStore((s) => s.tasks)
@@ -159,6 +165,50 @@ const PaymentRequestsPage = () => {
     }
   }
 
+  const handleResubmit = async (comment: string, files: FileItem[]) => {
+    if (!resubmitRecord || !user?.counterpartyId || !user?.id) return
+    try {
+      // Повторная отправка заявки
+      await resubmitRequest(resubmitRecord.id, comment, user.counterpartyId)
+
+      // Если есть новые файлы — загружаем через очередь
+      if (files.length > 0) {
+        // Загружаем контрагентов для имени, если ещё не загружены
+        if (counterparties.length === 0) await fetchCounterparties()
+        const cp = useCounterpartyStore.getState().counterparties.find((c) => c.id === user.counterpartyId)
+        if (cp) {
+          // Обновляем total_files
+          const { error } = await supabase
+            .from('payment_requests')
+            .update({ total_files: resubmitRecord.totalFiles + files.length })
+            .eq('id', resubmitRecord.id)
+          if (!error) {
+            const addUploadTask = useUploadQueueStore.getState().addTask
+            addUploadTask({
+              requestId: resubmitRecord.id,
+              requestNumber: resubmitRecord.requestNumber,
+              counterpartyName: cp.name,
+              files: files.map((f) => ({
+                file: f.file,
+                documentTypeId: f.documentTypeId!,
+                pageCount: f.pageCount,
+                isResubmit: true,
+              })),
+              userId: user.id,
+            })
+          }
+        }
+      }
+
+      message.success('Заявка отправлена повторно')
+      setResubmitRecord(null)
+      fetchRequests(user.counterpartyId)
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Ошибка повторной отправки'
+      message.error(errorMsg)
+    }
+  }
+
   // Для counterparty_user — без вкладок
   if (isCounterpartyUser) {
     return (
@@ -175,6 +225,7 @@ const PaymentRequestsPage = () => {
           onView={setViewRecord}
           isCounterpartyUser
           onWithdraw={handleWithdraw}
+          onResubmit={setResubmitRecord}
           uploadTasks={uploadTasks}
           onRetryUpload={retryTask}
         />
@@ -186,6 +237,13 @@ const PaymentRequestsPage = () => {
           }}
         />
         <ViewRequestModal open={!!viewRecord} request={viewRecord} onClose={() => setViewRecord(null)} />
+        <ViewRequestModal
+          open={!!resubmitRecord}
+          request={resubmitRecord}
+          onClose={() => setResubmitRecord(null)}
+          resubmitMode
+          onResubmit={handleResubmit}
+        />
       </div>
     )
   }

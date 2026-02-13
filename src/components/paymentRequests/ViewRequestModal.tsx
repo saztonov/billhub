@@ -9,6 +9,7 @@ import {
   Space,
   Tooltip,
   Table,
+  Input,
 } from 'antd'
 import {
   DownloadOutlined,
@@ -16,6 +17,7 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined,
   ClockCircleOutlined,
+  SendOutlined,
 } from '@ant-design/icons'
 import { usePaymentRequestStore } from '@/store/paymentRequestStore'
 import { useApprovalStore } from '@/store/approvalStore'
@@ -23,14 +25,21 @@ import { useAuthStore } from '@/store/authStore'
 import { getDownloadUrl, downloadFileBlob } from '@/services/s3'
 import JSZip from 'jszip'
 import FilePreviewModal from './FilePreviewModal'
+import FileUploadList from './FileUploadList'
+import type { FileItem } from './FileUploadList'
 import type { PaymentRequest, PaymentRequestFile } from '@/types'
 
 const { Text } = Typography
+const { TextArea } = Input
 
 interface ViewRequestModalProps {
   open: boolean
   request: PaymentRequest | null
   onClose: () => void
+  /** Режим повторной отправки отклоненной заявки */
+  resubmitMode?: boolean
+  /** Обработчик повторной отправки (комментарий, новые файлы) */
+  onResubmit?: (comment: string, files: FileItem[]) => void
 }
 
 /** Форматирование размера файла */
@@ -53,14 +62,16 @@ function formatDate(dateStr: string): string {
   })
 }
 
-const ViewRequestModal = ({ open, request, onClose }: ViewRequestModalProps) => {
-  const { currentRequestFiles, fetchRequestFiles, isLoading } = usePaymentRequestStore()
+const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit }: ViewRequestModalProps) => {
+  const { currentRequestFiles, fetchRequestFiles, isLoading, isSubmitting } = usePaymentRequestStore()
   const { currentDecisions, fetchDecisions } = useApprovalStore()
   const user = useAuthStore((s) => s.user)
   const isCounterpartyUser = user?.role === 'counterparty_user'
   const [downloading, setDownloading] = useState<string | null>(null)
   const [downloadingAll, setDownloadingAll] = useState(false)
   const [previewFile, setPreviewFile] = useState<PaymentRequestFile | null>(null)
+  const [resubmitFileList, setResubmitFileList] = useState<FileItem[]>([])
+  const [resubmitComment, setResubmitComment] = useState('')
 
   useEffect(() => {
     if (open && request) {
@@ -69,23 +80,47 @@ const ViewRequestModal = ({ open, request, onClose }: ViewRequestModalProps) => 
     }
   }, [open, request, fetchRequestFiles, fetchDecisions])
 
-  /** Комментарий статуса (отклонение/отзыв/согласование) */
-  const statusComment = useMemo(() => {
-    if (!request) return null
-    if (request.rejectedAt) {
-      const rejected = currentDecisions.find((d) => d.status === 'rejected')
-      return rejected?.comment || null
+  // Сброс состояния при закрытии
+  useEffect(() => {
+    if (!open) {
+      setResubmitFileList([])
+      setResubmitComment('')
     }
-    if (request.withdrawnAt) {
-      return request.withdrawalComment || null
+  }, [open])
+
+  /** Лог событий для контрагента */
+  const counterpartyLog = useMemo(() => {
+    if (!request) return []
+    const log: { icon: React.ReactNode; text: string }[] = []
+
+    // Отклонения
+    const rejected = currentDecisions.filter((d) => d.status === 'rejected')
+    for (const d of rejected) {
+      const reason = d.comment ? `Отклонено. Причина: ${d.comment}` : 'Отклонено'
+      log.push({
+        icon: <CloseCircleOutlined style={{ color: '#f5222d' }} />,
+        text: reason,
+      })
     }
-    if (request.approvedAt) {
-      const approved = [...currentDecisions]
-        .filter((d) => d.status === 'approved' && d.comment)
-        .pop()
-      return approved?.comment || null
+
+    // Комментарий повторной отправки
+    if (request.resubmitComment) {
+      log.push({
+        icon: <SendOutlined style={{ color: '#1677ff' }} />,
+        text: `Повторно отправлено. Комментарий: ${request.resubmitComment}`,
+      })
     }
-    return null
+
+    // Комментарии согласования
+    const approvedWithComment = currentDecisions.filter((d) => d.status === 'approved' && d.comment)
+    for (const d of approvedWithComment) {
+      log.push({
+        icon: <CheckCircleOutlined style={{ color: '#52c41a' }} />,
+        text: `Согласовано. Комментарий: ${d.comment}`,
+      })
+    }
+
+    return log
   }, [request, currentDecisions])
 
   /** Скачать все файлы в ZIP-архиве */
@@ -128,15 +163,36 @@ const ViewRequestModal = ({ open, request, onClose }: ViewRequestModalProps) => 
     }
   }
 
+  const handleResubmitSubmit = () => {
+    onResubmit?.(resubmitComment, resubmitFileList)
+  }
+
   if (!request) return null
 
+  // Сортировка файлов: догруженные (isResubmit) сверху
+  const sortedFiles = useMemo(() => {
+    return [...currentRequestFiles].sort((a, b) => {
+      if (a.isResubmit && !b.isResubmit) return -1
+      if (!a.isResubmit && b.isResubmit) return 1
+      return 0
+    })
+  }, [currentRequestFiles])
+
+  const hasResubmitFiles = request.resubmitCount > 0
+
   /** Столбцы таблицы файлов */
-  const fileColumns = [
+  const fileColumns: Record<string, unknown>[] = [
+    {
+      title: '№',
+      key: 'index',
+      width: 50,
+      render: (_: unknown, __: PaymentRequestFile, index: number) => index + 1,
+    },
     {
       title: 'Файл',
       dataIndex: 'fileName',
       key: 'fileName',
-      width: '50%',
+      width: hasResubmitFiles ? '40%' : '50%',
       ellipsis: true,
     },
     {
@@ -156,50 +212,78 @@ const ViewRequestModal = ({ open, request, onClose }: ViewRequestModalProps) => 
       render: (_: unknown, file: PaymentRequestFile) =>
         file.documentTypeName ? <Tag>{file.documentTypeName}</Tag> : null,
     },
-    {
-      title: '',
-      key: 'actions',
-      width: 80,
-      render: (_: unknown, file: PaymentRequestFile) => (
-        <Space size={4}>
-          <Tooltip title="Просмотр">
-            <Button
-              icon={<EyeOutlined />}
-              size="small"
-              onClick={() => setPreviewFile(file)}
-            />
-          </Tooltip>
-          <Tooltip title="Скачать">
-            <Button
-              icon={<DownloadOutlined />}
-              size="small"
-              loading={downloading === file.fileKey}
-              onClick={() => handleDownload(file.fileKey, file.fileName)}
-            />
-          </Tooltip>
-        </Space>
-      ),
-    },
   ]
+
+  // Колонка "Догружен" — только если была повторная отправка
+  if (hasResubmitFiles) {
+    fileColumns.push({
+      title: 'Догружен',
+      key: 'resubmit',
+      width: 100,
+      render: (_: unknown, file: PaymentRequestFile) =>
+        file.isResubmit ? <Tag color="blue">Догружен</Tag> : null,
+    })
+  }
+
+  // Колонка действий
+  fileColumns.push({
+    title: '',
+    key: 'actions',
+    width: 80,
+    render: (_: unknown, file: PaymentRequestFile) => (
+      <Space size={4}>
+        <Tooltip title="Просмотр">
+          <Button
+            icon={<EyeOutlined />}
+            size="small"
+            onClick={() => setPreviewFile(file)}
+          />
+        </Tooltip>
+        <Tooltip title="Скачать">
+          <Button
+            icon={<DownloadOutlined />}
+            size="small"
+            loading={downloading === file.fileKey}
+            onClick={() => handleDownload(file.fileKey, file.fileName)}
+          />
+        </Tooltip>
+      </Space>
+    ),
+  })
+
+  // Footer модального окна
+  const modalFooter = resubmitMode
+    ? (
+      <Space>
+        <Button onClick={onClose}>Отмена</Button>
+        <Button
+          type="primary"
+          icon={<SendOutlined />}
+          loading={isSubmitting}
+          onClick={handleResubmitSubmit}
+        >
+          Отправить повторно
+        </Button>
+      </Space>
+    )
+    : <Button onClick={onClose}>Закрыть</Button>
 
   return (
     <>
       <Modal
-        title={`Заявка ${request.requestNumber}`}
+        title={resubmitMode ? `Повторная отправка — Заявка ${request.requestNumber}` : `Заявка ${request.requestNumber}`}
         open={open}
         onCancel={onClose}
-        footer={<Button onClick={onClose}>Закрыть</Button>}
+        footer={modalFooter}
         width="80%"
       >
+        {/* Реквизиты */}
         <Descriptions column={2} size="small" bordered style={{ marginBottom: 16 }}>
           <Descriptions.Item label="Номер">{request.requestNumber}</Descriptions.Item>
           <Descriptions.Item label="Подрядчик">{request.counterpartyName}</Descriptions.Item>
           <Descriptions.Item label="Объект">{request.siteName ?? '—'}</Descriptions.Item>
           <Descriptions.Item label="Статус">
             <Tag color={request.statusColor ?? 'default'}>{request.statusName}</Tag>
-            {statusComment && (
-              <Text type="secondary" style={{ marginLeft: 8 }}>{statusComment}</Text>
-            )}
           </Descriptions.Item>
           <Descriptions.Item label="Срок поставки">{request.deliveryDays} {request.deliveryDaysType === 'calendar' ? 'кал.' : 'раб.'} дн.</Descriptions.Item>
           <Descriptions.Item label="Условия отгрузки">{request.shippingConditionValue}</Descriptions.Item>
@@ -209,6 +293,79 @@ const ViewRequestModal = ({ open, request, onClose }: ViewRequestModalProps) => 
           )}
         </Descriptions>
 
+        {/* Секция согласования — между реквизитами и файлами */}
+        {isCounterpartyUser ? (
+          // Для контрагента — упрощенный лог
+          counterpartyLog.length > 0 && (
+            <>
+              <Text strong style={{ marginBottom: 8, display: 'block' }}>
+                Согласование
+              </Text>
+              <List
+                size="small"
+                dataSource={counterpartyLog}
+                style={{ marginBottom: 16 }}
+                renderItem={(item) => (
+                  <List.Item>
+                    <Space>
+                      {item.icon}
+                      <Text>{item.text}</Text>
+                    </Space>
+                  </List.Item>
+                )}
+              />
+            </>
+          )
+        ) : (
+          // Для admin/user — полная цепочка
+          currentDecisions.length > 0 && (
+            <>
+              <Text strong style={{ marginBottom: 8, display: 'block' }}>
+                Согласование
+              </Text>
+              <List
+                size="small"
+                dataSource={currentDecisions}
+                style={{ marginBottom: 16 }}
+                renderItem={(decision) => {
+                  const icon = decision.status === 'approved'
+                    ? <CheckCircleOutlined style={{ color: '#52c41a' }} />
+                    : decision.status === 'rejected'
+                      ? <CloseCircleOutlined style={{ color: '#f5222d' }} />
+                      : <ClockCircleOutlined style={{ color: '#faad14' }} />
+                  const statusText = decision.status === 'approved'
+                    ? 'Согласовано'
+                    : decision.status === 'rejected'
+                      ? 'Отклонено'
+                      : 'Ожидает'
+                  return (
+                    <List.Item>
+                      <Space>
+                        {icon}
+                        <Text>Этап {decision.stageOrder}</Text>
+                        <Tag>{decision.departmentName}</Tag>
+                        <Text type="secondary">{statusText}</Text>
+                        {decision.userEmail && (
+                          <Text type="secondary">({decision.userEmail})</Text>
+                        )}
+                        {decision.decidedAt && (
+                          <Text type="secondary">{formatDate(decision.decidedAt)}</Text>
+                        )}
+                      </Space>
+                      {decision.comment && (
+                        <Text type="secondary" style={{ display: 'block', marginLeft: 22 }}>
+                          {decision.comment}
+                        </Text>
+                      )}
+                    </List.Item>
+                  )
+                }}
+              />
+            </>
+          )
+        )}
+
+        {/* Файлы */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <Text strong>
             Файлы ({currentRequestFiles.length})
@@ -228,57 +385,31 @@ const ViewRequestModal = ({ open, request, onClose }: ViewRequestModalProps) => 
         <Table
           size="small"
           columns={fileColumns as any}
-          dataSource={currentRequestFiles}
+          dataSource={sortedFiles}
           rowKey="id"
           loading={isLoading}
           pagination={false}
           locale={{ emptyText: 'Нет файлов' }}
         />
 
-        {/* Секция согласования — только для admin/user */}
-        {!isCounterpartyUser && currentDecisions.length > 0 && (
-          <>
-            <Text strong style={{ marginTop: 16, marginBottom: 8, display: 'block' }}>
-              Согласование
+        {/* Режим повторной отправки: загрузка новых файлов + комментарий */}
+        {resubmitMode && (
+          <div style={{ marginTop: 16 }}>
+            <Text strong style={{ display: 'block', marginBottom: 8 }}>
+              Догрузить файлы
             </Text>
-            <List
-              size="small"
-              dataSource={currentDecisions}
-              renderItem={(decision) => {
-                const icon = decision.status === 'approved'
-                  ? <CheckCircleOutlined style={{ color: '#52c41a' }} />
-                  : decision.status === 'rejected'
-                    ? <CloseCircleOutlined style={{ color: '#f5222d' }} />
-                    : <ClockCircleOutlined style={{ color: '#faad14' }} />
-                const statusText = decision.status === 'approved'
-                  ? 'Согласовано'
-                  : decision.status === 'rejected'
-                    ? 'Отклонено'
-                    : 'Ожидает'
-                return (
-                  <List.Item>
-                    <Space>
-                      {icon}
-                      <Text>Этап {decision.stageOrder}</Text>
-                      <Tag>{decision.departmentName}</Tag>
-                      <Text type="secondary">{statusText}</Text>
-                      {decision.userEmail && (
-                        <Text type="secondary">({decision.userEmail})</Text>
-                      )}
-                      {decision.decidedAt && (
-                        <Text type="secondary">{formatDate(decision.decidedAt)}</Text>
-                      )}
-                    </Space>
-                    {decision.comment && (
-                      <Text type="secondary" style={{ display: 'block', marginLeft: 22 }}>
-                        {decision.comment}
-                      </Text>
-                    )}
-                  </List.Item>
-                )
-              }}
+            <FileUploadList fileList={resubmitFileList} onChange={setResubmitFileList} />
+
+            <Text strong style={{ display: 'block', marginTop: 16, marginBottom: 8 }}>
+              Комментарий к повторной отправке
+            </Text>
+            <TextArea
+              rows={3}
+              placeholder="Необязательное поле"
+              value={resubmitComment}
+              onChange={(e) => setResubmitComment(e.target.value)}
             />
-          </>
+          </div>
         )}
       </Modal>
 

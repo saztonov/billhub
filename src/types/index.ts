@@ -130,6 +130,8 @@ export interface PaymentRequest {
   currentStage: number | null
   approvedAt: string | null
   rejectedAt: string | null
+  resubmitComment: string | null
+  resubmitCount: number
   // Joined
   counterpartyName?: string
   siteName?: string
@@ -150,6 +152,7 @@ export interface PaymentRequestFile {
   pageCount: number | null
   createdBy: string
   createdAt: string
+  isResubmit: boolean
   // Joined
   documentTypeName?: string
 }

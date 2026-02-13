@@ -20,6 +20,7 @@ import {
   RollbackOutlined,
   CheckOutlined,
   StopOutlined,
+  RedoOutlined,
 } from '@ant-design/icons'
 import { useState } from 'react'
 import type { PaymentRequest } from '@/types'
@@ -66,6 +67,8 @@ export interface RequestsTableProps {
   showApprovalActions?: boolean
   onApprove?: (id: string, comment: string) => void
   onReject?: (id: string, comment: string) => void
+  // Повторная отправка
+  onResubmit?: (record: PaymentRequest) => void
   // Дополнительные столбцы для вкладок
   showApprovedDate?: boolean
   showRejectedDate?: boolean
@@ -95,6 +98,7 @@ const RequestsTable = (props: RequestsTableProps) => {
     showRejectedDate,
     showDepartmentFilter,
     rejectionDepartments,
+    onResubmit,
   } = props
 
   const [approvalModal, setApprovalModal] = useState<{ id: string; action: 'approve' | 'reject' } | null>(null)
@@ -297,6 +301,18 @@ const RequestsTable = (props: RequestsTableProps) => {
               danger
               size="small"
               onClick={() => setWithdrawModal(record.id)}
+            />
+          </Tooltip>
+        )}
+
+        {/* counterparty_user: повторная отправка отклоненной заявки */}
+        {isCounterpartyUser && onResubmit && record.rejectedAt && (
+          <Tooltip title="Отправить повторно">
+            <Button
+              icon={<RedoOutlined />}
+              type="primary"
+              size="small"
+              onClick={() => onResubmit(record)}
             />
           </Tooltip>
         )}
