@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
-import { Layout, Menu, Typography, Avatar, Flex } from 'antd'
+import { Layout, Menu, Typography, Avatar, Flex, Dropdown } from 'antd'
 import type { MenuProps } from 'antd'
 import {
   FileTextOutlined,
@@ -8,6 +8,7 @@ import {
   UserOutlined,
   FolderOutlined,
   SettingOutlined,
+  LogoutOutlined,
 } from '@ant-design/icons'
 import { useAuthStore } from '@/store/authStore'
 import type { UserRole } from '@/types'
@@ -64,6 +65,7 @@ const MainLayout = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const user = useAuthStore((s) => s.user)
+  const logout = useAuthStore((s) => s.logout)
 
   const menuItems = useMemo(
     () => getMenuItems(user?.role ?? 'counterparty_user'),
@@ -132,15 +134,32 @@ const MainLayout = () => {
             borderBottom: '1px solid #f0f0f0',
           }}
         >
-          <Flex align="center" gap={8}>
-            <Avatar icon={<UserOutlined />} />
-            <Flex vertical style={{ lineHeight: 1.3 }}>
-              <Text>{user?.email ?? ''}</Text>
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                {user ? getRoleLabel(user.role) : ''}
-              </Text>
+          <Dropdown
+            menu={{
+              items: [
+                {
+                  key: 'logout',
+                  icon: <LogoutOutlined />,
+                  label: 'Выход',
+                  onClick: async () => {
+                    await logout()
+                    navigate('/login')
+                  },
+                },
+              ],
+            }}
+            trigger={['click']}
+          >
+            <Flex align="center" gap={8} style={{ cursor: 'pointer' }}>
+              <Avatar icon={<UserOutlined />} />
+              <Flex vertical style={{ lineHeight: 1.3 }}>
+                <Text>{user?.email ?? ''}</Text>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  {user ? getRoleLabel(user.role) : ''}
+                </Text>
+              </Flex>
             </Flex>
-          </Flex>
+          </Dropdown>
         </Header>
 
         <Content style={{ margin: 24 }}>
