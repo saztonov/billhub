@@ -26,7 +26,7 @@ interface PaymentRequestStoreState {
     userId: string,
   ) => Promise<{ requestId: string; requestNumber: string }>
   deleteRequest: (id: string) => Promise<void>
-  withdrawRequest: (id: string) => Promise<void>
+  withdrawRequest: (id: string, comment?: string) => Promise<void>
   updateRequestStatus: (id: string, statusId: string) => Promise<void>
   incrementUploadedFiles: (requestId: string) => void
   fetchRequestFiles: (requestId: string) => Promise<void>
@@ -83,6 +83,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
           totalFiles: (row.total_files as number) ?? 0,
           uploadedFiles: (row.uploaded_files as number) ?? 0,
           withdrawnAt: row.withdrawn_at as string | null,
+          withdrawalComment: row.withdrawal_comment as string | null,
           currentStage: (row.current_stage as number) ?? null,
           approvedAt: row.approved_at as string | null,
           rejectedAt: row.rejected_at as string | null,
@@ -201,7 +202,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
     }
   },
 
-  withdrawRequest: async (id) => {
+  withdrawRequest: async (id, comment?) => {
     set({ isLoading: true, error: null })
     try {
       // Получаем id статуса "Отозвана"
@@ -218,6 +219,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
         .update({
           status_id: statusData.id,
           withdrawn_at: new Date().toISOString(),
+          withdrawal_comment: comment || null,
         })
         .eq('id', id)
       if (error) throw error

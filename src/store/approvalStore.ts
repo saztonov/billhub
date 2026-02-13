@@ -60,6 +60,7 @@ function mapRequest(row: Record<string, unknown>): PaymentRequest {
     totalFiles: (row.total_files as number) ?? 0,
     uploadedFiles: (row.uploaded_files as number) ?? 0,
     withdrawnAt: row.withdrawn_at as string | null,
+    withdrawalComment: row.withdrawal_comment as string | null,
     currentStage: (row.current_stage as number) ?? null,
     approvedAt: row.approved_at as string | null,
     rejectedAt: row.rejected_at as string | null,

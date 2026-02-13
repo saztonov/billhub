@@ -124,6 +124,7 @@ export interface PaymentRequest {
   uploadedFiles: number
   createdAt: string
   withdrawnAt: string | null
+  withdrawalComment: string | null
   currentStage: number | null
   approvedAt: string | null
   rejectedAt: string | null

@@ -993,6 +993,15 @@
               "numeric_precision": null
             },
             {
+              "name": "withdrawal_comment",
+              "type": "text",
+              "default": null,
+              "nullable": true,
+              "position": 18,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
               "name": "site_id",
               "type": "uuid",
               "default": null,

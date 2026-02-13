@@ -8,6 +8,7 @@ import {
   Typography,
   Space,
   Spin,
+  Tooltip,
 } from 'antd'
 import {
   DownloadOutlined,
@@ -91,9 +92,9 @@ const ViewRequestModal = ({ open, request, onClose }: ViewRequestModalProps) => 
         open={open}
         onCancel={onClose}
         footer={<Button onClick={onClose}>Закрыть</Button>}
-        width={650}
+        width="80%"
       >
-        <Descriptions column={1} size="small" bordered style={{ marginBottom: 16 }}>
+        <Descriptions column={1} size="small" bordered style={{ marginBottom: 16 }} labelStyle={{ width: 200, whiteSpace: 'nowrap' }}>
           <Descriptions.Item label="Номер">{request.requestNumber}</Descriptions.Item>
           <Descriptions.Item label="Контрагент">{request.counterpartyName}</Descriptions.Item>
           {request.siteName && (
@@ -111,6 +112,9 @@ const ViewRequestModal = ({ open, request, onClose }: ViewRequestModalProps) => 
           {request.comment && (
             <Descriptions.Item label="Комментарий">{request.comment}</Descriptions.Item>
           )}
+          {request.withdrawalComment && (
+            <Descriptions.Item label="Комментарий отзыва">{request.withdrawalComment}</Descriptions.Item>
+          )}
           <Descriptions.Item label="Дата создания">{formatDate(request.createdAt)}</Descriptions.Item>
         </Descriptions>
 
@@ -126,23 +130,21 @@ const ViewRequestModal = ({ open, request, onClose }: ViewRequestModalProps) => 
             renderItem={(file) => (
               <List.Item
                 actions={[
-                  <Button
-                    key="preview"
-                    icon={<EyeOutlined />}
-                    size="small"
-                    onClick={() => setPreviewFile(file)}
-                  >
-                    Просмотр
-                  </Button>,
-                  <Button
-                    key="download"
-                    icon={<DownloadOutlined />}
-                    size="small"
-                    loading={downloading === file.fileKey}
-                    onClick={() => handleDownload(file.fileKey, file.fileName)}
-                  >
-                    Скачать
-                  </Button>,
+                  <Tooltip key="preview" title="Просмотр">
+                    <Button
+                      icon={<EyeOutlined />}
+                      size="small"
+                      onClick={() => setPreviewFile(file)}
+                    />
+                  </Tooltip>,
+                  <Tooltip key="download" title="Скачать">
+                    <Button
+                      icon={<DownloadOutlined />}
+                      size="small"
+                      loading={downloading === file.fileKey}
+                      onClick={() => handleDownload(file.fileKey, file.fileName)}
+                    />
+                  </Tooltip>,
                 ]}
               >
                 <Space>

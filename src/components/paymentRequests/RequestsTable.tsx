@@ -51,7 +51,7 @@ export interface RequestsTableProps {
   onView: (record: PaymentRequest) => void
   // Для counterparty_user
   isCounterpartyUser?: boolean
-  onWithdraw?: (id: string) => void
+  onWithdraw?: (id: string, comment: string) => void
   // Для admin/user — смена статуса
   statusOptions?: { label: string; value: string }[]
   onStatusChange?: (id: string, statusId: string) => void
@@ -99,6 +99,8 @@ const RequestsTable = (props: RequestsTableProps) => {
 
   const [approvalModal, setApprovalModal] = useState<{ id: string; action: 'approve' | 'reject' } | null>(null)
   const [approvalComment, setApprovalComment] = useState('')
+  const [withdrawModal, setWithdrawModal] = useState<string | null>(null)
+  const [withdrawComment, setWithdrawComment] = useState('')
 
   const counterpartyFilters = useMemo(
     () => uniqueFilters(requests.map((r) => r.counterpartyName)),
@@ -289,11 +291,14 @@ const RequestsTable = (props: RequestsTableProps) => {
 
         {/* counterparty_user: отзыв */}
         {isCounterpartyUser && onWithdraw && (
-          <Popconfirm title="Отозвать заявку?" onConfirm={() => onWithdraw(record.id)}>
-            <Tooltip title="Отозвать">
-              <Button icon={<RollbackOutlined />} danger size="small" />
-            </Tooltip>
-          </Popconfirm>
+          <Tooltip title="Отозвать">
+            <Button
+              icon={<RollbackOutlined />}
+              danger
+              size="small"
+              onClick={() => setWithdrawModal(record.id)}
+            />
+          </Tooltip>
         )}
 
         {/* admin/user: смена статуса */}
@@ -350,6 +355,27 @@ const RequestsTable = (props: RequestsTableProps) => {
           placeholder="Комментарий (необязательно)"
           value={approvalComment}
           onChange={(e) => setApprovalComment(e.target.value)}
+        />
+      </Modal>
+
+      {/* Модал отзыва заявки */}
+      <Modal
+        title="Отзыв заявки"
+        open={!!withdrawModal}
+        onOk={() => {
+          if (withdrawModal) onWithdraw?.(withdrawModal, withdrawComment)
+          setWithdrawModal(null)
+          setWithdrawComment('')
+        }}
+        onCancel={() => { setWithdrawModal(null); setWithdrawComment('') }}
+        okText="Отозвать"
+        okButtonProps={{ danger: true }}
+      >
+        <TextArea
+          rows={3}
+          placeholder="Комментарий (необязательно)"
+          value={withdrawComment}
+          onChange={(e) => setWithdrawComment(e.target.value)}
         />
       </Modal>
     </>

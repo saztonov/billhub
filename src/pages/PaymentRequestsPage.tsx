@@ -78,8 +78,8 @@ const PaymentRequestsPage = () => {
     }
   }, [activeTab, isCounterpartyUser, user?.departmentId, fetchPendingRequests, fetchApprovedRequests, fetchRejectedRequests])
 
-  const handleWithdraw = async (id: string) => {
-    await withdrawRequest(id)
+  const handleWithdraw = async (id: string, comment: string) => {
+    await withdrawRequest(id, comment || undefined)
     message.success('Заявка отозвана')
     if (isCounterpartyUser && user?.counterpartyId) {
       fetchRequests(user.counterpartyId)
