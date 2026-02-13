@@ -102,6 +102,23 @@ export async function getDownloadUrl(
   return getSignedUrl(s3Client, command, { expiresIn })
 }
 
+/** Скачивает файл как Blob (через Vite proxy в dev для обхода CORS) */
+export async function downloadFileBlob(key: string): Promise<Blob> {
+  const command = new GetObjectCommand({
+    Bucket: S3_BUCKET,
+    Key: key,
+  })
+  let url = await getSignedUrl(s3Client, command, { expiresIn: 3600 })
+  if (import.meta.env.DEV) {
+    url = url.replace(S3_BASE, '/s3-proxy')
+  }
+  const res = await fetch(url)
+  if (!res.ok) {
+    throw new Error(`Ошибка скачивания файла: ${res.status}`)
+  }
+  return res.blob()
+}
+
 /** Получает presigned URL для загрузки файла напрямую из браузера */
 export async function getUploadUrl(
   key: string,

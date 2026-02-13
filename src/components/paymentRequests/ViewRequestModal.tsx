@@ -20,7 +20,8 @@ import {
 import { usePaymentRequestStore } from '@/store/paymentRequestStore'
 import { useApprovalStore } from '@/store/approvalStore'
 import { useAuthStore } from '@/store/authStore'
-import { getDownloadUrl } from '@/services/s3'
+import { getDownloadUrl, downloadFileBlob } from '@/services/s3'
+import JSZip from 'jszip'
 import FilePreviewModal from './FilePreviewModal'
 import type { PaymentRequest, PaymentRequestFile } from '@/types'
 
@@ -87,23 +88,27 @@ const ViewRequestModal = ({ open, request, onClose }: ViewRequestModalProps) => 
     return null
   }, [request, currentDecisions])
 
-  /** Скачать все файлы */
+  /** Скачать все файлы в ZIP-архиве */
   const handleDownloadAll = async () => {
-    if (!currentRequestFiles.length) return
+    if (!currentRequestFiles.length || !request) return
     setDownloadingAll(true)
     try {
-      const downloads = currentRequestFiles.map(async (file) => {
-        const url = await getDownloadUrl(file.fileKey)
-        const resp = await fetch(url)
-        const blob = await resp.blob()
-        const blobUrl = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = blobUrl
-        a.download = file.fileName
-        a.click()
-        URL.revokeObjectURL(blobUrl)
-      })
-      await Promise.allSettled(downloads)
+      const zip = new JSZip()
+      const results = await Promise.allSettled(
+        currentRequestFiles.map(async (file) => {
+          const blob = await downloadFileBlob(file.fileKey)
+          zip.file(file.fileName, blob)
+        }),
+      )
+      const failed = results.filter((r) => r.status === 'rejected').length
+      if (failed === currentRequestFiles.length) return
+      const content = await zip.generateAsync({ type: 'blob' })
+      const url = URL.createObjectURL(content)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${request.requestNumber}.zip`
+      a.click()
+      URL.revokeObjectURL(url)
     } finally {
       setDownloadingAll(false)
     }
