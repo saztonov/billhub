@@ -125,6 +125,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
         files: fileList.map((f) => ({
           file: f.file,
           documentTypeId: f.documentTypeId!,
+          pageCount: f.pageCount,
         })),
         userId: user.id,
       })

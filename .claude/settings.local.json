@@ -11,7 +11,8 @@
       "Bash(del \"c:\\\\Users\\\\Usr\\\\billhub\\\\src\\\\pages\\\\InvoicesPage.tsx\")",
       "Bash(git -C \"c:\\\\Users\\\\Usr\\\\billhub\" log --oneline -3)",
       "Bash(git -C \"c:\\\\Users\\\\Usr\\\\billhub\" status)",
-      "Bash(git -C \"c:\\\\Users\\\\Usr\\\\billhub\" push --force)"
+      "Bash(git -C \"c:\\\\Users\\\\Usr\\\\billhub\" push --force)",
+      "Bash(dir:*)"
     ]
   }
 }

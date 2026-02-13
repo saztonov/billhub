@@ -6,6 +6,7 @@ import { usePaymentRequestStore } from '@/store/paymentRequestStore'
 interface FileToUpload {
   file: File
   documentTypeId: string
+  pageCount: number | null
 }
 
 export interface UploadTask {
@@ -110,6 +111,7 @@ async function processQueue(
               file_key: key,
               file_size: fileData.file.size,
               mime_type: fileData.file.type || null,
+              page_count: fileData.pageCount,
               created_by: task.userId,
             })
           if (fileError) throw fileError

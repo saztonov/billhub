@@ -116,7 +116,10 @@ const ViewRequestModal = ({ open, request, onClose }: ViewRequestModalProps) => 
       key: 'fileSize',
       width: 100,
       render: (_: unknown, file: PaymentRequestFile) => (
-        <Text type="secondary">{formatSize(file.fileSize)}</Text>
+        <Text type="secondary">
+          {formatSize(file.fileSize)}
+          {file.pageCount != null && ` · ${file.pageCount} стр.`}
+        </Text>
       ),
     },
     {

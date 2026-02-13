@@ -146,6 +146,7 @@ export interface PaymentRequestFile {
   fileKey: string
   fileSize: number | null
   mimeType: string | null
+  pageCount: number | null
   createdBy: string
   createdAt: string
   // Joined

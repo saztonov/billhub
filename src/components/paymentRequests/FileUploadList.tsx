@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Upload, Select, Button, List, Typography, message } from 'antd'
 import { InboxOutlined, DeleteOutlined, CheckCircleFilled } from '@ant-design/icons'
 import { useDocumentTypeStore } from '@/store/documentTypeStore'
+import { getPdfPageCount } from '@/utils/pdfUtils'
 import type { UploadFile } from 'antd/es/upload/interface'
 
 const { Dragger } = Upload
@@ -11,6 +12,7 @@ export interface FileItem {
   uid: string
   file: File
   documentTypeId: string | null
+  pageCount: number | null
 }
 
 interface FileUploadListProps {
@@ -49,7 +51,7 @@ const FileUploadList = ({ fileList, onChange }: FileUploadListProps) => {
     if (file !== batch[0]) return false
 
     const validExts = ['doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png', 'tiff', 'tif', 'bmp', 'pdf']
-    const validItems: FileItem[] = []
+    const validFiles: File[] = []
 
     for (const f of batch) {
       const ext = f.name.split('.').pop()?.toLowerCase() ?? ''
@@ -57,16 +59,26 @@ const FileUploadList = ({ fileList, onChange }: FileUploadListProps) => {
         message.error(`Неподдерживаемый формат: ${f.name}`)
         continue
       }
-      validItems.push({
-        uid: `${Date.now()}_${Math.random().toString(36).slice(2)}_${validItems.length}`,
-        file: f,
-        documentTypeId: null,
-      })
+      validFiles.push(f)
     }
 
-    if (validItems.length > 0) {
-      onChange([...fileList, ...validItems])
-      setDragKey((k) => k + 1)
+    if (validFiles.length > 0) {
+      // Подсчёт страниц PDF выполняется асинхронно
+      void (async () => {
+        const items: FileItem[] = []
+        for (const f of validFiles) {
+          const isPdf = f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')
+          const pageCount = isPdf ? await getPdfPageCount(f) : null
+          items.push({
+            uid: `${Date.now()}_${Math.random().toString(36).slice(2)}_${items.length}`,
+            file: f,
+            documentTypeId: null,
+            pageCount,
+          })
+        }
+        onChange([...fileList, ...items])
+        setDragKey((k) => k + 1)
+      })()
     }
     return false
   }
@@ -134,6 +146,7 @@ const FileUploadList = ({ fileList, onChange }: FileUploadListProps) => {
                 </Text>
                 <Text type="secondary" style={{ flexShrink: 0 }}>
                   {formatSize(item.file.size)}
+                  {item.pageCount != null && ` · ${item.pageCount} стр.`}
                 </Text>
                 <Select
                   placeholder="Тип документа"

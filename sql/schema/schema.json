@@ -878,6 +878,15 @@
               "position": 9,
               "max_length": null,
               "numeric_precision": null
+            },
+            {
+              "name": "page_count",
+              "type": "integer",
+              "default": null,
+              "nullable": true,
+              "position": 10,
+              "max_length": null,
+              "numeric_precision": 32
             }
           ]
         },

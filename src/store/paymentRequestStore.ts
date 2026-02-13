@@ -290,6 +290,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
             fileKey: row.file_key as string,
             fileSize: row.file_size as number | null,
             mimeType: row.mime_type as string | null,
+            pageCount: row.page_count as number | null,
             createdBy: row.created_by as string,
             createdAt: row.created_at as string,
             documentTypeName: dt?.name as string | undefined,
