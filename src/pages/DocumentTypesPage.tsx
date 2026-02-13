@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import {
-  Typography,
   Table,
   Button,
   Space,
@@ -15,8 +14,6 @@ import {
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useDocumentTypeStore } from '@/store/documentTypeStore'
 import type { DocumentType } from '@/types'
-
-const { Title } = Typography
 
 const DocumentTypesPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -97,8 +94,7 @@ const DocumentTypesPage = () => {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <Title level={2} style={{ margin: 0 }}>Типы документов</Title>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
         <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
           Добавить
         </Button>

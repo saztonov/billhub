@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import {
-  Typography,
   Table,
   Button,
   Space,
@@ -17,7 +16,6 @@ import { useConstructionSiteStore } from '@/store/constructionSiteStore'
 import { useAuthStore } from '@/store/authStore'
 import type { ConstructionSite } from '@/types'
 
-const { Title } = Typography
 const { TextArea } = Input
 
 const ConstructionSitesPage = () => {
@@ -126,23 +124,13 @@ const ConstructionSitesPage = () => {
 
   return (
     <div>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 16,
-        }}
-      >
-        <Title level={2} style={{ margin: 0 }}>
-          Объекты строительства
-        </Title>
-        {isAdmin && (
+      {isAdmin && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
           <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
             Добавить
           </Button>
-        )}
-      </div>
+        </div>
+      )}
 
       <Table
         columns={columns}

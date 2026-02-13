@@ -6,18 +6,11 @@ import AuthLayout from '@/layout/AuthLayout'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import RoleGuard from '@/components/RoleGuard'
 import LoginPage from '@/pages/LoginPage'
-import CounterpartiesPage from '@/pages/CounterpartiesPage'
 import PaymentRequestsPage from '@/pages/PaymentRequestsPage'
-import PaymentRequestSettingsPage from '@/pages/PaymentRequestSettingsPage'
 import DistributionLettersPage from '@/pages/DistributionLettersPage'
-import ApprovalsPage from '@/pages/ApprovalsPage'
 import EmployeesPage from '@/pages/EmployeesPage'
-import ConstructionSitesPage from '@/pages/ConstructionSitesPage'
-import DocumentTypesPage from '@/pages/DocumentTypesPage'
-import ApprovalChainsPage from '@/pages/ApprovalChainsPage'
-import SiteDocumentsPage from '@/pages/SiteDocumentsPage'
-import OcrSettingsPage from '@/pages/OcrSettingsPage'
-import UsersPage from '@/pages/UsersPage'
+import ReferencesPage from '@/pages/ReferencesPage'
+import AdminPage from '@/pages/AdminPage'
 import { useAuthStore } from '@/store/authStore'
 
 /** Инициализация сессии при загрузке приложения */
@@ -58,21 +51,14 @@ const App = () => {
 
             {/* Только admin и user (внутренние сотрудники) */}
             <Route element={<RoleGuard allowedRoles={['admin', 'user']} />}>
-              <Route path="/counterparties" element={<CounterpartiesPage />} />
               <Route path="/distribution-letters" element={<DistributionLettersPage />} />
-              <Route path="/approvals" element={<ApprovalsPage />} />
               <Route path="/employees" element={<EmployeesPage />} />
-              <Route path="/sites" element={<ConstructionSitesPage />} />
-              <Route path="/document-types" element={<DocumentTypesPage />} />
+              <Route path="/references" element={<ReferencesPage />} />
             </Route>
 
             {/* Только admin */}
             <Route element={<RoleGuard allowedRoles={['admin']} />}>
-              <Route path="/approval-chains" element={<ApprovalChainsPage />} />
-              <Route path="/site-documents" element={<SiteDocumentsPage />} />
-              <Route path="/settings/ocr" element={<OcrSettingsPage />} />
-              <Route path="/settings/payment-requests" element={<PaymentRequestSettingsPage />} />
-              <Route path="/users" element={<UsersPage />} />
+              <Route path="/admin" element={<AdminPage />} />
             </Route>
           </Route>
         </Route>

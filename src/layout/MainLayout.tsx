@@ -3,17 +3,11 @@ import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { Layout, Menu, Typography, Avatar, Flex } from 'antd'
 import type { MenuProps } from 'antd'
 import {
-  TeamOutlined,
   FileTextOutlined,
   SendOutlined,
-  CheckCircleOutlined,
   UserOutlined,
-  BankOutlined,
   FolderOutlined,
-  ApartmentOutlined,
-  SafetyOutlined,
   SettingOutlined,
-  UserSwitchOutlined,
 } from '@ant-design/icons'
 import { useAuthStore } from '@/store/authStore'
 import type { UserRole } from '@/types'
@@ -25,43 +19,15 @@ const { Text } = Typography
 const allMenuItems: MenuProps['items'] = [
   { key: '/payment-requests', icon: <FileTextOutlined />, label: 'Заявки на оплату' },
   { key: '/distribution-letters', icon: <SendOutlined />, label: 'Распред. письма' },
-  { key: '/approvals', icon: <CheckCircleOutlined />, label: 'Согласования' },
-  {
-    type: 'group',
-    label: 'Справочники',
-    children: [
-      { key: '/counterparties', icon: <TeamOutlined />, label: 'Контрагенты' },
-      { key: '/sites', icon: <BankOutlined />, label: 'Объекты' },
-      { key: '/document-types', icon: <FolderOutlined />, label: 'Типы документов' },
-    ],
-  },
-  {
-    type: 'group',
-    label: 'Администрирование',
-    children: [
-      { key: '/approval-chains', icon: <ApartmentOutlined />, label: 'Цепочки согласований' },
-      { key: '/site-documents', icon: <SafetyOutlined />, label: 'Документы объектов' },
-      { key: '/settings/ocr', icon: <SettingOutlined />, label: 'Настройки OCR' },
-      { key: '/settings/payment-requests', icon: <SettingOutlined />, label: 'Настройки заявок' },
-      { key: '/users', icon: <UserSwitchOutlined />, label: 'Пользователи' },
-    ],
-  },
+  { key: '/references', icon: <FolderOutlined />, label: 'Справочники' },
+  { key: '/admin', icon: <SettingOutlined />, label: 'Администрирование' },
 ]
 
 /** Меню для роли user (без администрирования) */
 const userMenuItems: MenuProps['items'] = [
   { key: '/payment-requests', icon: <FileTextOutlined />, label: 'Заявки на оплату' },
   { key: '/distribution-letters', icon: <SendOutlined />, label: 'Распред. письма' },
-  { key: '/approvals', icon: <CheckCircleOutlined />, label: 'Согласования' },
-  {
-    type: 'group',
-    label: 'Справочники',
-    children: [
-      { key: '/counterparties', icon: <TeamOutlined />, label: 'Контрагенты' },
-      { key: '/sites', icon: <BankOutlined />, label: 'Объекты' },
-      { key: '/document-types', icon: <FolderOutlined />, label: 'Типы документов' },
-    ],
-  },
+  { key: '/references', icon: <FolderOutlined />, label: 'Справочники' },
 ]
 
 /** Меню для роли counterparty_user (только счета) */

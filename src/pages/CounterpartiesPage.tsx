@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import {
-  Typography,
   Table,
   Button,
   Space,
@@ -13,8 +12,6 @@ import {
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useCounterpartyStore } from '@/store/counterpartyStore'
 import type { Counterparty } from '@/types'
-
-const { Title } = Typography
 
 const CounterpartiesPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -86,8 +83,7 @@ const CounterpartiesPage = () => {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <Title level={2} style={{ margin: 0 }}>Контрагенты</Title>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
         <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
           Добавить
         </Button>

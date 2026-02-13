@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import {
-  Typography,
   Tabs,
   Table,
   Button,
@@ -20,7 +19,6 @@ import { useStatusStore } from '@/store/statusStore'
 import { usePaymentRequestSettingsStore } from '@/store/paymentRequestSettingsStore'
 import type { Status, PaymentRequestFieldOption } from '@/types'
 
-const { Title } = Typography
 const ENTITY_TYPE = 'payment_request'
 
 const fieldCodeLabels: Record<string, string> = {
@@ -236,7 +234,6 @@ const PaymentRequestSettingsPage = () => {
 
   return (
     <div>
-      <Title level={2}>Настройки заявок</Title>
       <Tabs items={tabItems} />
 
       {/* Модал статуса */}
