@@ -294,7 +294,7 @@ const RequestsTable = (props: RequestsTableProps) => {
         )}
 
         {/* counterparty_user: отзыв */}
-        {isCounterpartyUser && onWithdraw && (
+        {isCounterpartyUser && onWithdraw && !record.withdrawnAt && (
           <Tooltip title="Отозвать">
             <Button
               icon={<RollbackOutlined />}
