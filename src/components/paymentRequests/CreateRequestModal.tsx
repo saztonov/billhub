@@ -102,6 +102,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
       const { requestId, requestNumber } = await createRequest(
         {
           deliveryDays: values.deliveryDays,
+          deliveryDaysType: values.deliveryDaysType,
           shippingConditionId: values.shippingConditionId,
           siteId: values.siteId,
           comment: values.comment,
@@ -182,11 +183,32 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item
-                name="deliveryDays"
-                label={fieldLabel('Срок поставки, дней', !!formValues.deliveryDays)}
-                rules={[{ required: true, message: 'Укажите срок поставки' }]}
+                label={fieldLabel('Срок поставки', !!formValues.deliveryDays)}
+                required
+                style={{ marginBottom: 0 }}
               >
-                <InputNumber min={1} style={{ width: '100%' }} placeholder="Количество дней" />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <Form.Item
+                    name="deliveryDays"
+                    noStyle
+                    rules={[{ required: true, message: 'Укажите срок' }]}
+                  >
+                    <InputNumber min={1} style={{ flex: 1 }} placeholder="Кол-во дней" />
+                  </Form.Item>
+                  <Form.Item
+                    name="deliveryDaysType"
+                    noStyle
+                    initialValue="working"
+                  >
+                    <Select
+                      style={{ width: 150 }}
+                      options={[
+                        { label: 'рабочих', value: 'working' },
+                        { label: 'календарных', value: 'calendar' },
+                      ]}
+                    />
+                  </Form.Item>
+                </div>
               </Form.Item>
             </Col>
             <Col span={12}>

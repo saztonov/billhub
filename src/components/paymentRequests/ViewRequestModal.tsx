@@ -173,7 +173,7 @@ const ViewRequestModal = ({ open, request, onClose }: ViewRequestModalProps) => 
               <Text type="secondary" style={{ marginLeft: 8 }}>{statusComment}</Text>
             )}
           </Descriptions.Item>
-          <Descriptions.Item label="Срок поставки">{request.deliveryDays} дн.</Descriptions.Item>
+          <Descriptions.Item label="Срок поставки">{request.deliveryDays} {request.deliveryDaysType === 'calendar' ? 'кал.' : 'раб.'} дн.</Descriptions.Item>
           <Descriptions.Item label="Условия отгрузки">{request.shippingConditionValue}</Descriptions.Item>
           <Descriptions.Item label="Дата создания">{formatDate(request.createdAt)}</Descriptions.Item>
           {request.comment && (

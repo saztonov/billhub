@@ -115,6 +115,7 @@ export interface PaymentRequest {
   siteId: string
   statusId: string
   deliveryDays: number
+  deliveryDaysType: string
   shippingConditionId: string
   comment: string | null
   createdBy: string

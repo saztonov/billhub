@@ -51,6 +51,7 @@ function mapRequest(row: Record<string, unknown>): PaymentRequest {
     siteId: row.site_id as string,
     statusId: row.status_id as string,
     deliveryDays: row.delivery_days as number,
+    deliveryDaysType: (row.delivery_days_type as string) ?? 'working',
     shippingConditionId: row.shipping_condition_id as string,
     comment: row.comment as string | null,
     createdBy: row.created_by as string,

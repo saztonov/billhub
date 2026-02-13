@@ -6,6 +6,7 @@ import type { PaymentRequest, PaymentRequestFile } from '@/types'
 
 interface CreateRequestData {
   deliveryDays: number
+  deliveryDaysType: string
   shippingConditionId: string
   siteId: string
   comment?: string
@@ -79,6 +80,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
           siteId: row.site_id as string,
           statusId: row.status_id as string,
           deliveryDays: row.delivery_days as number,
+          deliveryDaysType: (row.delivery_days_type as string) ?? 'working',
           shippingConditionId: row.shipping_condition_id as string,
           comment: row.comment as string | null,
           createdBy: row.created_by as string,
@@ -131,6 +133,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
           site_id: data.siteId,
           status_id: statusData.id,
           delivery_days: data.deliveryDays,
+          delivery_days_type: data.deliveryDaysType,
           shipping_condition_id: data.shippingConditionId,
           comment: data.comment || null,
           total_files: data.totalFiles,
