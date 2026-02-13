@@ -163,12 +163,6 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit }: 
     }
   }
 
-  const handleResubmitSubmit = () => {
-    onResubmit?.(resubmitComment, resubmitFileList)
-  }
-
-  if (!request) return null
-
   // Сортировка файлов: догруженные (isResubmit) сверху
   const sortedFiles = useMemo(() => {
     return [...currentRequestFiles].sort((a, b) => {
@@ -178,7 +172,13 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit }: 
     })
   }, [currentRequestFiles])
 
-  const hasResubmitFiles = request.resubmitCount > 0
+  const hasResubmitFiles = (request?.resubmitCount ?? 0) > 0
+
+  const handleResubmitSubmit = () => {
+    onResubmit?.(resubmitComment, resubmitFileList)
+  }
+
+  if (!request) return null
 
   /** Столбцы таблицы файлов */
   const fileColumns: Record<string, unknown>[] = [
