@@ -136,7 +136,7 @@ const RequestsTable = (props: RequestsTableProps) => {
         a.requestNumber.localeCompare(b.requestNumber),
     },
     {
-      title: 'Контрагент',
+      title: 'Подрядчик',
       dataIndex: 'counterpartyName',
       key: 'counterpartyName',
       filters: counterpartyFilters,

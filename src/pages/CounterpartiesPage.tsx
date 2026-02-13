@@ -44,17 +44,17 @@ const CounterpartiesPage = () => {
 
   const handleDelete = async (id: string) => {
     await deleteCounterparty(id)
-    message.success('Контрагент удалён')
+    message.success('Подрядчик удалён')
   }
 
   const handleSubmit = async () => {
     const values = await form.validateFields()
     if (editingRecord) {
       await updateCounterparty(editingRecord.id, values)
-      message.success('Контрагент обновлён')
+      message.success('Подрядчик обновлён')
     } else {
       await createCounterparty(values)
-      message.success('Контрагент создан')
+      message.success('Подрядчик создан')
     }
     setIsModalOpen(false)
     form.resetFields()
@@ -63,7 +63,6 @@ const CounterpartiesPage = () => {
   const columns = [
     { title: 'Наименование', dataIndex: 'name', key: 'name' },
     { title: 'ИНН', dataIndex: 'inn', key: 'inn' },
-    { title: 'Адрес', dataIndex: 'address', key: 'address' },
     {
       title: 'Альтернативное наименование',
       dataIndex: 'alternativeNames',
@@ -76,7 +75,7 @@ const CounterpartiesPage = () => {
       render: (_: unknown, record: Counterparty) => (
         <Space>
           <Button icon={<EditOutlined />} onClick={() => handleEdit(record)} size="small" />
-          <Popconfirm title="Удалить контрагента?" onConfirm={() => handleDelete(record.id)}>
+          <Popconfirm title="Удалить подрядчика?" onConfirm={() => handleDelete(record.id)}>
             <Button icon={<DeleteOutlined />} danger size="small" />
           </Popconfirm>
         </Space>
@@ -99,7 +98,7 @@ const CounterpartiesPage = () => {
         scroll={{ x: 800 }}
       />
       <Modal
-        title={editingRecord ? 'Редактировать контрагента' : 'Новый контрагент'}
+        title={editingRecord ? 'Редактировать подрядчика' : 'Новый подрядчик'}
         open={isModalOpen}
         onOk={handleSubmit}
         onCancel={() => setIsModalOpen(false)}
@@ -111,9 +110,6 @@ const CounterpartiesPage = () => {
             <Input />
           </Form.Item>
           <Form.Item name="inn" label="ИНН" rules={[{ required: true, message: 'Введите ИНН' }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="address" label="Адрес">
             <Input />
           </Form.Item>
           <Form.List name="alternativeNames">

@@ -165,18 +165,12 @@ const ViewRequestModal = ({ open, request, onClose }: ViewRequestModalProps) => 
       >
         <Descriptions column={2} size="small" bordered style={{ marginBottom: 16 }}>
           <Descriptions.Item label="Номер">{request.requestNumber}</Descriptions.Item>
-          <Descriptions.Item label="Контрагент">{request.counterpartyName}</Descriptions.Item>
+          <Descriptions.Item label="Подрядчик">{request.counterpartyName}</Descriptions.Item>
           <Descriptions.Item label="Объект">{request.siteName ?? '—'}</Descriptions.Item>
           <Descriptions.Item label="Статус">
             <Tag color={request.statusColor ?? 'default'}>{request.statusName}</Tag>
             {statusComment && (
               <Text type="secondary" style={{ marginLeft: 8 }}>{statusComment}</Text>
-            )}
-          </Descriptions.Item>
-          <Descriptions.Item label="Срочность">
-            {request.urgencyValue}
-            {request.urgencyReason && (
-              <Text type="secondary" style={{ marginLeft: 8 }}>({request.urgencyReason})</Text>
             )}
           </Descriptions.Item>
           <Descriptions.Item label="Срок поставки">{request.deliveryDays} дн.</Descriptions.Item>

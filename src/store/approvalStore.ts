@@ -43,7 +43,6 @@ function mapRequest(row: Record<string, unknown>): PaymentRequest {
   const counterparties = row.counterparties as Record<string, unknown> | null
   const site = row.construction_sites as Record<string, unknown> | null
   const statuses = row.statuses as Record<string, unknown> | null
-  const urgency = row.urgency as Record<string, unknown> | null
   const shipping = row.shipping as Record<string, unknown> | null
   return {
     id: row.id as string,
@@ -51,8 +50,6 @@ function mapRequest(row: Record<string, unknown>): PaymentRequest {
     counterpartyId: row.counterparty_id as string,
     siteId: row.site_id as string,
     statusId: row.status_id as string,
-    urgencyId: row.urgency_id as string,
-    urgencyReason: row.urgency_reason as string | null,
     deliveryDays: row.delivery_days as number,
     shippingConditionId: row.shipping_condition_id as string,
     comment: row.comment as string | null,
@@ -69,7 +66,6 @@ function mapRequest(row: Record<string, unknown>): PaymentRequest {
     siteName: site?.name as string | undefined,
     statusName: statuses?.name as string | undefined,
     statusColor: (statuses?.color as string) ?? null,
-    urgencyValue: urgency?.value as string | undefined,
     shippingConditionValue: shipping?.value as string | undefined,
   }
 }
@@ -80,7 +76,6 @@ const PR_SELECT = `
   counterparties(name),
   construction_sites(name),
   statuses!payment_requests_status_id_fkey(name, color),
-  urgency:payment_request_field_options!payment_requests_urgency_id_fkey(value),
   shipping:payment_request_field_options!payment_requests_shipping_condition_id_fkey(value)
 `
 

@@ -22,7 +22,6 @@ import type { Status, PaymentRequestFieldOption } from '@/types'
 const ENTITY_TYPE = 'payment_request'
 
 const fieldCodeLabels: Record<string, string> = {
-  urgency: 'Срочность',
   shipping_conditions: 'Условия отгрузки',
 }
 
@@ -109,7 +108,7 @@ const PaymentRequestSettingsPage = () => {
         const labels: Record<string, string> = {
           admin: 'Админ',
           user: 'Сотрудник',
-          counterparty_user: 'Контрагент',
+          counterparty_user: 'Подрядчик',
         }
         return roles.map((r) => <Tag key={r}>{labels[r] ?? r}</Tag>)
       },
@@ -271,7 +270,7 @@ const PaymentRequestSettingsPage = () => {
               options={[
                 { label: 'Администратор', value: 'admin' },
                 { label: 'Сотрудник', value: 'user' },
-                { label: 'Контрагент', value: 'counterparty_user' },
+                { label: 'Подрядчик', value: 'counterparty_user' },
               ]}
             />
           </Form.Item>
@@ -304,7 +303,7 @@ const PaymentRequestSettingsPage = () => {
             />
           </Form.Item>
           <Form.Item name="value" label="Значение" rules={[{ required: true, message: 'Введите значение' }]}>
-            <Input placeholder="Например: Срочная" />
+            <Input placeholder="Например: Самовывоз" />
           </Form.Item>
           <Form.Item name="display_order" label="Порядок отображения">
             <InputNumber min={0} style={{ width: '100%' }} />

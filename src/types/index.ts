@@ -114,8 +114,6 @@ export interface PaymentRequest {
   counterpartyId: string
   siteId: string
   statusId: string
-  urgencyId: string
-  urgencyReason: string | null
   deliveryDays: number
   shippingConditionId: string
   comment: string | null
@@ -133,7 +131,6 @@ export interface PaymentRequest {
   siteName?: string
   statusName?: string
   statusColor?: string | null
-  urgencyValue?: string
   shippingConditionValue?: string
 }
 

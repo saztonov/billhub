@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Typography, Button, Tabs, message } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
 import { usePaymentRequestStore } from '@/store/paymentRequestStore'
-import { useStatusStore } from '@/store/statusStore'
 import { useAuthStore } from '@/store/authStore'
 import { useUploadQueueStore } from '@/store/uploadQueueStore'
 import { useApprovalStore } from '@/store/approvalStore'
@@ -35,7 +34,6 @@ async function loadUserSiteIds(userId: string): Promise<{ allSites: boolean; sit
 const PaymentRequestsPage = () => {
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [viewRecord, setViewRecord] = useState<PaymentRequest | null>(null)
-  const [statusChanging, setStatusChanging] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState('all')
   const [userSiteIds, setUserSiteIds] = useState<string[]>([])
   const [userAllSites, setUserAllSites] = useState(true)
@@ -52,10 +50,8 @@ const PaymentRequestsPage = () => {
     fetchRequests,
     deleteRequest,
     withdrawRequest,
-    updateRequestStatus,
   } = usePaymentRequestStore()
 
-  const { statuses, fetchStatuses } = useStatusStore()
   const retryTask = useUploadQueueStore((s) => s.retryTask)
   const uploadTasks = useUploadQueueStore((s) => s.tasks)
 
@@ -100,7 +96,6 @@ const PaymentRequestsPage = () => {
 
   useEffect(() => {
     if (!sitesLoaded) return
-    fetchStatuses('payment_request')
     if (isCounterpartyUser && user?.counterpartyId) {
       fetchRequests(user.counterpartyId)
     } else if (isAdmin) {
@@ -110,7 +105,7 @@ const PaymentRequestsPage = () => {
       fetchRequests(undefined, userSiteIds, userAllSites)
       fetchStages()
     }
-  }, [fetchStatuses, fetchRequests, fetchStages, isCounterpartyUser, isAdmin, isUser, user?.counterpartyId, sitesLoaded, userSiteIds, userAllSites])
+  }, [fetchRequests, fetchStages, isCounterpartyUser, isAdmin, isUser, user?.counterpartyId, sitesLoaded, userSiteIds, userAllSites])
 
   // Загружаем данные при переключении вкладок
   useEffect(() => {
@@ -138,13 +133,6 @@ const PaymentRequestsPage = () => {
     message.success('Заявка удалена')
   }
 
-  const handleStatusChange = async (requestId: string, statusId: string) => {
-    setStatusChanging(requestId)
-    await updateRequestStatus(requestId, statusId)
-    message.success('Статус изменён')
-    setStatusChanging(null)
-  }
-
   const handleApprove = async (requestId: string, comment: string) => {
     if (!user?.departmentId || !user?.id) return
     await approveRequest(requestId, user.departmentId, user.id, comment)
@@ -170,16 +158,6 @@ const PaymentRequestsPage = () => {
       fetchRequests()
     }
   }
-
-  const statusOptions = statuses
-    .filter((s) => {
-      if (!s.isActive) return false
-      if (s.visibleRoles && s.visibleRoles.length > 0 && user?.role) {
-        return s.visibleRoles.includes(user.role)
-      }
-      return true
-    })
-    .map((s) => ({ label: s.name, value: s.id }))
 
   // Для counterparty_user — без вкладок
   if (isCounterpartyUser) {
@@ -222,9 +200,6 @@ const PaymentRequestsPage = () => {
           requests={requests}
           isLoading={isLoading}
           onView={setViewRecord}
-          statusOptions={statusOptions}
-          onStatusChange={handleStatusChange}
-          statusChangingId={statusChanging}
           isAdmin={isAdmin}
           onDelete={handleDelete}
           uploadTasks={uploadTasks}

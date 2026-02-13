@@ -60,10 +60,6 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
     }
   }, [open, fetchFieldOptions, fetchDocumentTypes, fetchCounterparties, fetchSites, documentTypes.length, counterparties.length, sites.length])
 
-  // Определяем, выбрана ли "Срочная"
-  const urgencyOptions = getOptionsByField('urgency')
-  const urgentOption = urgencyOptions.find((o) => o.value === 'Срочная')
-  const isUrgent = formValues.urgencyId === urgentOption?.id
   const shippingOptions = getOptionsByField('shipping_conditions')
 
   // Опции объектов (только активные)
@@ -91,22 +87,20 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
       }
 
       if (!user?.counterpartyId) {
-        message.error('Контрагент не привязан к пользователю')
+        message.error('Подрядчик не привязан к пользователю')
         return
       }
 
       // Получаем имя контрагента для S3-пути
       const cp = counterparties.find((c) => c.id === user.counterpartyId)
       if (!cp) {
-        message.error('Контрагент не найден')
+        message.error('Подрядчик не найден')
         return
       }
 
       // Создаём заявку в БД (без загрузки файлов)
       const { requestId, requestNumber } = await createRequest(
         {
-          urgencyId: values.urgencyId,
-          urgencyReason: values.urgencyReason,
           deliveryDays: values.deliveryDays,
           shippingConditionId: values.shippingConditionId,
           siteId: values.siteId,
@@ -172,44 +166,18 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
           layout="vertical"
           onValuesChange={handleValuesChange}
         >
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                name="siteId"
-                label={fieldLabel('Объект', !!formValues.siteId)}
-                rules={[{ required: true, message: 'Выберите объект' }]}
-              >
-                <Select
-                  placeholder="Выберите объект"
-                  showSearch
-                  optionFilterProp="label"
-                  options={siteOptions}
-                />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                name="urgencyId"
-                label={fieldLabel('Срочность', !!formValues.urgencyId)}
-                rules={[{ required: true, message: 'Выберите срочность' }]}
-              >
-                <Select
-                  placeholder="Выберите срочность"
-                  options={urgencyOptions.map((o) => ({ label: o.value, value: o.id }))}
-                />
-              </Form.Item>
-            </Col>
-          </Row>
-
-          {isUrgent && (
-            <Form.Item
-              name="urgencyReason"
-              label={fieldLabel('Причина срочности', !!formValues.urgencyReason)}
-              rules={[{ required: true, message: 'Укажите причину срочности' }]}
-            >
-              <TextArea rows={2} placeholder="Укажите причину" />
-            </Form.Item>
-          )}
+          <Form.Item
+            name="siteId"
+            label={fieldLabel('Объект', !!formValues.siteId)}
+            rules={[{ required: true, message: 'Выберите объект' }]}
+          >
+            <Select
+              placeholder="Выберите объект"
+              showSearch
+              optionFilterProp="label"
+              options={siteOptions}
+            />
+          </Form.Item>
 
           <Row gutter={16}>
             <Col span={12}>

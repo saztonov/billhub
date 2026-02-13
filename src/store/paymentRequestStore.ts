@@ -5,8 +5,6 @@ import { checkAndNotifyMissingSpecialists } from '@/utils/approvalNotifications'
 import type { PaymentRequest, PaymentRequestFile } from '@/types'
 
 interface CreateRequestData {
-  urgencyId: string
-  urgencyReason?: string
   deliveryDays: number
   shippingConditionId: string
   siteId: string
@@ -50,7 +48,6 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
           counterparties(name),
           construction_sites(name),
           statuses!payment_requests_status_id_fkey(name, color),
-          urgency:payment_request_field_options!payment_requests_urgency_id_fkey(value),
           shipping:payment_request_field_options!payment_requests_shipping_condition_id_fkey(value)
         `)
         .order('created_at', { ascending: false })
@@ -74,7 +71,6 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
         const counterparties = row.counterparties as Record<string, unknown> | null
         const site = row.construction_sites as Record<string, unknown> | null
         const statuses = row.statuses as Record<string, unknown> | null
-        const urgency = row.urgency as Record<string, unknown> | null
         const shipping = row.shipping as Record<string, unknown> | null
         return {
           id: row.id as string,
@@ -82,8 +78,6 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
           counterpartyId: row.counterparty_id as string,
           siteId: row.site_id as string,
           statusId: row.status_id as string,
-          urgencyId: row.urgency_id as string,
-          urgencyReason: row.urgency_reason as string | null,
           deliveryDays: row.delivery_days as number,
           shippingConditionId: row.shipping_condition_id as string,
           comment: row.comment as string | null,
@@ -100,7 +94,6 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
           siteName: site?.name as string | undefined,
           statusName: statuses?.name as string | undefined,
           statusColor: (statuses?.color as string) ?? null,
-          urgencyValue: urgency?.value as string | undefined,
           shippingConditionValue: shipping?.value as string | undefined,
         }
       })
@@ -137,8 +130,6 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
           counterparty_id: counterpartyId,
           site_id: data.siteId,
           status_id: statusData.id,
-          urgency_id: data.urgencyId,
-          urgency_reason: data.urgencyReason || null,
           delivery_days: data.deliveryDays,
           shipping_condition_id: data.shippingConditionId,
           comment: data.comment || null,

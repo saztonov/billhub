@@ -22,7 +22,7 @@ import type { UserRecord } from '@/store/userStore'
 const roleLabels: Record<UserRole, string> = {
   admin: 'Администратор',
   user: 'Пользователь',
-  counterparty_user: 'Контрагент',
+  counterparty_user: 'Подрядчик',
 }
 
 /** Цвета тегов ролей */
@@ -100,7 +100,7 @@ const UsersTab = () => {
       ),
     },
     {
-      title: 'Контрагент',
+      title: 'Подрядчик',
       dataIndex: 'counterpartyName',
       key: 'counterpartyName',
       render: (name: string | null) => name ?? '—',
@@ -126,12 +126,6 @@ const UsersTab = () => {
           </Space>
         )
       },
-    },
-    {
-      title: 'Создан',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      render: (date: string) => new Date(date).toLocaleDateString('ru-RU'),
     },
     {
       title: 'Действия',
@@ -187,17 +181,17 @@ const UsersTab = () => {
             }}>
               <Select.Option value="admin">Администратор</Select.Option>
               <Select.Option value="user">Пользователь</Select.Option>
-              <Select.Option value="counterparty_user">Контрагент</Select.Option>
+              <Select.Option value="counterparty_user">Подрядчик</Select.Option>
             </Select>
           </Form.Item>
           {selectedRole === 'counterparty_user' && (
             <Form.Item
               name="counterparty_id"
-              label="Контрагент"
-              rules={[{ required: true, message: 'Выберите контрагента' }]}
+              label="Подрядчик"
+              rules={[{ required: true, message: 'Выберите подрядчика' }]}
             >
               <Select
-                placeholder="Выберите контрагента"
+                placeholder="Выберите подрядчика"
                 showSearch
                 optionFilterProp="children"
               >

@@ -16,7 +16,7 @@ const DashboardPage = () => {
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="Контрагенты"
+              title="Подрядчики"
               value={0}
               prefix={<TeamOutlined />}
             />

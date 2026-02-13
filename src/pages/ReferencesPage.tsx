@@ -17,7 +17,7 @@ const ReferencesPage = () => {
   }
 
   const items = [
-    { key: 'counterparties', label: 'Контрагенты', children: <CounterpartiesPage /> },
+    { key: 'counterparties', label: 'Подрядчики', children: <CounterpartiesPage /> },
     { key: 'sites', label: 'Объекты строительства', children: <ConstructionSitesPage /> },
     { key: 'document-types', label: 'Типы документов', children: <DocumentTypesPage /> },
   ]
