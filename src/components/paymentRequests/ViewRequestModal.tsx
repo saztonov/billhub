@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Modal,
   Descriptions,
@@ -7,8 +7,8 @@ import {
   Button,
   Typography,
   Space,
-  Spin,
   Tooltip,
+  Table,
 } from 'antd'
 import {
   DownloadOutlined,
@@ -63,11 +63,28 @@ const ViewRequestModal = ({ open, request, onClose }: ViewRequestModalProps) => 
   useEffect(() => {
     if (open && request) {
       fetchRequestFiles(request.id)
-      if (!isCounterpartyUser) {
-        fetchDecisions(request.id)
-      }
+      fetchDecisions(request.id)
     }
-  }, [open, request, fetchRequestFiles, fetchDecisions, isCounterpartyUser])
+  }, [open, request, fetchRequestFiles, fetchDecisions])
+
+  /** Комментарий статуса (отклонение/отзыв/согласование) */
+  const statusComment = useMemo(() => {
+    if (!request) return null
+    if (request.rejectedAt) {
+      const rejected = currentDecisions.find((d) => d.status === 'rejected')
+      return rejected?.comment || null
+    }
+    if (request.withdrawnAt) {
+      return request.withdrawalComment || null
+    }
+    if (request.approvedAt) {
+      const approved = [...currentDecisions]
+        .filter((d) => d.status === 'approved' && d.comment)
+        .pop()
+      return approved?.comment || null
+    }
+    return null
+  }, [request, currentDecisions])
 
   const handleDownload = async (fileKey: string, fileName: string) => {
     setDownloading(fileKey)
@@ -85,6 +102,55 @@ const ViewRequestModal = ({ open, request, onClose }: ViewRequestModalProps) => 
 
   if (!request) return null
 
+  /** Столбцы таблицы файлов */
+  const fileColumns = [
+    {
+      title: 'Файл',
+      dataIndex: 'fileName',
+      key: 'fileName',
+      width: '50%',
+      ellipsis: true,
+    },
+    {
+      title: 'Размер',
+      key: 'fileSize',
+      width: 100,
+      render: (_: unknown, file: PaymentRequestFile) => (
+        <Text type="secondary">{formatSize(file.fileSize)}</Text>
+      ),
+    },
+    {
+      title: 'Тип документа',
+      key: 'documentType',
+      render: (_: unknown, file: PaymentRequestFile) =>
+        file.documentTypeName ? <Tag>{file.documentTypeName}</Tag> : null,
+    },
+    {
+      title: '',
+      key: 'actions',
+      width: 80,
+      render: (_: unknown, file: PaymentRequestFile) => (
+        <Space size={4}>
+          <Tooltip title="Просмотр">
+            <Button
+              icon={<EyeOutlined />}
+              size="small"
+              onClick={() => setPreviewFile(file)}
+            />
+          </Tooltip>
+          <Tooltip title="Скачать">
+            <Button
+              icon={<DownloadOutlined />}
+              size="small"
+              loading={downloading === file.fileKey}
+              onClick={() => handleDownload(file.fileKey, file.fileName)}
+            />
+          </Tooltip>
+        </Space>
+      ),
+    },
+  ]
+
   return (
     <>
       <Modal
@@ -94,70 +160,41 @@ const ViewRequestModal = ({ open, request, onClose }: ViewRequestModalProps) => 
         footer={<Button onClick={onClose}>Закрыть</Button>}
         width="80%"
       >
-        <Descriptions column={1} size="small" bordered style={{ marginBottom: 16 }} labelStyle={{ width: 200, whiteSpace: 'nowrap' }}>
+        <Descriptions column={2} size="small" bordered style={{ marginBottom: 16 }}>
           <Descriptions.Item label="Номер">{request.requestNumber}</Descriptions.Item>
           <Descriptions.Item label="Контрагент">{request.counterpartyName}</Descriptions.Item>
-          {request.siteName && (
-            <Descriptions.Item label="Объект">{request.siteName}</Descriptions.Item>
-          )}
+          <Descriptions.Item label="Объект">{request.siteName ?? '—'}</Descriptions.Item>
           <Descriptions.Item label="Статус">
             <Tag color={request.statusColor ?? 'default'}>{request.statusName}</Tag>
           </Descriptions.Item>
-          <Descriptions.Item label="Срочность">{request.urgencyValue}</Descriptions.Item>
-          {request.urgencyReason && (
-            <Descriptions.Item label="Причина срочности">{request.urgencyReason}</Descriptions.Item>
+          {statusComment && (
+            <Descriptions.Item label="Комментарий статуса" span={2}>{statusComment}</Descriptions.Item>
           )}
+          <Descriptions.Item label="Срочность">{request.urgencyValue}</Descriptions.Item>
           <Descriptions.Item label="Срок поставки">{request.deliveryDays} дн.</Descriptions.Item>
           <Descriptions.Item label="Условия отгрузки">{request.shippingConditionValue}</Descriptions.Item>
-          {request.comment && (
-            <Descriptions.Item label="Комментарий">{request.comment}</Descriptions.Item>
-          )}
-          {request.withdrawalComment && (
-            <Descriptions.Item label="Комментарий отзыва">{request.withdrawalComment}</Descriptions.Item>
-          )}
           <Descriptions.Item label="Дата создания">{formatDate(request.createdAt)}</Descriptions.Item>
+          {request.urgencyReason && (
+            <Descriptions.Item label="Причина срочности" span={2}>{request.urgencyReason}</Descriptions.Item>
+          )}
+          {request.comment && (
+            <Descriptions.Item label="Комментарий" span={2}>{request.comment}</Descriptions.Item>
+          )}
         </Descriptions>
 
         <Text strong style={{ marginBottom: 8, display: 'block' }}>
           Файлы ({currentRequestFiles.length})
         </Text>
 
-        <Spin spinning={isLoading}>
-          <List
-            size="small"
-            dataSource={currentRequestFiles}
-            locale={{ emptyText: 'Нет файлов' }}
-            renderItem={(file) => (
-              <List.Item
-                actions={[
-                  <Tooltip key="preview" title="Просмотр">
-                    <Button
-                      icon={<EyeOutlined />}
-                      size="small"
-                      onClick={() => setPreviewFile(file)}
-                    />
-                  </Tooltip>,
-                  <Tooltip key="download" title="Скачать">
-                    <Button
-                      icon={<DownloadOutlined />}
-                      size="small"
-                      loading={downloading === file.fileKey}
-                      onClick={() => handleDownload(file.fileKey, file.fileName)}
-                    />
-                  </Tooltip>,
-                ]}
-              >
-                <Space>
-                  <Text>{file.fileName}</Text>
-                  <Text type="secondary">{formatSize(file.fileSize)}</Text>
-                  {file.documentTypeName && (
-                    <Tag>{file.documentTypeName}</Tag>
-                  )}
-                </Space>
-              </List.Item>
-            )}
-          />
-        </Spin>
+        <Table
+          size="small"
+          columns={fileColumns as any}
+          dataSource={currentRequestFiles}
+          rowKey="id"
+          loading={isLoading}
+          pagination={false}
+          locale={{ emptyText: 'Нет файлов' }}
+        />
 
         {/* Секция согласования — только для admin/user */}
         {!isCounterpartyUser && currentDecisions.length > 0 && (
