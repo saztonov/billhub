@@ -59,6 +59,15 @@ export interface ConstructionSite {
   createdAt: string
 }
 
+/** Подразделение */
+export interface Department {
+  id: string
+  name: string
+  description: string
+  isActive: boolean
+  createdAt: string
+}
+
 /** Тип документа */
 export interface DocumentType {
   id: string

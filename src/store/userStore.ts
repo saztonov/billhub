@@ -9,6 +9,8 @@ export interface UserRecord {
   role: UserRole
   counterpartyId: string | null
   counterpartyName: string | null
+  departmentId: string | null
+  departmentName: string | null
   createdAt: string
 }
 
@@ -17,7 +19,7 @@ interface UserStoreState {
   isLoading: boolean
   error: string | null
   fetchUsers: () => Promise<void>
-  updateUser: (id: string, data: { role: UserRole; counterparty_id: string | null }) => Promise<void>
+  updateUser: (id: string, data: { role: UserRole; counterparty_id: string | null; department_id: string | null }) => Promise<void>
 }
 
 export const useUserStore = create<UserStoreState>((set, get) => ({
@@ -30,7 +32,7 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
     try {
       const { data, error } = await supabase
         .from('users')
-        .select('id, email, role, counterparty_id, created_at, counterparties(name)')
+        .select('id, email, role, counterparty_id, created_at, counterparties(name), department_id, departments(name)')
         .order('created_at', { ascending: false })
       if (error) throw error
 
@@ -40,6 +42,8 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
         role: row.role as UserRole,
         counterpartyId: row.counterparty_id as string | null,
         counterpartyName: (row.counterparties as { name: string } | null)?.name ?? null,
+        departmentId: row.department_id as string | null,
+        departmentName: (row.departments as { name: string } | null)?.name ?? null,
         createdAt: row.created_at as string,
       }))
       set({ users, isLoading: false })
@@ -57,6 +61,7 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
         .update({
           role: data.role,
           counterparty_id: data.role === 'counterparty_user' ? data.counterparty_id : null,
+          department_id: data.department_id,
         })
         .eq('id', id)
       if (error) throw error

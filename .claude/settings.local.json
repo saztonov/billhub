@@ -8,7 +8,10 @@
       "Bash(npx vite build)",
       "Bash(npm run build:*)",
       "Bash(del \"c:\\\\Users\\\\Usr\\\\billhub\\\\src\\\\store\\\\invoiceStore.ts\")",
-      "Bash(del \"c:\\\\Users\\\\Usr\\\\billhub\\\\src\\\\pages\\\\InvoicesPage.tsx\")"
+      "Bash(del \"c:\\\\Users\\\\Usr\\\\billhub\\\\src\\\\pages\\\\InvoicesPage.tsx\")",
+      "Bash(git -C \"c:\\\\Users\\\\Usr\\\\billhub\" log --oneline -3)",
+      "Bash(git -C \"c:\\\\Users\\\\Usr\\\\billhub\" status)",
+      "Bash(git -C \"c:\\\\Users\\\\Usr\\\\billhub\" push --force)"
     ]
   }
 }
