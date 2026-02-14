@@ -65,6 +65,7 @@ function mapRequest(row: Record<string, unknown>): PaymentRequest {
     rejectedAt: row.rejected_at as string | null,
     resubmitComment: (row.resubmit_comment as string) ?? null,
     resubmitCount: (row.resubmit_count as number) ?? 0,
+    invoiceAmount: (row.invoice_amount as number) ?? null,
     counterpartyName: counterparties?.name as string | undefined,
     siteName: site?.name as string | undefined,
     statusName: statuses?.name as string | undefined,
