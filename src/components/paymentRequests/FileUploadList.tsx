@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { Upload, Select, Button, List, Typography, message } from 'antd'
-import { InboxOutlined, DeleteOutlined, CheckCircleFilled } from '@ant-design/icons'
+import { InboxOutlined, DeleteOutlined, CheckCircleFilled, EyeOutlined } from '@ant-design/icons'
 import { useDocumentTypeStore } from '@/store/documentTypeStore'
 import { getPdfPageCount } from '@/utils/pdfUtils'
+import LocalFilePreviewModal from './LocalFilePreviewModal'
 import type { UploadFile } from 'antd/es/upload/interface'
 
 const { Dragger } = Upload
@@ -45,6 +46,7 @@ function formatSize(bytes: number): string {
 const FileUploadList = ({ fileList, onChange }: FileUploadListProps) => {
   const { documentTypes } = useDocumentTypeStore()
   const [dragKey, setDragKey] = useState(0)
+  const [previewFile, setPreviewFile] = useState<{ file: File; name: string } | null>(null)
 
   const handleBeforeUpload = (file: File, batch: File[]) => {
     // Обрабатываем всю пачку только на первом файле, чтобы избежать stale closure
@@ -129,6 +131,12 @@ const FileUploadList = ({ fileList, onChange }: FileUploadListProps) => {
             <List.Item
               actions={[
                 <Button
+                  key="preview"
+                  icon={<EyeOutlined />}
+                  size="small"
+                  onClick={() => setPreviewFile({ file: item.file, name: item.file.name })}
+                />,
+                <Button
                   key="delete"
                   icon={<DeleteOutlined />}
                   danger
@@ -175,6 +183,14 @@ const FileUploadList = ({ fileList, onChange }: FileUploadListProps) => {
           )}
         />
       )}
+
+      {/* Модал предпросмотра файла */}
+      <LocalFilePreviewModal
+        open={!!previewFile}
+        onClose={() => setPreviewFile(null)}
+        file={previewFile?.file ?? null}
+        fileName={previewFile?.name ?? ''}
+      />
     </div>
   )
 }

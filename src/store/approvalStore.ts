@@ -1,7 +1,14 @@
 import { create } from 'zustand'
 import { supabase } from '@/services/supabase'
 import { checkAndNotifyMissingSpecialists } from '@/utils/approvalNotifications'
-import type { Department, ApprovalDecision, PaymentRequest, PaymentRequestLog } from '@/types'
+import { uploadDecisionFile } from '@/services/s3'
+import type { Department, ApprovalDecision, ApprovalDecisionFile, PaymentRequest, PaymentRequestLog } from '@/types'
+
+/** Элемент списка файлов для загрузки */
+export interface FileItem {
+  file: File
+  id: string
+}
 
 interface ApprovalStoreState {
   // Решения по заявке
@@ -22,7 +29,7 @@ interface ApprovalStoreState {
   fetchDecisions: (paymentRequestId: string) => Promise<void>
   fetchLogs: (paymentRequestId: string) => Promise<void>
   approveRequest: (paymentRequestId: string, department: Department, userId: string, comment: string) => Promise<void>
-  rejectRequest: (paymentRequestId: string, department: Department, userId: string, comment: string) => Promise<void>
+  rejectRequest: (paymentRequestId: string, department: Department, userId: string, comment: string, files?: FileItem[]) => Promise<void>
 
   // Заявки по вкладкам
   fetchPendingRequests: (department: Department, userId: string, isAdmin?: boolean) => Promise<void>
@@ -129,21 +136,43 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
         .order('stage_order', { ascending: true })
       if (error) throw error
 
-      const decisions: ApprovalDecision[] = (data ?? []).map((row: Record<string, unknown>) => {
-        const usr = row.users as Record<string, unknown> | null
-        return {
-          id: row.id as string,
-          paymentRequestId: row.payment_request_id as string,
-          stageOrder: row.stage_order as number,
-          department: row.department_id as Department,
-          status: row.status as ApprovalDecision['status'],
-          userId: row.user_id as string | null,
-          comment: row.comment as string,
-          decidedAt: row.decided_at as string | null,
-          createdAt: row.created_at as string,
-          userEmail: usr?.email as string | undefined,
-        }
-      })
+      const decisions: ApprovalDecision[] = await Promise.all(
+        (data ?? []).map(async (row: Record<string, unknown>) => {
+          const usr = row.users as Record<string, unknown> | null
+
+          // Загружаем файлы для этого решения
+          const { data: filesData } = await supabase
+            .from('approval_decision_files')
+            .select('*')
+            .eq('approval_decision_id', row.id as string)
+            .order('created_at', { ascending: true })
+
+          const files: ApprovalDecisionFile[] = (filesData ?? []).map((f: Record<string, unknown>) => ({
+            id: f.id as string,
+            approvalDecisionId: f.approval_decision_id as string,
+            fileName: f.file_name as string,
+            fileKey: f.file_key as string,
+            fileSize: f.file_size as number | null,
+            mimeType: f.mime_type as string | null,
+            createdBy: f.created_by as string,
+            createdAt: f.created_at as string,
+          }))
+
+          return {
+            id: row.id as string,
+            paymentRequestId: row.payment_request_id as string,
+            stageOrder: row.stage_order as number,
+            department: row.department_id as Department,
+            status: row.status as ApprovalDecision['status'],
+            userId: row.user_id as string | null,
+            comment: row.comment as string,
+            decidedAt: row.decided_at as string | null,
+            createdAt: row.created_at as string,
+            userEmail: usr?.email as string | undefined,
+            files: files.length > 0 ? files : undefined,
+          }
+        })
+      )
       set({ currentDecisions: decisions })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка загрузки решений'
@@ -251,7 +280,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
     }
   },
 
-  rejectRequest: async (paymentRequestId, department, userId, comment) => {
+  rejectRequest: async (paymentRequestId, department, userId, comment, files = []) => {
     set({ isLoading: true, error: null })
     try {
       // 1. Получаем текущий этап
@@ -263,7 +292,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
       if (prError) throw prError
 
       // 2. Обновляем решение
-      const { error: updError } = await supabase
+      const { data: decisionData, error: updError } = await supabase
         .from('approval_decisions')
         .update({
           status: 'rejected',
@@ -274,9 +303,40 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
         .eq('payment_request_id', paymentRequestId)
         .eq('stage_order', pr.current_stage)
         .eq('department_id', department)
+        .select('id')
+        .single()
       if (updError) throw updError
 
-      // 3. Устанавливаем статус Отклонена
+      const decisionId = decisionData.id
+
+      // 3. Загружаем файлы на S3 и сохраняем метаданные
+      if (files.length > 0) {
+        for (const fileItem of files) {
+          const { file } = fileItem
+
+          // Загружаем файл на S3
+          const { key } = await uploadDecisionFile(decisionId, file)
+
+          // Сохраняем метаданные в БД
+          const { error: fileError } = await supabase
+            .from('approval_decision_files')
+            .insert({
+              approval_decision_id: decisionId,
+              file_name: file.name,
+              file_key: key,
+              file_size: file.size,
+              mime_type: file.type || null,
+              created_by: userId,
+            })
+
+          if (fileError) {
+            console.error('Ошибка сохранения метаданных файла:', fileError)
+            throw new Error(`Ошибка сохранения файла ${file.name}`)
+          }
+        }
+      }
+
+      // 4. Устанавливаем статус Отклонена
       const { data: statusData, error: stError } = await supabase
         .from('statuses')
         .select('id')
@@ -299,6 +359,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка отклонения'
       set({ error: message, isLoading: false })
+      throw err // Пробрасываем ошибку для обработки в UI
     }
   },
 

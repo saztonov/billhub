@@ -10,6 +10,9 @@ import {
   Input,
   Modal,
   Progress,
+  Upload,
+  List,
+  message,
 } from 'antd'
 import {
   EyeOutlined,
@@ -22,11 +25,18 @@ import {
   CheckOutlined,
   StopOutlined,
   RedoOutlined,
+  InboxOutlined,
+  CloseOutlined,
 } from '@ant-design/icons'
 import { useState } from 'react'
 import type { PaymentRequest } from '@/types'
+import type { UploadFile } from 'antd/es/upload/interface'
 
 const { TextArea } = Input
+const { Dragger } = Upload
+
+// Поддерживаемые расширения файлов для отклонения
+const ACCEPT_EXTENSIONS = '.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.tiff,.tif,.bmp,.pdf'
 
 /** Форматирование даты (только день и месяц) */
 function formatDate(dateStr: string | null): string {
@@ -76,7 +86,7 @@ export interface RequestsTableProps {
   // Согласование
   showApprovalActions?: boolean
   onApprove?: (id: string, comment: string) => void
-  onReject?: (id: string, comment: string) => void
+  onReject?: (id: string, comment: string, files?: { id: string; file: File }[]) => void
   // Повторная отправка
   onResubmit?: (record: PaymentRequest) => void
   // Дополнительные столбцы для вкладок
@@ -124,8 +134,9 @@ const RequestsTable = (props: RequestsTableProps) => {
     responsibleFilter,
   } = props
 
-  const [approvalModal, setApprovalModal] = useState<{ id: string; action: 'approve' | 'reject' } | null>(null)
-  const [approvalComment, setApprovalComment] = useState('')
+  const [rejectModal, setRejectModal] = useState<string | null>(null)
+  const [rejectComment, setRejectComment] = useState('')
+  const [rejectFiles, setRejectFiles] = useState<File[]>([])
   const [withdrawModal, setWithdrawModal] = useState<string | null>(null)
   const [withdrawComment, setWithdrawComment] = useState('')
 
@@ -142,15 +153,34 @@ const RequestsTable = (props: RequestsTableProps) => {
     return filtered
   }, [requests, responsibleFilter])
 
-  const handleApprovalConfirm = () => {
-    if (!approvalModal) return
-    if (approvalModal.action === 'approve') {
-      onApprove?.(approvalModal.id, approvalComment)
-    } else {
-      onReject?.(approvalModal.id, approvalComment)
+  const handleRejectConfirm = async () => {
+    if (!rejectModal) return
+
+    // Валидация комментария
+    if (!rejectComment.trim()) {
+      message.error('Комментарий обязателен при отклонении заявки')
+      return
     }
-    setApprovalModal(null)
-    setApprovalComment('')
+
+    // Конвертируем File[] в FileItem[]
+    const fileItems = rejectFiles.map((file, index) => ({
+      id: `${Date.now()}_${index}`,
+      file,
+    }))
+
+    await onReject?.(rejectModal, rejectComment, fileItems)
+    setRejectModal(null)
+    setRejectComment('')
+    setRejectFiles([])
+  }
+
+  const handleFileBeforeUpload = (file: File): boolean => {
+    setRejectFiles(prev => [...prev, file])
+    return false // Отмена автоматической загрузки
+  }
+
+  const handleFileRemove = (file: File) => {
+    setRejectFiles(prev => prev.filter(f => f !== file))
   }
 
   const columns: Record<string, unknown>[] = [
@@ -411,19 +441,26 @@ const RequestsTable = (props: RequestsTableProps) => {
         {showApprovalActions && (
           <>
             <Tooltip title="Согласовать">
-              <Button
-                type="primary"
-                icon={<CheckOutlined />}
-                size="small"
-                onClick={() => setApprovalModal({ id: record.id, action: 'approve' })}
-              />
+              <Popconfirm
+                title="Согласование заявки"
+                description="Подтвердите согласование заявки"
+                onConfirm={() => onApprove?.(record.id, '')}
+                okText="Согласовать"
+                cancelText="Отмена"
+              >
+                <Button
+                  type="primary"
+                  icon={<CheckOutlined />}
+                  size="small"
+                />
+              </Popconfirm>
             </Tooltip>
             <Tooltip title="Отклонить">
               <Button
                 danger
                 icon={<StopOutlined />}
                 size="small"
-                onClick={() => setApprovalModal({ id: record.id, action: 'reject' })}
+                onClick={() => setRejectModal(record.id)}
               />
             </Tooltip>
           </>
@@ -508,21 +545,74 @@ const RequestsTable = (props: RequestsTableProps) => {
         }
       `}</style>
 
-      {/* Модал подтверждения согласования/отклонения */}
+      {/* Модал отклонения заявки */}
       <Modal
-        title={approvalModal?.action === 'approve' ? 'Согласование заявки' : 'Отклонение заявки'}
-        open={!!approvalModal}
-        onOk={handleApprovalConfirm}
-        onCancel={() => { setApprovalModal(null); setApprovalComment('') }}
-        okText={approvalModal?.action === 'approve' ? 'Согласовать' : 'Отклонить'}
-        okButtonProps={{ danger: approvalModal?.action === 'reject' }}
+        title="Отклонение заявки"
+        open={!!rejectModal}
+        onOk={handleRejectConfirm}
+        onCancel={() => {
+          setRejectModal(null)
+          setRejectComment('')
+          setRejectFiles([])
+        }}
+        okText="Отклонить"
+        okButtonProps={{ danger: true }}
+        width={600}
       >
-        <TextArea
-          rows={3}
-          placeholder="Комментарий (необязательно)"
-          value={approvalComment}
-          onChange={(e) => setApprovalComment(e.target.value)}
-        />
+        <Space direction="vertical" style={{ width: '100%' }} size="large">
+          <div>
+            <div style={{ marginBottom: 8, fontWeight: 500 }}>Комментарий *</div>
+            <TextArea
+              rows={3}
+              placeholder="Укажите причину отклонения"
+              value={rejectComment}
+              onChange={(e) => setRejectComment(e.target.value)}
+              status={!rejectComment.trim() ? 'error' : undefined}
+            />
+          </div>
+
+          <div>
+            <div style={{ marginBottom: 8, fontWeight: 500 }}>Прикрепить файлы (необязательно)</div>
+            <Dragger
+              accept={ACCEPT_EXTENSIONS}
+              multiple
+              fileList={[]}
+              beforeUpload={handleFileBeforeUpload}
+              showUploadList={false}
+            >
+              <p className="ant-upload-drag-icon">
+                <InboxOutlined />
+              </p>
+              <p className="ant-upload-text">Нажмите или перетащите файлы</p>
+              <p className="ant-upload-hint">
+                Поддерживаются: PDF, изображения, Word, Excel
+              </p>
+            </Dragger>
+
+            {rejectFiles.length > 0 && (
+              <List
+                size="small"
+                style={{ marginTop: 16 }}
+                bordered
+                dataSource={rejectFiles}
+                renderItem={(file) => (
+                  <List.Item
+                    actions={[
+                      <Button
+                        type="text"
+                        icon={<CloseOutlined />}
+                        size="small"
+                        onClick={() => handleFileRemove(file)}
+                      />,
+                    ]}
+                  >
+                    {file.name}
+                  </List.Item>
+                )}
+              />
+            )}
+          </div>
+        </Space>
       </Modal>
 
       {/* Модал отзыва заявки */}

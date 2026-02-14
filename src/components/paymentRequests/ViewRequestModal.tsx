@@ -600,17 +600,49 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                       : decision.status === 'rejected' ? 'Отклонено' : 'Ожидает'
                     return (
                       <List.Item>
-                        <Space>
-                          {icon}
-                          <Text>Этап {decision.stageOrder}</Text>
-                          <Tag>{DEPARTMENT_LABELS[decision.department]}</Tag>
-                          <Text type="secondary">{statusText}</Text>
-                          {decision.userEmail && <Text type="secondary">({decision.userEmail})</Text>}
-                          {decision.decidedAt && <Text type="secondary">{formatDate(decision.decidedAt)}</Text>}
-                        </Space>
-                        {decision.comment && (
-                          <Text type="secondary" style={{ display: 'block', marginLeft: 22 }}>{decision.comment}</Text>
-                        )}
+                        <div style={{ width: '100%' }}>
+                          <Space>
+                            {icon}
+                            <Text>Этап {decision.stageOrder}</Text>
+                            <Tag>{DEPARTMENT_LABELS[decision.department]}</Tag>
+                            <Text type="secondary">{statusText}</Text>
+                            {decision.userEmail && <Text type="secondary">({decision.userEmail})</Text>}
+                            {decision.decidedAt && <Text type="secondary">{formatDate(decision.decidedAt)}</Text>}
+                          </Space>
+                          {decision.comment && (
+                            <Text type="secondary" style={{ display: 'block', marginLeft: 22 }}>{decision.comment}</Text>
+                          )}
+                          {decision.files && decision.files.length > 0 && (
+                            <div style={{ marginLeft: 22, marginTop: 8 }}>
+                              <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>
+                                Прикрепленные файлы:
+                              </Text>
+                              <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                                {decision.files.map((file) => (
+                                  <div key={file.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <Text style={{ flex: 1, fontSize: 12 }}>{file.fileName}</Text>
+                                    <Space size="small">
+                                      <Button
+                                        size="small"
+                                        icon={<EyeOutlined />}
+                                        onClick={() => handleViewFile(file.fileKey, file.fileName, file.mimeType)}
+                                      >
+                                        Просмотр
+                                      </Button>
+                                      <Button
+                                        size="small"
+                                        icon={<DownloadOutlined />}
+                                        onClick={() => handleDownloadFile(file.fileKey, file.fileName)}
+                                      >
+                                        Скачать
+                                      </Button>
+                                    </Space>
+                                  </div>
+                                ))}
+                              </Space>
+                            </div>
+                          )}
+                        </div>
                       </List.Item>
                     )
                   }}

@@ -52,6 +52,13 @@ const PaymentRequestsPage = () => {
   const [adminSelectedStage, setAdminSelectedStage] = useState<Department>('omts') // Для админа: выбор этапа согласования
 
   const user = useAuthStore((s) => s.user)
+
+  // Разворачиваем фильтры по умолчанию для контрагента
+  useEffect(() => {
+    if (user?.role === 'counterparty_user') {
+      setFiltersOpen(true)
+    }
+  }, [user?.role])
   const isCounterpartyUser = user?.role === 'counterparty_user'
   const isAdmin = user?.role === 'admin'
   const isUser = user?.role === 'user'
@@ -255,12 +262,12 @@ const PaymentRequestsPage = () => {
     }
   }
 
-  const handleReject = async (requestId: string, comment: string) => {
+  const handleReject = async (requestId: string, comment: string, files?: { id: string; file: File }[]) => {
     if (!user?.id) return
     // Для админа используем выбранный этап, для обычных пользователей - их department
     const department = isAdmin ? adminSelectedStage : user?.department
     if (!department) return
-    await rejectRequest(requestId, department, user.id, comment)
+    await rejectRequest(requestId, department, user.id, comment, files)
     message.success('Заявка отклонена')
     fetchPendingRequests(department, user.id, isAdmin)
     const [sIds, allS] = siteFilterParams()

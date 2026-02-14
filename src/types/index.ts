@@ -244,6 +244,19 @@ export interface ApprovalDecision {
   decidedAt: string | null
   createdAt: string
   userEmail?: string
+  files?: ApprovalDecisionFile[] // Файлы, прикрепленные к решению (для отклонения)
+}
+
+/** Файл, прикрепленный к решению об отклонении */
+export interface ApprovalDecisionFile {
+  id: string
+  approvalDecisionId: string
+  fileName: string
+  fileKey: string
+  fileSize: number | null
+  mimeType: string | null
+  createdBy: string
+  createdAt: string
 }
 
 // Настройки

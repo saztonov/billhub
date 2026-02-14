@@ -90,6 +90,18 @@ export async function uploadRequestFile(
   return { key }
 }
 
+/** Загружает файл решения об отклонении в S3: /approval-decisions/{decision_id}/{timestamp}_{имя} */
+export async function uploadDecisionFile(
+  decisionId: string,
+  file: File,
+): Promise<{ key: string }> {
+  const safeName = sanitizeForS3(file.name)
+  const timestamp = Date.now()
+  const key = `approval-decisions/${decisionId}/${timestamp}_${safeName}`
+  await uploadToS3(key, file)
+  return { key }
+}
+
 /** Получает presigned URL для скачивания файла (время жизни 1 час) */
 export async function getDownloadUrl(
   key: string,
