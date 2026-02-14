@@ -175,37 +175,41 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
           layout="vertical"
           onValuesChange={handleValuesChange}
         >
-          {/* Поле выбора контрагента - только для user и admin */}
-          {!isCounterpartyUser && (
-            <Form.Item
-              name="counterpartyId"
-              label={fieldLabel('Контрагент', !!formValues.counterpartyId)}
-              rules={[{ required: true, message: 'Выберите контрагента' }]}
-            >
-              <Select
-                placeholder="Выберите контрагента"
-                showSearch
-                optionFilterProp="label"
-                options={counterpartyOptions}
-              />
-            </Form.Item>
-          )}
+          <Row gutter={8}>
+            {/* Поле выбора контрагента - только для user и admin */}
+            {!isCounterpartyUser && (
+              <Col span={6}>
+                <Form.Item
+                  name="counterpartyId"
+                  label={fieldLabel('Контрагент', !!formValues.counterpartyId)}
+                  rules={[{ required: true, message: 'Выберите контрагента' }]}
+                >
+                  <Select
+                    placeholder="Выберите контрагента"
+                    showSearch
+                    optionFilterProp="label"
+                    options={counterpartyOptions}
+                  />
+                </Form.Item>
+              </Col>
+            )}
 
-          <Form.Item
-            name="siteId"
-            label={fieldLabel('Объект', !!formValues.siteId)}
-            rules={[{ required: true, message: 'Выберите объект' }]}
-          >
-            <Select
-              placeholder="Выберите объект"
-              showSearch
-              optionFilterProp="label"
-              options={siteOptions}
-            />
-          </Form.Item>
+            <Col span={isCounterpartyUser ? 8 : 6}>
+              <Form.Item
+                name="siteId"
+                label={fieldLabel('Объект', !!formValues.siteId)}
+                rules={[{ required: true, message: 'Выберите объект' }]}
+              >
+                <Select
+                  placeholder="Выберите объект"
+                  showSearch
+                  optionFilterProp="label"
+                  options={siteOptions}
+                />
+              </Form.Item>
+            </Col>
 
-          <Row gutter={16}>
-            <Col span={12}>
+            <Col span={isCounterpartyUser ? 8 : 6}>
               <Form.Item
                 label={fieldLabel('Срок поставки', !!formValues.deliveryDays)}
                 required
@@ -225,17 +229,18 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
                     initialValue="working"
                   >
                     <Select
-                      style={{ width: 150 }}
+                      style={{ width: 100 }}
                       options={[
-                        { label: 'рабочих', value: 'working' },
-                        { label: 'календарных', value: 'calendar' },
+                        { label: 'раб.', value: 'working' },
+                        { label: 'кал.', value: 'calendar' },
                       ]}
                     />
                   </Form.Item>
                 </div>
               </Form.Item>
             </Col>
-            <Col span={12}>
+
+            <Col span={isCounterpartyUser ? 8 : 6}>
               <Form.Item
                 name="shippingConditionId"
                 label={fieldLabel('Условия отгрузки', !!formValues.shippingConditionId)}

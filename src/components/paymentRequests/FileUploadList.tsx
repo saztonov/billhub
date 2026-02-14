@@ -140,24 +140,28 @@ const FileUploadList = ({ fileList, onChange }: FileUploadListProps) => {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
                 <Text
                   ellipsis={{ tooltip: item.file.name }}
-                  style={{ maxWidth: 200, flexShrink: 0 }}
+                  style={{ flex: '1 1 70%', minWidth: 0 }}
                 >
                   {item.file.name}
                 </Text>
-                <Text type="secondary" style={{ flexShrink: 0 }}>
+                <Text type="secondary" style={{ flexShrink: 0, whiteSpace: 'nowrap' }}>
                   {formatSize(item.file.size)}
-                  {item.pageCount != null && ` · ${item.pageCount} стр.`}
                 </Text>
+                {item.pageCount != null && (
+                  <Text type="secondary" style={{ flexShrink: 0, whiteSpace: 'nowrap', marginLeft: 8 }}>
+                    {item.pageCount} стр.
+                  </Text>
+                )}
                 <Select
                   placeholder="Тип документа"
                   size="small"
-                  style={{ width: 200 }}
+                  style={{ width: 180, flexShrink: 0 }}
                   options={typeOptions}
                   value={item.documentTypeId ?? undefined}
                   onChange={(val) => handleTypeChange(item.uid, val)}
                 />
                 {item.documentTypeId && (
-                  <CheckCircleFilled style={{ color: '#52c41a', fontSize: 16 }} />
+                  <CheckCircleFilled style={{ color: '#52c41a', fontSize: 16, flexShrink: 0 }} />
                 )}
               </div>
             </List.Item>
