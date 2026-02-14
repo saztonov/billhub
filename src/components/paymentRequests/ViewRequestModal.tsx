@@ -15,7 +15,7 @@ import {
   InputNumber,
   Row,
   Col,
-  message,
+  App,
   Collapse,
 } from 'antd'
 import {
@@ -94,6 +94,7 @@ function extractRequestNumber(requestNumber: string): string {
 }
 
 const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, canEdit, onEdit }: ViewRequestModalProps) => {
+  const { message } = App.useApp()
   const { currentRequestFiles, fetchRequestFiles, isLoading, isSubmitting } = usePaymentRequestStore()
   const { currentDecisions, currentLogs, fetchDecisions, fetchLogs } = useApprovalStore()
   const user = useAuthStore((s) => s.user)
@@ -291,7 +292,8 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   const handleDownloadDecisionFile = async (fileKey: string, fileName: string) => {
     setDownloading(fileKey)
     try {
-      const url = await getDownloadUrl(fileKey)
+      // Передаем fileName для установки Content-Disposition: attachment
+      const url = await getDownloadUrl(fileKey, 3600, fileName)
       const a = document.createElement('a')
       a.href = url
       a.download = fileName
@@ -468,14 +470,16 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                   label="Сумма счета"
                   rules={[{ type: 'number', min: 0.01, message: 'Сумма должна быть больше 0' }]}
                 >
-                  <InputNumber
-                    min={0.01}
-                    precision={2}
-                    style={{ width: '100%' }}
-                    placeholder="Сумма"
-                    addonAfter="₽"
-                    parser={(value) => value?.replace(',', '.')}
-                  />
+                  <Space.Compact style={{ width: '100%' }}>
+                    <InputNumber
+                      min={0.01}
+                      precision={2}
+                      style={{ width: '100%' }}
+                      placeholder="Сумма"
+                      parser={(value) => value?.replace(',', '.')}
+                    />
+                    <Input style={{ width: 50 }} value="₽" readOnly />
+                  </Space.Compact>
                 </Form.Item>
               </Col>
             </Row>

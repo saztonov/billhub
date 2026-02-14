@@ -9,13 +9,14 @@ import {
   Select,
   Popconfirm,
   Tooltip,
-  message,
+  App,
 } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined, MinusCircleOutlined, LinkOutlined } from '@ant-design/icons'
 import { useCounterpartyStore } from '@/store/counterpartyStore'
 import type { Counterparty } from '@/types'
 
 const CounterpartiesPage = () => {
+  const { message } = App.useApp()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingRecord, setEditingRecord] = useState<Counterparty | null>(null)
   const [form] = Form.useForm()

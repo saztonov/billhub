@@ -7,8 +7,9 @@ import {
   Input,
   Row,
   Col,
-  message,
+  App,
   Spin,
+  Space,
 } from 'antd'
 import { CheckCircleFilled } from '@ant-design/icons'
 import FileUploadList from './FileUploadList'
@@ -40,6 +41,7 @@ function fieldLabel(label: string, isFilled: boolean) {
 }
 
 const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
+  const { message } = App.useApp()
   const [form] = Form.useForm()
   const [fileList, setFileList] = useState<FileItem[]>([])
   const [formValues, setFormValues] = useState<Record<string, unknown>>({})
@@ -261,14 +263,16 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
                   { type: 'number', min: 0.01, message: 'Сумма должна быть больше 0' }
                 ]}
               >
-                <InputNumber
-                  min={0.01}
-                  precision={2}
-                  style={{ width: '100%' }}
-                  placeholder="Сумма"
-                  addonAfter="₽"
-                  parser={(value) => value?.replace(',', '.')}
-                />
+                <Space.Compact style={{ width: '100%' }}>
+                  <InputNumber
+                    min={0.01}
+                    precision={2}
+                    style={{ width: '100%' }}
+                    placeholder="Сумма"
+                    parser={(value) => value?.replace(',', '.')}
+                  />
+                  <Input style={{ width: 50 }} value="₽" readOnly />
+                </Space.Compact>
               </Form.Item>
             </Col>
           </Row>

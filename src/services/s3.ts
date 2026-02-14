@@ -106,10 +106,15 @@ export async function uploadDecisionFile(
 export async function getDownloadUrl(
   key: string,
   expiresIn = 3600,
+  fileName?: string,
 ): Promise<string> {
   const command = new GetObjectCommand({
     Bucket: S3_BUCKET,
     Key: key,
+    // Если передано имя файла, принудительно скачиваем (не открываем в браузере)
+    ResponseContentDisposition: fileName
+      ? `attachment; filename="${fileName}"`
+      : undefined,
   })
   return getSignedUrl(s3Client, command, { expiresIn })
 }

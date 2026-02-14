@@ -5,7 +5,7 @@ import {
   Input,
   Select,
   Checkbox,
-  message,
+  App,
 } from 'antd'
 import { useUserStore } from '@/store/userStore'
 import { useCounterpartyStore } from '@/store/counterpartyStore'
@@ -20,6 +20,7 @@ interface CreateUserModalProps {
 }
 
 const CreateUserModal = ({ open, onClose, onSuccess }: CreateUserModalProps) => {
+  const { message } = App.useApp()
   const [form] = Form.useForm()
   const [selectedRole, setSelectedRole] = useState<UserRole>('user')
   const [allSitesChecked, setAllSitesChecked] = useState(false)

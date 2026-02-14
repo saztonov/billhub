@@ -12,7 +12,7 @@ import {
   Progress,
   Upload,
   List,
-  message,
+  App,
 } from 'antd'
 import {
   EyeOutlined,
@@ -109,6 +109,7 @@ export interface RequestsTableProps {
 }
 
 const RequestsTable = (props: RequestsTableProps) => {
+  const { message } = App.useApp()
   const {
     requests,
     isLoading,
@@ -390,7 +391,7 @@ const RequestsTable = (props: RequestsTableProps) => {
           return (
             <Tooltip title="Согласовано">
               <div style={{ width: '80%' }}>
-                <Progress percent={100} strokeWidth={5} status="success" showInfo={false} />
+                <Progress percent={100} size={5} status="success" showInfo={false} />
               </div>
             </Tooltip>
           )
@@ -402,7 +403,7 @@ const RequestsTable = (props: RequestsTableProps) => {
           return (
             <Tooltip title={`Отклонено на ${record.rejectedStage === 1 ? 'Штабе' : 'ОМТС'}`}>
               <div style={{ width: '80%' }}>
-                <Progress percent={rejectedPercent} strokeWidth={5} status="exception" showInfo={false} />
+                <Progress percent={rejectedPercent} size={5} status="exception" showInfo={false} />
               </div>
             </Tooltip>
           )
@@ -420,7 +421,7 @@ const RequestsTable = (props: RequestsTableProps) => {
             <div style={{ width: '80%' }}>
               <Progress
                 percent={percent}
-                strokeWidth={5}
+                size={5}
                 strokeColor="#fa8c16"
                 showInfo={false}
               />

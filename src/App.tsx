@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { Spin, Flex } from 'antd'
+import { Spin, Flex, App as AntdApp } from 'antd'
 import MainLayout from '@/layout/MainLayout'
 import AuthLayout from '@/layout/AuthLayout'
 import ProtectedRoute from '@/components/ProtectedRoute'
@@ -36,8 +36,9 @@ const AppInitializer = ({ children }: { children: React.ReactNode }) => {
 
 const App = () => {
   return (
-    <AppInitializer>
-      <Routes>
+    <AntdApp>
+      <AppInitializer>
+        <Routes>
         {/* Авторизация и регистрация */}
         <Route element={<AuthLayout />}>
           <Route path="/login" element={<LoginPage />} />
@@ -68,7 +69,8 @@ const App = () => {
         {/* Редирект для неизвестных роутов */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </AppInitializer>
+      </AppInitializer>
+    </AntdApp>
   )
 }
 

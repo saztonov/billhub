@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
-import { Typography, Button, Tabs, message, Radio } from 'antd'
+import { Typography, Button, Tabs, App, Radio } from 'antd'
 import { PlusOutlined, FilterOutlined } from '@ant-design/icons'
 import { usePaymentRequestStore } from '@/store/paymentRequestStore'
 import type { EditRequestData } from '@/store/paymentRequestStore'
@@ -40,6 +40,7 @@ async function loadUserSiteIds(userId: string): Promise<{ allSites: boolean; sit
 }
 
 const PaymentRequestsPage = () => {
+  const { message } = App.useApp()
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [viewRecord, setViewRecord] = useState<PaymentRequest | null>(null)
   const [resubmitRecord, setResubmitRecord] = useState<PaymentRequest | null>(null)

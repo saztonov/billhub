@@ -1,4 +1,4 @@
-import { Form, Input, Button, Typography, message } from 'antd'
+import { Form, Input, Button, Typography, App } from 'antd'
 import { LockOutlined, MailOutlined } from '@ant-design/icons'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
@@ -6,6 +6,7 @@ import { useAuthStore } from '@/store/authStore'
 const { Title } = Typography
 
 const LoginPage = () => {
+  const { message } = App.useApp()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { login, isLoading, error } = useAuthStore()

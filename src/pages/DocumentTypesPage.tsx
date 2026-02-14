@@ -7,13 +7,14 @@ import {
   Form,
   Input,
   Popconfirm,
-  message,
+  App,
 } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useDocumentTypeStore } from '@/store/documentTypeStore'
 import type { DocumentType } from '@/types'
 
 const DocumentTypesPage = () => {
+  const { message } = App.useApp()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingRecord, setEditingRecord] = useState<DocumentType | null>(null)
   const [form] = Form.useForm()

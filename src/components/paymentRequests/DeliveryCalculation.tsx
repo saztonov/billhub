@@ -20,7 +20,7 @@ const DeliveryCalculation = ({ deliveryDays, deliveryDaysType, defaultExpanded =
     return (
       <Alert
         type="info"
-        message="Укажите срок поставки для расчета ориентировочной даты"
+        title="Укажите срок поставки для расчета ориентировочной даты"
         style={{ marginBottom: 16 }}
       />
     )

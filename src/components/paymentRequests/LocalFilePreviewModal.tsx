@@ -97,7 +97,7 @@ function LocalFilePreviewModal(props: LocalFilePreviewModalProps) {
       footer={null}
       width="80%"
       centered
-      destroyOnClose
+      destroyOnHidden
     >
       {renderPreview()}
     </Modal>

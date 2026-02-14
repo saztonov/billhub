@@ -12,7 +12,7 @@ import {
   Select,
   Popconfirm,
   Tag,
-  message,
+  App,
 } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useStatusStore } from '@/store/statusStore'
@@ -26,6 +26,7 @@ const fieldCodeLabels: Record<string, string> = {
 }
 
 const PaymentRequestSettingsPage = () => {
+  const { message } = App.useApp()
   // Статусы
   const {
     statuses, isLoading: statusLoading,

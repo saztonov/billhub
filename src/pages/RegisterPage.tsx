@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Form, Input, Button, Typography, Spin, Alert, message } from 'antd'
+import { Form, Input, Button, Typography, Spin, Alert, App } from 'antd'
 import { UserOutlined, MailOutlined, LockOutlined } from '@ant-design/icons'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '@/services/supabase'
@@ -12,6 +12,7 @@ interface CounterpartyInfo {
 }
 
 const RegisterPage = () => {
+  const { message } = App.useApp()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const token = searchParams.get('token')

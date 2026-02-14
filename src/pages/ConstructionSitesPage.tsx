@@ -9,7 +9,7 @@ import {
   Switch,
   Tag,
   Popconfirm,
-  message,
+  App,
 } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useConstructionSiteStore } from '@/store/constructionSiteStore'
@@ -17,6 +17,7 @@ import { useAuthStore } from '@/store/authStore'
 import type { ConstructionSite } from '@/types'
 
 const ConstructionSitesPage = () => {
+  const { message } = App.useApp()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingRecord, setEditingRecord] = useState<ConstructionSite | null>(null)
   const [form] = Form.useForm()

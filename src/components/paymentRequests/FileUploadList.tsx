@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Upload, Select, Button, List, Typography, message } from 'antd'
+import { Upload, Select, Button, List, Typography, App } from 'antd'
 import { InboxOutlined, DeleteOutlined, CheckCircleFilled, EyeOutlined } from '@ant-design/icons'
 import { useDocumentTypeStore } from '@/store/documentTypeStore'
 import { getPdfPageCount } from '@/utils/pdfUtils'
@@ -44,6 +44,7 @@ function formatSize(bytes: number): string {
 }
 
 const FileUploadList = ({ fileList, onChange }: FileUploadListProps) => {
+  const { message } = App.useApp()
   const { documentTypes } = useDocumentTypeStore()
   const [dragKey, setDragKey] = useState(0)
   const [previewFile, setPreviewFile] = useState<{ file: File; name: string } | null>(null)

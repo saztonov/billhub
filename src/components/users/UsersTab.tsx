@@ -10,7 +10,7 @@ import {
   Tag,
   Checkbox,
   Alert,
-  message,
+  App,
 } from 'antd'
 import { PlusOutlined, EditOutlined } from '@ant-design/icons'
 import { useUserStore } from '@/store/userStore'
@@ -36,6 +36,7 @@ const roleColors: Record<UserRole, string> = {
 }
 
 const UsersTab = () => {
+  const { message } = App.useApp()
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [editingRecord, setEditingRecord] = useState<UserRecord | null>(null)
