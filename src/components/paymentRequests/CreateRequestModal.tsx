@@ -163,8 +163,8 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
       okText="Создать"
       cancelText="Отмена"
       confirmLoading={isSubmitting}
-      width={900}
-      styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}
+      width="80%"
+      styles={{ body: { maxHeight: '80vh', overflowY: 'auto' } }}
       maskClosable={false}
       destroyOnClose
     >
@@ -253,6 +253,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
           <DeliveryCalculation
             deliveryDays={formValues.deliveryDays as number | null}
             deliveryDaysType={(formValues.deliveryDaysType as 'working' | 'calendar') || 'working'}
+            defaultExpanded={true}
           />
 
           <Form.Item name="comment" label="Комментарий">

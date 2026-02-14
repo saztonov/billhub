@@ -268,9 +268,9 @@ const PaymentRequestsPage = () => {
     }
   }, [user?.id, assignResponsible, isUser, siteFilterParams, fetchRequests])
 
-  // Фильтрация заявок по всем фильтрам
-  const filteredRequests = useMemo(() => {
-    let filtered = requests
+  // Общая функция фильтрации для всех вкладок
+  const applyFilters = useCallback((items: PaymentRequest[]) => {
+    let filtered = items
 
     if (filters.counterpartyId) {
       filtered = filtered.filter(r => r.counterpartyId === filters.counterpartyId)
@@ -301,9 +301,18 @@ const PaymentRequestsPage = () => {
     } else if (filters.responsibleFilter === 'unassigned') {
       filtered = filtered.filter(r => r.assignedUserId === null)
     }
+    if (filters.responsibleUserId) {
+      filtered = filtered.filter(r => r.assignedUserId === filters.responsibleUserId)
+    }
 
     return filtered
-  }, [requests, filters])
+  }, [filters])
+
+  // Фильтрация заявок для всех вкладок
+  const filteredRequests = useMemo(() => applyFilters(requests), [requests, applyFilters])
+  const filteredPendingRequests = useMemo(() => applyFilters(pendingRequests), [pendingRequests, applyFilters])
+  const filteredApprovedRequests = useMemo(() => applyFilters(approvedRequests), [approvedRequests, applyFilters])
+  const filteredRejectedRequests = useMemo(() => applyFilters(rejectedRequests), [rejectedRequests, applyFilters])
 
   const handleResubmit = async (comment: string, files: FileItem[]) => {
     if (!resubmitRecord || !user?.counterpartyId || !user?.id) return
@@ -395,32 +404,20 @@ const PaymentRequestsPage = () => {
       key: 'all',
       label: 'Все',
       children: (
-        <>
-          <RequestFilters
-            counterparties={counterparties}
-            sites={sites}
-            statuses={statuses}
-            hideCounterpartyFilter={false}
-            showResponsibleFilter={isOmtsUser}
-            values={filters}
-            onChange={setFilters}
-            onReset={() => setFilters({})}
-          />
-          <RequestsTable
-            requests={filteredRequests}
-            isLoading={isLoading}
-            onView={setViewRecord}
-            isAdmin={isAdmin}
-            onDelete={handleDelete}
-            uploadTasks={uploadTasks}
-            onRetryUpload={retryTask}
-            showResponsibleColumn={isOmtsUser}
-            canAssignResponsible={isAdmin}
-            omtsUsers={omtsUsers}
-            onAssignResponsible={handleAssignResponsible}
-            responsibleFilter={filters.responsibleFilter}
-          />
-        </>
+        <RequestsTable
+          requests={filteredRequests}
+          isLoading={isLoading}
+          onView={setViewRecord}
+          isAdmin={isAdmin}
+          onDelete={handleDelete}
+          uploadTasks={uploadTasks}
+          onRetryUpload={retryTask}
+          showResponsibleColumn={isOmtsUser}
+          canAssignResponsible={isAdmin}
+          omtsUsers={omtsUsers}
+          onAssignResponsible={handleAssignResponsible}
+          responsibleFilter={filters.responsibleFilter}
+        />
       ),
     },
   ]
@@ -432,7 +429,7 @@ const PaymentRequestsPage = () => {
       label: 'На согласование',
       children: (
         <RequestsTable
-          requests={pendingRequests}
+          requests={filteredPendingRequests}
           isLoading={approvalLoading}
           onView={setViewRecord}
           showApprovalActions
@@ -449,7 +446,7 @@ const PaymentRequestsPage = () => {
       label: 'Согласовано',
       children: (
         <RequestsTable
-          requests={approvedRequests}
+          requests={filteredApprovedRequests}
           isLoading={approvalLoading}
           onView={setViewRecord}
           showApprovedDate
@@ -461,7 +458,7 @@ const PaymentRequestsPage = () => {
       label: 'Отклонено',
       children: (
         <RequestsTable
-          requests={rejectedRequests}
+          requests={filteredRejectedRequests}
           isLoading={approvalLoading}
           onView={setViewRecord}
           showRejectedDate
@@ -478,6 +475,17 @@ const PaymentRequestsPage = () => {
           Добавить
         </Button>
       </div>
+      <RequestFilters
+        counterparties={counterparties}
+        sites={sites}
+        statuses={statuses}
+        hideCounterpartyFilter={false}
+        showResponsibleFilter={isOmtsUser || isAdmin}
+        omtsUsers={omtsUsers}
+        values={filters}
+        onChange={setFilters}
+        onReset={() => setFilters({})}
+      />
       <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} />
       <CreateRequestModal
         open={isCreateOpen}

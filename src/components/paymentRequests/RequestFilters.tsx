@@ -1,6 +1,6 @@
 import { Collapse, Form, Select, Input, Space, Button } from 'antd'
 import { FilterOutlined } from '@ant-design/icons'
-import type { Counterparty, ConstructionSite, Status } from '@/types'
+import type { Counterparty, ConstructionSite, Status, OmtsUser } from '@/types'
 import type { CollapseProps } from 'antd'
 
 export interface FilterValues {
@@ -11,6 +11,7 @@ export interface FilterValues {
   dateFrom?: string
   dateTo?: string
   responsibleFilter?: 'assigned' | 'unassigned' | null
+  responsibleUserId?: string
 }
 
 interface RequestFiltersProps {
@@ -19,6 +20,7 @@ interface RequestFiltersProps {
   statuses?: Status[]
   hideCounterpartyFilter?: boolean
   showResponsibleFilter?: boolean
+  omtsUsers?: OmtsUser[]
   values: FilterValues
   onChange: (values: FilterValues) => void
   onReset: () => void
@@ -31,6 +33,7 @@ const RequestFilters = (props: RequestFiltersProps) => {
     statuses,
     hideCounterpartyFilter,
     showResponsibleFilter,
+    omtsUsers,
     values,
     onChange,
     onReset,
@@ -112,6 +115,21 @@ const RequestFilters = (props: RequestFiltersProps) => {
                     { label: 'Назначен', value: 'assigned' },
                     { label: 'Не назначен', value: 'unassigned' },
                   ]}
+                />
+              </Form.Item>
+            )}
+
+            {showResponsibleFilter && omtsUsers && omtsUsers.length > 0 && (
+              <Form.Item label="Пользователь ОМТС" name="responsibleUserId" style={{ marginBottom: 0, width: 220 }}>
+                <Select
+                  placeholder="Все"
+                  allowClear
+                  showSearch
+                  optionFilterProp="label"
+                  options={omtsUsers.map((u) => ({
+                    label: u.full_name || u.email,
+                    value: u.id,
+                  }))}
                 />
               </Form.Item>
             )}

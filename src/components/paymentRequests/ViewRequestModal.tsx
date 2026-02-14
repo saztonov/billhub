@@ -430,6 +430,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                 <DeliveryCalculation
                   deliveryDays={getFieldValue('deliveryDays')}
                   deliveryDaysType={getFieldValue('deliveryDaysType') || 'working'}
+                  defaultExpanded={false}
                 />
               )}
             </Form.Item>
@@ -466,6 +467,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
           <DeliveryCalculation
             deliveryDays={request.deliveryDays}
             deliveryDaysType={request.deliveryDaysType}
+            defaultExpanded={false}
           />
         )}
 
