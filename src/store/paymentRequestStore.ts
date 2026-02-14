@@ -377,6 +377,14 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
         .select('stage_order, department_id')
         .eq('stage_order', targetStage)
       if (targetStageData && targetStageData.length > 0) {
+        // Удаляем старые записи для этой заявки и этапа перед созданием новых
+        await supabase
+          .from('approval_decisions')
+          .delete()
+          .eq('payment_request_id', id)
+          .eq('stage_order', targetStage)
+
+        // Создаём новые pending-записи
         const decisions = targetStageData.map((s: Record<string, unknown>) => ({
           payment_request_id: id,
           stage_order: targetStage,
