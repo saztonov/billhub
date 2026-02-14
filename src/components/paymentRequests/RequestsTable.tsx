@@ -60,6 +60,7 @@ export interface RequestsTableProps {
   // Для counterparty_user
   isCounterpartyUser?: boolean
   onWithdraw?: (id: string, comment: string) => void
+  hideCounterpartyColumn?: boolean
   // Для admin/user — смена статуса
   statusOptions?: { label: string; value: string }[]
   onStatusChange?: (id: string, statusId: string) => void
@@ -99,6 +100,7 @@ const RequestsTable = (props: RequestsTableProps) => {
     onView,
     isCounterpartyUser,
     onWithdraw,
+    hideCounterpartyColumn,
     statusOptions,
     onStatusChange,
     statusChangingId,
@@ -164,11 +166,18 @@ const RequestsTable = (props: RequestsTableProps) => {
       },
       render: (requestNumber: string) => extractRequestNumber(requestNumber),
     },
-    {
+  ]
+
+  // Столбец "Подрядчик" (скрывается для counterparty_user)
+  if (!hideCounterpartyColumn) {
+    columns.push({
       title: 'Подрядчик',
       dataIndex: 'counterpartyName',
       key: 'counterpartyName',
-    },
+    })
+  }
+
+  columns.push(
     {
       title: 'Объект',
       dataIndex: 'siteName',
@@ -185,7 +194,7 @@ const RequestsTable = (props: RequestsTableProps) => {
         </Tag>
       ),
     },
-  ]
+  )
 
   // Столбец "Ответственный" (только для ОМТС)
   if (showResponsibleColumn) {

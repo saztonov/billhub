@@ -20,6 +20,7 @@ interface RequestFiltersProps {
   sites?: ConstructionSite[]
   statuses?: Status[]
   hideCounterpartyFilter?: boolean
+  hideStatusFilter?: boolean
   showResponsibleFilter?: boolean
   omtsUsers?: OmtsUser[]
   values: FilterValues
@@ -33,6 +34,7 @@ const RequestFilters = (props: RequestFiltersProps) => {
     sites,
     statuses,
     hideCounterpartyFilter,
+    hideStatusFilter,
     showResponsibleFilter,
     omtsUsers,
     values,
@@ -108,16 +110,18 @@ const RequestFilters = (props: RequestFiltersProps) => {
             />
           </Form.Item>
 
-          <Form.Item label="Статус" name="statusId" style={{ marginBottom: 0, width: 200 }}>
-            <Select
-              placeholder="Все"
-              allowClear
-              options={statuses?.map((s) => ({
-                label: s.name,
-                value: s.id,
-              }))}
-            />
-          </Form.Item>
+          {!hideStatusFilter && (
+            <Form.Item label="Статус" name="statusId" style={{ marginBottom: 0, width: 200 }}>
+              <Select
+                placeholder="Все"
+                allowClear
+                options={statuses?.map((s) => ({
+                  label: s.name,
+                  value: s.id,
+                }))}
+              />
+            </Form.Item>
+          )}
 
           {showResponsibleFilter && (
             <Form.Item label="Ответственный" name="responsibleFilter" style={{ marginBottom: 0, width: 180 }}>

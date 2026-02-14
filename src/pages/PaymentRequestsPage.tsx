@@ -151,6 +151,9 @@ const PaymentRequestsPage = () => {
       fetchCounterparties()
       fetchSites()
       fetchStatuses('payment_request')
+    } else {
+      // Для counterparty_user загружаем только объекты (для фильтров)
+      fetchSites()
     }
   }, [isCounterpartyUser, fetchCounterparties, fetchSites, fetchStatuses])
 
@@ -328,6 +331,54 @@ const PaymentRequestsPage = () => {
   const filteredApprovedRequests = useMemo(() => applyFilters(approvedRequests), [approvedRequests, applyFilters])
   const filteredRejectedRequests = useMemo(() => applyFilters(rejectedRequests), [rejectedRequests, applyFilters])
 
+  // Фильтрация для counterparty_user (только объект, дата, номер)
+  const applyCounterpartyFilters = useCallback((items: PaymentRequest[]) => {
+    let filtered = items
+    if (filters.siteId) {
+      filtered = filtered.filter(r => r.siteId === filters.siteId)
+    }
+    if (filters.requestNumber) {
+      filtered = filtered.filter(r =>
+        r.requestNumber.toLowerCase().includes(filters.requestNumber!.toLowerCase())
+      )
+    }
+    if (filters.dateFrom) {
+      filtered = filtered.filter(r =>
+        new Date(r.createdAt) >= new Date(filters.dateFrom!)
+      )
+    }
+    if (filters.dateTo) {
+      filtered = filtered.filter(r =>
+        new Date(r.createdAt) <= new Date(filters.dateTo!)
+      )
+    }
+    return filtered
+  }, [filters])
+
+  // Разделение заявок counterparty_user по статусам (локальная фильтрация)
+  const counterpartyAllRequests = useMemo(() => requests, [requests])
+  const counterpartyPendingRequests = useMemo(() =>
+    requests.filter(r =>
+      r.currentStage !== null &&
+      r.approvedAt === null &&
+      r.rejectedAt === null &&
+      r.withdrawnAt === null
+    ), [requests])
+  const counterpartyApprovedRequests = useMemo(() =>
+    requests.filter(r => r.approvedAt !== null), [requests])
+  const counterpartyRejectedRequests = useMemo(() =>
+    requests.filter(r => r.rejectedAt !== null), [requests])
+
+  // Применение фильтров к вкладкам counterparty_user
+  const filteredCounterpartyAll = useMemo(() =>
+    applyCounterpartyFilters(counterpartyAllRequests), [counterpartyAllRequests, applyCounterpartyFilters])
+  const filteredCounterpartyPending = useMemo(() =>
+    applyCounterpartyFilters(counterpartyPendingRequests), [counterpartyPendingRequests, applyCounterpartyFilters])
+  const filteredCounterpartyApproved = useMemo(() =>
+    applyCounterpartyFilters(counterpartyApprovedRequests), [counterpartyApprovedRequests, applyCounterpartyFilters])
+  const filteredCounterpartyRejected = useMemo(() =>
+    applyCounterpartyFilters(counterpartyRejectedRequests), [counterpartyRejectedRequests, applyCounterpartyFilters])
+
   const handleResubmit = async (comment: string, files: FileItem[]) => {
     if (!resubmitRecord || !user?.counterpartyId || !user?.id) return
     try {
@@ -372,27 +423,108 @@ const PaymentRequestsPage = () => {
     }
   }
 
-  // Для counterparty_user — без вкладок
+  // Для counterparty_user — с вкладками и фильтрами
   if (isCounterpartyUser) {
+    const counterpartyTabItems = [
+      {
+        key: 'all',
+        label: 'Все',
+        children: (
+          <RequestsTable
+            requests={filteredCounterpartyAll}
+            isLoading={isLoading}
+            onView={setViewRecord}
+            isCounterpartyUser
+            hideCounterpartyColumn
+            onWithdraw={handleWithdraw}
+            onResubmit={setResubmitRecord}
+            uploadTasks={uploadTasks}
+            onRetryUpload={retryTask}
+            totalStages={totalStages}
+          />
+        ),
+      },
+      {
+        key: 'pending',
+        label: 'На согласовании',
+        children: (
+          <RequestsTable
+            requests={filteredCounterpartyPending}
+            isLoading={isLoading}
+            onView={setViewRecord}
+            isCounterpartyUser
+            hideCounterpartyColumn
+            onWithdraw={handleWithdraw}
+            uploadTasks={uploadTasks}
+            onRetryUpload={retryTask}
+            totalStages={totalStages}
+          />
+        ),
+      },
+      {
+        key: 'approved',
+        label: 'Согласовано',
+        children: (
+          <RequestsTable
+            requests={filteredCounterpartyApproved}
+            isLoading={isLoading}
+            onView={setViewRecord}
+            isCounterpartyUser
+            hideCounterpartyColumn
+            showApprovedDate
+            uploadTasks={uploadTasks}
+            onRetryUpload={retryTask}
+            totalStages={totalStages}
+          />
+        ),
+      },
+      {
+        key: 'rejected',
+        label: 'Отклонено',
+        children: (
+          <RequestsTable
+            requests={filteredCounterpartyRejected}
+            isLoading={isLoading}
+            onView={setViewRecord}
+            isCounterpartyUser
+            hideCounterpartyColumn
+            showRejectedDate
+            onResubmit={setResubmitRecord}
+            uploadTasks={uploadTasks}
+            onRetryUpload={retryTask}
+            totalStages={totalStages}
+          />
+        ),
+      },
+    ]
+
     return (
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <Title level={2} style={{ margin: 0 }}>Заявки на оплату</Title>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsCreateOpen(true)}>
-            Добавить
-          </Button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button
+              icon={<FilterOutlined />}
+              onClick={() => setFiltersOpen(!filtersOpen)}
+              type={filtersOpen ? 'primary' : 'default'}
+            />
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsCreateOpen(true)}>
+              Добавить
+            </Button>
+          </div>
         </div>
-        <RequestsTable
-          requests={requests}
-          isLoading={isLoading}
-          onView={setViewRecord}
-          isCounterpartyUser
-          onWithdraw={handleWithdraw}
-          onResubmit={setResubmitRecord}
-          uploadTasks={uploadTasks}
-          onRetryUpload={retryTask}
-          totalStages={totalStages}
-        />
+        {filtersOpen && (
+          <RequestFilters
+            sites={sites}
+            hideCounterpartyFilter={true}
+            hideStatusFilter={true}
+            showResponsibleFilter={false}
+            values={filters}
+            onChange={setFilters}
+            onReset={() => setFilters({})}
+          />
+        )}
+        <Tabs activeKey={activeTab} onChange={setActiveTab} items={counterpartyTabItems} />
         <CreateRequestModal
           open={isCreateOpen}
           onClose={() => {
