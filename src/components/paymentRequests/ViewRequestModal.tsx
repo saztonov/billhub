@@ -224,7 +224,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       log.push({ icon: <CheckCircleOutlined style={{ color: '#52c41a' }} />, text: `Согласовано. Комментарий: ${d.comment}`, date: d.decidedAt ?? undefined })
     }
 
-    // Логи редактирования и догрузки
+    // Логи редактирования, догрузки и повторной отправки
     for (const l of currentLogs) {
       if (l.action === 'edit') {
         const changes = (l.details?.changes as { field: string; newValue: unknown }[]) ?? []
@@ -233,6 +233,10 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       } else if (l.action === 'file_upload') {
         const count = (l.details?.count as number) ?? 0
         log.push({ icon: <FileAddOutlined style={{ color: '#1677ff' }} />, text: `Догружено файлов: ${count}`, date: l.createdAt })
+      } else if (l.action === 'resubmit') {
+        const comment = (l.details?.comment as string) ?? ''
+        const text = comment ? `Повторно отправлено. Комментарий: ${comment}` : 'Повторно отправлено'
+        log.push({ icon: <SendOutlined style={{ color: '#1677ff' }} />, text, date: l.createdAt })
       }
     }
 
