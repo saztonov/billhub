@@ -231,6 +231,7 @@ const PaymentRequestsPage = () => {
           if (cp) {
             const addUploadTask = useUploadQueueStore.getState().addTask
             addUploadTask({
+              type: 'request_files',
               requestId: id,
               requestNumber: req.requestNumber,
               counterpartyName: cp.name,
@@ -452,6 +453,7 @@ const PaymentRequestsPage = () => {
           // total_files будет автоматически увеличен в uploadQueueStore при загрузке каждого файла
           const addUploadTask = useUploadQueueStore.getState().addTask
           addUploadTask({
+            type: 'request_files',
             requestId: resubmitRecord.id,
             requestNumber: resubmitRecord.requestNumber,
             counterpartyName: cp.name,

@@ -128,6 +128,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
 
       // Добавляем файлы в очередь фоновой загрузки
       addUploadTask({
+        type: 'request_files',
         requestId,
         requestNumber,
         counterpartyName: cp.name,

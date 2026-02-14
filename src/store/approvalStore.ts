@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { supabase } from '@/services/supabase'
 import { checkAndNotifyMissingSpecialists } from '@/utils/approvalNotifications'
-import { uploadDecisionFile } from '@/services/s3'
+import { useUploadQueueStore } from '@/store/uploadQueueStore'
 import type { Department, ApprovalDecision, ApprovalDecisionFile, PaymentRequest, PaymentRequestLog } from '@/types'
 
 /** Элемент списка файлов для загрузки */
@@ -283,10 +283,10 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
   rejectRequest: async (paymentRequestId, department, userId, comment, files = []) => {
     set({ isLoading: true, error: null })
     try {
-      // 1. Получаем текущий этап
+      // 1. Получаем текущий этап и номер заявки
       const { data: pr, error: prError } = await supabase
         .from('payment_requests')
-        .select('current_stage')
+        .select('current_stage, request_number')
         .eq('id', paymentRequestId)
         .single()
       if (prError) throw prError
@@ -309,31 +309,15 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
 
       const decisionId = decisionData.id
 
-      // 3. Загружаем файлы на S3 и сохраняем метаданные
+      // 3. Добавляем файлы в очередь загрузки (ленивая загрузка)
       if (files.length > 0) {
-        for (const fileItem of files) {
-          const { file } = fileItem
-
-          // Загружаем файл на S3
-          const { key } = await uploadDecisionFile(decisionId, file)
-
-          // Сохраняем метаданные в БД
-          const { error: fileError } = await supabase
-            .from('approval_decision_files')
-            .insert({
-              approval_decision_id: decisionId,
-              file_name: file.name,
-              file_key: key,
-              file_size: file.size,
-              mime_type: file.type || null,
-              created_by: userId,
-            })
-
-          if (fileError) {
-            console.error('Ошибка сохранения метаданных файла:', fileError)
-            throw new Error(`Ошибка сохранения файла ${file.name}`)
-          }
-        }
+        const plainFiles = files.map((f) => f.file)
+        useUploadQueueStore.getState().addDecisionFilesTask(
+          decisionId,
+          pr.request_number,
+          plainFiles,
+          userId,
+        )
       }
 
       // 4. Устанавливаем статус Отклонена
