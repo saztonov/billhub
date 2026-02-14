@@ -406,14 +406,14 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
               <Select placeholder="Выберите объект" showSearch optionFilterProp="label" options={siteOptions} />
             </Form.Item>
             <Row gutter={16}>
-              <Col span={12}>
+              <Col span={8}>
                 <Form.Item label="Срок поставки" required style={{ marginBottom: 0 }}>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <Form.Item name="deliveryDays" noStyle rules={[{ required: true, message: 'Укажите срок' }]}>
-                      <InputNumber min={1} style={{ flex: 1 }} placeholder="Кол-во дней" />
+                      <InputNumber min={1} style={{ width: 80 }} placeholder="Дни" />
                     </Form.Item>
                     <Form.Item name="deliveryDaysType" noStyle>
-                      <Select style={{ width: 150 }} options={[
+                      <Select style={{ width: 120 }} options={[
                         { label: 'рабочих', value: 'working' },
                         { label: 'календарных', value: 'calendar' },
                       ]} />
@@ -421,14 +421,12 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                   </div>
                 </Form.Item>
               </Col>
-              <Col span={12}>
+              <Col span={8}>
                 <Form.Item name="shippingConditionId" label="Условия отгрузки" rules={[{ required: true, message: 'Выберите условия' }]}>
                   <Select placeholder="Выберите условия" options={shippingOptions.map((o) => ({ label: o.value, value: o.id }))} />
                 </Form.Item>
               </Col>
-            </Row>
-            <Row gutter={16}>
-              <Col span={12}>
+              <Col span={8}>
                 <Form.Item
                   name="invoiceAmount"
                   label="Сумма счета"
@@ -438,7 +436,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                     min={0.01}
                     precision={2}
                     style={{ width: '100%' }}
-                    placeholder="Введите сумму"
+                    placeholder="Сумма"
                     addonAfter="₽"
                   />
                 </Form.Item>

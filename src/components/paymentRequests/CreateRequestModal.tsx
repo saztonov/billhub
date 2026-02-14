@@ -195,7 +195,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
               </Col>
             )}
 
-            <Col span={isCounterpartyUser ? 8 : 6}>
+            <Col span={isCounterpartyUser ? 6 : 5}>
               <Form.Item
                 name="siteId"
                 label={fieldLabel('Объект', !!formValues.siteId)}
@@ -210,7 +210,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
               </Form.Item>
             </Col>
 
-            <Col span={isCounterpartyUser ? 8 : 6}>
+            <Col span={isCounterpartyUser ? 5 : 4}>
               <Form.Item
                 label={fieldLabel('Срок поставки', !!formValues.deliveryDays)}
                 required
@@ -222,7 +222,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
                     noStyle
                     rules={[{ required: true, message: 'Укажите срок' }]}
                   >
-                    <InputNumber min={1} style={{ flex: 1 }} placeholder="Кол-во дней" />
+                    <InputNumber min={1} style={{ width: 80 }} placeholder="Дни" />
                   </Form.Item>
                   <Form.Item
                     name="deliveryDaysType"
@@ -241,7 +241,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
               </Form.Item>
             </Col>
 
-            <Col span={isCounterpartyUser ? 8 : 6}>
+            <Col span={isCounterpartyUser ? 6 : 5}>
               <Form.Item
                 name="shippingConditionId"
                 label={fieldLabel('Условия отгрузки', !!formValues.shippingConditionId)}
@@ -253,10 +253,8 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
                 />
               </Form.Item>
             </Col>
-          </Row>
 
-          <Row gutter={4}>
-            <Col span={12}>
+            <Col span={isCounterpartyUser ? 7 : 4}>
               <Form.Item
                 name="invoiceAmount"
                 label={fieldLabel('Сумма счета', !!formValues.invoiceAmount)}
@@ -268,7 +266,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
                   min={0.01}
                   precision={2}
                   style={{ width: '100%' }}
-                  placeholder="Введите сумму"
+                  placeholder="Сумма"
                   addonAfter="₽"
                 />
               </Form.Item>

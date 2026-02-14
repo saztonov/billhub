@@ -194,6 +194,22 @@ const RequestsTable = (props: RequestsTableProps) => {
         </Tag>
       ),
     },
+    {
+      title: 'Сумма счета',
+      dataIndex: 'invoiceAmount',
+      key: 'invoiceAmount',
+      width: 130,
+      align: 'right' as const,
+      sorter: (a: PaymentRequest, b: PaymentRequest) =>
+        (a.invoiceAmount ?? 0) - (b.invoiceAmount ?? 0),
+      render: (amount: number | null) => {
+        if (amount == null) return <span style={{ color: '#bfbfbf' }}>—</span>
+        return amount.toLocaleString('ru-RU', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        }) + ' ₽'
+      },
+    },
   )
 
   // Столбец "Ответственный" (только для ОМТС)
