@@ -164,7 +164,8 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
       cancelText="Отмена"
       confirmLoading={isSubmitting}
       width="80%"
-      styles={{ body: { maxHeight: '80vh', overflowY: 'auto', overflowX: 'hidden' } }}
+      style={{ maxHeight: '90vh' }}
+      styles={{ body: { maxHeight: 'calc(90vh - 110px)', overflowY: 'auto', overflowX: 'hidden' } }}
       maskClosable={false}
       destroyOnClose
     >

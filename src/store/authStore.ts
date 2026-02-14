@@ -39,7 +39,7 @@ export const useAuthStore = create<AuthStoreState>((set) => ({
         fullName: userData.full_name ?? '',
         role: userData.role,
         counterpartyId: userData.counterparty_id,
-        departmentId: userData.department_id,
+        department: userData.department_id,
         allSites: userData.all_sites ?? false,
       }
       set({ user, isAuthenticated: true, isLoading: false })
@@ -83,7 +83,7 @@ export const useAuthStore = create<AuthStoreState>((set) => ({
         fullName: userData.full_name ?? '',
         role: userData.role,
         counterpartyId: userData.counterparty_id,
-        departmentId: userData.department_id,
+        department: userData.department_id,
         allSites: userData.all_sites ?? false,
       }
       set({ user, isAuthenticated: true, isLoading: false })

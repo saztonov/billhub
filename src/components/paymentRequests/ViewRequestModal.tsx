@@ -389,6 +389,9 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
         onCancel={onClose}
         footer={modalFooter}
         width="80%"
+        centered
+        style={{ maxHeight: '85vh' }}
+        styles={{ body: { maxHeight: 'calc(85vh - 120px)', overflowY: 'auto', overflowX: 'hidden' } }}
         maskClosable={false}
       >
         {/* Реквизиты — просмотр или редактирование */}
