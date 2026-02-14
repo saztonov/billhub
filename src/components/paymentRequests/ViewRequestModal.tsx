@@ -250,6 +250,41 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
     return log
   }, [request, currentDecisions, currentLogs])
 
+  /** Объединенный лог для user/admin */
+  const adminLog = useMemo(() => {
+    type LogEvent = {
+      type: 'decision' | 'log'
+      date: string
+      decision?: ApprovalDecision
+      log?: PaymentRequestLog
+    }
+
+    const events: LogEvent[] = []
+
+    // Добавляем все решения
+    for (const d of currentDecisions) {
+      events.push({
+        type: 'decision',
+        date: d.decidedAt || d.createdAt,
+        decision: d,
+      })
+    }
+
+    // Добавляем все логи
+    for (const l of currentLogs) {
+      events.push({
+        type: 'log',
+        date: l.createdAt,
+        log: l,
+      })
+    }
+
+    // Сортируем по дате
+    events.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+
+    return events
+  }, [currentDecisions, currentLogs])
+
   /** Скачать все файлы в ZIP-архиве */
   const handleDownloadAll = async () => {
     if (!currentRequestFiles.length || !request) return
@@ -668,16 +703,17 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
             </>
           )
         ) : (
-          // Для admin/user — полная цепочка + логи
-          (currentDecisions.length > 0 || currentLogs.length > 0) && (
+          // Для admin/user — объединенный хронологический лог
+          adminLog.length > 0 && (
             <>
               <Text strong style={{ marginBottom: 8, display: 'block' }}>Согласование</Text>
-              {currentDecisions.length > 0 && (
-                <List
-                  size="small"
-                  dataSource={currentDecisions}
-                  style={{ marginBottom: currentLogs.length > 0 ? 8 : 16 }}
-                  renderItem={(decision) => {
+              <List
+                size="small"
+                dataSource={adminLog}
+                style={{ marginBottom: 16 }}
+                renderItem={(event) => {
+                  if (event.type === 'decision' && event.decision) {
+                    const decision = event.decision
                     const icon = decision.status === 'approved'
                       ? <CheckCircleOutlined style={{ color: '#52c41a' }} />
                       : decision.status === 'rejected'
@@ -733,15 +769,11 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                         </div>
                       </List.Item>
                     )
-                  }}
-                />
-              )}
-              {currentLogs.length > 0 && (
-                <List
-                  size="small"
-                  dataSource={currentLogs}
-                  style={{ marginBottom: 16 }}
-                  renderItem={(log) => {
+                  }
+
+                  if (event.type === 'log' && event.log) {
+                    const log = event.log
+
                     if (log.action === 'edit') {
                       const changes = (log.details?.changes as { field: string; newValue: unknown }[]) ?? []
                       const changedFields = changes.map((c) => fieldLabels[c.field] ?? c.field).join(', ')
@@ -756,6 +788,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                         </List.Item>
                       )
                     }
+
                     if (log.action === 'file_upload') {
                       const count = (log.details?.count as number) ?? 0
                       return (
@@ -769,6 +802,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                         </List.Item>
                       )
                     }
+
                     if (log.action === 'resubmit') {
                       const comment = (log.details?.comment as string) ?? ''
                       const text = comment ? `Повторно отправлено. Комментарий: ${comment}` : 'Повторно отправлено'
@@ -783,10 +817,11 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                         </List.Item>
                       )
                     }
-                    return null
-                  }}
-                />
-              )}
+                  }
+
+                  return null
+                }}
+              />
             </>
           )
         )}
