@@ -120,10 +120,29 @@ async function processQueue(
 
           // Обновляем uploaded_files в БД
           const newUploaded = get().tasks[requestId].uploaded + 1
-          await supabase
-            .from('payment_requests')
-            .update({ uploaded_files: newUploaded })
-            .eq('id', task.requestId)
+
+          // Если файл загружается при повторной отправке, увеличиваем и total_files
+          if (fileData.isResubmit) {
+            const { data: currentReq } = await supabase
+              .from('payment_requests')
+              .select('total_files')
+              .eq('id', task.requestId)
+              .single()
+
+            const newTotal = (currentReq?.total_files ?? 0) + 1
+            await supabase
+              .from('payment_requests')
+              .update({
+                uploaded_files: newUploaded,
+                total_files: newTotal,
+              })
+              .eq('id', task.requestId)
+          } else {
+            await supabase
+              .from('payment_requests')
+              .update({ uploaded_files: newUploaded })
+              .eq('id', task.requestId)
+          }
 
           // Обновляем прогресс в очереди
           set((state) => ({
@@ -137,7 +156,7 @@ async function processQueue(
           }))
 
           // Обновляем локальное состояние таблицы
-          usePaymentRequestStore.getState().incrementUploadedFiles(task.requestId)
+          usePaymentRequestStore.getState().incrementUploadedFiles(task.requestId, fileData.isResubmit)
         }
 
         // Успех

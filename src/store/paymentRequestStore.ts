@@ -38,12 +38,13 @@ interface PaymentRequestStoreState {
   deleteRequest: (id: string) => Promise<void>
   withdrawRequest: (id: string, comment?: string) => Promise<void>
   updateRequestStatus: (id: string, statusId: string) => Promise<void>
-  incrementUploadedFiles: (requestId: string) => void
+  incrementUploadedFiles: (requestId: string, isResubmit?: boolean) => void
   fetchRequestFiles: (requestId: string) => Promise<void>
   resubmitRequest: (
     id: string,
     comment: string,
     counterpartyId: string,
+    userId: string,
   ) => Promise<void>
   updateRequest: (
     id: string,
@@ -287,10 +288,17 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
     }
   },
 
-  incrementUploadedFiles: (requestId) => {
+  incrementUploadedFiles: (requestId, isResubmit) => {
     set((state) => ({
       requests: state.requests.map((r) =>
-        r.id === requestId ? { ...r, uploadedFiles: r.uploadedFiles + 1 } : r,
+        r.id === requestId
+          ? {
+              ...r,
+              uploadedFiles: r.uploadedFiles + 1,
+              // При повторной отправке увеличиваем также totalFiles
+              totalFiles: isResubmit ? r.totalFiles + 1 : r.totalFiles,
+            }
+          : r,
       ),
     }))
   },
@@ -332,7 +340,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
     }
   },
 
-  resubmitRequest: async (id, comment, counterpartyId) => {
+  resubmitRequest: async (id, comment, counterpartyId, userId) => {
     set({ isSubmitting: true, error: null })
     try {
       // 1. Получаем id статуса 'sent'
@@ -373,38 +381,43 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
       if (updError) throw updError
 
       // 4. Создаём pending-записи для целевого этапа согласования
-      const { data: targetStageData } = await supabase
-        .from('approval_stages')
-        .select('stage_order, department_id')
+      // Используем жесткую цепочку: Этап 1 = Штаб, Этап 2 = ОМТС
+
+      // Удаляем только pending записи для этой заявки и этапа
+      // Сохраняем историю (rejected/approved записи)
+      await supabase
+        .from('approval_decisions')
+        .delete()
+        .eq('payment_request_id', id)
         .eq('stage_order', targetStage)
-      if (targetStageData && targetStageData.length > 0) {
-        // Удаляем только pending записи для этой заявки и этапа
-        // Сохраняем историю (rejected/approved записи)
-        await supabase
-          .from('approval_decisions')
-          .delete()
-          .eq('payment_request_id', id)
-          .eq('stage_order', targetStage)
-          .eq('status', 'pending')
+        .eq('status', 'pending')
 
-        // Создаём новые pending-записи
-        const decisions = targetStageData.map((s: Record<string, unknown>) => ({
-          payment_request_id: id,
-          stage_order: targetStage,
-          department_id: s.department_id as string,
-          status: 'pending',
-        }))
-        await supabase.from('approval_decisions').insert(decisions)
+      // Определяем department для целевого этапа
+      const targetDepartment = targetStage === 1 ? 'shtab' : 'omts'
 
-        // Проверяем и уведомляем о недостающих специалистах для каждого департамента
-        for (const stage of targetStageData) {
-          await checkAndNotifyMissingSpecialists(
-            id,
-            siteId,
-            stage.department_id as string,
-          )
-        }
-      }
+      // Создаём новую pending-запись для целевого этапа
+      await supabase.from('approval_decisions').insert({
+        payment_request_id: id,
+        stage_order: targetStage,
+        department_id: targetDepartment,
+        status: 'pending',
+      })
+
+      // Проверяем и уведомляем о недостающих специалистах
+      await checkAndNotifyMissingSpecialists(id, siteId, targetDepartment)
+
+      // Логируем повторную отправку
+      await supabase.from('payment_request_logs').insert({
+        payment_request_id: id,
+        user_id: userId,
+        action: 'resubmit',
+        details: {
+          comment,
+          target_stage: targetStage,
+          target_department: targetDepartment,
+          resubmit_count: newCount,
+        },
+      })
 
       await get().fetchRequests(counterpartyId)
       set({ isSubmitting: false })

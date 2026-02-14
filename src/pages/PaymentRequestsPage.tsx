@@ -440,7 +440,7 @@ const PaymentRequestsPage = () => {
     if (!resubmitRecord || !user?.counterpartyId || !user?.id) return
     try {
       // Повторная отправка заявки
-      await resubmitRequest(resubmitRecord.id, comment, user.counterpartyId)
+      await resubmitRequest(resubmitRecord.id, comment, user.counterpartyId, user.id)
 
       // Если есть новые файлы — загружаем через очередь
       if (files.length > 0) {

@@ -30,8 +30,8 @@ BillHub - это Single Page Application (SPA) на React 19 + Vite + TypeScript
 
 ### Сервер
 - **ОС:** Linux (Ubuntu/Debian рекомендуется)
-- **Node.js:** v18.0.0 или выше (рекомендуется v20.x LTS)
-- **npm:** v9.0.0 или выше
+- **Node.js:** v18.0.0 или выше (установлено: v20.19.5 ✅)
+- **npm:** v9.0.0 или выше (установлено: v10.8.2 ✅)
 - **nginx:** v1.18.0 или выше
 - **ISPmanager:** любая актуальная версия
 - **Git:** для клонирования репозитория
@@ -124,7 +124,7 @@ BillHub - это Single Page Application (SPA) на React 19 + Vite + TypeScript
 ### Жизненный цикл развертывания
 
 ```
-GitHub (исходный код)
+GitHub: https://github.com/saztonov/billhub
     ↓ git clone (billhub)
 /home/billhub/billhub-app/
     ↓ npm install (billhub)
@@ -208,13 +208,11 @@ npm --version    # должно вывести v10.x.x
 ```bash
 # Пользователь: billhub
 cd /home/billhub
-git clone https://github.com/ваш-username/billhub.git billhub-app
+git clone https://github.com/saztonov/billhub.git billhub-app
 cd billhub-app
 ```
 
-**Для приватного репозитория:**
-- Настройте SSH-ключ или GitHub Personal Access Token
-- Или используйте HTTPS с токеном: `git clone https://TOKEN@github.com/user/repo.git`
+**Примечание:** Репозиторий публичный, дополнительная аутентификация не требуется.
 
 ### Этап 3: Установка зависимостей
 
@@ -296,15 +294,16 @@ chmod -R 755 /var/www/billhub/data/www/billhub.fvds.ru/
 
 ### Конфигурация для SPA
 
-ISPmanager автоматически создает конфигурацию при добавлении сайта. Файл обычно находится в `/etc/nginx/vhosts/billhub.conf`.
+ISPmanager автоматически создает конфигурацию при добавлении сайта.
+
+**Путь к конфигурации для billhub.fvds.ru:**
+`/etc/nginx/vhosts/billhub/billhub.fvds.ru.conf`
 
 **Найти конфигурационный файл:**
 
 ```bash
 # Пользователь: root
-ls -la /etc/nginx/vhosts/
-# или
-grep -r "billhub.fvds.ru" /etc/nginx/
+find /etc/nginx -name "*billhub*"
 ```
 
 **Необходимая конфигурация:**
@@ -315,8 +314,8 @@ server {
     server_name billhub.fvds.ru www.billhub.fvds.ru;
 
     # SSL-сертификаты (настроены через ISPmanager + Let's Encrypt)
-    ssl_certificate /var/www/httpd-cert/billhub/billhub.fvds.ru.crtca;
-    ssl_certificate_key /var/www/httpd-cert/billhub/billhub.fvds.ru.key;
+    ssl_certificate /var/www/httpd-cert/billhub/billhub.fvds.ru_le1.crtca;
+    ssl_certificate_key /var/www/httpd-cert/billhub/billhub.fvds.ru_le1.key;
 
     # Корневая директория
     root /var/www/billhub/data/www/billhub.fvds.ru;
@@ -591,12 +590,11 @@ ls -la /etc/nginx/vhosts/ | grep billhub
 find /etc/nginx -name "*billhub*"
 
 # Запомните путь к конфигурационному файлу
-# Обычно: /etc/nginx/vhosts/billhub.conf или /etc/nginx/vhosts/billhub/billhub.conf
+# Для billhub.fvds.ru: /etc/nginx/vhosts/billhub/billhub.fvds.ru.conf
 
 # === Проверка конфигурации nginx ===
 # Пользователь: root
-cat /etc/nginx/vhosts/billhub.conf
-# (замените путь на найденный выше)
+cat /etc/nginx/vhosts/billhub/billhub.fvds.ru.conf
 
 # Проверьте директивы:
 # - root (путь к сайту)
@@ -632,11 +630,13 @@ ls -la
 ```
 
 **После проверки запомните:**
-1. Точный путь к директории сайта (обычно `/var/www/billhub/data/www/billhub.fvds.ru/`)
-2. Путь к конфигурации nginx (обычно `/etc/nginx/vhosts/billhub.conf`)
-3. Пути к SSL-сертификатам (должны быть в конфигурации nginx)
-
-Если пути отличаются от указанных в документе - используйте реальные пути в дальнейших командах.
+1. Точный путь к директории сайта: `/var/www/billhub/data/www/billhub.fvds.ru/` ✅
+2. Путь к конфигурации nginx: `/etc/nginx/vhosts/billhub/billhub.fvds.ru.conf` ✅
+3. Пути к SSL-сертификатам:
+   - Certificate: `/var/www/httpd-cert/billhub/billhub.fvds.ru_le1.crtca` ✅
+   - Key: `/var/www/httpd-cert/billhub/billhub.fvds.ru_le1.key` ✅
+4. Репозиторий: `https://github.com/saztonov/billhub` ✅
+5. Node.js: v20.19.5, npm: v10.8.2 ✅
 
 ---
 
@@ -648,15 +648,8 @@ ls -la
 node --version
 npm --version
 
-# === Установка Node.js 20.x LTS (если нужно) ===
-# Пользователь: root
-curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-apt-get install -y nodejs
-
-# === Проверка после установки ===
-# Пользователь: billhub (или root)
-node --version
-npm --version
+# Установлено: Node.js v20.19.5 и npm v10.8.2 ✅
+# Установка не требуется
 ```
 
 #### Клонирование репозитория
@@ -668,7 +661,7 @@ cd /home/billhub
 
 # === Клонирование репозитория ===
 # Пользователь: billhub
-git clone https://github.com/ваш-username/billhub.git billhub-app
+git clone https://github.com/saztonov/billhub.git billhub-app
 
 # === Переход в директорию проекта ===
 # Пользователь: billhub
