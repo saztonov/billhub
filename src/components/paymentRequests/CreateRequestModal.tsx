@@ -13,6 +13,7 @@ import {
 import { CheckCircleFilled } from '@ant-design/icons'
 import FileUploadList from './FileUploadList'
 import type { FileItem } from './FileUploadList'
+import DeliveryCalculation from './DeliveryCalculation'
 import { usePaymentRequestStore } from '@/store/paymentRequestStore'
 import { usePaymentRequestSettingsStore } from '@/store/paymentRequestSettingsStore'
 import { useDocumentTypeStore } from '@/store/documentTypeStore'
@@ -44,6 +45,8 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
   const [formValues, setFormValues] = useState<Record<string, unknown>>({})
 
   const user = useAuthStore((s) => s.user)
+  const isCounterpartyUser = user?.role === 'counterparty_user'
+
   const { createRequest, isSubmitting } = usePaymentRequestStore()
   const { fieldOptions, fetchFieldOptions, getOptionsByField } = usePaymentRequestSettingsStore()
   const { documentTypes, fetchDocumentTypes } = useDocumentTypeStore()
@@ -61,6 +64,11 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
   }, [open, fetchFieldOptions, fetchDocumentTypes, fetchCounterparties, fetchSites, documentTypes.length, counterparties.length, sites.length])
 
   const shippingOptions = getOptionsByField('shipping_conditions')
+
+  // Опции контрагентов (только активные)
+  const counterpartyOptions = counterparties
+    .filter((c) => c.isActive !== false)
+    .map((c) => ({ label: c.name, value: c.id }))
 
   // Опции объектов (только активные)
   const siteOptions = sites
@@ -86,13 +94,16 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
         return
       }
 
-      if (!user?.counterpartyId) {
-        message.error('Подрядчик не привязан к пользователю')
+      // Определяем counterpartyId в зависимости от роли
+      const counterpartyId = isCounterpartyUser ? user?.counterpartyId : values.counterpartyId
+
+      if (!counterpartyId) {
+        message.error('Подрядчик не выбран')
         return
       }
 
       // Получаем имя контрагента для S3-пути
-      const cp = counterparties.find((c) => c.id === user.counterpartyId)
+      const cp = counterparties.find((c) => c.id === counterpartyId)
       if (!cp) {
         message.error('Подрядчик не найден')
         return
@@ -108,7 +119,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
           comment: values.comment,
           totalFiles: fileList.length,
         },
-        user.counterpartyId,
+        counterpartyId,
         user.id,
       )
 
@@ -164,6 +175,22 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
           layout="vertical"
           onValuesChange={handleValuesChange}
         >
+          {/* Поле выбора контрагента - только для user и admin */}
+          {!isCounterpartyUser && (
+            <Form.Item
+              name="counterpartyId"
+              label={fieldLabel('Контрагент', !!formValues.counterpartyId)}
+              rules={[{ required: true, message: 'Выберите контрагента' }]}
+            >
+              <Select
+                placeholder="Выберите контрагента"
+                showSearch
+                optionFilterProp="label"
+                options={counterpartyOptions}
+              />
+            </Form.Item>
+          )}
+
           <Form.Item
             name="siteId"
             label={fieldLabel('Объект', !!formValues.siteId)}
@@ -221,6 +248,12 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
               </Form.Item>
             </Col>
           </Row>
+
+          {/* Расчет ориентировочного срока поставки */}
+          <DeliveryCalculation
+            deliveryDays={formValues.deliveryDays as number | null}
+            deliveryDaysType={(formValues.deliveryDaysType as 'working' | 'calendar') || 'working'}
+          />
 
           <Form.Item name="comment" label="Комментарий">
             <TextArea rows={2} placeholder="Необязательное поле" />

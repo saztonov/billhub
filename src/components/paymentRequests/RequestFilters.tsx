@@ -1,8 +1,7 @@
 import { Collapse, Form, Select, Input, Space, Button } from 'antd'
 import { FilterOutlined } from '@ant-design/icons'
 import type { Counterparty, ConstructionSite, Status } from '@/types'
-
-const { Panel } = Collapse
+import type { CollapseProps } from 'antd'
 
 export interface FilterValues {
   counterpartyId?: string
@@ -48,21 +47,16 @@ const RequestFilters = (props: RequestFiltersProps) => {
     onReset()
   }
 
-  return (
-    <Collapse
-      ghost
-      defaultActiveKey={['1']}
-      style={{ marginBottom: 16, background: '#fafafa', borderRadius: 8 }}
-    >
-      <Panel
-        header={
-          <Space>
-            <FilterOutlined />
-            <span>Фильтры</span>
-          </Space>
-        }
-        key="1"
-      >
+  const items: CollapseProps['items'] = [
+    {
+      key: '1',
+      label: (
+        <Space>
+          <FilterOutlined />
+          <span>Фильтры</span>
+        </Space>
+      ),
+      children: (
         <Form
           form={form}
           layout="vertical"
@@ -139,8 +133,17 @@ const RequestFilters = (props: RequestFiltersProps) => {
             </Form.Item>
           </Space>
         </Form>
-      </Panel>
-    </Collapse>
+      ),
+    },
+  ]
+
+  return (
+    <Collapse
+      ghost
+      defaultActiveKey={['1']}
+      items={items}
+      style={{ marginBottom: 16, background: '#fafafa', borderRadius: 8 }}
+    />
   )
 }
 

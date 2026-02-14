@@ -40,6 +40,7 @@ import JSZip from 'jszip'
 import FilePreviewModal from './FilePreviewModal'
 import FileUploadList from './FileUploadList'
 import type { FileItem } from './FileUploadList'
+import DeliveryCalculation from './DeliveryCalculation'
 import type { PaymentRequest, PaymentRequestFile } from '@/types'
 import { DEPARTMENT_LABELS } from '@/types'
 
@@ -422,6 +423,17 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                 </Form.Item>
               </Col>
             </Row>
+
+            {/* Расчет ориентировочного срока поставки при редактировании */}
+            <Form.Item noStyle shouldUpdate={(prev, curr) => prev.deliveryDays !== curr.deliveryDays || prev.deliveryDaysType !== curr.deliveryDaysType}>
+              {({ getFieldValue }) => (
+                <DeliveryCalculation
+                  deliveryDays={getFieldValue('deliveryDays')}
+                  deliveryDaysType={getFieldValue('deliveryDaysType') || 'working'}
+                />
+              )}
+            </Form.Item>
+
             <Form.Item name="comment" label="Комментарий">
               <TextArea rows={2} placeholder="Необязательное поле" />
             </Form.Item>
@@ -447,6 +459,14 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
               <Descriptions.Item label="Комментарий" span={2}>{request.comment}</Descriptions.Item>
             )}
           </Descriptions>
+        )}
+
+        {/* Расчет ориентировочного срока поставки в режиме просмотра */}
+        {!isEditing && (
+          <DeliveryCalculation
+            deliveryDays={request.deliveryDays}
+            deliveryDaysType={request.deliveryDaysType}
+          />
         )}
 
         {/* Блок назначения ответственного (только для ОМТС) */}

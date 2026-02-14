@@ -12,7 +12,7 @@ import ViewRequestModal from '@/components/paymentRequests/ViewRequestModal'
 import RequestsTable from '@/components/paymentRequests/RequestsTable'
 import { useCounterpartyStore } from '@/store/counterpartyStore'
 import { useConstructionSiteStore } from '@/store/constructionSiteStore'
-import { usePaymentRequestSettingsStore } from '@/store/paymentRequestSettingsStore'
+import { useStatusStore } from '@/store/statusStore'
 import { useAssignmentStore } from '@/store/assignmentStore'
 import RequestFilters from '@/components/paymentRequests/RequestFilters'
 import type { FilterValues } from '@/components/paymentRequests/RequestFilters'
@@ -68,7 +68,7 @@ const PaymentRequestsPage = () => {
 
   const { counterparties, fetchCounterparties } = useCounterpartyStore()
   const { sites, fetchSites } = useConstructionSiteStore()
-  const { statuses, fetchStatuses } = usePaymentRequestSettingsStore()
+  const { statuses, fetchStatuses } = useStatusStore()
   const { omtsUsers, fetchOmtsUsers, assignResponsible } = useAssignmentStore()
 
   const retryTask = useUploadQueueStore((s) => s.retryTask)
@@ -160,8 +160,15 @@ const PaymentRequestsPage = () => {
     if (isAdmin) return true
     // admin_omts также может редактировать
     if (user?.role === 'admin_omts') return true
+    // user может редактировать заявки своих объектов
+    if (isUser) {
+      // Если all_sites=true, может редактировать все заявки
+      if (userAllSites) return true
+      // Если all_sites=false, может редактировать только заявки своих объектов
+      return userSiteIds.includes(record.siteId)
+    }
     return false
-  }, [isAdmin, isCounterpartyUser, user?.role])
+  }, [isAdmin, isCounterpartyUser, isUser, userAllSites, userSiteIds, user?.role])
 
   /** Обработчик сохранения редактирования */
   const handleEdit = async (id: string, data: EditRequestData, files: FileItem[]) => {
@@ -468,8 +475,25 @@ const PaymentRequestsPage = () => {
 
   return (
     <div>
-      <Title level={2} style={{ marginBottom: 16 }}>Заявки на оплату</Title>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <Title level={2} style={{ margin: 0 }}>Заявки на оплату</Title>
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsCreateOpen(true)}>
+          Добавить
+        </Button>
+      </div>
       <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} />
+      <CreateRequestModal
+        open={isCreateOpen}
+        onClose={() => {
+          setIsCreateOpen(false)
+          const [sIds, allS] = siteFilterParams()
+          if (isUser) {
+            fetchRequests(undefined, sIds, allS)
+          } else {
+            fetchRequests()
+          }
+        }}
+      />
       <ViewRequestModal
         open={!!viewRecord}
         request={viewRecord}
