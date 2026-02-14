@@ -1,7 +1,8 @@
-import { Collapse, Form, Select, Input, Space, Button } from 'antd'
-import { FilterOutlined } from '@ant-design/icons'
-import type { Counterparty, ConstructionSite, Status, OmtsUser } from '@/types'
-import type { CollapseProps } from 'antd'
+import { Form, Select, Input, Space, Button, DatePicker } from 'antd'
+import type { Counterparty, ConstructionSite, Status } from '@/types'
+import dayjs from 'dayjs'
+
+const { RangePicker } = DatePicker
 
 export interface FilterValues {
   counterpartyId?: string
@@ -41,8 +42,28 @@ const RequestFilters = (props: RequestFiltersProps) => {
 
   const [form] = Form.useForm()
 
+  // Преобразуем dateFrom/dateTo в dateRange для отображения в форме
+  const initialValues = {
+    ...values,
+    dateRange:
+      values.dateFrom && values.dateTo
+        ? [dayjs(values.dateFrom), dayjs(values.dateTo)]
+        : values.dateFrom
+        ? [dayjs(values.dateFrom), null]
+        : values.dateTo
+        ? [null, dayjs(values.dateTo)]
+        : undefined,
+  }
+
   const handleValuesChange = (_: any, allValues: any) => {
-    onChange(allValues)
+    // Преобразуем dateRange в dateFrom/dateTo для родительского компонента
+    const { dateRange, ...rest } = allValues
+    const transformed = {
+      ...rest,
+      dateFrom: dateRange?.[0] ? dateRange[0].format('YYYY-MM-DD') : undefined,
+      dateTo: dateRange?.[1] ? dateRange[1].format('YYYY-MM-DD') : undefined,
+    }
+    onChange(transformed)
   }
 
   const handleReset = () => {
@@ -50,118 +71,100 @@ const RequestFilters = (props: RequestFiltersProps) => {
     onReset()
   }
 
-  const items: CollapseProps['items'] = [
-    {
-      key: '1',
-      label: (
-        <Space>
-          <FilterOutlined />
-          <span>Фильтры</span>
-        </Space>
-      ),
-      children: (
-        <Form
-          form={form}
-          layout="vertical"
-          initialValues={values}
-          onValuesChange={handleValuesChange}
-        >
-          <Space size="large" wrap>
-            {!hideCounterpartyFilter && (
-              <Form.Item label="Подрядчик" name="counterpartyId" style={{ marginBottom: 0, width: 250 }}>
-                <Select
-                  placeholder="Все"
-                  allowClear
-                  showSearch
-                  optionFilterProp="label"
-                  options={counterparties?.map((c) => ({
-                    label: c.name,
-                    value: c.id,
-                  }))}
-                />
-              </Form.Item>
-            )}
-
-            <Form.Item label="Объект" name="siteId" style={{ marginBottom: 0, width: 250 }}>
+  return (
+    <div style={{ marginBottom: 16, background: '#fafafa', borderRadius: 8, padding: 16 }}>
+      <Form
+        form={form}
+        layout="vertical"
+        initialValues={initialValues}
+        onValuesChange={handleValuesChange}
+      >
+        <Space size="large" wrap>
+          {!hideCounterpartyFilter && (
+            <Form.Item label="Подрядчик" name="counterpartyId" style={{ marginBottom: 0, width: 250 }}>
               <Select
                 placeholder="Все"
                 allowClear
                 showSearch
                 optionFilterProp="label"
-                options={sites?.map((s) => ({
-                  label: s.name,
-                  value: s.id,
+                options={counterparties?.map((c) => ({
+                  label: c.name,
+                  value: c.id,
                 }))}
               />
             </Form.Item>
+          )}
 
-            <Form.Item label="Статус" name="statusId" style={{ marginBottom: 0, width: 200 }}>
+          <Form.Item label="Объект" name="siteId" style={{ marginBottom: 0, width: 250 }}>
+            <Select
+              placeholder="Все"
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              options={sites?.map((s) => ({
+                label: s.name,
+                value: s.id,
+              }))}
+            />
+          </Form.Item>
+
+          <Form.Item label="Статус" name="statusId" style={{ marginBottom: 0, width: 200 }}>
+            <Select
+              placeholder="Все"
+              allowClear
+              options={statuses?.map((s) => ({
+                label: s.name,
+                value: s.id,
+              }))}
+            />
+          </Form.Item>
+
+          {showResponsibleFilter && (
+            <Form.Item label="Ответственный" name="responsibleFilter" style={{ marginBottom: 0, width: 180 }}>
               <Select
                 placeholder="Все"
                 allowClear
-                options={statuses?.map((s) => ({
-                  label: s.name,
-                  value: s.id,
+                options={[
+                  { label: 'Назначен', value: 'assigned' },
+                  { label: 'Не назначен', value: 'unassigned' },
+                ]}
+              />
+            </Form.Item>
+          )}
+
+          {showResponsibleFilter && omtsUsers && omtsUsers.length > 0 && (
+            <Form.Item label="Пользователь ОМТС" name="responsibleUserId" style={{ marginBottom: 0, width: 220 }}>
+              <Select
+                placeholder="Все"
+                allowClear
+                showSearch
+                optionFilterProp="label"
+                options={omtsUsers.map((u) => ({
+                  label: u.full_name || u.email,
+                  value: u.id,
                 }))}
               />
             </Form.Item>
+          )}
 
-            {showResponsibleFilter && (
-              <Form.Item label="Ответственный" name="responsibleFilter" style={{ marginBottom: 0, width: 180 }}>
-                <Select
-                  placeholder="Все"
-                  allowClear
-                  options={[
-                    { label: 'Назначен', value: 'assigned' },
-                    { label: 'Не назначен', value: 'unassigned' },
-                  ]}
-                />
-              </Form.Item>
-            )}
+          <Form.Item label="Номер заявки" name="requestNumber" style={{ marginBottom: 0, width: 180 }}>
+            <Input placeholder="Поиск по номеру" allowClear />
+          </Form.Item>
 
-            {showResponsibleFilter && omtsUsers && omtsUsers.length > 0 && (
-              <Form.Item label="Пользователь ОМТС" name="responsibleUserId" style={{ marginBottom: 0, width: 220 }}>
-                <Select
-                  placeholder="Все"
-                  allowClear
-                  showSearch
-                  optionFilterProp="label"
-                  options={omtsUsers.map((u) => ({
-                    label: u.full_name || u.email,
-                    value: u.id,
-                  }))}
-                />
-              </Form.Item>
-            )}
+          <Form.Item label="Диапазон дат" name="dateRange" style={{ marginBottom: 0, width: 250 }}>
+            <RangePicker
+              format="DD.MM.YYYY"
+              placeholder={['Дата от', 'Дата до']}
+              style={{ width: '100%' }}
+            />
+          </Form.Item>
 
-            <Form.Item label="Номер заявки" name="requestNumber" style={{ marginBottom: 0, width: 180 }}>
-              <Input placeholder="Поиск по номеру" allowClear />
-            </Form.Item>
-
-            <Form.Item label="Дата от" name="dateFrom" style={{ marginBottom: 0, width: 140 }}>
-              <Input type="date" />
-            </Form.Item>
-
-            <Form.Item label="Дата до" name="dateTo" style={{ marginBottom: 0, width: 140 }}>
-              <Input type="date" />
-            </Form.Item>
-
-            <Form.Item label=" " colon={false} style={{ marginBottom: 0 }}>
-              <Button onClick={handleReset}>Сбросить</Button>
-            </Form.Item>
-          </Space>
-        </Form>
-      ),
-    },
-  ]
-
-  return (
-    <Collapse
-      ghost
-      defaultActiveKey={['1']}
-      items={items}
-      style={{ marginBottom: 16, background: '#fafafa', borderRadius: 8 }}
-    />
+          <Form.Item label=" " colon={false} style={{ marginBottom: 0 }}>
+            <Button onClick={handleReset}>Сбросить</Button>
+          </Form.Item>
+        </Space>
+      </Form>
+    </div>
   )
 }
 

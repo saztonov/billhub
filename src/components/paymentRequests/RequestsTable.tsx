@@ -28,17 +28,29 @@ import type { PaymentRequest } from '@/types'
 
 const { TextArea } = Input
 
-/** Форматирование даты */
+/** Форматирование даты (только день и месяц) */
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return '—'
   const d = new Date(dateStr)
   return d.toLocaleDateString('ru-RU', {
     day: '2-digit',
     month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
   })
+}
+
+/** Извлечение порядкового номера из request_number */
+function extractRequestNumber(requestNumber: string): string {
+  const parts = requestNumber.split('_')
+  if (parts.length === 0) return requestNumber
+  return parseInt(parts[0], 10).toString()
+}
+
+/** Расчет количества дней между двумя датами */
+function calculateDays(fromDate: string, toDate: string | null): number {
+  const from = new Date(fromDate)
+  const to = toDate ? new Date(toDate) : new Date()
+  const diffMs = to.getTime() - from.getTime()
+  return Math.floor(diffMs / (1000 * 60 * 60 * 24))
 }
 
 export interface RequestsTableProps {
@@ -144,9 +156,13 @@ const RequestsTable = (props: RequestsTableProps) => {
       title: 'Номер',
       dataIndex: 'requestNumber',
       key: 'requestNumber',
-      width: 170,
-      sorter: (a: PaymentRequest, b: PaymentRequest) =>
-        a.requestNumber.localeCompare(b.requestNumber),
+      width: 100,
+      sorter: (a: PaymentRequest, b: PaymentRequest) => {
+        const numA = parseInt(extractRequestNumber(a.requestNumber), 10)
+        const numB = parseInt(extractRequestNumber(b.requestNumber), 10)
+        return numA - numB
+      },
+      render: (requestNumber: string) => extractRequestNumber(requestNumber),
     },
     {
       title: 'Подрядчик',
@@ -206,11 +222,27 @@ const RequestsTable = (props: RequestsTableProps) => {
     title: 'Дата создания',
     dataIndex: 'createdAt',
     key: 'createdAt',
-    width: 150,
+    width: 100,
     sorter: (a: PaymentRequest, b: PaymentRequest) =>
       new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
     defaultSortOrder: 'descend' as const,
     render: (date: string) => formatDate(date),
+  })
+
+  // Столбец "Срок"
+  columns.push({
+    title: 'Срок',
+    key: 'days',
+    width: 80,
+    sorter: (a: PaymentRequest, b: PaymentRequest) => {
+      const daysA = calculateDays(a.createdAt, a.approvedAt)
+      const daysB = calculateDays(b.createdAt, b.approvedAt)
+      return daysA - daysB
+    },
+    render: (_: unknown, record: PaymentRequest) => {
+      const days = calculateDays(record.createdAt, record.approvedAt)
+      return <span>{days}</span>
+    },
   })
 
   // Дата согласования
@@ -219,7 +251,7 @@ const RequestsTable = (props: RequestsTableProps) => {
       title: 'Дата согласования',
       dataIndex: 'approvedAt',
       key: 'approvedAt',
-      width: 150,
+      width: 100,
       sorter: (a: PaymentRequest, b: PaymentRequest) =>
         new Date(a.approvedAt ?? '').getTime() - new Date(b.approvedAt ?? '').getTime(),
       render: (date: string | null) => formatDate(date),
@@ -232,7 +264,7 @@ const RequestsTable = (props: RequestsTableProps) => {
       title: 'Дата отклонения',
       dataIndex: 'rejectedAt',
       key: 'rejectedAt',
-      width: 150,
+      width: 100,
       sorter: (a: PaymentRequest, b: PaymentRequest) =>
         new Date(a.rejectedAt ?? '').getTime() - new Date(b.rejectedAt ?? '').getTime(),
       render: (date: string | null) => formatDate(date),

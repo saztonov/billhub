@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Typography, Button, Tabs, message } from 'antd'
-import { PlusOutlined } from '@ant-design/icons'
+import { PlusOutlined, FilterOutlined } from '@ant-design/icons'
 import { usePaymentRequestStore } from '@/store/paymentRequestStore'
 import type { EditRequestData } from '@/store/paymentRequestStore'
 import { useAuthStore } from '@/store/authStore'
@@ -48,6 +48,7 @@ const PaymentRequestsPage = () => {
   const [userAllSites, setUserAllSites] = useState(true)
   const [sitesLoaded, setSitesLoaded] = useState(false)
   const [filters, setFilters] = useState<FilterValues>({})
+  const [filtersOpen, setFiltersOpen] = useState(false)
 
   const user = useAuthStore((s) => s.user)
   const isCounterpartyUser = user?.role === 'counterparty_user'
@@ -471,21 +472,30 @@ const PaymentRequestsPage = () => {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Title level={2} style={{ margin: 0 }}>Заявки на оплату</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsCreateOpen(true)}>
-          Добавить
-        </Button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Button
+            icon={<FilterOutlined />}
+            onClick={() => setFiltersOpen(!filtersOpen)}
+            type={filtersOpen ? 'primary' : 'default'}
+          />
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsCreateOpen(true)}>
+            Добавить
+          </Button>
+        </div>
       </div>
-      <RequestFilters
-        counterparties={counterparties}
-        sites={sites}
-        statuses={statuses}
-        hideCounterpartyFilter={false}
-        showResponsibleFilter={isOmtsUser || isAdmin}
-        omtsUsers={omtsUsers}
-        values={filters}
-        onChange={setFilters}
-        onReset={() => setFilters({})}
-      />
+      {filtersOpen && (
+        <RequestFilters
+          counterparties={counterparties}
+          sites={sites}
+          statuses={statuses}
+          hideCounterpartyFilter={false}
+          showResponsibleFilter={isOmtsUser || isAdmin}
+          omtsUsers={omtsUsers}
+          values={filters}
+          onChange={setFilters}
+          onReset={() => setFilters({})}
+        />
+      )}
       <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} />
       <CreateRequestModal
         open={isCreateOpen}
