@@ -383,17 +383,19 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
       // 4. Создаём pending-записи для целевого этапа согласования
       // Используем жесткую цепочку: Этап 1 = Штаб, Этап 2 = ОМТС
 
-      // Удаляем ВСЕ записи для целевого этапа (включая rejected)
-      // Уникальный индекс не позволяет иметь несколько записей с одинаковыми (payment_request_id, stage_order, department_id)
-      // История сохраняется в логах
+      // Определяем department для целевого этапа
+      const targetDepartment = targetStage === 1 ? 'shtab' : 'omts'
+
+      // Удаляем только pending записи для целевого этапа
+      // После миграции БД: partial unique index позволяет иметь несколько rejected/approved записей,
+      // но только одну pending - история согласований сохраняется в таблице
       await supabase
         .from('approval_decisions')
         .delete()
         .eq('payment_request_id', id)
         .eq('stage_order', targetStage)
-
-      // Определяем department для целевого этапа
-      const targetDepartment = targetStage === 1 ? 'shtab' : 'omts'
+        .eq('department_id', targetDepartment)
+        .eq('status', 'pending')
 
       // Создаём новую pending-запись для целевого этапа
       await supabase.from('approval_decisions').insert({
