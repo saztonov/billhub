@@ -173,6 +173,12 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
           }
         })
       )
+      console.log('[ApprovalStore] Загружено решений:', decisions.length, decisions.map(d => ({
+        stage: d.stageOrder,
+        dept: d.department,
+        status: d.status,
+        decidedAt: d.decidedAt
+      })))
       set({ currentDecisions: decisions })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка загрузки решений'

@@ -282,6 +282,13 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
     // Сортируем по дате
     events.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
 
+    console.log('[ViewRequestModal] adminLog события:', events.map(e => ({
+      type: e.type,
+      date: e.date,
+      decision: e.decision ? `Этап ${e.decision.stageOrder} ${e.decision.department} ${e.decision.status}` : null,
+      log: e.log?.action
+    })))
+
     return events
   }, [currentDecisions, currentLogs])
 
