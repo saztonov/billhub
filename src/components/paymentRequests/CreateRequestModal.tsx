@@ -164,7 +164,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
       cancelText="Отмена"
       confirmLoading={isSubmitting}
       width="80%"
-      styles={{ body: { maxHeight: '80vh', overflowY: 'auto' } }}
+      styles={{ body: { maxHeight: '80vh', overflowY: 'auto', overflowX: 'hidden' } }}
       maskClosable={false}
       destroyOnClose
     >
@@ -175,7 +175,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
           layout="vertical"
           onValuesChange={handleValuesChange}
         >
-          <Row gutter={8}>
+          <Row gutter={4}>
             {/* Поле выбора контрагента - только для user и admin */}
             {!isCounterpartyUser && (
               <Col span={6}>
