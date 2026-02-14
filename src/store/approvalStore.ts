@@ -25,7 +25,7 @@ interface ApprovalStoreState {
   rejectRequest: (paymentRequestId: string, department: Department, userId: string, comment: string) => Promise<void>
 
   // Заявки по вкладкам
-  fetchPendingRequests: (department: Department, userId: string) => Promise<void>
+  fetchPendingRequests: (department: Department, userId: string, isAdmin?: boolean) => Promise<void>
   fetchApprovedRequests: (userSiteIds?: string[], allSites?: boolean) => Promise<void>
   fetchRejectedRequests: (userSiteIds?: string[], allSites?: boolean) => Promise<void>
 }
@@ -272,6 +272,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
         .from('payment_requests')
         .update({
           status_id: statusData.id,
+          rejected_stage: pr.current_stage, // Сохраняем этап отклонения перед обнулением
           current_stage: null,
           rejected_at: new Date().toISOString(),
         })
@@ -284,7 +285,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
     }
   },
 
-  fetchPendingRequests: async (department, userId) => {
+  fetchPendingRequests: async (department, userId, isAdmin = false) => {
     set({ isLoading: true, error: null })
     try {
       // Получаем настройки объектов пользователя
@@ -328,7 +329,8 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
       let filteredRequests = (data ?? []).map(mapRequest)
 
       // Для ОМТС — дополнительная фильтрация по ответственному менеджеру контрагента
-      if (department === 'omts') {
+      // Для админа фильтрация не применяется (админ видит все заявки этапа)
+      if (department === 'omts' && !isAdmin) {
         const counterpartyIds = [...new Set(filteredRequests.map((r) => r.counterpartyId))]
         if (counterpartyIds.length > 0) {
           const { data: cpData } = await supabase

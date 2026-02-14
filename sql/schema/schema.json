@@ -1213,11 +1213,20 @@
               "numeric_precision": null
             },
             {
+              "name": "rejected_stage",
+              "type": "integer",
+              "default": null,
+              "nullable": true,
+              "position": 19,
+              "max_length": null,
+              "numeric_precision": 32
+            },
+            {
               "name": "withdrawal_comment",
               "type": "text",
               "default": null,
               "nullable": true,
-              "position": 19,
+              "position": 20,
               "max_length": null,
               "numeric_precision": null
             },
@@ -1226,7 +1235,7 @@
               "type": "text",
               "default": "'working'::text",
               "nullable": false,
-              "position": 20,
+              "position": 21,
               "max_length": null,
               "numeric_precision": null
             },
@@ -1235,7 +1244,7 @@
               "type": "text",
               "default": null,
               "nullable": true,
-              "position": 21,
+              "position": 22,
               "max_length": null,
               "numeric_precision": null
             },
@@ -1244,7 +1253,7 @@
               "type": "integer",
               "default": "0",
               "nullable": true,
-              "position": 22,
+              "position": 23,
               "max_length": null,
               "numeric_precision": 32
             }

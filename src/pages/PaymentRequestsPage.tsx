@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
-import { Typography, Button, Tabs, message } from 'antd'
+import { Typography, Button, Tabs, message, Radio } from 'antd'
 import { PlusOutlined, FilterOutlined } from '@ant-design/icons'
 import { usePaymentRequestStore } from '@/store/paymentRequestStore'
 import type { EditRequestData } from '@/store/paymentRequestStore'
@@ -17,7 +17,7 @@ import { useAssignmentStore } from '@/store/assignmentStore'
 import RequestFilters from '@/components/paymentRequests/RequestFilters'
 import type { FilterValues } from '@/components/paymentRequests/RequestFilters'
 import type { FileItem } from '@/components/paymentRequests/FileUploadList'
-import type { PaymentRequest } from '@/types'
+import type { PaymentRequest, Department } from '@/types'
 
 const { Title } = Typography
 
@@ -49,6 +49,7 @@ const PaymentRequestsPage = () => {
   const [sitesLoaded, setSitesLoaded] = useState(false)
   const [filters, setFilters] = useState<FilterValues>({})
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const [adminSelectedStage, setAdminSelectedStage] = useState<Department>('omts') // Для админа: выбор этапа согласования
 
   const user = useAuthStore((s) => s.user)
   const isCounterpartyUser = user?.role === 'counterparty_user'
@@ -103,10 +104,12 @@ const PaymentRequestsPage = () => {
   const totalStages = 2
 
   // Проверяем, участвует ли подразделение пользователя в цепочке (только Штаб и ОМТС)
+  // Для админа вкладка всегда видна
   const userDeptInChain = useMemo(() => {
+    if (isAdmin) return true // Админ всегда видит вкладку "На согласовании"
     if (!user?.department) return false
     return user.department === 'shtab' || user.department === 'omts'
-  }, [user?.department])
+  }, [isAdmin, user?.department])
 
   // Параметры фильтрации для role=user
   const siteFilterParams = useCallback((): [string[]?, boolean?] => {
@@ -129,14 +132,18 @@ const PaymentRequestsPage = () => {
   useEffect(() => {
     if (isCounterpartyUser || !sitesLoaded) return
     const [sIds, allS] = siteFilterParams()
-    if (activeTab === 'pending' && user?.department && user?.id) {
-      fetchPendingRequests(user.department, user.id)
+    if (activeTab === 'pending' && user?.id) {
+      // Для админа используем выбранный этап, для обычных пользователей - их department
+      const department = isAdmin ? adminSelectedStage : user?.department
+      if (department) {
+        fetchPendingRequests(department, user.id, isAdmin)
+      }
     } else if (activeTab === 'approved') {
       fetchApprovedRequests(sIds, allS)
     } else if (activeTab === 'rejected') {
       fetchRejectedRequests(sIds, allS)
     }
-  }, [activeTab, isCounterpartyUser, user?.department, user?.id, sitesLoaded, siteFilterParams, fetchPendingRequests, fetchApprovedRequests, fetchRejectedRequests])
+  }, [activeTab, isCounterpartyUser, user?.department, user?.id, sitesLoaded, siteFilterParams, fetchPendingRequests, fetchApprovedRequests, fetchRejectedRequests, isAdmin, adminSelectedStage])
 
   // Загружаем справочники для фильтров
   useEffect(() => {
@@ -227,10 +234,13 @@ const PaymentRequestsPage = () => {
   }
 
   const handleApprove = async (requestId: string, comment: string) => {
-    if (!user?.department || !user?.id) return
-    await approveRequest(requestId, user.department, user.id, comment)
+    if (!user?.id) return
+    // Для админа используем выбранный этап, для обычных пользователей - их department
+    const department = isAdmin ? adminSelectedStage : user?.department
+    if (!department) return
+    await approveRequest(requestId, department, user.id, comment)
     message.success('Заявка согласована')
-    fetchPendingRequests(user.department, user.id)
+    fetchPendingRequests(department, user.id, isAdmin)
     const [sIds, allS] = siteFilterParams()
     if (isUser) {
       fetchRequests(undefined, sIds, allS)
@@ -240,10 +250,13 @@ const PaymentRequestsPage = () => {
   }
 
   const handleReject = async (requestId: string, comment: string) => {
-    if (!user?.department || !user?.id) return
-    await rejectRequest(requestId, user.department, user.id, comment)
+    if (!user?.id) return
+    // Для админа используем выбранный этап, для обычных пользователей - их department
+    const department = isAdmin ? adminSelectedStage : user?.department
+    if (!department) return
+    await rejectRequest(requestId, department, user.id, comment)
     message.success('Заявка отклонена')
-    fetchPendingRequests(user.department, user.id)
+    fetchPendingRequests(department, user.id, isAdmin)
     const [sIds, allS] = siteFilterParams()
     if (isUser) {
       fetchRequests(undefined, sIds, allS)
@@ -423,20 +436,35 @@ const PaymentRequestsPage = () => {
     },
   ]
 
-  // Вкладка "На согласование" — только если подразделение в цепочке
+  // Вкладка "На согласование" — только если подразделение в цепочке или админ
   if (userDeptInChain) {
     tabItems.push({
       key: 'pending',
       label: 'На согласование',
       children: (
-        <RequestsTable
-          requests={filteredPendingRequests}
-          isLoading={approvalLoading}
-          onView={setViewRecord}
-          showApprovalActions
-          onApprove={handleApprove}
-          onReject={handleReject}
-        />
+        <div>
+          {/* Переключатель этапов для админа */}
+          {isAdmin && (
+            <div style={{ marginBottom: 16 }}>
+              <Radio.Group
+                value={adminSelectedStage}
+                onChange={(e) => setAdminSelectedStage(e.target.value)}
+                buttonStyle="solid"
+              >
+                <Radio.Button value="shtab">Объекты</Radio.Button>
+                <Radio.Button value="omts">ОМТС</Radio.Button>
+              </Radio.Group>
+            </div>
+          )}
+          <RequestsTable
+            requests={filteredPendingRequests}
+            isLoading={approvalLoading}
+            onView={setViewRecord}
+            showApprovalActions
+            onApprove={handleApprove}
+            onReject={handleReject}
+          />
+        </div>
       ),
     })
   }

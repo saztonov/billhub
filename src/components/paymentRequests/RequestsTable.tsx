@@ -329,15 +329,21 @@ const RequestsTable = (props: RequestsTableProps) => {
         if (record.approvedAt) {
           return (
             <Tooltip title="Согласовано">
-              <Progress steps={totalStages} percent={100} size="small" status="success" />
+              <div style={{ width: '80%' }}>
+                <Progress percent={100} strokeWidth={5} status="success" showInfo={false} />
+              </div>
             </Tooltip>
           )
         }
         // Отклонено
         if (record.rejectedAt) {
+          // Определяем процент по этапу отклонения
+          const rejectedPercent = record.rejectedStage === 1 ? 50 : 100
           return (
-            <Tooltip title="Отклонено">
-              <Progress steps={totalStages} percent={100} size="small" status="exception" />
+            <Tooltip title={`Отклонено на ${record.rejectedStage === 1 ? 'Штабе' : 'ОМТС'}`}>
+              <div style={{ width: '80%' }}>
+                <Progress percent={rejectedPercent} strokeWidth={5} status="exception" showInfo={false} />
+              </div>
             </Tooltip>
           )
         }
@@ -348,9 +354,17 @@ const RequestsTable = (props: RequestsTableProps) => {
         // В процессе согласования
         const completedStages = record.currentStage - 1
         const percent = Math.round((completedStages / totalStages) * 100)
+        const stageLabel = record.currentStage === 1 ? 'Штаб' : 'ОМТС'
         return (
-          <Tooltip title={`Этап ${record.currentStage} из ${totalStages}`}>
-            <Progress steps={totalStages} percent={percent} size="small" status="active" />
+          <Tooltip title={`На стадии ${stageLabel}`}>
+            <div style={{ width: '80%' }}>
+              <Progress
+                percent={percent}
+                strokeWidth={5}
+                strokeColor="#fa8c16"
+                showInfo={false}
+              />
+            </div>
           </Tooltip>
         )
       },

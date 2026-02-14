@@ -124,6 +124,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
           currentStage: (row.current_stage as number) ?? null,
           approvedAt: row.approved_at as string | null,
           rejectedAt: row.rejected_at as string | null,
+          rejectedStage: (row.rejected_stage as number) ?? null,
           resubmitComment: (row.resubmit_comment as string) ?? null,
           resubmitCount: (row.resubmit_count as number) ?? 0,
           counterpartyName: counterparties?.name as string | undefined,
@@ -339,15 +340,17 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
         .single()
       if (statusError) throw statusError
 
-      // 2. Получаем текущее значение resubmit_count
+      // 2. Получаем текущее значение resubmit_count и rejected_stage
       const { data: currentReq, error: reqError } = await supabase
         .from('payment_requests')
-        .select('resubmit_count')
+        .select('resubmit_count, rejected_stage')
         .eq('id', id)
         .single()
       if (reqError) throw reqError
 
       const newCount = ((currentReq.resubmit_count as number) ?? 0) + 1
+      // Определяем этап для повторной отправки: если была отклонена на ОМТС - идет сразу на ОМТС
+      const targetStage = (currentReq.rejected_stage as number) ?? 1
 
       // 3. Обновляем заявку: сброс статуса, сохранение комментария
       const { error: updError } = await supabase
@@ -355,22 +358,23 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
         .update({
           status_id: statusData.id,
           rejected_at: null,
-          current_stage: 1,
+          rejected_stage: null, // Очищаем этап отклонения при повторной отправке
+          current_stage: targetStage, // Возвращаем на тот этап, где была отклонена
           resubmit_comment: comment || null,
           resubmit_count: newCount,
         })
         .eq('id', id)
       if (updError) throw updError
 
-      // 4. Создаём pending-записи для 1 этапа согласования
-      const { data: firstStage } = await supabase
+      // 4. Создаём pending-записи для целевого этапа согласования
+      const { data: targetStageData } = await supabase
         .from('approval_stages')
         .select('stage_order, department_id')
-        .eq('stage_order', 1)
-      if (firstStage && firstStage.length > 0) {
-        const decisions = firstStage.map((s: Record<string, unknown>) => ({
+        .eq('stage_order', targetStage)
+      if (targetStageData && targetStageData.length > 0) {
+        const decisions = targetStageData.map((s: Record<string, unknown>) => ({
           payment_request_id: id,
-          stage_order: 1,
+          stage_order: targetStage,
           department_id: s.department_id as string,
           status: 'pending',
         }))
@@ -378,7 +382,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
 
         await checkAndNotifyMissingSpecialists(
           id,
-          firstStage.map((s: Record<string, unknown>) => ({ department_id: s.department_id as string })),
+          targetStageData.map((s: Record<string, unknown>) => ({ department_id: s.department_id as string })),
         )
       }
 

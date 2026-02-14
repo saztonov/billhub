@@ -129,6 +129,7 @@ export interface PaymentRequest {
   currentStage: number | null
   approvedAt: string | null
   rejectedAt: string | null
+  rejectedStage: number | null // Номер этапа (1=Штаб, 2=ОМТС), на котором была отклонена заявка
   resubmitComment: string | null
   resubmitCount: number
   // Joined
