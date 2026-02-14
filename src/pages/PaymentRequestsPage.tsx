@@ -590,7 +590,7 @@ const PaymentRequestsPage = () => {
           uploadTasks={uploadTasks}
           onRetryUpload={retryTask}
           showResponsibleColumn={isOmtsUser || isAdmin}
-          canAssignResponsible={isAdmin}
+          canAssignResponsible={false}
           omtsUsers={omtsUsers}
           onAssignResponsible={handleAssignResponsible}
           responsibleFilter={filters.responsibleFilter}
@@ -648,7 +648,7 @@ const PaymentRequestsPage = () => {
           onView={setViewRecord}
           showApprovedDate
           showResponsibleColumn={isOmtsUser || isAdmin}
-          canAssignResponsible={isAdmin}
+          canAssignResponsible={false}
           omtsUsers={omtsUsers}
           onAssignResponsible={handleAssignResponsible}
           responsibleFilter={filters.responsibleFilter}
@@ -665,7 +665,7 @@ const PaymentRequestsPage = () => {
           onView={setViewRecord}
           showRejectedDate
           showResponsibleColumn={isOmtsUser || isAdmin}
-          canAssignResponsible={isAdmin}
+          canAssignResponsible={false}
           omtsUsers={omtsUsers}
           onAssignResponsible={handleAssignResponsible}
           responsibleFilter={filters.responsibleFilter}

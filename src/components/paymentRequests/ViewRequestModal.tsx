@@ -468,7 +468,16 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                 <Form.Item
                   name="invoiceAmount"
                   label="Сумма счета"
-                  rules={[{ type: 'number', min: 0.01, message: 'Сумма должна быть больше 0' }]}
+                  rules={[
+                    {
+                      validator: (_, value) => {
+                        if (!value || Number(value) <= 0) {
+                          return Promise.reject(new Error('Сумма должна быть больше 0'))
+                        }
+                        return Promise.resolve()
+                      }
+                    }
+                  ]}
                 >
                   <Space.Compact style={{ width: '100%' }}>
                     <InputNumber
