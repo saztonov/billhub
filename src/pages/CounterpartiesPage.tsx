@@ -21,10 +21,8 @@ const CounterpartiesPage = () => {
   const [form] = Form.useForm()
   const {
     counterparties,
-    procurementUsers,
     isLoading,
     fetchCounterparties,
-    fetchProcurementUsers,
     createCounterparty,
     updateCounterparty,
     deleteCounterparty,
@@ -32,8 +30,7 @@ const CounterpartiesPage = () => {
 
   useEffect(() => {
     fetchCounterparties()
-    fetchProcurementUsers()
-  }, [fetchCounterparties, fetchProcurementUsers])
+  }, [fetchCounterparties])
 
   const handleCreate = () => {
     setEditingRecord(null)
@@ -89,12 +86,6 @@ const CounterpartiesPage = () => {
       render: (names: string[]) => names?.join('; ') || '',
     },
     {
-      title: 'Ответственный менеджер',
-      dataIndex: 'responsibleUserEmail',
-      key: 'responsibleUserEmail',
-      render: (email: string | null) => email || '\u2014',
-    },
-    {
       title: 'Действия',
       key: 'actions',
       render: (_: unknown, record: Counterparty) => (
@@ -139,15 +130,6 @@ const CounterpartiesPage = () => {
           </Form.Item>
           <Form.Item name="inn" label="ИНН" rules={[{ required: true, message: 'Введите ИНН' }]}>
             <Input />
-          </Form.Item>
-          <Form.Item name="responsibleUserId" label="Ответственный менеджер (закупки)">
-            <Select
-              allowClear
-              placeholder="Выберите ответственного"
-              showSearch
-              optionFilterProp="label"
-              options={procurementUsers.map((u) => ({ value: u.id, label: u.email }))}
-            />
           </Form.Item>
           <Form.List name="alternativeNames">
             {(fields, { add, remove }) => (

@@ -52,7 +52,7 @@ const App = () => {
             <Route path="/payment-requests" element={<PaymentRequestsPage />} />
 
             {/* Только admin и user (внутренние сотрудники) */}
-            <Route element={<RoleGuard allowedRoles={['admin', 'user']} />}>
+            <Route element={<RoleGuard allowedRoles={['admin', 'user', 'admin_omts']} />}>
               <Route path="/distribution-letters" element={<DistributionLettersPage />} />
               <Route path="/employees" element={<EmployeesPage />} />
               <Route path="/references" element={<ReferencesPage />} />

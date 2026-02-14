@@ -42,6 +42,7 @@ function getMenuItems(role: UserRole): MenuProps['items'] {
     case 'admin':
       return allMenuItems
     case 'user':
+    case 'admin_omts':
       return userMenuItems
     case 'counterparty_user':
       return counterpartyMenuItems
@@ -55,6 +56,8 @@ function getRoleLabel(role: UserRole): string {
       return 'Администратор'
     case 'user':
       return 'Пользователь'
+    case 'admin_omts':
+      return 'Администратор ОМТС'
     case 'counterparty_user':
       return 'Подрядчик'
   }

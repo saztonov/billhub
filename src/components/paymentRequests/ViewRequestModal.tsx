@@ -16,6 +16,7 @@ import {
   Row,
   Col,
   message,
+  Collapse,
 } from 'antd'
 import {
   DownloadOutlined,
@@ -33,6 +34,7 @@ import { useApprovalStore } from '@/store/approvalStore'
 import { useAuthStore } from '@/store/authStore'
 import { usePaymentRequestSettingsStore } from '@/store/paymentRequestSettingsStore'
 import { useConstructionSiteStore } from '@/store/constructionSiteStore'
+import { useAssignmentStore } from '@/store/assignmentStore'
 import { getDownloadUrl, downloadFileBlob } from '@/services/s3'
 import JSZip from 'jszip'
 import FilePreviewModal from './FilePreviewModal'
@@ -83,6 +85,15 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   const { currentDecisions, currentLogs, fetchDecisions, fetchLogs } = useApprovalStore()
   const user = useAuthStore((s) => s.user)
   const isCounterpartyUser = user?.role === 'counterparty_user'
+  const {
+    currentAssignment,
+    assignmentHistory,
+    omtsUsers,
+    fetchCurrentAssignment,
+    fetchAssignmentHistory,
+    fetchOmtsUsers,
+    assignResponsible,
+  } = useAssignmentStore()
   const [downloading, setDownloading] = useState<string | null>(null)
   const [downloadingAll, setDownloadingAll] = useState(false)
   const [previewFile, setPreviewFile] = useState<PaymentRequestFile | null>(null)
@@ -101,8 +112,15 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       fetchRequestFiles(request.id)
       fetchDecisions(request.id)
       fetchLogs(request.id)
+      fetchCurrentAssignment(request.id)
+      fetchAssignmentHistory(request.id)
+
+      // Загрузить список ОМТС если user может назначать
+      if (user?.role === 'admin_omts') {
+        fetchOmtsUsers()
+      }
     }
-  }, [open, request, fetchRequestFiles, fetchDecisions, fetchLogs])
+  }, [open, request, fetchRequestFiles, fetchDecisions, fetchLogs, fetchCurrentAssignment, fetchAssignmentHistory, fetchOmtsUsers, user?.role])
 
   // Сброс состояния при закрытии
   useEffect(() => {
@@ -429,6 +447,66 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
               <Descriptions.Item label="Комментарий" span={2}>{request.comment}</Descriptions.Item>
             )}
           </Descriptions>
+        )}
+
+        {/* Блок назначения ответственного (только для ОМТС) */}
+        {!isEditing && (user?.department === 'omts' || user?.role === 'admin_omts') && (
+          <div style={{ marginTop: 24, marginBottom: 24 }}>
+            <Text strong style={{ display: 'block', marginBottom: 12 }}>Ответственный ОМТС</Text>
+            <Space direction="vertical" style={{ width: '100%' }}>
+              {user?.role === 'admin_omts' ? (
+                <Select
+                  value={currentAssignment?.assignedUserId ?? undefined}
+                  placeholder="Выберите ответственного"
+                  style={{ width: '100%' }}
+                  allowClear
+                  onChange={async (value) => {
+                    if (!request || !user?.id) return
+                    try {
+                      await assignResponsible(request.id, value, user.id)
+                      message.success('Ответственный назначен')
+                    } catch {
+                      message.error('Ошибка назначения')
+                    }
+                  }}
+                  options={omtsUsers.map((u) => ({
+                    label: u.fullName,
+                    value: u.id,
+                  }))}
+                />
+              ) : (
+                <Text>
+                  {currentAssignment?.assignedUserFullName ||
+                   currentAssignment?.assignedUserEmail ||
+                   'Не назначен'}
+                </Text>
+              )}
+
+              {/* История назначений */}
+              {assignmentHistory.length > 0 && (
+                <Collapse ghost>
+                  <Collapse.Panel header="История назначений" key="1">
+                    <List
+                      size="small"
+                      dataSource={assignmentHistory}
+                      renderItem={(item) => (
+                        <List.Item>
+                          <Space direction="vertical" size={0}>
+                            <Text strong>
+                              {item.assignedUserFullName || item.assignedUserEmail}
+                            </Text>
+                            <Text type="secondary" style={{ fontSize: 12 }}>
+                              Назначил: {item.assignedByUserEmail} • {formatDate(item.assignedAt)}
+                            </Text>
+                          </Space>
+                        </List.Item>
+                      )}
+                    />
+                  </Collapse.Panel>
+                </Collapse>
+              )}
+            </Space>
+          </div>
         )}
 
         {/* Секция согласования — между реквизитами и файлами */}

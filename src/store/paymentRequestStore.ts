@@ -68,7 +68,12 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
           counterparties(name),
           construction_sites(name),
           statuses!payment_requests_status_id_fkey(name, color),
-          shipping:payment_request_field_options!payment_requests_shipping_condition_id_fkey(value)
+          shipping:payment_request_field_options!payment_requests_shipping_condition_id_fkey(value),
+          current_assignment:payment_request_assignments!left(
+            assigned_user_id,
+            is_current,
+            assigned_user:users!payment_request_assignments_assigned_user_id_fkey(email, full_name)
+          )
         `)
         .order('created_at', { ascending: false })
 
@@ -92,6 +97,14 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
         const site = row.construction_sites as Record<string, unknown> | null
         const statuses = row.statuses as Record<string, unknown> | null
         const shipping = row.shipping as Record<string, unknown> | null
+
+        // Извлекаем текущее назначение (is_current = true)
+        const assignments = (row.current_assignment as Record<string, unknown>[]) ?? []
+        const currentAssignment = assignments.find(
+          (a: Record<string, unknown>) => a.is_current === true
+        ) ?? null
+        const assignedUser = currentAssignment?.assigned_user as Record<string, unknown> | null
+
         return {
           id: row.id as string,
           requestNumber: row.request_number as string,
@@ -118,6 +131,9 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
           statusName: statuses?.name as string | undefined,
           statusColor: (statuses?.color as string) ?? null,
           shippingConditionValue: shipping?.value as string | undefined,
+          assignedUserId: (currentAssignment?.assigned_user_id as string) ?? null,
+          assignedUserEmail: (assignedUser?.email as string) ?? null,
+          assignedUserFullName: (assignedUser?.full_name as string) ?? null,
         }
       })
 

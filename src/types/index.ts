@@ -27,8 +27,6 @@ export interface Counterparty {
   inn: string
   address: string
   alternativeNames: string[]
-  responsibleUserId: string | null
-  responsibleUserEmail: string | null
   registrationToken: string | null
   createdAt: string
 }
@@ -139,6 +137,9 @@ export interface PaymentRequest {
   statusName?: string
   statusColor?: string | null
   shippingConditionValue?: string
+  assignedUserId?: string | null
+  assignedUserEmail?: string | null
+  assignedUserFullName?: string | null
 }
 
 /** Лог действий по заявке на оплату */
@@ -151,6 +152,21 @@ export interface PaymentRequestLog {
   createdAt: string
   // Joined
   userEmail?: string
+}
+
+/** История назначения ответственного за заявку */
+export interface PaymentRequestAssignment {
+  id: string
+  paymentRequestId: string
+  assignedUserId: string
+  assignedByUserId: string
+  assignedAt: string
+  isCurrent: boolean
+  createdAt: string
+  // Joined fields
+  assignedUserEmail?: string
+  assignedUserFullName?: string
+  assignedByUserEmail?: string
 }
 
 /** Файл заявки на оплату */
@@ -242,7 +258,7 @@ export interface OcrModel {
 // Аутентификация
 
 /** Роль пользователя */
-export type UserRole = 'admin' | 'user' | 'counterparty_user'
+export type UserRole = 'admin' | 'user' | 'admin_omts' | 'counterparty_user'
 
 /** Пользователь системы */
 export interface User {
@@ -256,7 +272,7 @@ export interface User {
 }
 
 /** Тип уведомления */
-export type NotificationType = 'missing_specialist' | 'missing_manager' | 'info' | 'error'
+export type NotificationType = 'missing_specialist' | 'info' | 'error'
 
 /** Уведомление */
 export interface AppNotification {

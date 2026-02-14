@@ -41,12 +41,6 @@ function formatDate(dateStr: string | null): string {
   })
 }
 
-/** Уникальные значения для фильтра */
-function uniqueFilters(items: (string | undefined)[]): { text: string; value: string }[] {
-  const unique = [...new Set(items.filter(Boolean) as string[])]
-  return unique.sort().map((v) => ({ text: v, value: v }))
-}
-
 export interface RequestsTableProps {
   requests: PaymentRequest[]
   isLoading: boolean
@@ -78,6 +72,12 @@ export interface RequestsTableProps {
   // Доп. фильтры
   showDepartmentFilter?: boolean
   rejectionDepartments?: { text: string; value: string }[]
+  // Назначение ответственного
+  showResponsibleColumn?: boolean
+  canAssignResponsible?: boolean
+  omtsUsers?: { id: string; fullName: string }[]
+  onAssignResponsible?: (requestId: string, userId: string) => void
+  responsibleFilter?: 'assigned' | 'unassigned' | null
 }
 
 const RequestsTable = (props: RequestsTableProps) => {
@@ -103,6 +103,11 @@ const RequestsTable = (props: RequestsTableProps) => {
     showDepartmentFilter,
     rejectionDepartments,
     onResubmit,
+    showResponsibleColumn,
+    canAssignResponsible,
+    omtsUsers,
+    onAssignResponsible,
+    responsibleFilter,
   } = props
 
   const [approvalModal, setApprovalModal] = useState<{ id: string; action: 'approve' | 'reject' } | null>(null)
@@ -110,18 +115,18 @@ const RequestsTable = (props: RequestsTableProps) => {
   const [withdrawModal, setWithdrawModal] = useState<string | null>(null)
   const [withdrawComment, setWithdrawComment] = useState('')
 
-  const counterpartyFilters = useMemo(
-    () => uniqueFilters(requests.map((r) => r.counterpartyName)),
-    [requests],
-  )
-  const statusFilters = useMemo(
-    () => uniqueFilters(requests.map((r) => r.statusName)),
-    [requests],
-  )
-  const siteFilters = useMemo(
-    () => uniqueFilters(requests.map((r) => r.siteName)),
-    [requests],
-  )
+  // Фильтрация по наличию ответственного
+  const filteredRequests = useMemo(() => {
+    let filtered = requests
+
+    if (responsibleFilter === 'assigned') {
+      filtered = filtered.filter(r => r.assignedUserId !== null)
+    } else if (responsibleFilter === 'unassigned') {
+      filtered = filtered.filter(r => r.assignedUserId === null)
+    }
+
+    return filtered
+  }, [requests, responsibleFilter])
 
   const handleApprovalConfirm = () => {
     if (!approvalModal) return
@@ -147,43 +152,66 @@ const RequestsTable = (props: RequestsTableProps) => {
       title: 'Подрядчик',
       dataIndex: 'counterpartyName',
       key: 'counterpartyName',
-      filters: counterpartyFilters,
-      onFilter: (value: unknown, record: PaymentRequest) =>
-        record.counterpartyName === value,
     },
     {
       title: 'Объект',
       dataIndex: 'siteName',
       key: 'siteName',
-      filters: siteFilters,
-      onFilter: (value: unknown, record: PaymentRequest) =>
-        record.siteName === value,
       render: (name: string | undefined) => name ?? '—',
     },
     {
       title: 'Статус',
       key: 'status',
       width: 150,
-      filters: statusFilters,
-      onFilter: (value: unknown, record: PaymentRequest) =>
-        record.statusName === value,
       render: (_: unknown, record: PaymentRequest) => (
         <Tag color={record.statusColor ?? 'default'}>
           {record.statusName}
         </Tag>
       ),
     },
-    {
-      title: 'Дата создания',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      width: 150,
-      sorter: (a: PaymentRequest, b: PaymentRequest) =>
-        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-      defaultSortOrder: 'descend' as const,
-      render: (date: string) => formatDate(date),
-    },
   ]
+
+  // Столбец "Ответственный" (только для ОМТС)
+  if (showResponsibleColumn) {
+    columns.push({
+      title: 'Ответственный',
+      key: 'responsible',
+      width: 200,
+      render: (_: unknown, record: PaymentRequest) => {
+        // Для admin_omts - dropdown
+        if (canAssignResponsible && omtsUsers && onAssignResponsible) {
+          return (
+            <Select
+              value={record.assignedUserId ?? undefined}
+              placeholder="Не назначен"
+              style={{ width: '100%' }}
+              allowClear
+              onChange={(value) => onAssignResponsible(record.id, value)}
+              options={omtsUsers.map((u) => ({
+                label: u.fullName,
+                value: u.id,
+              }))}
+            />
+          )
+        }
+        // Для обычных user - только отображение
+        return (
+          <span>{record.assignedUserFullName || record.assignedUserEmail || '—'}</span>
+        )
+      },
+    })
+  }
+
+  columns.push({
+    title: 'Дата создания',
+    dataIndex: 'createdAt',
+    key: 'createdAt',
+    width: 150,
+    sorter: (a: PaymentRequest, b: PaymentRequest) =>
+      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+    defaultSortOrder: 'descend' as const,
+    render: (date: string) => formatDate(date),
+  })
 
   // Дата согласования
   if (showApprovedDate) {
@@ -388,7 +416,7 @@ const RequestsTable = (props: RequestsTableProps) => {
     <>
       <Table
         columns={columns as any}
-        dataSource={requests}
+        dataSource={filteredRequests}
         rowKey="id"
         loading={isLoading}
         scroll={{ x: 1200 }}

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { supabase } from '@/services/supabase'
-import { checkAndNotifyMissingSpecialists, checkAndNotifyMissingManager } from '@/utils/approvalNotifications'
+import { checkAndNotifyMissingSpecialists } from '@/utils/approvalNotifications'
 import type { Department, ApprovalDecision, PaymentRequest, PaymentRequestLog } from '@/types'
 
 interface ApprovalStoreState {
@@ -206,9 +206,6 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
 
         // Проверяем специалистов ОМТС для объекта
         await checkAndNotifyMissingSpecialists(paymentRequestId, siteId, 'omts')
-
-        // Проверяем наличие ответственного менеджера контрагента
-        await checkAndNotifyMissingManager(paymentRequestId)
 
       } else if (currentStage === 2) {
         // Этап 2 (ОМТС) согласован → статус Согласована

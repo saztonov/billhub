@@ -126,7 +126,8 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
           full_name: data.full_name,
           role: data.role,
           counterparty_id: data.role === 'counterparty_user' ? data.counterparty_id : null,
-          department_id: data.department || null,
+          department_id:
+            (data.role === 'user' || data.role === 'admin_omts') ? data.department : null,
           all_sites: data.role === 'counterparty_user' ? false : data.all_sites,
         })
       if (insertError) throw insertError
@@ -161,7 +162,8 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
           full_name: data.full_name,
           role: data.role,
           counterparty_id: data.role === 'counterparty_user' ? data.counterparty_id : null,
-          department_id: data.department,
+          department_id:
+            (data.role === 'user' || data.role === 'admin_omts') ? data.department : null,
           all_sites: data.role === 'counterparty_user' ? false : data.all_sites,
         })
         .eq('id', id)

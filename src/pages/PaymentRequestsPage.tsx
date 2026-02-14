@@ -11,6 +11,11 @@ import CreateRequestModal from '@/components/paymentRequests/CreateRequestModal'
 import ViewRequestModal from '@/components/paymentRequests/ViewRequestModal'
 import RequestsTable from '@/components/paymentRequests/RequestsTable'
 import { useCounterpartyStore } from '@/store/counterpartyStore'
+import { useConstructionSiteStore } from '@/store/constructionSiteStore'
+import { usePaymentRequestSettingsStore } from '@/store/paymentRequestSettingsStore'
+import { useAssignmentStore } from '@/store/assignmentStore'
+import RequestFilters from '@/components/paymentRequests/RequestFilters'
+import type { FilterValues } from '@/components/paymentRequests/RequestFilters'
 import type { FileItem } from '@/components/paymentRequests/FileUploadList'
 import type { PaymentRequest } from '@/types'
 
@@ -42,13 +47,14 @@ const PaymentRequestsPage = () => {
   const [userSiteIds, setUserSiteIds] = useState<string[]>([])
   const [userAllSites, setUserAllSites] = useState(true)
   const [sitesLoaded, setSitesLoaded] = useState(false)
-  // ID контрагентов, за которых отвечает текущий user (responsible_user_id)
-  const [responsibleCounterpartyIds, setResponsibleCounterpartyIds] = useState<string[]>([])
+  const [filters, setFilters] = useState<FilterValues>({})
 
   const user = useAuthStore((s) => s.user)
   const isCounterpartyUser = user?.role === 'counterparty_user'
   const isAdmin = user?.role === 'admin'
   const isUser = user?.role === 'user'
+  const isAdminOmts = user?.role === 'admin_omts'
+  const isOmtsUser = user?.department === 'omts' || isAdminOmts
 
   const {
     requests,
@@ -61,6 +67,9 @@ const PaymentRequestsPage = () => {
   } = usePaymentRequestStore()
 
   const { counterparties, fetchCounterparties } = useCounterpartyStore()
+  const { sites, fetchSites } = useConstructionSiteStore()
+  const { statuses, fetchStatuses } = usePaymentRequestSettingsStore()
+  const { omtsUsers, fetchOmtsUsers, assignResponsible } = useAssignmentStore()
 
   const retryTask = useUploadQueueStore((s) => s.retryTask)
   const uploadTasks = useUploadQueueStore((s) => s.tasks)
@@ -89,20 +98,6 @@ const PaymentRequestsPage = () => {
       setSitesLoaded(true)
     })
   }, [user?.id, isUser])
-
-  // Загружаем контрагентов, за которых отвечает user (для определения canEdit)
-  useEffect(() => {
-    if (!user?.id || isCounterpartyUser) return
-    if (isAdmin || isUser) {
-      supabase
-        .from('counterparties')
-        .select('id')
-        .eq('responsible_user_id', user.id)
-        .then(({ data }) => {
-          setResponsibleCounterpartyIds((data ?? []).map((r: Record<string, unknown>) => r.id as string))
-        })
-    }
-  }, [user?.id, isAdmin, isUser, isCounterpartyUser])
 
   // Общее количество уникальных этапов согласования (жесткая цепочка: Штаб → ОМТС)
   const totalStages = 2
@@ -143,13 +138,30 @@ const PaymentRequestsPage = () => {
     }
   }, [activeTab, isCounterpartyUser, user?.department, user?.id, sitesLoaded, siteFilterParams, fetchPendingRequests, fetchApprovedRequests, fetchRejectedRequests])
 
+  // Загружаем справочники для фильтров
+  useEffect(() => {
+    if (!isCounterpartyUser) {
+      fetchCounterparties()
+      fetchSites()
+      fetchStatuses('payment_request')
+    }
+  }, [isCounterpartyUser, fetchCounterparties, fetchSites, fetchStatuses])
+
+  // Загружаем список ОМТС для назначения
+  useEffect(() => {
+    if (isOmtsUser) {
+      fetchOmtsUsers()
+    }
+  }, [isOmtsUser, fetchOmtsUsers])
+
   /** Проверяет, может ли текущий пользователь редактировать заявку */
   const canEditRequest = useCallback((record: PaymentRequest | null): boolean => {
     if (!record || isCounterpartyUser) return false
     if (isAdmin) return true
-    if (isUser && responsibleCounterpartyIds.includes(record.counterpartyId)) return true
+    // admin_omts также может редактировать
+    if (user?.role === 'admin_omts') return true
     return false
-  }, [isAdmin, isUser, isCounterpartyUser, responsibleCounterpartyIds])
+  }, [isAdmin, isCounterpartyUser, user?.role])
 
   /** Обработчик сохранения редактирования */
   const handleEdit = async (id: string, data: EditRequestData, files: FileItem[]) => {
@@ -234,6 +246,60 @@ const PaymentRequestsPage = () => {
       fetchRequests()
     }
   }
+
+  const handleAssignResponsible = useCallback(async (requestId: string, userId: string) => {
+    if (!user?.id) return
+    try {
+      await assignResponsible(requestId, userId, user.id)
+      message.success('Ответственный назначен')
+      // Обновить список заявок
+      const [sIds, allS] = siteFilterParams()
+      if (isUser || isAdminOmts) {
+        fetchRequests(undefined, sIds, allS)
+      } else {
+        fetchRequests()
+      }
+    } catch {
+      message.error('Ошибка назначения')
+    }
+  }, [user?.id, assignResponsible, isUser, isAdminOmts, siteFilterParams, fetchRequests])
+
+  // Фильтрация заявок по всем фильтрам
+  const filteredRequests = useMemo(() => {
+    let filtered = requests
+
+    if (filters.counterpartyId) {
+      filtered = filtered.filter(r => r.counterpartyId === filters.counterpartyId)
+    }
+    if (filters.siteId) {
+      filtered = filtered.filter(r => r.siteId === filters.siteId)
+    }
+    if (filters.statusId) {
+      filtered = filtered.filter(r => r.statusId === filters.statusId)
+    }
+    if (filters.requestNumber) {
+      filtered = filtered.filter(r =>
+        r.requestNumber.toLowerCase().includes(filters.requestNumber!.toLowerCase())
+      )
+    }
+    if (filters.dateFrom) {
+      filtered = filtered.filter(r =>
+        new Date(r.createdAt) >= new Date(filters.dateFrom!)
+      )
+    }
+    if (filters.dateTo) {
+      filtered = filtered.filter(r =>
+        new Date(r.createdAt) <= new Date(filters.dateTo!)
+      )
+    }
+    if (filters.responsibleFilter === 'assigned') {
+      filtered = filtered.filter(r => r.assignedUserId !== null)
+    } else if (filters.responsibleFilter === 'unassigned') {
+      filtered = filtered.filter(r => r.assignedUserId === null)
+    }
+
+    return filtered
+  }, [requests, filters])
 
   const handleResubmit = async (comment: string, files: FileItem[]) => {
     if (!resubmitRecord || !user?.counterpartyId || !user?.id) return
@@ -325,15 +391,32 @@ const PaymentRequestsPage = () => {
       key: 'all',
       label: 'Все',
       children: (
-        <RequestsTable
-          requests={requests}
-          isLoading={isLoading}
-          onView={setViewRecord}
-          isAdmin={isAdmin}
-          onDelete={handleDelete}
-          uploadTasks={uploadTasks}
-          onRetryUpload={retryTask}
-        />
+        <>
+          <RequestFilters
+            counterparties={counterparties}
+            sites={sites}
+            statuses={statuses}
+            hideCounterpartyFilter={false}
+            showResponsibleFilter={isOmtsUser}
+            values={filters}
+            onChange={setFilters}
+            onReset={() => setFilters({})}
+          />
+          <RequestsTable
+            requests={filteredRequests}
+            isLoading={isLoading}
+            onView={setViewRecord}
+            isAdmin={isAdmin}
+            onDelete={handleDelete}
+            uploadTasks={uploadTasks}
+            onRetryUpload={retryTask}
+            showResponsibleColumn={isOmtsUser}
+            canAssignResponsible={isAdminOmts}
+            omtsUsers={omtsUsers}
+            onAssignResponsible={handleAssignResponsible}
+            responsibleFilter={filters.responsibleFilter}
+          />
+        </>
       ),
     },
   ]
