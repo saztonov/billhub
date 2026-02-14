@@ -564,6 +564,82 @@ chmod +x /home/billhub/deploy.sh
 
 ### Полный список команд с указанием пользователя
 
+#### Шаг 0: Проверка путей, созданных ISPmanager
+
+**ВАЖНО:** Перед началом развертывания нужно проверить реальные пути, которые создал ISPmanager.
+
+```bash
+# === Проверка директории сайта ===
+# Пользователь: root или billhub
+ls -la /var/www/billhub/
+ls -la /var/www/billhub/data/
+ls -la /var/www/billhub/data/www/
+
+# Должна существовать директория:
+# /var/www/billhub/data/www/billhub.fvds.ru/
+
+# === Проверка прав доступа к директории сайта ===
+# Пользователь: root
+ls -ld /var/www/billhub/data/www/billhub.fvds.ru/
+
+# Владелец должен быть billhub:billhub
+
+# === Поиск конфигурации nginx ===
+# Пользователь: root
+ls -la /etc/nginx/vhosts/ | grep billhub
+# или
+find /etc/nginx -name "*billhub*"
+
+# Запомните путь к конфигурационному файлу
+# Обычно: /etc/nginx/vhosts/billhub.conf или /etc/nginx/vhosts/billhub/billhub.conf
+
+# === Проверка конфигурации nginx ===
+# Пользователь: root
+cat /etc/nginx/vhosts/billhub.conf
+# (замените путь на найденный выше)
+
+# Проверьте директивы:
+# - root (путь к сайту)
+# - ssl_certificate (путь к сертификату)
+# - ssl_certificate_key (путь к ключу)
+
+# === Поиск SSL-сертификатов ===
+# Пользователь: root
+find /var/www -name "*billhub.fvds.ru*" -type f
+# или
+ls -la /var/www/httpd-cert/
+ls -la /var/www/httpd-cert/billhub/ 2>/dev/null || echo "Директория не найдена"
+
+# Обычно сертификаты в:
+# /var/www/httpd-cert/<user>/<domain>.crtca (сертификат)
+# /var/www/httpd-cert/<user>/<domain>.key (ключ)
+
+# === Проверка содержимого директории сайта ===
+# Пользователь: billhub или root
+ls -lah /var/www/billhub/data/www/billhub.fvds.ru/
+
+# Если там уже есть файлы (заглушка ISPmanager) - это нормально,
+# они будут заменены при копировании dist/
+
+# === Проверка домашней директории пользователя billhub ===
+# Пользователь: billhub
+cd ~
+pwd
+# Должно вывести: /home/billhub
+
+ls -la
+# Проверьте права и доступность директории
+```
+
+**После проверки запомните:**
+1. Точный путь к директории сайта (обычно `/var/www/billhub/data/www/billhub.fvds.ru/`)
+2. Путь к конфигурации nginx (обычно `/etc/nginx/vhosts/billhub.conf`)
+3. Пути к SSL-сертификатам (должны быть в конфигурации nginx)
+
+Если пути отличаются от указанных в документе - используйте реальные пути в дальнейших командах.
+
+---
+
 #### Подготовка окружения
 
 ```bash

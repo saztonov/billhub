@@ -145,16 +145,42 @@ const PaymentRequestsPage = () => {
     }
   }, [isCounterpartyUser, sitesLoaded, user?.id, user?.department, isAdmin, adminSelectedStage, userDeptInChain, fetchPendingRequests])
 
-  // Загружаем данные при переключении вкладок
+  // Загружаем данные при переключении вкладок для всех ролей
   useEffect(() => {
-    if (isCounterpartyUser || !sitesLoaded) return
+    if (!sitesLoaded) return
+
+    // Для контрагента: обновляем базовый список заявок для всех вкладок
+    if (isCounterpartyUser && user?.counterpartyId) {
+      fetchRequests(user.counterpartyId)
+      return
+    }
+
+    // Для user/admin: обновляем данные в зависимости от вкладки
     const [sIds, allS] = siteFilterParams()
-    if (activeTab === 'approved') {
+
+    if (activeTab === 'all') {
+      // Вкладка "Все"
+      if (isUser) {
+        fetchRequests(undefined, sIds, allS)
+      } else if (isAdmin) {
+        fetchRequests()
+      }
+    } else if (activeTab === 'pending') {
+      // Вкладка "На согласование"
+      if (user?.id && userDeptInChain) {
+        const department = isAdmin ? adminSelectedStage : user?.department
+        if (department) {
+          fetchPendingRequests(department, user.id, isAdmin)
+        }
+      }
+    } else if (activeTab === 'approved') {
+      // Вкладка "Согласовано"
       fetchApprovedRequests(sIds, allS)
     } else if (activeTab === 'rejected') {
+      // Вкладка "Отклонено"
       fetchRejectedRequests(sIds, allS)
     }
-  }, [activeTab, isCounterpartyUser, sitesLoaded, siteFilterParams, fetchApprovedRequests, fetchRejectedRequests])
+  }, [activeTab, sitesLoaded, isCounterpartyUser, user?.counterpartyId, user?.id, user?.department, isUser, isAdmin, adminSelectedStage, userDeptInChain, userSiteIds, userAllSites, fetchRequests, fetchPendingRequests, fetchApprovedRequests, fetchRejectedRequests])
 
   // Загружаем справочники для фильтров
   useEffect(() => {
@@ -422,26 +448,21 @@ const PaymentRequestsPage = () => {
         if (counterparties.length === 0) await fetchCounterparties()
         const cp = useCounterpartyStore.getState().counterparties.find((c) => c.id === user.counterpartyId)
         if (cp) {
-          // Обновляем total_files
-          const { error } = await supabase
-            .from('payment_requests')
-            .update({ total_files: resubmitRecord.totalFiles + files.length })
-            .eq('id', resubmitRecord.id)
-          if (!error) {
-            const addUploadTask = useUploadQueueStore.getState().addTask
-            addUploadTask({
-              requestId: resubmitRecord.id,
-              requestNumber: resubmitRecord.requestNumber,
-              counterpartyName: cp.name,
-              files: files.map((f) => ({
-                file: f.file,
-                documentTypeId: f.documentTypeId!,
-                pageCount: f.pageCount,
-                isResubmit: true,
-              })),
-              userId: user.id,
-            })
-          }
+          // Добавляем файлы в очередь загрузки
+          // total_files будет автоматически увеличен в uploadQueueStore при загрузке каждого файла
+          const addUploadTask = useUploadQueueStore.getState().addTask
+          addUploadTask({
+            requestId: resubmitRecord.id,
+            requestNumber: resubmitRecord.requestNumber,
+            counterpartyName: cp.name,
+            files: files.map((f) => ({
+              file: f.file,
+              documentTypeId: f.documentTypeId!,
+              pageCount: f.pageCount,
+              isResubmit: true,
+            })),
+            userId: user.id,
+          })
         }
       }
 

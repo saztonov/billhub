@@ -1,5 +1,6 @@
 import { Form, Select, Input, Space, Button, DatePicker } from 'antd'
 import type { Counterparty, ConstructionSite, Status } from '@/types'
+import type { OmtsUser } from '@/store/assignmentStore'
 import dayjs from 'dayjs'
 
 const { RangePicker } = DatePicker
@@ -144,7 +145,7 @@ const RequestFilters = (props: RequestFiltersProps) => {
                 showSearch
                 optionFilterProp="label"
                 options={omtsUsers.map((u) => ({
-                  label: u.full_name || u.email,
+                  label: u.fullName || u.email,
                   value: u.id,
                 }))}
               />

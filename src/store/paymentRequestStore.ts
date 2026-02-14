@@ -363,6 +363,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
           status_id: statusData.id,
           rejected_at: null,
           rejected_stage: null, // Очищаем этап отклонения при повторной отправке
+          approved_at: null, // Очищаем дату согласования для нового цикла
           current_stage: targetStage, // Возвращаем на тот этап, где была отклонена
           resubmit_comment: comment || null,
           resubmit_count: newCount,

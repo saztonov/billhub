@@ -2,10 +2,16 @@ import { create } from 'zustand'
 import { supabase } from '@/services/supabase'
 import type { PaymentRequestAssignment } from '@/types'
 
+export interface OmtsUser {
+  id: string
+  email: string
+  fullName: string
+}
+
 interface AssignmentStoreState {
   currentAssignment: PaymentRequestAssignment | null
   assignmentHistory: PaymentRequestAssignment[]
-  omtsUsers: { id: string; email: string; fullName: string }[]
+  omtsUsers: OmtsUser[]
   isLoading: boolean
   error: string | null
 
