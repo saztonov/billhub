@@ -255,6 +255,26 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
             </Col>
           </Row>
 
+          <Row gutter={4}>
+            <Col span={12}>
+              <Form.Item
+                name="invoiceAmount"
+                label={fieldLabel('Сумма счета', !!formValues.invoiceAmount)}
+                rules={[
+                  { type: 'number', min: 0.01, message: 'Сумма должна быть больше 0' }
+                ]}
+              >
+                <InputNumber
+                  min={0.01}
+                  precision={2}
+                  style={{ width: '100%' }}
+                  placeholder="Введите сумму"
+                  addonAfter="₽"
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
           {/* Расчет ориентировочного срока поставки */}
           <DeliveryCalculation
             deliveryDays={formValues.deliveryDays as number | null}

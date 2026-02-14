@@ -153,6 +153,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       deliveryDaysType: request.deliveryDaysType,
       shippingConditionId: request.shippingConditionId,
       comment: request.comment ?? '',
+      invoiceAmount: request.invoiceAmount ?? undefined,
     })
     setIsEditing(true)
   }
@@ -426,6 +427,23 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                 </Form.Item>
               </Col>
             </Row>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item
+                  name="invoiceAmount"
+                  label="Сумма счета"
+                  rules={[{ type: 'number', min: 0.01, message: 'Сумма должна быть больше 0' }]}
+                >
+                  <InputNumber
+                    min={0.01}
+                    precision={2}
+                    style={{ width: '100%' }}
+                    placeholder="Введите сумму"
+                    addonAfter="₽"
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
 
             {/* Расчет ориентировочного срока поставки при редактировании */}
             <Form.Item noStyle shouldUpdate={(prev, curr) => prev.deliveryDays !== curr.deliveryDays || prev.deliveryDaysType !== curr.deliveryDaysType}>
@@ -458,6 +476,12 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
             </Descriptions.Item>
             <Descriptions.Item label="Срок поставки">{request.deliveryDays} {request.deliveryDaysType === 'calendar' ? 'кал.' : 'раб.'} дн.</Descriptions.Item>
             <Descriptions.Item label="Условия отгрузки">{request.shippingConditionValue}</Descriptions.Item>
+            <Descriptions.Item label="Сумма счета">
+              {request.invoiceAmount != null
+                ? `${request.invoiceAmount.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽`
+                : '—'
+              }
+            </Descriptions.Item>
             <Descriptions.Item label="Дата создания">{formatDate(request.createdAt)}</Descriptions.Item>
             {request.comment && (
               <Descriptions.Item label="Комментарий" span={2}>{request.comment}</Descriptions.Item>

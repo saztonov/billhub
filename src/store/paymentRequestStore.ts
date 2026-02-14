@@ -11,6 +11,7 @@ interface CreateRequestData {
   siteId: string
   comment?: string
   totalFiles: number
+  invoiceAmount?: number
 }
 
 export interface EditRequestData {
@@ -19,6 +20,7 @@ export interface EditRequestData {
   shippingConditionId?: string
   siteId?: string
   comment?: string
+  invoiceAmount?: number | null
 }
 
 interface PaymentRequestStoreState {
@@ -127,6 +129,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
           rejectedStage: (row.rejected_stage as number) ?? null,
           resubmitComment: (row.resubmit_comment as string) ?? null,
           resubmitCount: (row.resubmit_count as number) ?? 0,
+          invoiceAmount: (row.invoice_amount as number) ?? null,
           counterpartyName: counterparties?.name as string | undefined,
           siteName: site?.name as string | undefined,
           statusName: statuses?.name as string | undefined,
@@ -174,6 +177,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
           delivery_days_type: data.deliveryDaysType,
           shipping_condition_id: data.shippingConditionId,
           comment: data.comment || null,
+          invoice_amount: data.invoiceAmount || null,
           total_files: data.totalFiles,
           uploaded_files: 0,
           created_by: userId,
@@ -401,7 +405,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
       // Получаем текущие значения для логирования изменений
       const { data: current, error: fetchError } = await supabase
         .from('payment_requests')
-        .select('delivery_days, delivery_days_type, shipping_condition_id, site_id, comment, total_files')
+        .select('delivery_days, delivery_days_type, shipping_condition_id, site_id, comment, invoice_amount, total_files')
         .eq('id', id)
         .single()
       if (fetchError) throw fetchError
@@ -429,6 +433,10 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
       if (data.comment !== undefined && data.comment !== current.comment) {
         updates.comment = data.comment || null
         changes.push({ field: 'comment', oldValue: current.comment, newValue: data.comment || null })
+      }
+      if (data.invoiceAmount !== undefined && data.invoiceAmount !== current.invoice_amount) {
+        updates.invoice_amount = data.invoiceAmount ?? null
+        changes.push({ field: 'invoice_amount', oldValue: current.invoice_amount, newValue: data.invoiceAmount ?? null })
       }
 
       // Обновляем total_files если догружаются файлы

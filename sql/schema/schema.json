@@ -1213,20 +1213,11 @@
               "numeric_precision": null
             },
             {
-              "name": "rejected_stage",
-              "type": "integer",
-              "default": null,
-              "nullable": true,
-              "position": 19,
-              "max_length": null,
-              "numeric_precision": 32
-            },
-            {
               "name": "withdrawal_comment",
               "type": "text",
               "default": null,
               "nullable": true,
-              "position": 20,
+              "position": 19,
               "max_length": null,
               "numeric_precision": null
             },
@@ -1235,7 +1226,7 @@
               "type": "text",
               "default": "'working'::text",
               "nullable": false,
-              "position": 21,
+              "position": 20,
               "max_length": null,
               "numeric_precision": null
             },
@@ -1244,7 +1235,7 @@
               "type": "text",
               "default": null,
               "nullable": true,
-              "position": 22,
+              "position": 21,
               "max_length": null,
               "numeric_precision": null
             },
@@ -1253,9 +1244,27 @@
               "type": "integer",
               "default": "0",
               "nullable": true,
+              "position": 22,
+              "max_length": null,
+              "numeric_precision": 32
+            },
+            {
+              "name": "rejected_stage",
+              "type": "integer",
+              "default": null,
+              "nullable": true,
               "position": 23,
               "max_length": null,
               "numeric_precision": 32
+            },
+            {
+              "name": "invoice_amount",
+              "type": "numeric",
+              "default": null,
+              "nullable": true,
+              "position": 24,
+              "max_length": null,
+              "numeric_precision": 15
             }
           ]
         },
@@ -2262,7 +2271,7 @@
           ]
         }
       ],
-      "generated_at": "2026-02-14T11:00:18.769022+00:00",
+      "generated_at": "2026-02-14T12:57:50.009927+00:00",
       "primary_keys": [
         {
           "columns": [

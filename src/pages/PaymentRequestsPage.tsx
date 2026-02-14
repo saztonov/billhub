@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
-import { Typography, Button, Tabs, message, Radio } from 'antd'
+import { Typography, Button, Tabs, message, Radio, Statistic } from 'antd'
 import { PlusOutlined, FilterOutlined } from '@ant-design/icons'
 import { usePaymentRequestStore } from '@/store/paymentRequestStore'
 import type { EditRequestData } from '@/store/paymentRequestStore'
@@ -334,6 +334,20 @@ const PaymentRequestsPage = () => {
   const filteredApprovedRequests = useMemo(() => applyFilters(approvedRequests), [approvedRequests, applyFilters])
   const filteredRejectedRequests = useMemo(() => applyFilters(rejectedRequests), [rejectedRequests, applyFilters])
 
+  // Статистика для вкладки "На согласование"
+  const totalInvoiceAmount = useMemo(() => {
+    return filteredPendingRequests.reduce((sum, req) => {
+      return sum + (req.invoiceAmount ?? 0)
+    }, 0)
+  }, [filteredPendingRequests])
+
+  const unassignedOmtsCount = useMemo(() => {
+    if (!isAdmin) return 0
+    return filteredPendingRequests.filter(req =>
+      req.currentStage === 2 && !req.assignedUserId
+    ).length
+  }, [filteredPendingRequests, isAdmin])
+
   // Фильтрация для counterparty_user (только объект, дата, номер)
   const applyCounterpartyFilters = useCallback((items: PaymentRequest[]) => {
     let filtered = items
@@ -601,6 +615,11 @@ const PaymentRequestsPage = () => {
             showApprovalActions
             onApprove={handleApprove}
             onReject={handleReject}
+            showResponsibleColumn={isOmtsUser || isAdmin}
+            canAssignResponsible={isAdmin}
+            omtsUsers={omtsUsers}
+            onAssignResponsible={handleAssignResponsible}
+            responsibleFilter={filters.responsibleFilter}
           />
         </div>
       ),
@@ -644,6 +663,37 @@ const PaymentRequestsPage = () => {
             onClick={() => setFiltersOpen(!filtersOpen)}
             type={filtersOpen ? 'primary' : 'default'}
           />
+          {/* Виджеты для вкладки "На согласование" */}
+          {activeTab === 'pending' && userDeptInChain && (
+            <>
+              <Statistic
+                title="Сумма счетов"
+                value={totalInvoiceAmount}
+                precision={2}
+                suffix="₽"
+                valueStyle={{ fontSize: '16px' }}
+                style={{
+                  padding: '8px 16px',
+                  border: '1px solid #d9d9d9',
+                  borderRadius: '6px',
+                  backgroundColor: '#fafafa'
+                }}
+              />
+              {isAdmin && (
+                <Statistic
+                  title="Не назначено ответственных"
+                  value={unassignedOmtsCount}
+                  valueStyle={{ fontSize: '16px', color: unassignedOmtsCount > 0 ? '#faad14' : undefined }}
+                  style={{
+                    padding: '8px 16px',
+                    border: '1px solid #d9d9d9',
+                    borderRadius: '6px',
+                    backgroundColor: '#fafafa'
+                  }}
+                />
+              )}
+            </>
+          )}
         </div>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsCreateOpen(true)}>
           Добавить
