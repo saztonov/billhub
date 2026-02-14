@@ -1,11 +1,13 @@
 import { create } from 'zustand'
 import { supabase } from '@/services/supabase'
+import { supabaseNoSession } from '@/services/supabaseAdmin'
 import type { UserRole } from '@/types'
 
 /** Пользователь из таблицы users (с именем контрагента) */
 export interface UserRecord {
   id: string
   email: string
+  fullName: string
   role: UserRole
   counterpartyId: string | null
   counterpartyName: string | null
@@ -17,7 +19,19 @@ export interface UserRecord {
   createdAt: string
 }
 
+interface CreateUserData {
+  email: string
+  password: string
+  full_name: string
+  role: UserRole
+  counterparty_id: string | null
+  department_id: string | null
+  all_sites: boolean
+  site_ids: string[]
+}
+
 interface UpdateUserData {
+  full_name: string
   role: UserRole
   counterparty_id: string | null
   department_id: string | null
@@ -30,6 +44,7 @@ interface UserStoreState {
   isLoading: boolean
   error: string | null
   fetchUsers: () => Promise<void>
+  createUser: (data: CreateUserData) => Promise<void>
   updateUser: (id: string, data: UpdateUserData) => Promise<void>
 }
 
@@ -43,7 +58,7 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
     try {
       const { data, error } = await supabase
         .from('users')
-        .select('id, email, role, counterparty_id, created_at, counterparties(name), department_id, departments(name), all_sites')
+        .select('id, email, full_name, role, counterparty_id, created_at, counterparties(name), department_id, departments(name), all_sites')
         .order('created_at', { ascending: false })
       if (error) throw error
 
@@ -74,6 +89,7 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
         return {
           id: userId,
           email: row.email as string,
+          fullName: (row.full_name as string) ?? '',
           role: row.role as UserRole,
           counterpartyId: row.counterparty_id as string | null,
           counterpartyName: (row.counterparties as { name: string } | null)?.name ?? null,
@@ -92,6 +108,51 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
     }
   },
 
+  createUser: async (data) => {
+    set({ isLoading: true, error: null })
+    try {
+      // Создаем пользователя в Supabase Auth через клиент без сессии
+      const { data: authData, error: authError } = await supabaseNoSession.auth.signUp({
+        email: data.email,
+        password: data.password,
+      })
+      if (authError) throw authError
+      if (!authData.user) throw new Error('Не удалось создать пользователя')
+
+      // Создаем запись в таблице users
+      const { error: insertError } = await supabase
+        .from('users')
+        .insert({
+          id: authData.user.id,
+          email: data.email,
+          full_name: data.full_name,
+          role: data.role,
+          counterparty_id: data.role === 'counterparty_user' ? data.counterparty_id : null,
+          department_id: data.department_id || null,
+          all_sites: data.role === 'counterparty_user' ? false : data.all_sites,
+        })
+      if (insertError) throw insertError
+
+      // Вставляем маппинг объектов
+      if (!data.all_sites && data.role !== 'counterparty_user' && data.site_ids.length > 0) {
+        const rows = data.site_ids.map((siteId) => ({
+          user_id: authData.user!.id,
+          construction_site_id: siteId,
+        }))
+        const { error: siteError } = await supabase
+          .from('user_construction_sites_mapping')
+          .insert(rows)
+        if (siteError) throw siteError
+      }
+
+      await get().fetchUsers()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Ошибка создания пользователя'
+      set({ error: message, isLoading: false })
+      throw err
+    }
+  },
+
   updateUser: async (id, data) => {
     set({ isLoading: true, error: null })
     try {
@@ -99,6 +160,7 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
       const { error } = await supabase
         .from('users')
         .update({
+          full_name: data.full_name,
           role: data.role,
           counterparty_id: data.role === 'counterparty_user' ? data.counterparty_id : null,
           department_id: data.department_id,

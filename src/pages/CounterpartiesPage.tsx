@@ -8,9 +8,10 @@ import {
   Input,
   Select,
   Popconfirm,
+  Tooltip,
   message,
 } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined, MinusCircleOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DeleteOutlined, MinusCircleOutlined, LinkOutlined } from '@ant-design/icons'
 import { useCounterpartyStore } from '@/store/counterpartyStore'
 import type { Counterparty } from '@/types'
 
@@ -51,6 +52,20 @@ const CounterpartiesPage = () => {
     message.success('Подрядчик удалён')
   }
 
+  const handleCopyRegistrationLink = async (record: Counterparty) => {
+    if (!record.registrationToken) {
+      message.error('Токен регистрации не найден')
+      return
+    }
+    const url = `${window.location.origin}/register?token=${record.registrationToken}`
+    try {
+      await navigator.clipboard.writeText(url)
+      message.success('Ссылка для регистрации скопирована')
+    } catch {
+      message.error('Не удалось скопировать ссылку')
+    }
+  }
+
   const handleSubmit = async () => {
     const values = await form.validateFields()
     if (editingRecord) {
@@ -84,6 +99,9 @@ const CounterpartiesPage = () => {
       key: 'actions',
       render: (_: unknown, record: Counterparty) => (
         <Space>
+          <Tooltip title="Скопировать ссылку для регистрации">
+            <Button icon={<LinkOutlined />} onClick={() => handleCopyRegistrationLink(record)} size="small" />
+          </Tooltip>
           <Button icon={<EditOutlined />} onClick={() => handleEdit(record)} size="small" />
           <Popconfirm title="Удалить подрядчика?" onConfirm={() => handleDelete(record.id)}>
             <Button icon={<DeleteOutlined />} danger size="small" />

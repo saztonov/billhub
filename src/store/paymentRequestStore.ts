@@ -13,6 +13,14 @@ interface CreateRequestData {
   totalFiles: number
 }
 
+export interface EditRequestData {
+  deliveryDays?: number
+  deliveryDaysType?: string
+  shippingConditionId?: string
+  siteId?: string
+  comment?: string
+}
+
 interface PaymentRequestStoreState {
   requests: PaymentRequest[]
   currentRequestFiles: PaymentRequestFile[]
@@ -34,6 +42,12 @@ interface PaymentRequestStoreState {
     id: string,
     comment: string,
     counterpartyId: string,
+  ) => Promise<void>
+  updateRequest: (
+    id: string,
+    data: EditRequestData,
+    userId: string,
+    newFilesCount?: number,
   ) => Promise<void>
 }
 
@@ -366,6 +380,84 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
       set({ isSubmitting: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка повторной отправки'
+      set({ error: message, isSubmitting: false })
+      throw err
+    }
+  },
+
+  updateRequest: async (id, data, userId, newFilesCount?) => {
+    set({ isSubmitting: true, error: null })
+    try {
+      // Получаем текущие значения для логирования изменений
+      const { data: current, error: fetchError } = await supabase
+        .from('payment_requests')
+        .select('delivery_days, delivery_days_type, shipping_condition_id, site_id, comment, total_files')
+        .eq('id', id)
+        .single()
+      if (fetchError) throw fetchError
+
+      // Формируем объект обновления и список изменений
+      const updates: Record<string, unknown> = {}
+      const changes: { field: string; oldValue: unknown; newValue: unknown }[] = []
+
+      if (data.deliveryDays !== undefined && data.deliveryDays !== current.delivery_days) {
+        updates.delivery_days = data.deliveryDays
+        changes.push({ field: 'delivery_days', oldValue: current.delivery_days, newValue: data.deliveryDays })
+      }
+      if (data.deliveryDaysType !== undefined && data.deliveryDaysType !== current.delivery_days_type) {
+        updates.delivery_days_type = data.deliveryDaysType
+        changes.push({ field: 'delivery_days_type', oldValue: current.delivery_days_type, newValue: data.deliveryDaysType })
+      }
+      if (data.shippingConditionId !== undefined && data.shippingConditionId !== current.shipping_condition_id) {
+        updates.shipping_condition_id = data.shippingConditionId
+        changes.push({ field: 'shipping_condition_id', oldValue: current.shipping_condition_id, newValue: data.shippingConditionId })
+      }
+      if (data.siteId !== undefined && data.siteId !== current.site_id) {
+        updates.site_id = data.siteId
+        changes.push({ field: 'site_id', oldValue: current.site_id, newValue: data.siteId })
+      }
+      if (data.comment !== undefined && data.comment !== current.comment) {
+        updates.comment = data.comment || null
+        changes.push({ field: 'comment', oldValue: current.comment, newValue: data.comment || null })
+      }
+
+      // Обновляем total_files если догружаются файлы
+      if (newFilesCount && newFilesCount > 0) {
+        updates.total_files = (current.total_files as number ?? 0) + newFilesCount
+      }
+
+      // Обновляем заявку если есть изменения
+      if (Object.keys(updates).length > 0) {
+        const { error: updError } = await supabase
+          .from('payment_requests')
+          .update(updates)
+          .eq('id', id)
+        if (updError) throw updError
+      }
+
+      // Логируем изменения полей
+      if (changes.length > 0) {
+        await supabase.from('payment_request_logs').insert({
+          payment_request_id: id,
+          user_id: userId,
+          action: 'edit',
+          details: { changes },
+        })
+      }
+
+      // Логируем догрузку файлов
+      if (newFilesCount && newFilesCount > 0) {
+        await supabase.from('payment_request_logs').insert({
+          payment_request_id: id,
+          user_id: userId,
+          action: 'file_upload',
+          details: { count: newFilesCount },
+        })
+      }
+
+      set({ isSubmitting: false })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Ошибка обновления заявки'
       set({ error: message, isSubmitting: false })
       throw err
     }

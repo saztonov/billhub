@@ -9,6 +9,7 @@ import {
   Select,
   Input,
   Modal,
+  Progress,
 } from 'antd'
 import {
   EyeOutlined,
@@ -60,9 +61,11 @@ export interface RequestsTableProps {
   // Только admin — удаление
   isAdmin?: boolean
   onDelete?: (id: string) => void
-  // Загрузка файлов
+  // Задачи загрузки (для подсветки ошибок)
   uploadTasks?: Record<string, { status: string }>
   onRetryUpload?: (id: string) => void
+  // Прогресс согласования (для counterparty_user)
+  totalStages?: number
   // Согласование
   showApprovalActions?: boolean
   onApprove?: (id: string, comment: string) => void
@@ -96,6 +99,7 @@ const RequestsTable = (props: RequestsTableProps) => {
     onReject,
     showApprovedDate,
     showRejectedDate,
+    totalStages,
     showDepartmentFilter,
     rejectionDepartments,
     onResubmit,
@@ -218,43 +222,76 @@ const RequestsTable = (props: RequestsTableProps) => {
     })
   }
 
-  // Загрузка файлов (для вкладки Все и counterparty)
-  if (uploadTasks) {
-    columns.push({
-      title: 'Загрузка',
-      key: 'upload',
-      width: 110,
-      render: (_: unknown, record: PaymentRequest) => {
-        if (record.totalFiles === 0) return null
-        const task = uploadTasks[record.id]
-        if (task?.status === 'error') {
-          return (
+  // Файлы (количество загруженных / общее)
+  columns.push({
+    title: 'Файлы',
+    key: 'files',
+    width: 100,
+    render: (_: unknown, record: PaymentRequest) => {
+      if (record.totalFiles === 0) return <span style={{ color: '#bfbfbf' }}>—</span>
+      if (record.uploadedFiles >= record.totalFiles) {
+        return (
+          <Tooltip title={`${record.totalFiles} файл(ов)`}>
             <Space size={4}>
-              <CloseCircleOutlined style={{ color: '#f5222d' }} />
-              <Button
-                type="link"
-                size="small"
-                icon={<ReloadOutlined />}
-                onClick={() => onRetryUpload?.(record.id)}
-                style={{ padding: 0 }}
-              />
-            </Space>
-          )
-        }
-        if (record.uploadedFiles >= record.totalFiles) {
-          return (
-            <Tooltip title={`${record.uploadedFiles}/${record.totalFiles}`}>
               <CheckCircleOutlined style={{ color: '#52c41a' }} />
+              <span>{record.totalFiles}</span>
+            </Space>
+          </Tooltip>
+        )
+      }
+      return (
+        <span style={{ color: '#fa8c16' }}>
+          {record.uploadedFiles}/{record.totalFiles}
+        </span>
+      )
+    },
+  })
+
+  // Прогресс согласования (для counterparty_user)
+  if (isCounterpartyUser && totalStages && totalStages > 0) {
+    columns.push({
+      title: 'Согласование',
+      key: 'approval',
+      width: 160,
+      render: (_: unknown, record: PaymentRequest) => {
+        // Ошибка загрузки файлов
+        if (uploadTasks?.[record.id]?.status === 'error') {
+          return (
+            <Tooltip title="Ошибка загрузки файлов">
+              <Space size={4}>
+                <CloseCircleOutlined style={{ color: '#f5222d' }} />
+                <span style={{ color: '#f5222d', fontSize: 12 }}>Ошибка загрузки</span>
+              </Space>
             </Tooltip>
           )
         }
+        // Согласовано
+        if (record.approvedAt) {
+          return (
+            <Tooltip title="Согласовано">
+              <Progress steps={totalStages} percent={100} size="small" status="success" />
+            </Tooltip>
+          )
+        }
+        // Отклонено
+        if (record.rejectedAt) {
+          return (
+            <Tooltip title="Отклонено">
+              <Progress steps={totalStages} percent={100} size="small" status="exception" />
+            </Tooltip>
+          )
+        }
+        // Отозвано или не на согласовании
+        if (record.withdrawnAt || !record.currentStage) {
+          return <span style={{ color: '#bfbfbf' }}>—</span>
+        }
+        // В процессе согласования
+        const completedStages = record.currentStage - 1
+        const percent = Math.round((completedStages / totalStages) * 100)
         return (
-          <Space size={4}>
-            <SyncOutlined spin style={{ color: '#fa8c16' }} />
-            <span style={{ color: '#fa8c16', fontSize: 12 }}>
-              {record.uploadedFiles}/{record.totalFiles}
-            </span>
-          </Space>
+          <Tooltip title={`Этап ${record.currentStage} из ${totalStages}`}>
+            <Progress steps={totalStages} percent={percent} size="small" status="active" />
+          </Tooltip>
         )
       },
     })
@@ -355,7 +392,17 @@ const RequestsTable = (props: RequestsTableProps) => {
         rowKey="id"
         loading={isLoading}
         scroll={{ x: 1200 }}
+        rowClassName={(record: PaymentRequest) =>
+          uploadTasks?.[record.id]?.status === 'error' ? 'row-upload-error' : ''
+        }
       />
+
+      {/* Стили подсветки строки с ошибкой загрузки */}
+      <style>{`
+        .row-upload-error td {
+          background-color: #fff1f0 !important;
+        }
+      `}</style>
 
       {/* Модал подтверждения согласования/отклонения */}
       <Modal

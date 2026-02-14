@@ -39,6 +39,7 @@ export const useCounterpartyStore = create<CounterpartyStoreState>((set, get) =>
           alternativeNames: (row.alternative_names as string[]) ?? [],
           responsibleUserId: (row.responsible_user_id as string) ?? null,
           responsibleUserEmail: (responsibleUser?.email as string) ?? null,
+          registrationToken: (row.registration_token as string) ?? null,
           createdAt: row.created_at as string,
         }
       })

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { supabase } from '@/services/supabase'
 import { checkAndNotifyMissingSpecialists, checkAndNotifyMissingManager } from '@/utils/approvalNotifications'
-import type { ApprovalStage, ApprovalDecision, PaymentRequest } from '@/types'
+import type { ApprovalStage, ApprovalDecision, PaymentRequest, PaymentRequestLog } from '@/types'
 
 /** Сгруппированный этап для UI: номер этапа + массив подразделений */
 export interface GroupedStage {
@@ -18,6 +18,9 @@ interface ApprovalStoreState {
   // Решения по заявке
   currentDecisions: ApprovalDecision[]
 
+  // Логи действий по заявке
+  currentLogs: PaymentRequestLog[]
+
   // Списки заявок по вкладкам
   pendingRequests: PaymentRequest[]
   approvedRequests: PaymentRequest[]
@@ -27,8 +30,9 @@ interface ApprovalStoreState {
   fetchStages: () => Promise<void>
   saveStages: (stages: GroupedStage[]) => Promise<void>
 
-  // Решения
+  // Решения и логи
   fetchDecisions: (paymentRequestId: string) => Promise<void>
+  fetchLogs: (paymentRequestId: string) => Promise<void>
   approveRequest: (paymentRequestId: string, departmentId: string, userId: string, comment: string) => Promise<void>
   rejectRequest: (paymentRequestId: string, departmentId: string, userId: string, comment: string) => Promise<void>
 
@@ -107,6 +111,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
   isLoading: false,
   error: null,
   currentDecisions: [],
+  currentLogs: [],
   pendingRequests: [],
   approvedRequests: [],
   rejectedRequests: [],
@@ -198,6 +203,34 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
       set({ currentDecisions: decisions })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка загрузки решений'
+      set({ error: message })
+    }
+  },
+
+  fetchLogs: async (paymentRequestId) => {
+    try {
+      const { data, error } = await supabase
+        .from('payment_request_logs')
+        .select('*, users(email)')
+        .eq('payment_request_id', paymentRequestId)
+        .order('created_at', { ascending: true })
+      if (error) throw error
+
+      const logs: PaymentRequestLog[] = (data ?? []).map((row: Record<string, unknown>) => {
+        const usr = row.users as Record<string, unknown> | null
+        return {
+          id: row.id as string,
+          paymentRequestId: row.payment_request_id as string,
+          userId: row.user_id as string,
+          action: row.action as string,
+          details: row.details as Record<string, unknown> | null,
+          createdAt: row.created_at as string,
+          userEmail: usr?.email as string | undefined,
+        }
+      })
+      set({ currentLogs: logs })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Ошибка загрузки логов'
       set({ error: message })
     }
   },

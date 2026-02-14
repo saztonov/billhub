@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Typography, Button, Tabs, message } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
 import { usePaymentRequestStore } from '@/store/paymentRequestStore'
+import type { EditRequestData } from '@/store/paymentRequestStore'
 import { useAuthStore } from '@/store/authStore'
 import { useUploadQueueStore } from '@/store/uploadQueueStore'
 import { useApprovalStore } from '@/store/approvalStore'
@@ -41,6 +42,8 @@ const PaymentRequestsPage = () => {
   const [userSiteIds, setUserSiteIds] = useState<string[]>([])
   const [userAllSites, setUserAllSites] = useState(true)
   const [sitesLoaded, setSitesLoaded] = useState(false)
+  // ID контрагентов, за которых отвечает текущий user (responsible_user_id)
+  const [responsibleCounterpartyIds, setResponsibleCounterpartyIds] = useState<string[]>([])
 
   const user = useAuthStore((s) => s.user)
   const isCounterpartyUser = user?.role === 'counterparty_user'
@@ -54,6 +57,7 @@ const PaymentRequestsPage = () => {
     deleteRequest,
     withdrawRequest,
     resubmitRequest,
+    updateRequest,
   } = usePaymentRequestStore()
 
   const { counterparties, fetchCounterparties } = useCounterpartyStore()
@@ -88,6 +92,26 @@ const PaymentRequestsPage = () => {
     })
   }, [user?.id, isUser])
 
+  // Загружаем контрагентов, за которых отвечает user (для определения canEdit)
+  useEffect(() => {
+    if (!user?.id || isCounterpartyUser) return
+    if (isAdmin || isUser) {
+      supabase
+        .from('counterparties')
+        .select('id')
+        .eq('responsible_user_id', user.id)
+        .then(({ data }) => {
+          setResponsibleCounterpartyIds((data ?? []).map((r: Record<string, unknown>) => r.id as string))
+        })
+    }
+  }, [user?.id, isAdmin, isUser, isCounterpartyUser])
+
+  // Общее количество уникальных этапов согласования
+  const totalStages = useMemo(() => {
+    const uniqueOrders = new Set(stages.map((s) => s.stageOrder))
+    return uniqueOrders.size
+  }, [stages])
+
   // Проверяем, участвует ли подразделение пользователя в цепочке
   const userDeptInChain = useMemo(() => {
     if (!user?.departmentId || stages.length === 0) return false
@@ -104,6 +128,7 @@ const PaymentRequestsPage = () => {
     if (!sitesLoaded) return
     if (isCounterpartyUser && user?.counterpartyId) {
       fetchRequests(user.counterpartyId)
+      fetchStages()
     } else if (isAdmin) {
       fetchRequests()
       fetchStages()
@@ -125,6 +150,59 @@ const PaymentRequestsPage = () => {
       fetchRejectedRequests(sIds, allS)
     }
   }, [activeTab, isCounterpartyUser, user?.departmentId, user?.id, sitesLoaded, siteFilterParams, fetchPendingRequests, fetchApprovedRequests, fetchRejectedRequests])
+
+  /** Проверяет, может ли текущий пользователь редактировать заявку */
+  const canEditRequest = useCallback((record: PaymentRequest | null): boolean => {
+    if (!record || isCounterpartyUser) return false
+    if (isAdmin) return true
+    if (isUser && responsibleCounterpartyIds.includes(record.counterpartyId)) return true
+    return false
+  }, [isAdmin, isUser, isCounterpartyUser, responsibleCounterpartyIds])
+
+  /** Обработчик сохранения редактирования */
+  const handleEdit = async (id: string, data: EditRequestData, files: FileItem[]) => {
+    if (!user?.id) return
+    try {
+      await updateRequest(id, data, user.id, files.length > 0 ? files.length : undefined)
+
+      // Если есть новые файлы — загружаем через очередь
+      if (files.length > 0) {
+        // Находим заявку для получения данных
+        const req = requests.find((r) => r.id === id)
+        if (req) {
+          if (counterparties.length === 0) await fetchCounterparties()
+          const cp = useCounterpartyStore.getState().counterparties.find((c) => c.id === req.counterpartyId)
+          if (cp) {
+            const addUploadTask = useUploadQueueStore.getState().addTask
+            addUploadTask({
+              requestId: id,
+              requestNumber: req.requestNumber,
+              counterpartyName: cp.name,
+              files: files.map((f) => ({
+                file: f.file,
+                documentTypeId: f.documentTypeId!,
+                pageCount: f.pageCount,
+              })),
+              userId: user.id,
+            })
+          }
+        }
+      }
+
+      message.success('Заявка обновлена')
+      setViewRecord(null)
+      // Обновляем список
+      const [sIds, allS] = siteFilterParams()
+      if (isUser) {
+        fetchRequests(undefined, sIds, allS)
+      } else {
+        fetchRequests()
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Ошибка обновления'
+      message.error(errorMsg)
+    }
+  }
 
   const handleWithdraw = async (id: string, comment: string) => {
     await withdrawRequest(id, comment || undefined)
@@ -228,6 +306,7 @@ const PaymentRequestsPage = () => {
           onResubmit={setResubmitRecord}
           uploadTasks={uploadTasks}
           onRetryUpload={retryTask}
+          totalStages={totalStages}
         />
         <CreateRequestModal
           open={isCreateOpen}
@@ -316,7 +395,13 @@ const PaymentRequestsPage = () => {
     <div>
       <Title level={2} style={{ marginBottom: 16 }}>Заявки на оплату</Title>
       <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} />
-      <ViewRequestModal open={!!viewRecord} request={viewRecord} onClose={() => setViewRecord(null)} />
+      <ViewRequestModal
+        open={!!viewRecord}
+        request={viewRecord}
+        onClose={() => setViewRecord(null)}
+        canEdit={canEditRequest(viewRecord)}
+        onEdit={handleEdit}
+      />
     </div>
   )
 }

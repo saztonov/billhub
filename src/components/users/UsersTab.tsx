@@ -5,16 +5,18 @@ import {
   Space,
   Modal,
   Form,
+  Input,
   Select,
   Tag,
   Checkbox,
   message,
 } from 'antd'
-import { EditOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined } from '@ant-design/icons'
 import { useUserStore } from '@/store/userStore'
 import { useCounterpartyStore } from '@/store/counterpartyStore'
 import { useDepartmentStore } from '@/store/departmentStore'
 import { useConstructionSiteStore } from '@/store/constructionSiteStore'
+import CreateUserModal from '@/components/users/CreateUserModal'
 import type { UserRole } from '@/types'
 import type { UserRecord } from '@/store/userStore'
 
@@ -33,7 +35,8 @@ const roleColors: Record<UserRole, string> = {
 }
 
 const UsersTab = () => {
-  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [editingRecord, setEditingRecord] = useState<UserRecord | null>(null)
   const [selectedRole, setSelectedRole] = useState<UserRole>('user')
   const [allSitesChecked, setAllSitesChecked] = useState(false)
@@ -56,19 +59,21 @@ const UsersTab = () => {
     setSelectedRole(record.role)
     setAllSitesChecked(record.allSites)
     form.setFieldsValue({
+      full_name: record.fullName,
       role: record.role,
       counterparty_id: record.counterpartyId,
       department_id: record.departmentId,
       all_sites: record.allSites,
       site_ids: record.siteIds,
     })
-    setIsModalOpen(true)
+    setIsEditModalOpen(true)
   }
 
   const handleSubmit = async () => {
     const values = await form.validateFields()
     if (!editingRecord) return
     await updateUser(editingRecord.id, {
+      full_name: values.full_name ?? '',
       role: values.role,
       counterparty_id: values.role === 'counterparty_user' ? values.counterparty_id : null,
       department_id: values.department_id || null,
@@ -76,16 +81,22 @@ const UsersTab = () => {
       site_ids: values.role === 'counterparty_user' ? [] : (values.site_ids ?? []),
     })
     message.success('Пользователь обновлён')
-    setIsModalOpen(false)
+    setIsEditModalOpen(false)
     form.resetFields()
   }
 
   const handleCancel = () => {
-    setIsModalOpen(false)
+    setIsEditModalOpen(false)
     form.resetFields()
   }
 
   const columns = [
+    {
+      title: 'ФИО',
+      dataIndex: 'fullName',
+      key: 'fullName',
+      render: (name: string) => name || '—',
+    },
     {
       title: 'Email',
       dataIndex: 'email',
@@ -146,6 +157,11 @@ const UsersTab = () => {
 
   return (
     <div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsCreateModalOpen(true)}>
+          Добавить
+        </Button>
+      </div>
       <Table
         columns={columns}
         dataSource={users}
@@ -153,9 +169,17 @@ const UsersTab = () => {
         loading={isLoading}
         scroll={{ x: 900 }}
       />
+      <CreateUserModal
+        open={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onSuccess={() => {
+          setIsCreateModalOpen(false)
+          fetchUsers()
+        }}
+      />
       <Modal
         title="Редактировать пользователя"
-        open={isModalOpen}
+        open={isEditModalOpen}
         onOk={handleSubmit}
         onCancel={handleCancel}
         okText="Сохранить"
@@ -167,6 +191,12 @@ const UsersTab = () => {
           </div>
         )}
         <Form form={form} layout="vertical">
+          <Form.Item
+            name="full_name"
+            label="ФИО"
+          >
+            <Input />
+          </Form.Item>
           <Form.Item
             name="role"
             label="Роль"

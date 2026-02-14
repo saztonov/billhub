@@ -29,6 +29,7 @@ export interface Counterparty {
   alternativeNames: string[]
   responsibleUserId: string | null
   responsibleUserEmail: string | null
+  registrationToken: string | null
   createdAt: string
 }
 
@@ -140,6 +141,18 @@ export interface PaymentRequest {
   shippingConditionValue?: string
 }
 
+/** Лог действий по заявке на оплату */
+export interface PaymentRequestLog {
+  id: string
+  paymentRequestId: string
+  userId: string
+  action: string
+  details: Record<string, unknown> | null
+  createdAt: string
+  // Joined
+  userEmail?: string
+}
+
 /** Файл заявки на оплату */
 export interface PaymentRequestFile {
   id: string
@@ -245,6 +258,7 @@ export type UserRole = 'admin' | 'user' | 'counterparty_user'
 export interface User {
   id: string
   email: string
+  fullName: string
   role: UserRole
   counterpartyId: string | null
   departmentId: string | null
