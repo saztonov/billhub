@@ -344,15 +344,16 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
         .single()
       if (statusError) throw statusError
 
-      // 2. Получаем текущее значение resubmit_count и rejected_stage
+      // 2. Получаем текущее значение resubmit_count, rejected_stage и site_id
       const { data: currentReq, error: reqError } = await supabase
         .from('payment_requests')
-        .select('resubmit_count, rejected_stage')
+        .select('resubmit_count, rejected_stage, site_id')
         .eq('id', id)
         .single()
       if (reqError) throw reqError
 
       const newCount = ((currentReq.resubmit_count as number) ?? 0) + 1
+      const siteId = currentReq.site_id as string
       // Определяем этап для повторной отправки: если была отклонена на ОМТС - идет сразу на ОМТС
       const targetStage = (currentReq.rejected_stage as number) ?? 1
 
@@ -377,12 +378,14 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
         .select('stage_order, department_id')
         .eq('stage_order', targetStage)
       if (targetStageData && targetStageData.length > 0) {
-        // Удаляем старые записи для этой заявки и этапа перед созданием новых
+        // Удаляем только pending записи для этой заявки и этапа
+        // Сохраняем историю (rejected/approved записи)
         await supabase
           .from('approval_decisions')
           .delete()
           .eq('payment_request_id', id)
           .eq('stage_order', targetStage)
+          .eq('status', 'pending')
 
         // Создаём новые pending-записи
         const decisions = targetStageData.map((s: Record<string, unknown>) => ({
@@ -393,10 +396,14 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
         }))
         await supabase.from('approval_decisions').insert(decisions)
 
-        await checkAndNotifyMissingSpecialists(
-          id,
-          targetStageData.map((s: Record<string, unknown>) => ({ department_id: s.department_id as string })),
-        )
+        // Проверяем и уведомляем о недостающих специалистах для каждого департамента
+        for (const stage of targetStageData) {
+          await checkAndNotifyMissingSpecialists(
+            id,
+            siteId,
+            stage.department_id as string,
+          )
+        }
       }
 
       await get().fetchRequests(counterpartyId)
