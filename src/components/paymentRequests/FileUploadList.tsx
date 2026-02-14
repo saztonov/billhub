@@ -156,13 +156,20 @@ const FileUploadList = ({ fileList, onChange }: FileUploadListProps) => {
                   placeholder="Тип документа"
                   size="small"
                   style={{ width: 180, flexShrink: 0 }}
+                  popupMatchSelectWidth={false}
+                  dropdownStyle={{ maxWidth: 250 }}
                   options={typeOptions}
                   value={item.documentTypeId ?? undefined}
                   onChange={(val) => handleTypeChange(item.uid, val)}
                 />
-                {item.documentTypeId && (
-                  <CheckCircleFilled style={{ color: '#52c41a', fontSize: 16, flexShrink: 0 }} />
-                )}
+                <CheckCircleFilled
+                  style={{
+                    color: '#52c41a',
+                    fontSize: 16,
+                    flexShrink: 0,
+                    visibility: item.documentTypeId ? 'visible' : 'hidden'
+                  }}
+                />
               </div>
             </List.Item>
           )}

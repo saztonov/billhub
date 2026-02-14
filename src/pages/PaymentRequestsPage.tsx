@@ -309,8 +309,11 @@ const PaymentRequestsPage = () => {
       )
     }
     if (filters.dateTo) {
+      // Добавляем 1 день к dateTo, чтобы включить конечную дату в фильтр
+      const nextDay = new Date(filters.dateTo!)
+      nextDay.setDate(nextDay.getDate() + 1)
       filtered = filtered.filter(r =>
-        new Date(r.createdAt) <= new Date(filters.dateTo!)
+        new Date(r.createdAt) < nextDay
       )
     }
     if (filters.responsibleFilter === 'assigned') {
@@ -348,8 +351,11 @@ const PaymentRequestsPage = () => {
       )
     }
     if (filters.dateTo) {
+      // Добавляем 1 день к dateTo, чтобы включить конечную дату в фильтр
+      const nextDay = new Date(filters.dateTo!)
+      nextDay.setDate(nextDay.getDate() + 1)
       filtered = filtered.filter(r =>
-        new Date(r.createdAt) <= new Date(filters.dateTo!)
+        new Date(r.createdAt) < nextDay
       )
     }
     return filtered
@@ -501,17 +507,17 @@ const PaymentRequestsPage = () => {
     return (
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <Title level={2} style={{ margin: 0 }}>Заявки на оплату</Title>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <Title level={2} style={{ margin: 0 }}>Заявки на оплату</Title>
             <Button
               icon={<FilterOutlined />}
               onClick={() => setFiltersOpen(!filtersOpen)}
               type={filtersOpen ? 'primary' : 'default'}
             />
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsCreateOpen(true)}>
-              Добавить
-            </Button>
           </div>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsCreateOpen(true)}>
+            Добавить
+          </Button>
         </div>
         {filtersOpen && (
           <RequestFilters
@@ -631,24 +637,24 @@ const PaymentRequestsPage = () => {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <Title level={2} style={{ margin: 0 }}>Заявки на оплату</Title>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <Title level={2} style={{ margin: 0 }}>Заявки на оплату</Title>
           <Button
             icon={<FilterOutlined />}
             onClick={() => setFiltersOpen(!filtersOpen)}
             type={filtersOpen ? 'primary' : 'default'}
           />
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsCreateOpen(true)}>
-            Добавить
-          </Button>
         </div>
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsCreateOpen(true)}>
+          Добавить
+        </Button>
       </div>
       {filtersOpen && (
         <RequestFilters
           counterparties={counterparties}
           sites={sites}
-          statuses={statuses}
           hideCounterpartyFilter={false}
+          hideStatusFilter={true}
           showResponsibleFilter={isOmtsUser || isAdmin}
           omtsUsers={omtsUsers}
           values={filters}
