@@ -1,20 +1,9 @@
 import { create } from 'zustand'
 import { supabase } from '@/services/supabase'
 import { checkAndNotifyMissingSpecialists, checkAndNotifyMissingManager } from '@/utils/approvalNotifications'
-import type { ApprovalStage, ApprovalDecision, PaymentRequest, PaymentRequestLog } from '@/types'
-
-/** Сгруппированный этап для UI: номер этапа + массив подразделений */
-export interface GroupedStage {
-  stageOrder: number
-  departmentIds: string[]
-}
+import type { Department, ApprovalDecision, PaymentRequest, PaymentRequestLog } from '@/types'
 
 interface ApprovalStoreState {
-  // Конфигурация цепочки
-  stages: ApprovalStage[]
-  isLoading: boolean
-  error: string | null
-
   // Решения по заявке
   currentDecisions: ApprovalDecision[]
 
@@ -26,18 +15,17 @@ interface ApprovalStoreState {
   approvedRequests: PaymentRequest[]
   rejectedRequests: PaymentRequest[]
 
-  // Конфигурация цепочки
-  fetchStages: () => Promise<void>
-  saveStages: (stages: GroupedStage[]) => Promise<void>
+  isLoading: boolean
+  error: string | null
 
   // Решения и логи
   fetchDecisions: (paymentRequestId: string) => Promise<void>
   fetchLogs: (paymentRequestId: string) => Promise<void>
-  approveRequest: (paymentRequestId: string, departmentId: string, userId: string, comment: string) => Promise<void>
-  rejectRequest: (paymentRequestId: string, departmentId: string, userId: string, comment: string) => Promise<void>
+  approveRequest: (paymentRequestId: string, department: Department, userId: string, comment: string) => Promise<void>
+  rejectRequest: (paymentRequestId: string, department: Department, userId: string, comment: string) => Promise<void>
 
   // Заявки по вкладкам
-  fetchPendingRequests: (departmentId: string, userId: string) => Promise<void>
+  fetchPendingRequests: (department: Department, userId: string) => Promise<void>
   fetchApprovedRequests: (userSiteIds?: string[], allSites?: boolean) => Promise<void>
   fetchRejectedRequests: (userSiteIds?: string[], allSites?: boolean) => Promise<void>
 }
@@ -107,96 +95,35 @@ async function getUserSiteIds(userId: string): Promise<{ allSites: boolean; site
 }
 
 export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
-  stages: [],
-  isLoading: false,
-  error: null,
   currentDecisions: [],
   currentLogs: [],
   pendingRequests: [],
   approvedRequests: [],
   rejectedRequests: [],
-
-  fetchStages: async () => {
-    set({ isLoading: true, error: null })
-    try {
-      const { data, error } = await supabase
-        .from('approval_stages')
-        .select('*, departments(name)')
-        .order('stage_order', { ascending: true })
-      if (error) throw error
-
-      const stages: ApprovalStage[] = (data ?? []).map((row: Record<string, unknown>) => {
-        const dept = row.departments as Record<string, unknown> | null
-        return {
-          id: row.id as string,
-          stageOrder: row.stage_order as number,
-          departmentId: row.department_id as string,
-          createdAt: row.created_at as string,
-          departmentName: dept?.name as string | undefined,
-        }
-      })
-      set({ stages, isLoading: false })
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Ошибка загрузки этапов'
-      set({ error: message, isLoading: false })
-    }
-  },
-
-  saveStages: async (grouped) => {
-    set({ isLoading: true, error: null })
-    try {
-      // Удаляем все существующие этапы
-      const { error: delError } = await supabase
-        .from('approval_stages')
-        .delete()
-        .gte('stage_order', 0)
-      if (delError) throw delError
-
-      // Формируем строки для вставки
-      const rows: { stage_order: number; department_id: string }[] = []
-      for (const stage of grouped) {
-        for (const deptId of stage.departmentIds) {
-          rows.push({ stage_order: stage.stageOrder, department_id: deptId })
-        }
-      }
-
-      if (rows.length > 0) {
-        const { error: insError } = await supabase
-          .from('approval_stages')
-          .insert(rows)
-        if (insError) throw insError
-      }
-
-      await get().fetchStages()
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Ошибка сохранения этапов'
-      set({ error: message, isLoading: false })
-    }
-  },
+  isLoading: false,
+  error: null,
 
   fetchDecisions: async (paymentRequestId) => {
     try {
       const { data, error } = await supabase
         .from('approval_decisions')
-        .select('*, departments(name), users(email)')
+        .select('*, users(email)')
         .eq('payment_request_id', paymentRequestId)
         .order('stage_order', { ascending: true })
       if (error) throw error
 
       const decisions: ApprovalDecision[] = (data ?? []).map((row: Record<string, unknown>) => {
-        const dept = row.departments as Record<string, unknown> | null
         const usr = row.users as Record<string, unknown> | null
         return {
           id: row.id as string,
           paymentRequestId: row.payment_request_id as string,
           stageOrder: row.stage_order as number,
-          departmentId: row.department_id as string,
+          department: row.department_id as Department,
           status: row.status as ApprovalDecision['status'],
           userId: row.user_id as string | null,
           comment: row.comment as string,
           decidedAt: row.decided_at as string | null,
           createdAt: row.created_at as string,
-          departmentName: dept?.name as string | undefined,
           userEmail: usr?.email as string | undefined,
         }
       })
@@ -235,17 +162,18 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
     }
   },
 
-  approveRequest: async (paymentRequestId, departmentId, userId, comment) => {
+  approveRequest: async (paymentRequestId, department, userId, comment) => {
     set({ isLoading: true, error: null })
     try {
       // 1. Получаем текущий этап заявки
       const { data: pr, error: prError } = await supabase
         .from('payment_requests')
-        .select('current_stage')
+        .select('current_stage, site_id')
         .eq('id', paymentRequestId)
         .single()
       if (prError) throw prError
       const currentStage = pr.current_stage as number
+      const siteId = pr.site_id as string
 
       // 2. Обновляем решение
       const { error: updError } = await supabase
@@ -258,86 +186,48 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
         })
         .eq('payment_request_id', paymentRequestId)
         .eq('stage_order', currentStage)
-        .eq('department_id', departmentId)
+        .eq('department_id', department)
       if (updError) throw updError
 
-      // 3. Проверяем все ли подразделения текущего этапа согласовали
-      const { data: remaining, error: remError } = await supabase
-        .from('approval_decisions')
-        .select('id')
-        .eq('payment_request_id', paymentRequestId)
-        .eq('stage_order', currentStage)
-        .eq('status', 'pending')
-      if (remError) throw remError
+      // 3. ЖЕСТКАЯ ЛОГИКА ПЕРЕХОДА МЕЖДУ ЭТАПАМИ
+      if (currentStage === 1) {
+        // Этап 1 (Штаб) согласован → переходим на Этап 2 (ОМТС)
+        await supabase.from('approval_decisions').insert({
+          payment_request_id: paymentRequestId,
+          stage_order: 2,
+          department_id: 'omts',
+          status: 'pending',
+        })
 
-      if ((remaining ?? []).length === 0) {
-        // Все согласовали — проверяем следующий этап
-        const { data: nextStages, error: nsError } = await supabase
-          .from('approval_stages')
-          .select('stage_order, department_id')
-          .eq('stage_order', currentStage + 1)
-        if (nsError) throw nsError
+        await supabase
+          .from('payment_requests')
+          .update({ current_stage: 2 })
+          .eq('id', paymentRequestId)
 
-        if (nextStages && nextStages.length > 0) {
-          // Есть следующий этап — создаём pending-записи
-          const newDecisions = nextStages.map((s: Record<string, unknown>) => ({
-            payment_request_id: paymentRequestId,
-            stage_order: currentStage + 1,
-            department_id: s.department_id as string,
-            status: 'pending',
-          }))
-          const { error: insError } = await supabase
-            .from('approval_decisions')
-            .insert(newDecisions)
-          if (insError) throw insError
+        // Проверяем специалистов ОМТС для объекта
+        await checkAndNotifyMissingSpecialists(paymentRequestId, siteId, 'omts')
 
-          // Обновляем текущий этап
-          const { error: upError } = await supabase
-            .from('payment_requests')
-            .update({ current_stage: currentStage + 1 })
-            .eq('id', paymentRequestId)
-          if (upError) throw upError
+        // Проверяем наличие ответственного менеджера контрагента
+        await checkAndNotifyMissingManager(paymentRequestId)
 
-          // Проверяем наличие специалистов для нового этапа
-          await checkAndNotifyMissingSpecialists(
-            paymentRequestId,
-            nextStages.map((s: Record<string, unknown>) => ({ department_id: s.department_id as string })),
-          )
+      } else if (currentStage === 2) {
+        // Этап 2 (ОМТС) согласован → статус Согласована
+        const { data: statusData, error: stError } = await supabase
+          .from('statuses')
+          .select('id')
+          .eq('entity_type', 'payment_request')
+          .eq('code', 'approved')
+          .single()
+        if (stError) throw stError
 
-          // Проверяем, есть ли среди подразделений следующего этапа отдел закупок
-          const nextDeptIds = nextStages.map((s: Record<string, unknown>) => s.department_id as string)
-          const { data: procDepts } = await supabase
-            .from('departments')
-            .select('id')
-            .in('id', nextDeptIds)
-            .eq('is_procurement', true)
-
-          if (procDepts && procDepts.length > 0) {
-            await checkAndNotifyMissingManager(
-              paymentRequestId,
-              procDepts.map((d: Record<string, unknown>) => d.id as string),
-            )
-          }
-        } else {
-          // Все этапы пройдены — устанавливаем статус Согласована
-          const { data: statusData, error: stError } = await supabase
-            .from('statuses')
-            .select('id')
-            .eq('entity_type', 'payment_request')
-            .eq('code', 'approved')
-            .single()
-          if (stError) throw stError
-
-          const { error: upError } = await supabase
-            .from('payment_requests')
-            .update({
-              status_id: statusData.id,
-              current_stage: null,
-              approved_at: new Date().toISOString(),
-            })
-            .eq('id', paymentRequestId)
-          if (upError) throw upError
-        }
+        await supabase
+          .from('payment_requests')
+          .update({
+            status_id: statusData.id,
+            current_stage: null,
+            approved_at: new Date().toISOString(),
+          })
+          .eq('id', paymentRequestId)
       }
 
       set({ isLoading: false })
@@ -347,7 +237,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
     }
   },
 
-  rejectRequest: async (paymentRequestId, departmentId, userId, comment) => {
+  rejectRequest: async (paymentRequestId, department, userId, comment) => {
     set({ isLoading: true, error: null })
     try {
       // 1. Получаем текущий этап
@@ -369,7 +259,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
         })
         .eq('payment_request_id', paymentRequestId)
         .eq('stage_order', pr.current_stage)
-        .eq('department_id', departmentId)
+        .eq('department_id', department)
       if (updError) throw updError
 
       // 3. Устанавливаем статус Отклонена
@@ -381,7 +271,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
         .single()
       if (stError) throw stError
 
-      const { error: upError } = await supabase
+      await supabase
         .from('payment_requests')
         .update({
           status_id: statusData.id,
@@ -389,7 +279,6 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
           rejected_at: new Date().toISOString(),
         })
         .eq('id', paymentRequestId)
-      if (upError) throw upError
 
       set({ isLoading: false })
     } catch (err) {
@@ -398,25 +287,17 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
     }
   },
 
-  fetchPendingRequests: async (departmentId, userId) => {
+  fetchPendingRequests: async (department, userId) => {
     set({ isLoading: true, error: null })
     try {
       // Получаем настройки объектов пользователя
       const { allSites, siteIds: userSiteIds } = await getUserSiteIds(userId)
 
-      // Проверяем, является ли подразделение отделом закупок
-      const { data: deptData } = await supabase
-        .from('departments')
-        .select('is_procurement')
-        .eq('id', departmentId)
-        .single()
-      const isProcurement = (deptData?.is_procurement as boolean) ?? false
-
       // Находим id заявок, ожидающих решения этого подразделения
       const { data: decisions, error: decError } = await supabase
         .from('approval_decisions')
         .select('payment_request_id')
-        .eq('department_id', departmentId)
+        .eq('department_id', department)
         .eq('status', 'pending')
       if (decError) throw decError
 
@@ -426,6 +307,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
         return
       }
 
+      // ВАЖНО: Для Штаба фильтрация по объектам пользователя обязательна!
       // Если нет назначенных объектов и не all_sites — пустой список
       if (!allSites && userSiteIds.length === 0) {
         set({ pendingRequests: [], isLoading: false })
@@ -438,7 +320,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
         .in('id', requestIds)
         .order('created_at', { ascending: false })
 
-      // Фильтрация по объектам
+      // Фильтрация по объектам (работает для Штаба и ОМТС)
       if (!allSites) {
         query = query.in('site_id', userSiteIds)
       }
@@ -448,8 +330,8 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
 
       let filteredRequests = (data ?? []).map(mapRequest)
 
-      // Для отдела закупок — фильтрация по ответственному менеджеру контрагента
-      if (isProcurement) {
+      // Для ОМТС — дополнительная фильтрация по ответственному менеджеру контрагента
+      if (department === 'omts') {
         const counterpartyIds = [...new Set(filteredRequests.map((r) => r.counterpartyId))]
         if (counterpartyIds.length > 0) {
           const { data: cpData } = await supabase

@@ -1,13 +1,12 @@
 import { Typography, Tabs } from 'antd'
 import { useSearchParams } from 'react-router-dom'
-import ApprovalChainsPage from './ApprovalChainsPage'
 import SiteDocumentsPage from './SiteDocumentsPage'
 import PaymentRequestSettingsPage from './PaymentRequestSettingsPage'
 import UsersPage from './UsersPage'
 
 const { Title } = Typography
 
-const DEFAULT_TAB = 'approvals'
+const DEFAULT_TAB = 'site-documents'
 
 const AdminPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -18,7 +17,6 @@ const AdminPage = () => {
   }
 
   const items = [
-    { key: 'approvals', label: 'Согласования', children: <ApprovalChainsPage /> },
     { key: 'site-documents', label: 'Документы объектов', children: <SiteDocumentsPage /> },
     { key: 'payment-requests', label: 'Настройки заявок', children: <PaymentRequestSettingsPage /> },
     { key: 'users', label: 'Пользователи', children: <UsersPage /> },

@@ -57,14 +57,14 @@ export interface ConstructionSite {
   createdAt: string
 }
 
-/** Подразделение */
-export interface Department {
-  id: string
-  name: string
-  description: string
-  isActive: boolean
-  isProcurement: boolean
-  createdAt: string
+/** Подразделение (enum) */
+export type Department = 'omts' | 'shtab' | 'smetny'
+
+/** Маппинг enum → название для UI */
+export const DEPARTMENT_LABELS: Record<Department, string> = {
+  omts: 'ОМТС',
+  shtab: 'Штаб',
+  smetny: 'Сметный',
 }
 
 /** Тип документа */
@@ -211,15 +211,6 @@ export interface DistributionLetter {
 
 // Согласования
 
-/** Этап цепочки согласования (конфигурация) */
-export interface ApprovalStage {
-  id: string
-  stageOrder: number
-  departmentId: string
-  createdAt: string
-  departmentName?: string
-}
-
 /** Статус решения по согласованию */
 export type ApprovalDecisionStatus = 'pending' | 'approved' | 'rejected'
 
@@ -228,13 +219,12 @@ export interface ApprovalDecision {
   id: string
   paymentRequestId: string
   stageOrder: number
-  departmentId: string
+  department: Department
   status: ApprovalDecisionStatus
   userId: string | null
   comment: string
   decidedAt: string | null
   createdAt: string
-  departmentName?: string
   userEmail?: string
 }
 
@@ -261,7 +251,7 @@ export interface User {
   fullName: string
   role: UserRole
   counterpartyId: string | null
-  departmentId: string | null
+  department: Department | null
   allSites: boolean
 }
 
@@ -277,13 +267,12 @@ export interface AppNotification {
   userId: string
   isRead: boolean
   paymentRequestId: string | null
-  departmentId: string | null
+  department: Department | null
   siteId: string | null
   resolved: boolean
   resolvedAt: string | null
   createdAt: string
   siteName?: string
-  departmentName?: string
   requestNumber?: string
 }
 

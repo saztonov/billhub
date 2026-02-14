@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { supabase } from '@/services/supabase'
 import { supabaseNoSession } from '@/services/supabaseAdmin'
-import type { UserRole } from '@/types'
+import type { UserRole, Department } from '@/types'
 
 /** Пользователь из таблицы users (с именем контрагента) */
 export interface UserRecord {
@@ -11,8 +11,7 @@ export interface UserRecord {
   role: UserRole
   counterpartyId: string | null
   counterpartyName: string | null
-  departmentId: string | null
-  departmentName: string | null
+  department: Department | null
   allSites: boolean
   siteIds: string[]
   siteNames: string[]
@@ -25,7 +24,7 @@ interface CreateUserData {
   full_name: string
   role: UserRole
   counterparty_id: string | null
-  department_id: string | null
+  department: Department | null
   all_sites: boolean
   site_ids: string[]
 }
@@ -34,7 +33,7 @@ interface UpdateUserData {
   full_name: string
   role: UserRole
   counterparty_id: string | null
-  department_id: string | null
+  department: Department | null
   all_sites: boolean
   site_ids: string[]
 }
@@ -58,7 +57,7 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
     try {
       const { data, error } = await supabase
         .from('users')
-        .select('id, email, full_name, role, counterparty_id, created_at, counterparties!counterparty_id(name), department_id, departments(name), all_sites')
+        .select('id, email, full_name, role, counterparty_id, created_at, counterparties!counterparty_id(name), department_id, all_sites')
         .order('created_at', { ascending: false })
       if (error) throw error
 
@@ -93,8 +92,7 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
           role: row.role as UserRole,
           counterpartyId: row.counterparty_id as string | null,
           counterpartyName: (row.counterparties as { name: string } | null)?.name ?? null,
-          departmentId: row.department_id as string | null,
-          departmentName: (row.departments as { name: string } | null)?.name ?? null,
+          department: (row.department_id as Department | null) ?? null,
           allSites: (row.all_sites as boolean) ?? false,
           siteIds: sites?.ids ?? [],
           siteNames: sites?.names ?? [],
@@ -128,7 +126,7 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
           full_name: data.full_name,
           role: data.role,
           counterparty_id: data.role === 'counterparty_user' ? data.counterparty_id : null,
-          department_id: data.department_id || null,
+          department_id: data.department || null,
           all_sites: data.role === 'counterparty_user' ? false : data.all_sites,
         })
       if (insertError) throw insertError
@@ -163,7 +161,7 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
           full_name: data.full_name,
           role: data.role,
           counterparty_id: data.role === 'counterparty_user' ? data.counterparty_id : null,
-          department_id: data.department_id,
+          department_id: data.department,
           all_sites: data.role === 'counterparty_user' ? false : data.all_sites,
         })
         .eq('id', id)
@@ -190,13 +188,13 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
       }
 
       // Авторезолв уведомлений missing_specialist
-      if (data.department_id && data.role !== 'counterparty_user') {
+      if (data.department && data.role !== 'counterparty_user') {
         const { data: unresolvedNotifs } = await supabase
           .from('notifications')
           .select('id, department_id, site_id')
           .eq('type', 'missing_specialist')
           .eq('resolved', false)
-          .eq('department_id', data.department_id)
+          .eq('department_id', data.department)
 
         for (const notif of unresolvedNotifs ?? []) {
           const row = notif as Record<string, unknown>

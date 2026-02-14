@@ -66,12 +66,10 @@ const PaymentRequestsPage = () => {
   const uploadTasks = useUploadQueueStore((s) => s.tasks)
 
   const {
-    stages,
     pendingRequests,
     approvedRequests,
     rejectedRequests,
     isLoading: approvalLoading,
-    fetchStages,
     fetchPendingRequests,
     fetchApprovedRequests,
     fetchRejectedRequests,
@@ -106,17 +104,14 @@ const PaymentRequestsPage = () => {
     }
   }, [user?.id, isAdmin, isUser, isCounterpartyUser])
 
-  // Общее количество уникальных этапов согласования
-  const totalStages = useMemo(() => {
-    const uniqueOrders = new Set(stages.map((s) => s.stageOrder))
-    return uniqueOrders.size
-  }, [stages])
+  // Общее количество уникальных этапов согласования (жесткая цепочка: Штаб → ОМТС)
+  const totalStages = 2
 
-  // Проверяем, участвует ли подразделение пользователя в цепочке
+  // Проверяем, участвует ли подразделение пользователя в цепочке (только Штаб и ОМТС)
   const userDeptInChain = useMemo(() => {
-    if (!user?.departmentId || stages.length === 0) return false
-    return stages.some((s) => s.departmentId === user.departmentId)
-  }, [user?.departmentId, stages])
+    if (!user?.department) return false
+    return user.department === 'shtab' || user.department === 'omts'
+  }, [user?.department])
 
   // Параметры фильтрации для role=user
   const siteFilterParams = useCallback((): [string[]?, boolean?] => {
@@ -128,28 +123,25 @@ const PaymentRequestsPage = () => {
     if (!sitesLoaded) return
     if (isCounterpartyUser && user?.counterpartyId) {
       fetchRequests(user.counterpartyId)
-      fetchStages()
     } else if (isAdmin) {
       fetchRequests()
-      fetchStages()
     } else if (isUser) {
       fetchRequests(undefined, userSiteIds, userAllSites)
-      fetchStages()
     }
-  }, [fetchRequests, fetchStages, isCounterpartyUser, isAdmin, isUser, user?.counterpartyId, sitesLoaded, userSiteIds, userAllSites])
+  }, [fetchRequests, isCounterpartyUser, isAdmin, isUser, user?.counterpartyId, sitesLoaded, userSiteIds, userAllSites])
 
   // Загружаем данные при переключении вкладок
   useEffect(() => {
     if (isCounterpartyUser || !sitesLoaded) return
     const [sIds, allS] = siteFilterParams()
-    if (activeTab === 'pending' && user?.departmentId && user?.id) {
-      fetchPendingRequests(user.departmentId, user.id)
+    if (activeTab === 'pending' && user?.department && user?.id) {
+      fetchPendingRequests(user.department, user.id)
     } else if (activeTab === 'approved') {
       fetchApprovedRequests(sIds, allS)
     } else if (activeTab === 'rejected') {
       fetchRejectedRequests(sIds, allS)
     }
-  }, [activeTab, isCounterpartyUser, user?.departmentId, user?.id, sitesLoaded, siteFilterParams, fetchPendingRequests, fetchApprovedRequests, fetchRejectedRequests])
+  }, [activeTab, isCounterpartyUser, user?.department, user?.id, sitesLoaded, siteFilterParams, fetchPendingRequests, fetchApprovedRequests, fetchRejectedRequests])
 
   /** Проверяет, может ли текущий пользователь редактировать заявку */
   const canEditRequest = useCallback((record: PaymentRequest | null): boolean => {
@@ -218,10 +210,10 @@ const PaymentRequestsPage = () => {
   }
 
   const handleApprove = async (requestId: string, comment: string) => {
-    if (!user?.departmentId || !user?.id) return
-    await approveRequest(requestId, user.departmentId, user.id, comment)
+    if (!user?.department || !user?.id) return
+    await approveRequest(requestId, user.department, user.id, comment)
     message.success('Заявка согласована')
-    fetchPendingRequests(user.departmentId, user.id)
+    fetchPendingRequests(user.department, user.id)
     const [sIds, allS] = siteFilterParams()
     if (isUser) {
       fetchRequests(undefined, sIds, allS)
@@ -231,10 +223,10 @@ const PaymentRequestsPage = () => {
   }
 
   const handleReject = async (requestId: string, comment: string) => {
-    if (!user?.departmentId || !user?.id) return
-    await rejectRequest(requestId, user.departmentId, user.id, comment)
+    if (!user?.department || !user?.id) return
+    await rejectRequest(requestId, user.department, user.id, comment)
     message.success('Заявка отклонена')
-    fetchPendingRequests(user.departmentId, user.id)
+    fetchPendingRequests(user.department, user.id)
     const [sIds, allS] = siteFilterParams()
     if (isUser) {
       fetchRequests(undefined, sIds, allS)

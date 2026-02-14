@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { supabase } from '@/services/supabase'
-import type { AppNotification } from '@/types'
+import type { AppNotification, Department } from '@/types'
 
 interface NotificationStoreState {
   notifications: AppNotification[]
@@ -27,7 +27,6 @@ export const useNotificationStore = create<NotificationStoreState>((set) => ({
         .select(`
           *,
           construction_sites(name),
-          departments(name),
           payment_requests(request_number)
         `)
         .eq('user_id', userId)
@@ -37,7 +36,6 @@ export const useNotificationStore = create<NotificationStoreState>((set) => ({
 
       const notifications: AppNotification[] = (data ?? []).map((row: Record<string, unknown>) => {
         const site = row.construction_sites as Record<string, unknown> | null
-        const dept = row.departments as Record<string, unknown> | null
         const pr = row.payment_requests as Record<string, unknown> | null
         return {
           id: row.id as string,
@@ -47,13 +45,12 @@ export const useNotificationStore = create<NotificationStoreState>((set) => ({
           userId: row.user_id as string,
           isRead: row.is_read as boolean,
           paymentRequestId: row.payment_request_id as string | null,
-          departmentId: row.department_id as string | null,
+          department: (row.department_id as Department | null) ?? null,
           siteId: row.site_id as string | null,
           resolved: row.resolved as boolean,
           resolvedAt: row.resolved_at as string | null,
           createdAt: row.created_at as string,
           siteName: site?.name as string | undefined,
-          departmentName: dept?.name as string | undefined,
           requestNumber: pr?.request_number as string | undefined,
         }
       })

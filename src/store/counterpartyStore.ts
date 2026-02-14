@@ -53,24 +53,11 @@ export const useCounterpartyStore = create<CounterpartyStoreState>((set, get) =>
 
   fetchProcurementUsers: async () => {
     try {
-      // Получаем подразделения с is_procurement = true
-      const { data: depts, error: deptError } = await supabase
-        .from('departments')
-        .select('id')
-        .eq('is_procurement', true)
-      if (deptError) throw deptError
-
-      const deptIds = (depts ?? []).map((d: Record<string, unknown>) => d.id as string)
-      if (deptIds.length === 0) {
-        set({ procurementUsers: [] })
-        return
-      }
-
-      // Получаем пользователей из этих подразделений
+      // Получаем пользователей ОМТС (отдел снабжения)
       const { data: users, error: usersError } = await supabase
         .from('users')
         .select('id, email')
-        .in('department_id', deptIds)
+        .eq('department_id', 'omts')
         .in('role', ['admin', 'user'])
       if (usersError) throw usersError
 

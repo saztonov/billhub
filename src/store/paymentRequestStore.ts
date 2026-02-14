@@ -165,32 +165,22 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
         .single()
       if (reqError) throw reqError
 
-      // 4. Проверяем наличие этапов согласования и запускаем цепочку
-      const { data: firstStage } = await supabase
-        .from('approval_stages')
-        .select('stage_order, department_id')
-        .eq('stage_order', 1)
-      if (firstStage && firstStage.length > 0) {
-        // Создаём pending-записи для подразделений 1 этапа
-        const decisions = firstStage.map((s: Record<string, unknown>) => ({
-          payment_request_id: requestData.id,
-          stage_order: 1,
-          department_id: s.department_id as string,
-          status: 'pending',
-        }))
-        await supabase.from('approval_decisions').insert(decisions)
-        // Устанавливаем текущий этап
-        await supabase
-          .from('payment_requests')
-          .update({ current_stage: 1 })
-          .eq('id', requestData.id)
+      // 4. Запускаем жесткую цепочку согласования: Этап 1 - Штаб
+      await supabase.from('approval_decisions').insert({
+        payment_request_id: requestData.id,
+        stage_order: 1,
+        department_id: 'shtab',
+        status: 'pending',
+      })
 
-        // Проверяем наличие специалистов для первого этапа
-        await checkAndNotifyMissingSpecialists(
-          requestData.id,
-          firstStage.map((s: Record<string, unknown>) => ({ department_id: s.department_id as string })),
-        )
-      }
+      // Устанавливаем текущий этап
+      await supabase
+        .from('payment_requests')
+        .update({ current_stage: 1 })
+        .eq('id', requestData.id)
+
+      // Проверяем наличие специалистов Штаба для объекта
+      await checkAndNotifyMissingSpecialists(requestData.id, data.siteId, 'shtab')
 
       // Файлы загружаются отдельно через uploadQueueStore
       await get().fetchRequests(counterpartyId)

@@ -15,10 +15,10 @@ import {
 import { PlusOutlined, EditOutlined } from '@ant-design/icons'
 import { useUserStore } from '@/store/userStore'
 import { useCounterpartyStore } from '@/store/counterpartyStore'
-import { useDepartmentStore } from '@/store/departmentStore'
 import { useConstructionSiteStore } from '@/store/constructionSiteStore'
 import CreateUserModal from '@/components/users/CreateUserModal'
-import type { UserRole } from '@/types'
+import type { UserRole, Department } from '@/types'
+import { DEPARTMENT_LABELS } from '@/types'
 import type { UserRecord } from '@/store/userStore'
 
 /** Метки ролей для отображения */
@@ -45,15 +45,13 @@ const UsersTab = () => {
 
   const { users, isLoading, error, fetchUsers, updateUser } = useUserStore()
   const { counterparties, fetchCounterparties } = useCounterpartyStore()
-  const { departments, fetchDepartments } = useDepartmentStore()
   const { sites, fetchSites } = useConstructionSiteStore()
 
   useEffect(() => {
     fetchUsers()
     fetchCounterparties()
-    fetchDepartments()
     fetchSites()
-  }, [fetchUsers, fetchCounterparties, fetchDepartments, fetchSites])
+  }, [fetchUsers, fetchCounterparties, fetchSites])
 
   const handleEdit = (record: UserRecord) => {
     setEditingRecord(record)
@@ -63,7 +61,7 @@ const UsersTab = () => {
       full_name: record.fullName,
       role: record.role,
       counterparty_id: record.counterpartyId,
-      department_id: record.departmentId,
+      department: record.department,
       all_sites: record.allSites,
       site_ids: record.siteIds,
     })
@@ -77,7 +75,7 @@ const UsersTab = () => {
       full_name: values.full_name ?? '',
       role: values.role,
       counterparty_id: values.role === 'counterparty_user' ? values.counterparty_id : null,
-      department_id: values.department_id || null,
+      department: values.department || null,
       all_sites: values.role === 'counterparty_user' ? false : (values.all_sites ?? false),
       site_ids: values.role === 'counterparty_user' ? [] : (values.site_ids ?? []),
     })
@@ -119,9 +117,9 @@ const UsersTab = () => {
     },
     {
       title: 'Подразделение',
-      dataIndex: 'departmentName',
-      key: 'departmentName',
-      render: (name: string | null) => name ?? '—',
+      dataIndex: 'department',
+      key: 'department',
+      render: (dept: Department | null) => dept ? DEPARTMENT_LABELS[dept] : '—',
     },
     {
       title: 'Объекты',
@@ -150,8 +148,7 @@ const UsersTab = () => {
     },
   ]
 
-  // Только активные подразделения и объекты в селектах
-  const activeDepartments = departments.filter((d) => d.isActive)
+  // Только активные объекты в селекте
   const activeSites = sites.filter((s) => s.isActive)
 
   const showSiteFields = selectedRole !== 'counterparty_user'
@@ -243,18 +240,14 @@ const UsersTab = () => {
               </Select>
             </Form.Item>
           )}
-          <Form.Item name="department_id" label="Подразделение">
+          <Form.Item name="department" label="Подразделение">
             <Select
               placeholder="Выберите подразделение"
               allowClear
-              showSearch
-              optionFilterProp="children"
             >
-              {activeDepartments.map((d) => (
-                <Select.Option key={d.id} value={d.id}>
-                  {d.name}
-                </Select.Option>
-              ))}
+              <Select.Option value="shtab">{DEPARTMENT_LABELS.shtab}</Select.Option>
+              <Select.Option value="omts">{DEPARTMENT_LABELS.omts}</Select.Option>
+              <Select.Option value="smetny">{DEPARTMENT_LABELS.smetny}</Select.Option>
             </Select>
           </Form.Item>
           {showSiteFields && (

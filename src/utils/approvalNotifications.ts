@@ -1,38 +1,33 @@
 import { supabase } from '@/services/supabase'
-
-interface StageDecision {
-  department_id: string
-}
+import { DEPARTMENT_LABELS, type Department } from '@/types'
 
 /**
- * Проверяет наличие специалистов для каждого подразделения этапа
+ * Проверяет наличие специалиста подразделения для объекта
  * и создаёт уведомления при отсутствии подходящего пользователя.
  */
 export async function checkAndNotifyMissingSpecialists(
   paymentRequestId: string,
-  stageDecisions: StageDecision[],
-) {
-  // Загружаем данные заявки
-  const { data: prData } = await supabase
-    .from('payment_requests')
-    .select('site_id, request_number, construction_sites(name)')
-    .eq('id', paymentRequestId)
-    .single()
-  if (!prData) return
+  siteId: string,
+  department: Department,
+): Promise<void> {
+  try {
+    // Загружаем данные заявки
+    const { data: prData } = await supabase
+      .from('payment_requests')
+      .select('request_number, construction_sites(name)')
+      .eq('id', paymentRequestId)
+      .single()
+    if (!prData) return
 
-  const siteId = prData.site_id as string
-  const siteObj = prData.construction_sites as unknown as { name: string } | null
-  const siteName = siteObj?.name ?? 'Не указан'
-  const requestNumber = prData.request_number as string
+    const siteObj = prData.construction_sites as unknown as { name: string } | null
+    const siteName = siteObj?.name ?? 'Не указан'
+    const requestNumber = prData.request_number as string
 
-  for (const decision of stageDecisions) {
-    const deptId = decision.department_id
-
-    // Ищем пользователей с нужным подразделением
+    // Ищем пользователей подразделения для объекта
     const { data: deptUsers } = await supabase
       .from('users')
       .select('id, all_sites')
-      .eq('department_id', deptId)
+      .eq('department_id', department)
       .in('role', ['admin', 'user'])
 
     let hasSpecialist = false
@@ -63,19 +58,13 @@ export async function checkAndNotifyMissingSpecialists(
         .select('id')
         .eq('type', 'missing_specialist')
         .eq('payment_request_id', paymentRequestId)
-        .eq('department_id', deptId)
+        .eq('department_id', department)
         .eq('site_id', siteId)
         .eq('resolved', false)
         .limit(1)
-      if (existing && existing.length > 0) continue
+      if (existing && existing.length > 0) return
 
-      // Получаем имя подразделения
-      const { data: deptData } = await supabase
-        .from('departments')
-        .select('name')
-        .eq('id', deptId)
-        .single()
-      const deptName = deptData?.name ?? 'Неизвестно'
+      const deptName = DEPARTMENT_LABELS[department]
 
       // Получаем всех admin/user для рассылки
       const { data: recipients } = await supabase
@@ -89,82 +78,71 @@ export async function checkAndNotifyMissingSpecialists(
         message: `Заявка №${requestNumber}: подразделение "${deptName}" не имеет специалиста для объекта "${siteName}"`,
         user_id: r.id as string,
         payment_request_id: paymentRequestId,
-        department_id: deptId,
+        department_id: department,
         site_id: siteId,
       }))
       if (notifications.length > 0) {
         await supabase.from('notifications').insert(notifications)
       }
     }
+  } catch (err) {
+    console.error('Ошибка проверки специалистов:', err)
   }
 }
 
 /**
  * Проверяет, назначен ли ответственный менеджер у контрагента заявки.
- * Если нет — создаёт уведомления для пользователей отделов закупок и админов.
+ * Если нет — создаёт уведомления для пользователей ОМТС и админов.
  */
 export async function checkAndNotifyMissingManager(
   paymentRequestId: string,
-  procurementDepartmentIds: string[],
-) {
-  if (procurementDepartmentIds.length === 0) return
+): Promise<void> {
+  try {
+    // Загружаем данные заявки с контрагентом
+    const { data: prData } = await supabase
+      .from('payment_requests')
+      .select('counterparty_id, request_number, counterparties(name, responsible_user_id)')
+      .eq('id', paymentRequestId)
+      .single()
+    if (!prData) return
 
-  // Загружаем данные заявки с контрагентом
-  const { data: prData } = await supabase
-    .from('payment_requests')
-    .select('counterparty_id, request_number, counterparties(name, responsible_user_id)')
-    .eq('id', paymentRequestId)
-    .single()
-  if (!prData) return
+    const counterparty = prData.counterparties as unknown as { name: string; responsible_user_id: string | null } | null
+    if (!counterparty) return
 
-  const counterparty = prData.counterparties as unknown as { name: string; responsible_user_id: string | null } | null
-  if (!counterparty) return
+    // Если ответственный назначен — всё в порядке
+    if (counterparty.responsible_user_id) return
 
-  // Если ответственный назначен — всё в порядке
-  if (counterparty.responsible_user_id) return
+    const requestNumber = prData.request_number as string
+    const counterpartyName = counterparty.name
 
-  const requestNumber = prData.request_number as string
-  const counterpartyName = counterparty.name
+    // Дедупликация: проверяем нет ли нерешённого уведомления
+    const { data: existing } = await supabase
+      .from('notifications')
+      .select('id')
+      .eq('type', 'missing_manager')
+      .eq('payment_request_id', paymentRequestId)
+      .eq('resolved', false)
+      .limit(1)
+    if (existing && existing.length > 0) return
 
-  // Дедупликация: проверяем нет ли нерешённого уведомления
-  const { data: existing } = await supabase
-    .from('notifications')
-    .select('id')
-    .eq('type', 'missing_manager')
-    .eq('payment_request_id', paymentRequestId)
-    .eq('resolved', false)
-    .limit(1)
-  if (existing && existing.length > 0) return
+    // Получатели: пользователи ОМТС + все админы
+    const { data: recipients } = await supabase
+      .from('users')
+      .select('id')
+      .or(`department_id.eq.omts,role.eq.admin`)
 
-  // Получатели: пользователи из отделов закупок + все админы
-  const { data: procurementUsers } = await supabase
-    .from('users')
-    .select('id')
-    .in('department_id', procurementDepartmentIds)
-    .in('role', ['admin', 'user'])
+    const notifications = (recipients ?? []).map((r: Record<string, unknown>) => ({
+      type: 'missing_manager',
+      title: 'Не назначен ответственный менеджер',
+      message: `Заявка №${requestNumber}: контрагент "${counterpartyName}" не имеет назначенного ответственного менеджера в отделе закупок`,
+      user_id: r.id as string,
+      payment_request_id: paymentRequestId,
+    }))
 
-  const { data: adminUsers } = await supabase
-    .from('users')
-    .select('id')
-    .eq('role', 'admin')
-
-  const recipientIds = new Set<string>()
-  for (const u of procurementUsers ?? []) {
-    recipientIds.add((u as Record<string, unknown>).id as string)
-  }
-  for (const u of adminUsers ?? []) {
-    recipientIds.add((u as Record<string, unknown>).id as string)
-  }
-
-  const notifications = Array.from(recipientIds).map((uid) => ({
-    type: 'missing_manager',
-    title: 'Не назначен ответственный менеджер',
-    message: `Заявка №${requestNumber}: контрагент "${counterpartyName}" не имеет назначенного ответственного менеджера в отделе закупок`,
-    user_id: uid,
-    payment_request_id: paymentRequestId,
-  }))
-
-  if (notifications.length > 0) {
-    await supabase.from('notifications').insert(notifications)
+    if (notifications.length > 0) {
+      await supabase.from('notifications').insert(notifications)
+    }
+  } catch (err) {
+    console.error('Ошибка проверки менеджера:', err)
   }
 }

@@ -9,9 +9,9 @@ import {
 } from 'antd'
 import { useUserStore } from '@/store/userStore'
 import { useCounterpartyStore } from '@/store/counterpartyStore'
-import { useDepartmentStore } from '@/store/departmentStore'
 import { useConstructionSiteStore } from '@/store/constructionSiteStore'
 import type { UserRole } from '@/types'
+import { DEPARTMENT_LABELS } from '@/types'
 
 interface CreateUserModalProps {
   open: boolean
@@ -27,10 +27,8 @@ const CreateUserModal = ({ open, onClose, onSuccess }: CreateUserModalProps) => 
 
   const { createUser } = useUserStore()
   const { counterparties } = useCounterpartyStore()
-  const { departments } = useDepartmentStore()
   const { sites } = useConstructionSiteStore()
 
-  const activeDepartments = departments.filter((d) => d.isActive)
   const activeSites = sites.filter((s) => s.isActive)
   const showSiteFields = selectedRole !== 'counterparty_user'
 
@@ -44,7 +42,7 @@ const CreateUserModal = ({ open, onClose, onSuccess }: CreateUserModalProps) => 
         full_name: values.full_name,
         role: values.role,
         counterparty_id: values.role === 'counterparty_user' ? values.counterparty_id : null,
-        department_id: values.department_id || null,
+        department: values.department || null,
         all_sites: values.role === 'counterparty_user' ? false : (values.all_sites ?? false),
         site_ids: values.role === 'counterparty_user' ? [] : (values.site_ids ?? []),
       })
@@ -159,18 +157,14 @@ const CreateUserModal = ({ open, onClose, onSuccess }: CreateUserModalProps) => 
             </Select>
           </Form.Item>
         )}
-        <Form.Item name="department_id" label="Подразделение">
+        <Form.Item name="department" label="Подразделение">
           <Select
             placeholder="Выберите подразделение"
             allowClear
-            showSearch
-            optionFilterProp="children"
           >
-            {activeDepartments.map((d) => (
-              <Select.Option key={d.id} value={d.id}>
-                {d.name}
-              </Select.Option>
-            ))}
+            <Select.Option value="shtab">{DEPARTMENT_LABELS.shtab}</Select.Option>
+            <Select.Option value="omts">{DEPARTMENT_LABELS.omts}</Select.Option>
+            <Select.Option value="smetny">{DEPARTMENT_LABELS.smetny}</Select.Option>
           </Select>
         </Form.Item>
         {showSiteFields && (

@@ -39,6 +39,7 @@ import FilePreviewModal from './FilePreviewModal'
 import FileUploadList from './FileUploadList'
 import type { FileItem } from './FileUploadList'
 import type { PaymentRequest, PaymentRequestFile } from '@/types'
+import { DEPARTMENT_LABELS } from '@/types'
 
 const { Text } = Typography
 const { TextArea } = Input
@@ -476,7 +477,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                         <Space>
                           {icon}
                           <Text>Этап {decision.stageOrder}</Text>
-                          <Tag>{decision.departmentName}</Tag>
+                          <Tag>{DEPARTMENT_LABELS[decision.department]}</Tag>
                           <Text type="secondary">{statusText}</Text>
                           {decision.userEmail && <Text type="secondary">({decision.userEmail})</Text>}
                           {decision.decidedAt && <Text type="secondary">{formatDate(decision.decidedAt)}</Text>}
