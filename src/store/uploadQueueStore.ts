@@ -58,6 +58,7 @@ export const useUploadQueueStore = create<UploadQueueStoreState>((set, get) => (
   },
 
   addDecisionFilesTask: (decisionId, requestNumber, files, userId) => {
+    console.log('[UploadQueue] Добавление файлов решения:', { decisionId, filesCount: files.length })
     const task: UploadTask = {
       type: 'decision_files',
       requestId: '', // Не используется для decision_files
@@ -122,6 +123,8 @@ async function processQueue(
       }))
 
       try {
+        console.log('[UploadQueue] Обработка задачи:', { taskId, type: task.type, filesCount: task.files.length })
+
         if (task.type === 'request_files') {
           // Логика загрузки файлов заявки
           for (let i = 0; i < task.files.length; i++) {
@@ -232,6 +235,7 @@ async function processQueue(
         }))
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Ошибка загрузки файла'
+        console.error('[UploadQueue] Ошибка загрузки:', { taskId, error: err })
         set((state) => ({
           tasks: {
             ...state.tasks,

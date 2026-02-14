@@ -383,14 +383,14 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
       // 4. Создаём pending-записи для целевого этапа согласования
       // Используем жесткую цепочку: Этап 1 = Штаб, Этап 2 = ОМТС
 
-      // Удаляем только pending записи для этой заявки и этапа
-      // Сохраняем историю (rejected/approved записи)
+      // Удаляем ВСЕ записи для целевого этапа (включая rejected)
+      // Уникальный индекс не позволяет иметь несколько записей с одинаковыми (payment_request_id, stage_order, department_id)
+      // История сохраняется в логах
       await supabase
         .from('approval_decisions')
         .delete()
         .eq('payment_request_id', id)
         .eq('stage_order', targetStage)
-        .eq('status', 'pending')
 
       // Определяем department для целевого этапа
       const targetDepartment = targetStage === 1 ? 'shtab' : 'omts'
