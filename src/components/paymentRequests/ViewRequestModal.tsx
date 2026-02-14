@@ -35,6 +35,7 @@ import { useAuthStore } from '@/store/authStore'
 import { usePaymentRequestSettingsStore } from '@/store/paymentRequestSettingsStore'
 import { useConstructionSiteStore } from '@/store/constructionSiteStore'
 import { useAssignmentStore } from '@/store/assignmentStore'
+import { useDocumentTypeStore } from '@/store/documentTypeStore'
 import { getDownloadUrl, downloadFileBlob } from '@/services/s3'
 import JSZip from 'jszip'
 import FilePreviewModal from './FilePreviewModal'
@@ -120,6 +121,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   const [editFileList, setEditFileList] = useState<FileItem[]>([])
   const { fieldOptions, fetchFieldOptions, getOptionsByField } = usePaymentRequestSettingsStore()
   const { sites, fetchSites } = useConstructionSiteStore()
+  const { fetchDocumentTypes } = useDocumentTypeStore()
 
   useEffect(() => {
     if (open && request) {
@@ -128,13 +130,14 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       fetchLogs(request.id)
       fetchCurrentAssignment(request.id)
       fetchAssignmentHistory(request.id)
+      fetchDocumentTypes() // Загрузка типов документов для FileUploadList
 
       // Загрузить список ОМТС если user может назначать
       if (user?.role === 'admin') {
         fetchOmtsUsers()
       }
     }
-  }, [open, request, fetchRequestFiles, fetchDecisions, fetchLogs, fetchCurrentAssignment, fetchAssignmentHistory, fetchOmtsUsers, user?.role])
+  }, [open, request, fetchRequestFiles, fetchDecisions, fetchLogs, fetchCurrentAssignment, fetchAssignmentHistory, fetchDocumentTypes, fetchOmtsUsers, user?.role])
 
   // Сброс состояния при закрытии
   useEffect(() => {
