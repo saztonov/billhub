@@ -41,7 +41,7 @@ import FilePreviewModal from './FilePreviewModal'
 import FileUploadList from './FileUploadList'
 import type { FileItem } from './FileUploadList'
 import DeliveryCalculation from './DeliveryCalculation'
-import type { PaymentRequest, PaymentRequestFile } from '@/types'
+import type { PaymentRequest, PaymentRequestFile, ApprovalDecisionFile } from '@/types'
 import { DEPARTMENT_LABELS } from '@/types'
 
 const { Text } = Typography
@@ -109,7 +109,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   } = useAssignmentStore()
   const [downloading, setDownloading] = useState<string | null>(null)
   const [downloadingAll, setDownloadingAll] = useState(false)
-  const [previewFile, setPreviewFile] = useState<PaymentRequestFile | null>(null)
+  const [previewFile, setPreviewFile] = useState<{ fileKey: string; fileName: string; mimeType: string | null } | null>(null)
   const [resubmitFileList, setResubmitFileList] = useState<FileItem[]>([])
   const [resubmitComment, setResubmitComment] = useState('')
 
@@ -195,13 +195,18 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   /** Лог событий для контрагента */
   const counterpartyLog = useMemo(() => {
     if (!request) return []
-    const log: { icon: React.ReactNode; text: string; date?: string }[] = []
+    const log: { icon: React.ReactNode; text: string; date?: string; files?: ApprovalDecisionFile[] }[] = []
 
     // Отклонения
     const rejected = currentDecisions.filter((d) => d.status === 'rejected')
     for (const d of rejected) {
       const reason = d.comment ? `Отклонено. Причина: ${d.comment}` : 'Отклонено'
-      log.push({ icon: <CloseCircleOutlined style={{ color: '#f5222d' }} />, text: reason, date: d.decidedAt ?? undefined })
+      log.push({
+        icon: <CloseCircleOutlined style={{ color: '#f5222d' }} />,
+        text: reason,
+        date: d.decidedAt ?? undefined,
+        files: d.files && d.files.length > 0 ? d.files : undefined
+      })
     }
 
     // Комментарий повторной отправки
@@ -264,6 +269,26 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   }
 
   const handleDownload = async (fileKey: string, fileName: string) => {
+    setDownloading(fileKey)
+    try {
+      const url = await getDownloadUrl(fileKey)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = fileName
+      a.target = '_blank'
+      a.click()
+    } finally {
+      setDownloading(null)
+    }
+  }
+
+  /** Просмотр файла решения об отклонении */
+  const handleViewDecisionFile = (fileKey: string, fileName: string, mimeType: string | null) => {
+    setPreviewFile({ fileKey, fileName, mimeType })
+  }
+
+  /** Скачивание файла решения об отклонении */
+  const handleDownloadDecisionFile = async (fileKey: string, fileName: string) => {
     setDownloading(fileKey)
     try {
       const url = await getDownloadUrl(fileKey)
@@ -580,11 +605,43 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                 style={{ marginBottom: 16 }}
                 renderItem={(item) => (
                   <List.Item>
-                    <Space>
-                      {item.icon}
-                      <Text>{item.text}</Text>
-                      {item.date && <Text type="secondary">{formatDate(item.date)}</Text>}
-                    </Space>
+                    <div style={{ width: '100%' }}>
+                      <Space>
+                        {item.icon}
+                        <Text>{item.text}</Text>
+                        {item.date && <Text type="secondary">{formatDate(item.date)}</Text>}
+                      </Space>
+                      {item.files && item.files.length > 0 && (
+                        <div style={{ marginLeft: 22, marginTop: 8 }}>
+                          <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>
+                            Прикрепленные файлы:
+                          </Text>
+                          <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                            {item.files.map((file) => (
+                              <div key={file.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <Text style={{ flex: 1, fontSize: 12 }}>{file.fileName}</Text>
+                                <Space size="small">
+                                  <Button
+                                    size="small"
+                                    icon={<EyeOutlined />}
+                                    onClick={() => handleViewDecisionFile(file.fileKey, file.fileName, file.mimeType)}
+                                  >
+                                    Просмотр
+                                  </Button>
+                                  <Button
+                                    size="small"
+                                    icon={<DownloadOutlined />}
+                                    onClick={() => handleDownloadDecisionFile(file.fileKey, file.fileName)}
+                                  >
+                                    Скачать
+                                  </Button>
+                                </Space>
+                              </div>
+                            ))}
+                          </Space>
+                        </div>
+                      )}
+                    </div>
                   </List.Item>
                 )}
               />
@@ -636,14 +693,14 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                                       <Button
                                         size="small"
                                         icon={<EyeOutlined />}
-                                        onClick={() => handleViewFile(file.fileKey, file.fileName, file.mimeType)}
+                                        onClick={() => handleViewDecisionFile(file.fileKey, file.fileName, file.mimeType)}
                                       >
                                         Просмотр
                                       </Button>
                                       <Button
                                         size="small"
                                         icon={<DownloadOutlined />}
-                                        onClick={() => handleDownloadFile(file.fileKey, file.fileName)}
+                                        onClick={() => handleDownloadDecisionFile(file.fileKey, file.fileName)}
                                       >
                                         Скачать
                                       </Button>

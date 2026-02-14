@@ -588,7 +588,7 @@ const PaymentRequestsPage = () => {
           onDelete={handleDelete}
           uploadTasks={uploadTasks}
           onRetryUpload={retryTask}
-          showResponsibleColumn={isOmtsUser}
+          showResponsibleColumn={isOmtsUser || isAdmin}
           canAssignResponsible={isAdmin}
           omtsUsers={omtsUsers}
           onAssignResponsible={handleAssignResponsible}
@@ -625,7 +625,7 @@ const PaymentRequestsPage = () => {
             showApprovalActions
             onApprove={handleApprove}
             onReject={handleReject}
-            showResponsibleColumn={isOmtsUser || isAdmin}
+            showResponsibleColumn={isOmtsUser || (isAdmin && adminSelectedStage === 'omts')}
             canAssignResponsible={isAdmin}
             omtsUsers={omtsUsers}
             onAssignResponsible={handleAssignResponsible}
@@ -646,6 +646,11 @@ const PaymentRequestsPage = () => {
           isLoading={approvalLoading}
           onView={setViewRecord}
           showApprovedDate
+          showResponsibleColumn={isOmtsUser || isAdmin}
+          canAssignResponsible={isAdmin}
+          omtsUsers={omtsUsers}
+          onAssignResponsible={handleAssignResponsible}
+          responsibleFilter={filters.responsibleFilter}
         />
       ),
     },
@@ -658,6 +663,11 @@ const PaymentRequestsPage = () => {
           isLoading={approvalLoading}
           onView={setViewRecord}
           showRejectedDate
+          showResponsibleColumn={isOmtsUser || isAdmin}
+          canAssignResponsible={isAdmin}
+          omtsUsers={omtsUsers}
+          onAssignResponsible={handleAssignResponsible}
+          responsibleFilter={filters.responsibleFilter}
         />
       ),
     },
