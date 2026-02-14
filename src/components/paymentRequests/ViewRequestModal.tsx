@@ -81,6 +81,18 @@ function formatDate(dateStr: string): string {
   })
 }
 
+/** Извлечение порядкового номера из request_number (для обратной совместимости со старым форматом) */
+function extractRequestNumber(requestNumber: string): string {
+  // Если есть старый формат "000018_140226", извлекаем порядковый номер
+  const parts = requestNumber.split('_')
+  if (parts.length > 1) {
+    // Старый формат - убираем нули впереди
+    return parseInt(parts[0], 10).toString()
+  }
+  // Новый формат - возвращаем как есть
+  return requestNumber
+}
+
 const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, canEdit, onEdit }: ViewRequestModalProps) => {
   const { currentRequestFiles, fetchRequestFiles, isLoading, isSubmitting } = usePaymentRequestStore()
   const { currentDecisions, currentLogs, fetchDecisions, fetchLogs } = useApprovalStore()
@@ -243,7 +255,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       const url = URL.createObjectURL(content)
       const a = document.createElement('a')
       a.href = url
-      a.download = `${request.requestNumber}.zip`
+      a.download = `${extractRequestNumber(request.requestNumber)}.zip`
       a.click()
       URL.revokeObjectURL(url)
     } finally {
@@ -385,7 +397,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   return (
     <>
       <Modal
-        title={resubmitMode ? `Повторная отправка — Заявка ${request.requestNumber}` : `Заявка ${request.requestNumber}`}
+        title={resubmitMode ? `Повторная отправка — Заявка ${extractRequestNumber(request.requestNumber)}` : `Заявка ${extractRequestNumber(request.requestNumber)}`}
         open={open}
         onCancel={onClose}
         footer={modalFooter}
@@ -393,13 +405,12 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
         centered
         style={{ maxHeight: '85vh' }}
         styles={{ body: { maxHeight: 'calc(85vh - 120px)', overflowY: 'auto', overflowX: 'hidden' } }}
-        maskClosable={false}
       >
         {/* Реквизиты — просмотр или редактирование */}
         {isEditing ? (
           <Form form={editForm} layout="vertical" style={{ marginBottom: 16 }}>
             <Descriptions column={2} size="small" bordered style={{ marginBottom: 12 }}>
-              <Descriptions.Item label="Номер">{request.requestNumber}</Descriptions.Item>
+              <Descriptions.Item label="Номер">{extractRequestNumber(request.requestNumber)}</Descriptions.Item>
               <Descriptions.Item label="Подрядчик">{request.counterpartyName}</Descriptions.Item>
             </Descriptions>
             <Form.Item name="siteId" label="Объект" rules={[{ required: true, message: 'Выберите объект' }]}>
@@ -467,7 +478,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
           </Form>
         ) : (
           <Descriptions column={2} size="small" bordered style={{ marginBottom: 16 }}>
-            <Descriptions.Item label="Номер">{request.requestNumber}</Descriptions.Item>
+            <Descriptions.Item label="Номер">{extractRequestNumber(request.requestNumber)}</Descriptions.Item>
             <Descriptions.Item label="Подрядчик">{request.counterpartyName}</Descriptions.Item>
             <Descriptions.Item label="Объект">{request.siteName ?? '—'}</Descriptions.Item>
             <Descriptions.Item label="Статус">
@@ -501,7 +512,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
         {!isEditing && (user?.department === 'omts' || user?.role === 'admin') && (
           <div style={{ marginTop: 24, marginBottom: 24 }}>
             <Text strong style={{ display: 'block', marginBottom: 12 }}>Ответственный ОМТС</Text>
-            <Space direction="vertical" style={{ width: '100%' }}>
+            <Space orientation="vertical" style={{ width: '100%' }}>
               {user?.role === 'admin' ? (
                 <Select
                   value={currentAssignment?.assignedUserId ?? undefined}

@@ -106,7 +106,6 @@ const FilePreviewModal = ({ open, onClose, fileKey, fileName, mimeType }: FilePr
       footer={null}
       width="80vw"
       style={{ top: 20 }}
-      destroyOnClose
     >
       {renderContent()}
     </Modal>

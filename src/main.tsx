@@ -7,6 +7,21 @@ import App from '@/App'
 import { theme } from '@/theme'
 import '@/index.css'
 
+// Подавление предупреждения Multiple GoTrueClient в dev режиме
+if (import.meta.env.DEV) {
+  const originalWarn = console.warn
+  console.warn = (...args: unknown[]) => {
+    const message = args[0]
+    if (
+      typeof message === 'string' &&
+      message.includes('Multiple GoTrueClient instances detected')
+    ) {
+      return
+    }
+    originalWarn.apply(console, args)
+  }
+}
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ConfigProvider locale={ruRU} theme={theme}>

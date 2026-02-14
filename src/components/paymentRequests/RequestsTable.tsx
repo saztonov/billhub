@@ -48,11 +48,16 @@ function formatDate(dateStr: string | null): string {
   })
 }
 
-/** Извлечение порядкового номера из request_number */
+/** Извлечение порядкового номера из request_number (для обратной совместимости со старым форматом) */
 function extractRequestNumber(requestNumber: string): string {
+  // Если есть старый формат "000018_140226", извлекаем порядковый номер
   const parts = requestNumber.split('_')
-  if (parts.length === 0) return requestNumber
-  return parseInt(parts[0], 10).toString()
+  if (parts.length > 1) {
+    // Старый формат - убираем нули впереди
+    return parseInt(parts[0], 10).toString()
+  }
+  // Новый формат - возвращаем как есть
+  return requestNumber
 }
 
 /** Расчет количества дней между двумя датами */

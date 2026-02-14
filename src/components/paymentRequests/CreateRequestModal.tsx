@@ -167,8 +167,6 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
       width="80%"
       style={{ maxHeight: '90vh' }}
       styles={{ body: { maxHeight: 'calc(90vh - 110px)', overflowY: 'auto', overflowX: 'hidden' } }}
-      maskClosable={false}
-      destroyOnClose
     >
       <Spin spinning={fieldOptions.length === 0 && open}>
         {/* Поля формы */}
