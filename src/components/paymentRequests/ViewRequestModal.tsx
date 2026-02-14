@@ -117,7 +117,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       fetchAssignmentHistory(request.id)
 
       // Загрузить список ОМТС если user может назначать
-      if (user?.role === 'admin_omts') {
+      if (user?.role === 'admin') {
         fetchOmtsUsers()
       }
     }
@@ -469,12 +469,12 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
           />
         )}
 
-        {/* Блок назначения ответственного (только для ОМТС) */}
-        {!isEditing && (user?.department === 'omts' || user?.role === 'admin_omts') && (
+        {/* Блок назначения ответственного (только для ОМТС или admin) */}
+        {!isEditing && (user?.department === 'omts' || user?.role === 'admin') && (
           <div style={{ marginTop: 24, marginBottom: 24 }}>
             <Text strong style={{ display: 'block', marginBottom: 12 }}>Ответственный ОМТС</Text>
             <Space direction="vertical" style={{ width: '100%' }}>
-              {user?.role === 'admin_omts' ? (
+              {user?.role === 'admin' ? (
                 <Select
                   value={currentAssignment?.assignedUserId ?? undefined}
                   placeholder="Выберите ответственного"

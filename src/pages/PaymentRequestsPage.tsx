@@ -53,8 +53,7 @@ const PaymentRequestsPage = () => {
   const isCounterpartyUser = user?.role === 'counterparty_user'
   const isAdmin = user?.role === 'admin'
   const isUser = user?.role === 'user'
-  const isAdminOmts = user?.role === 'admin_omts'
-  const isOmtsUser = user?.department === 'omts' || isAdminOmts
+  const isOmtsUser = user?.department === 'omts'
 
   const {
     requests,
@@ -158,8 +157,6 @@ const PaymentRequestsPage = () => {
   const canEditRequest = useCallback((record: PaymentRequest | null): boolean => {
     if (!record || isCounterpartyUser) return false
     if (isAdmin) return true
-    // admin_omts также может редактировать
-    if (user?.role === 'admin_omts') return true
     // user может редактировать заявки своих объектов
     if (isUser) {
       // Если all_sites=true, может редактировать все заявки
@@ -261,7 +258,7 @@ const PaymentRequestsPage = () => {
       message.success('Ответственный назначен')
       // Обновить список заявок
       const [sIds, allS] = siteFilterParams()
-      if (isUser || isAdminOmts) {
+      if (isUser) {
         fetchRequests(undefined, sIds, allS)
       } else {
         fetchRequests()
@@ -269,7 +266,7 @@ const PaymentRequestsPage = () => {
     } catch {
       message.error('Ошибка назначения')
     }
-  }, [user?.id, assignResponsible, isUser, isAdminOmts, siteFilterParams, fetchRequests])
+  }, [user?.id, assignResponsible, isUser, siteFilterParams, fetchRequests])
 
   // Фильтрация заявок по всем фильтрам
   const filteredRequests = useMemo(() => {
@@ -418,7 +415,7 @@ const PaymentRequestsPage = () => {
             uploadTasks={uploadTasks}
             onRetryUpload={retryTask}
             showResponsibleColumn={isOmtsUser}
-            canAssignResponsible={isAdminOmts}
+            canAssignResponsible={isAdmin}
             omtsUsers={omtsUsers}
             onAssignResponsible={handleAssignResponsible}
             responsibleFilter={filters.responsibleFilter}

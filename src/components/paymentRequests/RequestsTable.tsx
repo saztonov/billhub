@@ -178,7 +178,7 @@ const RequestsTable = (props: RequestsTableProps) => {
       key: 'responsible',
       width: 200,
       render: (_: unknown, record: PaymentRequest) => {
-        // Для admin_omts - dropdown
+        // Для admin - dropdown
         if (canAssignResponsible && omtsUsers && onAssignResponsible) {
           return (
             <Select

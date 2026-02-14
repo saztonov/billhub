@@ -108,7 +108,7 @@ export const useAssignmentStore = create<AssignmentStoreState>((set, get) => ({
         .from('users')
         .select('id, email, full_name')
         .eq('department_id', 'omts')
-        .in('role', ['admin', 'user', 'admin_omts'])
+        .in('role', ['admin', 'user'])
         .order('full_name', { ascending: true })
 
       if (error) throw error

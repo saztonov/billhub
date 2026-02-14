@@ -258,7 +258,7 @@ export interface OcrModel {
 // Аутентификация
 
 /** Роль пользователя */
-export type UserRole = 'admin' | 'user' | 'admin_omts' | 'counterparty_user'
+export type UserRole = 'admin' | 'user' | 'counterparty_user'
 
 /** Пользователь системы */
 export interface User {
