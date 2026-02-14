@@ -137,7 +137,7 @@ const RequestFilters = (props: RequestFiltersProps) => {
           )}
 
           {showResponsibleFilter && omtsUsers && omtsUsers.length > 0 && (
-            <Form.Item label="Пользователь ОМТС" name="responsibleUserId" style={{ marginBottom: 0, width: 220 }}>
+            <Form.Item label="Ответственный ОМТС" name="responsibleUserId" style={{ marginBottom: 0, width: 220 }}>
               <Select
                 placeholder="Все"
                 allowClear

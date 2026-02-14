@@ -592,7 +592,7 @@ const PaymentRequestsPage = () => {
   if (userDeptInChain) {
     tabItems.push({
       key: 'pending',
-      label: 'На согласование',
+      label: `На согласование (${filteredPendingRequests.length})`,
       children: (
         <div>
           {/* Переключатель этапов для админа */}

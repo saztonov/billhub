@@ -118,6 +118,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
           siteId: values.siteId,
           comment: values.comment,
           totalFiles: fileList.length,
+          invoiceAmount: values.invoiceAmount,
         },
         counterpartyId,
         user.id,

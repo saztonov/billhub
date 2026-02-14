@@ -36,6 +36,14 @@ function mapRequest(row: Record<string, unknown>): PaymentRequest {
   const site = row.construction_sites as Record<string, unknown> | null
   const statuses = row.statuses as Record<string, unknown> | null
   const shipping = row.shipping as Record<string, unknown> | null
+
+  // Извлекаем текущее назначение (is_current = true)
+  const assignments = (row.current_assignment as Record<string, unknown>[]) ?? []
+  const currentAssignment = assignments.find(
+    (a: Record<string, unknown>) => a.is_current === true
+  ) ?? null
+  const assignedUser = currentAssignment?.assigned_user as Record<string, unknown> | null
+
   return {
     id: row.id as string,
     requestNumber: row.request_number as string,
@@ -62,6 +70,9 @@ function mapRequest(row: Record<string, unknown>): PaymentRequest {
     statusName: statuses?.name as string | undefined,
     statusColor: (statuses?.color as string) ?? null,
     shippingConditionValue: shipping?.value as string | undefined,
+    assignedUserId: (currentAssignment?.assigned_user_id as string) ?? null,
+    assignedUserEmail: (assignedUser?.email as string) ?? null,
+    assignedUserFullName: (assignedUser?.full_name as string) ?? null,
   }
 }
 
@@ -71,7 +82,12 @@ const PR_SELECT = `
   counterparties(name),
   construction_sites(name),
   statuses!payment_requests_status_id_fkey(name, color),
-  shipping:payment_request_field_options!payment_requests_shipping_condition_id_fkey(value)
+  shipping:payment_request_field_options!payment_requests_shipping_condition_id_fkey(value),
+  current_assignment:payment_request_assignments!left(
+    assigned_user_id,
+    is_current,
+    assigned_user:users!payment_request_assignments_assigned_user_id_fkey(email, full_name)
+  )
 `
 
 /** Получить объекты пользователя */
@@ -328,27 +344,14 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
 
       let filteredRequests = (data ?? []).map(mapRequest)
 
-      // Для ОМТС — дополнительная фильтрация по ответственному менеджеру контрагента
+      // Для ОМТС — дополнительная фильтрация по назначенному ответственному
+      // Показываем заявки, назначенные текущему пользователю + не назначенные никому
       // Для админа фильтрация не применяется (админ видит все заявки этапа)
       if (department === 'omts' && !isAdmin) {
-        const counterpartyIds = [...new Set(filteredRequests.map((r) => r.counterpartyId))]
-        if (counterpartyIds.length > 0) {
-          const { data: cpData } = await supabase
-            .from('counterparties')
-            .select('id, responsible_user_id')
-            .in('id', counterpartyIds)
-
-          const cpMap = new Map<string, string | null>()
-          for (const cp of cpData ?? []) {
-            const row = cp as Record<string, unknown>
-            cpMap.set(row.id as string, (row.responsible_user_id as string) ?? null)
-          }
-
-          filteredRequests = filteredRequests.filter((r) => {
-            const responsibleUserId = cpMap.get(r.counterpartyId)
-            return responsibleUserId === userId
-          })
-        }
+        filteredRequests = filteredRequests.filter((r) => {
+          // Показываем заявку если она назначена пользователю или не назначена никому
+          return r.assignedUserId === userId || r.assignedUserId === null
+        })
       }
 
       set({ pendingRequests: filteredRequests, isLoading: false })
