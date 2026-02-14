@@ -58,7 +58,7 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
     try {
       const { data, error } = await supabase
         .from('users')
-        .select('id, email, full_name, role, counterparty_id, created_at, counterparties(name), department_id, departments(name), all_sites')
+        .select('id, email, full_name, role, counterparty_id, created_at, counterparties!counterparty_id(name), department_id, departments(name), all_sites')
         .order('created_at', { ascending: false })
       if (error) throw error
 

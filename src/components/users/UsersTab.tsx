@@ -9,6 +9,7 @@ import {
   Select,
   Tag,
   Checkbox,
+  Alert,
   message,
 } from 'antd'
 import { PlusOutlined, EditOutlined } from '@ant-design/icons'
@@ -42,7 +43,7 @@ const UsersTab = () => {
   const [allSitesChecked, setAllSitesChecked] = useState(false)
   const [form] = Form.useForm()
 
-  const { users, isLoading, fetchUsers, updateUser } = useUserStore()
+  const { users, isLoading, error, fetchUsers, updateUser } = useUserStore()
   const { counterparties, fetchCounterparties } = useCounterpartyStore()
   const { departments, fetchDepartments } = useDepartmentStore()
   const { sites, fetchSites } = useConstructionSiteStore()
@@ -162,6 +163,15 @@ const UsersTab = () => {
           Добавить
         </Button>
       </div>
+      {error && (
+        <Alert
+          type="error"
+          message="Ошибка загрузки пользователей"
+          description={error}
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+      )}
       <Table
         columns={columns}
         dataSource={users}
