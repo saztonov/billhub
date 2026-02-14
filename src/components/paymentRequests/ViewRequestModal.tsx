@@ -769,6 +769,20 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                         </List.Item>
                       )
                     }
+                    if (log.action === 'resubmit') {
+                      const comment = (log.details?.comment as string) ?? ''
+                      const text = comment ? `Повторно отправлено. Комментарий: ${comment}` : 'Повторно отправлено'
+                      return (
+                        <List.Item>
+                          <Space>
+                            <SendOutlined style={{ color: '#1677ff' }} />
+                            <Text>{text}</Text>
+                            {log.userEmail && <Text type="secondary">({log.userEmail})</Text>}
+                            <Text type="secondary">{formatDate(log.createdAt)}</Text>
+                          </Space>
+                        </List.Item>
+                      )
+                    }
                     return null
                   }}
                 />
