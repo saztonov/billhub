@@ -269,6 +269,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
                   style={{ width: '100%' }}
                   placeholder="Сумма"
                   addonAfter="₽"
+                  parser={(value) => value?.replace(',', '.')}
                 />
               </Form.Item>
             </Col>

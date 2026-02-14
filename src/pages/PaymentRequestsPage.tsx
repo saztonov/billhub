@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
-import { Typography, Button, Tabs, message, Radio, Statistic } from 'antd'
+import { Typography, Button, Tabs, message, Radio } from 'antd'
 import { PlusOutlined, FilterOutlined } from '@ant-design/icons'
 import { usePaymentRequestStore } from '@/store/paymentRequestStore'
 import type { EditRequestData } from '@/store/paymentRequestStore'
@@ -128,22 +128,25 @@ const PaymentRequestsPage = () => {
     }
   }, [fetchRequests, isCounterpartyUser, isAdmin, isUser, user?.counterpartyId, sitesLoaded, userSiteIds, userAllSites])
 
+  // Загружаем pendingRequests для счетчика вкладки (независимо от activeTab)
+  useEffect(() => {
+    if (isCounterpartyUser || !sitesLoaded || !user?.id) return
+    const department = isAdmin ? adminSelectedStage : user?.department
+    if (department && userDeptInChain) {
+      fetchPendingRequests(department, user.id, isAdmin)
+    }
+  }, [isCounterpartyUser, sitesLoaded, user?.id, user?.department, isAdmin, adminSelectedStage, userDeptInChain, fetchPendingRequests])
+
   // Загружаем данные при переключении вкладок
   useEffect(() => {
     if (isCounterpartyUser || !sitesLoaded) return
     const [sIds, allS] = siteFilterParams()
-    if (activeTab === 'pending' && user?.id) {
-      // Для админа используем выбранный этап, для обычных пользователей - их department
-      const department = isAdmin ? adminSelectedStage : user?.department
-      if (department) {
-        fetchPendingRequests(department, user.id, isAdmin)
-      }
-    } else if (activeTab === 'approved') {
+    if (activeTab === 'approved') {
       fetchApprovedRequests(sIds, allS)
     } else if (activeTab === 'rejected') {
       fetchRejectedRequests(sIds, allS)
     }
-  }, [activeTab, isCounterpartyUser, user?.department, user?.id, sitesLoaded, siteFilterParams, fetchPendingRequests, fetchApprovedRequests, fetchRejectedRequests, isAdmin, adminSelectedStage])
+  }, [activeTab, isCounterpartyUser, sitesLoaded, siteFilterParams, fetchApprovedRequests, fetchRejectedRequests])
 
   // Загружаем справочники для фильтров
   useEffect(() => {
@@ -157,12 +160,12 @@ const PaymentRequestsPage = () => {
     }
   }, [isCounterpartyUser, fetchCounterparties, fetchSites, fetchStatuses])
 
-  // Загружаем список ОМТС для назначения
+  // Загружаем список ОМТС для назначения (для пользователей ОМТС и для админов)
   useEffect(() => {
-    if (isOmtsUser) {
+    if (isOmtsUser || isAdmin) {
       fetchOmtsUsers()
     }
-  }, [isOmtsUser, fetchOmtsUsers])
+  }, [isOmtsUser, isAdmin, fetchOmtsUsers])
 
   /** Проверяет, может ли текущий пользователь редактировать заявку */
   const canEditRequest = useCallback((record: PaymentRequest | null): boolean => {
@@ -666,31 +669,44 @@ const PaymentRequestsPage = () => {
           {/* Виджеты для вкладки "На согласование" */}
           {activeTab === 'pending' && userDeptInChain && (
             <>
-              <Statistic
-                title="Сумма счетов"
-                value={totalInvoiceAmount}
-                precision={2}
-                suffix="₽"
-                valueStyle={{ fontSize: '16px' }}
+              <div
                 style={{
                   padding: '8px 16px',
                   border: '1px solid #d9d9d9',
                   borderRadius: '6px',
-                  backgroundColor: '#fafafa'
+                  backgroundColor: '#fafafa',
+                  whiteSpace: 'nowrap'
                 }}
-              />
+              >
+                <span style={{ color: '#8c8c8c', marginRight: 8 }}>Сумма счетов:</span>
+                <span style={{ fontWeight: 500, fontSize: '16px' }}>
+                  {totalInvoiceAmount.toLocaleString('ru-RU', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                  })} ₽
+                </span>
+              </div>
               {isAdmin && (
-                <Statistic
-                  title="Не назначено ответственных"
-                  value={unassignedOmtsCount}
-                  valueStyle={{ fontSize: '16px', color: unassignedOmtsCount > 0 ? '#faad14' : undefined }}
+                <div
                   style={{
                     padding: '8px 16px',
                     border: '1px solid #d9d9d9',
                     borderRadius: '6px',
-                    backgroundColor: '#fafafa'
+                    backgroundColor: '#fafafa',
+                    whiteSpace: 'nowrap'
                   }}
-                />
+                >
+                  <span style={{ color: '#8c8c8c', marginRight: 8 }}>Не назначено:</span>
+                  <span
+                    style={{
+                      fontWeight: 500,
+                      fontSize: '16px',
+                      color: unassignedOmtsCount > 0 ? '#faad14' : 'inherit'
+                    }}
+                  >
+                    {unassignedOmtsCount}
+                  </span>
+                </div>
               )}
             </>
           )}

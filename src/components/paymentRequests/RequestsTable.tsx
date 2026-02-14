@@ -491,6 +491,11 @@ const RequestsTable = (props: RequestsTableProps) => {
         rowKey="id"
         loading={isLoading}
         scroll={{ x: 1200 }}
+        pagination={{
+          showSizeChanger: true,
+          pageSizeOptions: [10, 20, 50, 100],
+          defaultPageSize: 20
+        }}
         rowClassName={(record: PaymentRequest) =>
           uploadTasks?.[record.id]?.status === 'error' ? 'row-upload-error' : ''
         }

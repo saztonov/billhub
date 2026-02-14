@@ -30,6 +30,7 @@ export const useNotificationStore = create<NotificationStoreState>((set) => ({
           payment_requests(request_number)
         `)
         .eq('user_id', userId)
+        .eq('is_read', false)
         .order('created_at', { ascending: false })
         .limit(50)
       if (error) throw error
@@ -85,9 +86,7 @@ export const useNotificationStore = create<NotificationStoreState>((set) => ({
       if (error) throw error
 
       set((state) => ({
-        notifications: state.notifications.map((n) =>
-          n.id === notificationId ? { ...n, isRead: true } : n,
-        ),
+        notifications: state.notifications.filter((n) => n.id !== notificationId),
         unreadCount: Math.max(0, state.unreadCount - 1),
       }))
     } catch {
@@ -104,10 +103,10 @@ export const useNotificationStore = create<NotificationStoreState>((set) => ({
         .eq('is_read', false)
       if (error) throw error
 
-      set((state) => ({
-        notifications: state.notifications.map((n) => ({ ...n, isRead: true })),
+      set({
+        notifications: [],
         unreadCount: 0,
-      }))
+      })
     } catch {
       // Молча обрабатываем ошибку
     }
