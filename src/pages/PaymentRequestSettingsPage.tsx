@@ -91,14 +91,37 @@ const PaymentRequestSettingsPage = () => {
   }
 
   const statusColumns = [
-    { title: 'Код', dataIndex: 'code', key: 'code', width: 150 },
-    { title: 'Название', dataIndex: 'name', key: 'name' },
     {
-      title: 'Цвет', dataIndex: 'color', key: 'color', width: 120,
+      title: 'Код',
+      dataIndex: 'code',
+      key: 'code',
+      width: 150,
+      sorter: (a: Status, b: Status) => a.code.localeCompare(b.code),
+    },
+    {
+      title: 'Название',
+      dataIndex: 'name',
+      key: 'name',
+      sorter: (a: Status, b: Status) => a.name.localeCompare(b.name),
+    },
+    {
+      title: 'Цвет',
+      dataIndex: 'color',
+      key: 'color',
+      width: 120,
+      sorter: (a: Status, b: Status) => {
+        const aVal = a.color || ''
+        const bVal = b.color || ''
+        return aVal.localeCompare(bVal)
+      },
       render: (color: string | null) => color ? <Tag color={color}>{color}</Tag> : '—',
     },
     {
-      title: 'Активен', dataIndex: 'isActive', key: 'isActive', width: 100,
+      title: 'Активен',
+      dataIndex: 'isActive',
+      key: 'isActive',
+      width: 100,
+      sorter: (a: Status, b: Status) => (a.isActive === b.isActive ? 0 : a.isActive ? -1 : 1),
       render: (val: boolean) => <Tag color={val ? 'green' : 'default'}>{val ? 'Да' : 'Нет'}</Tag>,
     },
     {
@@ -113,7 +136,13 @@ const PaymentRequestSettingsPage = () => {
         return roles.map((r) => <Tag key={r}>{labels[r] ?? r}</Tag>)
       },
     },
-    { title: 'Порядок', dataIndex: 'displayOrder', key: 'displayOrder', width: 100 },
+    {
+      title: 'Порядок',
+      dataIndex: 'displayOrder',
+      key: 'displayOrder',
+      width: 100,
+      sorter: (a: Status, b: Status) => a.displayOrder - b.displayOrder,
+    },
     {
       title: 'Действия', key: 'actions', width: 100,
       render: (_: unknown, record: Status) => (
@@ -149,30 +178,49 @@ const PaymentRequestSettingsPage = () => {
     const values = await optionForm.validateFields()
     if (editingOption) {
       await updateFieldOption(editingOption.id, values)
-      message.success('Опция обновлена')
+      message.success('Условие обновлено')
     } else {
       await createFieldOption(values)
-      message.success('Опция создана')
+      message.success('Условие создано')
     }
     setOptionModal(false)
   }
 
   const handleDeleteOption = async (id: string) => {
     await deleteFieldOption(id)
-    message.success('Опция удалена')
+    message.success('Условие удалено')
   }
 
   const optionColumns = [
     {
-      title: 'Поле', dataIndex: 'fieldCode', key: 'fieldCode', width: 180,
+      title: 'Поле',
+      dataIndex: 'fieldCode',
+      key: 'fieldCode',
+      width: 180,
+      sorter: (a: PaymentRequestFieldOption, b: PaymentRequestFieldOption) => a.fieldCode.localeCompare(b.fieldCode),
       render: (code: string) => fieldCodeLabels[code] ?? code,
     },
-    { title: 'Значение', dataIndex: 'value', key: 'value' },
     {
-      title: 'Активна', dataIndex: 'isActive', key: 'isActive', width: 100,
+      title: 'Значение',
+      dataIndex: 'value',
+      key: 'value',
+      sorter: (a: PaymentRequestFieldOption, b: PaymentRequestFieldOption) => a.value.localeCompare(b.value),
+    },
+    {
+      title: 'Активна',
+      dataIndex: 'isActive',
+      key: 'isActive',
+      width: 100,
+      sorter: (a: PaymentRequestFieldOption, b: PaymentRequestFieldOption) => (a.isActive === b.isActive ? 0 : a.isActive ? -1 : 1),
       render: (val: boolean) => <Tag color={val ? 'green' : 'default'}>{val ? 'Да' : 'Нет'}</Tag>,
     },
-    { title: 'Порядок', dataIndex: 'displayOrder', key: 'displayOrder', width: 100 },
+    {
+      title: 'Порядок',
+      dataIndex: 'displayOrder',
+      key: 'displayOrder',
+      width: 100,
+      sorter: (a: PaymentRequestFieldOption, b: PaymentRequestFieldOption) => a.displayOrder - b.displayOrder,
+    },
     {
       title: 'Действия', key: 'actions', width: 100,
       render: (_: unknown, record: PaymentRequestFieldOption) => (
@@ -203,19 +251,24 @@ const PaymentRequestSettingsPage = () => {
             rowKey="id"
             loading={statusLoading}
             scroll={{ x: 700 }}
-            pagination={false}
+            pagination={{
+              showSizeChanger: true,
+              pageSizeOptions: ['10', '20', '50', '100'],
+              defaultPageSize: 20,
+              showTotal: (total, range) => `${range[0]}-${range[1]} из ${total}`,
+            }}
           />
         </>
       ),
     },
     {
       key: 'options',
-      label: 'Опции полей',
+      label: 'Условия отгрузки',
       children: (
         <>
           <div style={{ marginBottom: 16 }}>
             <Button type="primary" icon={<PlusOutlined />} onClick={handleCreateOption}>
-              Добавить опцию
+              Добавить условие
             </Button>
           </div>
           <Table
@@ -224,7 +277,12 @@ const PaymentRequestSettingsPage = () => {
             rowKey="id"
             loading={optionsLoading}
             scroll={{ x: 600 }}
-            pagination={false}
+            pagination={{
+              showSizeChanger: true,
+              pageSizeOptions: ['10', '20', '50', '100'],
+              defaultPageSize: 20,
+              showTotal: (total, range) => `${range[0]}-${range[1]} из ${total}`,
+            }}
           />
         </>
       ),
@@ -283,9 +341,9 @@ const PaymentRequestSettingsPage = () => {
         </Form>
       </Modal>
 
-      {/* Модал опции */}
+      {/* Модал условия */}
       <Modal
-        title={editingOption ? 'Редактировать опцию' : 'Новая опция'}
+        title={editingOption ? 'Редактировать условие' : 'Новое условие'}
         open={optionModal}
         onOk={handleSubmitOption}
         onCancel={() => setOptionModal(false)}

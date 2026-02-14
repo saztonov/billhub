@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import {
   Table,
   Button,
@@ -41,6 +41,8 @@ const UsersTab = () => {
   const [editingRecord, setEditingRecord] = useState<UserRecord | null>(null)
   const [selectedRole, setSelectedRole] = useState<UserRole>('user')
   const [allSitesChecked, setAllSitesChecked] = useState(false)
+  const [searchFullName, setSearchFullName] = useState('')
+  const [searchCounterparty, setSearchCounterparty] = useState('')
   const [form] = Form.useForm()
 
   const { users, isLoading, error, fetchUsers, updateUser } = useUserStore()
@@ -89,22 +91,73 @@ const UsersTab = () => {
     form.resetFields()
   }
 
+  // Генерация фильтров для объектов
+  const siteFilters = useMemo(() => {
+    const uniqueSites = new Set<string>()
+    users.forEach(user => {
+      if (user.allSites) {
+        uniqueSites.add('__ALL__')
+      } else {
+        user.siteNames.forEach(name => uniqueSites.add(name))
+      }
+    })
+
+    const filters = Array.from(uniqueSites).map(name => {
+      if (name === '__ALL__') {
+        return { text: 'Все объекты', value: '__ALL__' }
+      }
+      return { text: name, value: name }
+    }).sort((a, b) => {
+      if (a.value === '__ALL__') return -1
+      if (b.value === '__ALL__') return 1
+      return a.text.localeCompare(b.text)
+    })
+
+    filters.push({ text: 'Не указано', value: '__NONE__' })
+
+    return filters
+  }, [users])
+
+  // Фильтрация данных по поисковым полям
+  const filteredUsers = useMemo(() => {
+    return users.filter(user => {
+      const matchFullName = !searchFullName ||
+        (user.fullName?.toLowerCase() || '').includes(searchFullName.toLowerCase())
+      const matchCounterparty = !searchCounterparty ||
+        (user.counterpartyName?.toLowerCase() || '').includes(searchCounterparty.toLowerCase())
+      return matchFullName && matchCounterparty
+    })
+  }, [users, searchFullName, searchCounterparty])
+
   const columns = [
     {
       title: 'ФИО',
       dataIndex: 'fullName',
       key: 'fullName',
+      sorter: (a: UserRecord, b: UserRecord) => {
+        const aVal = a.fullName || ''
+        const bVal = b.fullName || ''
+        return aVal.localeCompare(bVal)
+      },
       render: (name: string) => name || '—',
     },
     {
       title: 'Email',
       dataIndex: 'email',
       key: 'email',
+      sorter: (a: UserRecord, b: UserRecord) => a.email.localeCompare(b.email),
     },
     {
       title: 'Роль',
       dataIndex: 'role',
       key: 'role',
+      sorter: (a: UserRecord, b: UserRecord) => a.role.localeCompare(b.role),
+      filters: [
+        { text: 'Администратор', value: 'admin' },
+        { text: 'Пользователь', value: 'user' },
+        { text: 'Подрядчик', value: 'counterparty_user' },
+      ],
+      onFilter: (value, record) => record.role === value,
       render: (role: UserRole) => (
         <Tag color={roleColors[role]}>{roleLabels[role]}</Tag>
       ),
@@ -113,17 +166,47 @@ const UsersTab = () => {
       title: 'Подрядчик',
       dataIndex: 'counterpartyName',
       key: 'counterpartyName',
+      sorter: (a: UserRecord, b: UserRecord) => {
+        const aVal = a.counterpartyName || ''
+        const bVal = b.counterpartyName || ''
+        return aVal.localeCompare(bVal)
+      },
       render: (name: string | null) => name ?? '—',
     },
     {
       title: 'Подразделение',
       dataIndex: 'department',
       key: 'department',
+      sorter: (a: UserRecord, b: UserRecord) => {
+        if (a.department === null && b.department === null) return 0
+        if (a.department === null) return 1
+        if (b.department === null) return -1
+        return a.department.localeCompare(b.department)
+      },
+      filters: [
+        { text: DEPARTMENT_LABELS.omts, value: 'omts' },
+        { text: DEPARTMENT_LABELS.shtab, value: 'shtab' },
+        { text: DEPARTMENT_LABELS.smetny, value: 'smetny' },
+        { text: 'Не указано', value: null },
+      ],
+      onFilter: (value, record) => {
+        if (value === null) return record.department === null
+        return record.department === value
+      },
       render: (dept: Department | null) => dept ? DEPARTMENT_LABELS[dept] : '—',
     },
     {
       title: 'Объекты',
       key: 'sites',
+      filters: siteFilters,
+      onFilter: (value, record) => {
+        if (value === '__ALL__') return record.allSites
+        if (value === '__NONE__') {
+          return record.role === 'counterparty_user' ||
+            (!record.allSites && record.siteNames.length === 0)
+        }
+        return record.siteNames.includes(value as string)
+      },
       render: (_: unknown, record: UserRecord) => {
         if (record.role === 'counterparty_user') return '—'
         if (record.allSites) return <Tag color="purple">Все объекты</Tag>
@@ -155,11 +238,27 @@ const UsersTab = () => {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+      <Space style={{ marginBottom: 16, width: '100%', justifyContent: 'space-between' }}>
+        <Space>
+          <Input.Search
+            placeholder="Поиск по ФИО"
+            allowClear
+            style={{ width: 250 }}
+            value={searchFullName}
+            onChange={(e) => setSearchFullName(e.target.value)}
+          />
+          <Input.Search
+            placeholder="Поиск по подрядчику"
+            allowClear
+            style={{ width: 250 }}
+            value={searchCounterparty}
+            onChange={(e) => setSearchCounterparty(e.target.value)}
+          />
+        </Space>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsCreateModalOpen(true)}>
           Добавить
         </Button>
-      </div>
+      </Space>
       {error && (
         <Alert
           type="error"
@@ -171,10 +270,16 @@ const UsersTab = () => {
       )}
       <Table
         columns={columns}
-        dataSource={users}
+        dataSource={filteredUsers}
         rowKey="id"
         loading={isLoading}
         scroll={{ x: 900 }}
+        pagination={{
+          showSizeChanger: true,
+          pageSizeOptions: ['10', '20', '50', '100'],
+          defaultPageSize: 20,
+          showTotal: (total, range) => `${range[0]}-${range[1]} из ${total}`,
+        }}
       />
       <CreateUserModal
         open={isCreateModalOpen}
