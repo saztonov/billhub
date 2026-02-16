@@ -13,6 +13,7 @@ export interface UserRecord {
   counterpartyName: string | null
   department: Department | null
   allSites: boolean
+  isActive: boolean
   siteIds: string[]
   siteNames: string[]
   createdAt: string
@@ -45,6 +46,7 @@ interface UserStoreState {
   fetchUsers: () => Promise<void>
   createUser: (data: CreateUserData) => Promise<void>
   updateUser: (id: string, data: UpdateUserData) => Promise<void>
+  deactivateUser: (id: string) => Promise<void>
 }
 
 export const useUserStore = create<UserStoreState>((set, get) => ({
@@ -57,7 +59,7 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
     try {
       const { data, error } = await supabase
         .from('users')
-        .select('id, email, full_name, role, counterparty_id, created_at, counterparties!counterparty_id(name), department_id, all_sites')
+        .select('id, email, full_name, role, counterparty_id, created_at, counterparties!counterparty_id(name), department_id, all_sites, is_active')
         .order('created_at', { ascending: false })
       if (error) throw error
 
@@ -94,6 +96,7 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
           counterpartyName: (row.counterparties as { name: string } | null)?.name ?? null,
           department: (row.department_id as Department | null) ?? null,
           allSites: (row.all_sites as boolean) ?? false,
+          isActive: (row.is_active as boolean) ?? true,
           siteIds: sites?.ids ?? [],
           siteNames: sites?.names ?? [],
           createdAt: row.created_at as string,
@@ -216,6 +219,21 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
       await get().fetchUsers()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка обновления пользователя'
+      set({ error: message, isLoading: false })
+    }
+  },
+
+  deactivateUser: async (id) => {
+    set({ isLoading: true, error: null })
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({ is_active: false })
+        .eq('id', id)
+      if (error) throw error
+      await get().fetchUsers()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Ошибка деактивации пользователя'
       set({ error: message, isLoading: false })
     }
   },

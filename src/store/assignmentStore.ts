@@ -114,6 +114,7 @@ export const useAssignmentStore = create<AssignmentStoreState>((set, get) => ({
         .from('users')
         .select('id, email, full_name')
         .eq('department_id', 'omts')
+        .eq('is_active', true)
         .in('role', ['admin', 'user'])
         .order('full_name', { ascending: true })
 

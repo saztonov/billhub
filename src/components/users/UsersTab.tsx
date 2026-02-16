@@ -11,9 +11,11 @@ import {
   Checkbox,
   Alert,
   App,
+  Popconfirm,
 } from 'antd'
-import { PlusOutlined, EditOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useUserStore } from '@/store/userStore'
+import { useAuthStore } from '@/store/authStore'
 import { useCounterpartyStore } from '@/store/counterpartyStore'
 import { useConstructionSiteStore } from '@/store/constructionSiteStore'
 import CreateUserModal from '@/components/users/CreateUserModal'
@@ -46,7 +48,8 @@ const UsersTab = () => {
   const [searchCounterparty, setSearchCounterparty] = useState('')
   const [form] = Form.useForm()
 
-  const { users, isLoading, error, fetchUsers, updateUser } = useUserStore()
+  const { users, isLoading, error, fetchUsers, updateUser, deactivateUser } = useUserStore()
+  const currentUser = useAuthStore((s) => s.user)
   const { counterparties, fetchCounterparties } = useCounterpartyStore()
   const { sites, fetchSites } = useConstructionSiteStore()
 
@@ -85,6 +88,11 @@ const UsersTab = () => {
     message.success('Пользователь обновлён')
     setIsEditModalOpen(false)
     form.resetFields()
+  }
+
+  const handleDeactivate = async (id: string) => {
+    await deactivateUser(id)
+    message.success('Пользователь деактивирован')
   }
 
   const handleCancel = () => {
@@ -140,7 +148,12 @@ const UsersTab = () => {
         const bVal = b.fullName || ''
         return aVal.localeCompare(bVal)
       },
-      render: (name: string) => name || '—',
+      render: (name: string, record: UserRecord) => (
+        <Space>
+          <span>{name || '—'}</span>
+          {!record.isActive && <Tag color="default">Деактивирован</Tag>}
+        </Space>
+      ),
     },
     {
       title: 'Email',
@@ -227,6 +240,17 @@ const UsersTab = () => {
       render: (_: unknown, record: UserRecord) => (
         <Space>
           <Button icon={<EditOutlined />} onClick={() => handleEdit(record)} size="small" />
+          {record.isActive && record.id !== currentUser?.id && (
+            <Popconfirm
+              title="Деактивировать пользователя?"
+              description="Пользователь не сможет войти в систему"
+              onConfirm={() => handleDeactivate(record.id)}
+              okText="Да"
+              cancelText="Нет"
+            >
+              <Button icon={<DeleteOutlined />} danger size="small" />
+            </Popconfirm>
+          )}
         </Space>
       ),
     },
@@ -275,6 +299,7 @@ const UsersTab = () => {
         rowKey="id"
         loading={isLoading}
         scroll={{ x: 900 }}
+        rowClassName={(record: UserRecord) => !record.isActive ? 'deactivated-row' : ''}
         pagination={{
           showSizeChanger: true,
           pageSizeOptions: ['10', '20', '50', '100'],

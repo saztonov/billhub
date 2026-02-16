@@ -13,3 +13,8 @@ body {
 #root {
   min-height: 100vh;
 }
+
+/* Деактивированные строки в таблицах */
+.deactivated-row {
+  opacity: 0.5;
+}

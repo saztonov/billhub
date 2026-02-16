@@ -28,10 +28,17 @@ export const useAuthStore = create<AuthStoreState>((set) => ({
 
       const { data: userData, error: userError } = await supabase
         .from('users')
-        .select('id, email, role, counterparty_id, department_id, all_sites, full_name')
+        .select('id, email, role, counterparty_id, department_id, all_sites, full_name, is_active')
         .eq('id', authData.user.id)
         .single()
       if (userError) throw userError
+
+      // Проверка деактивации
+      if (userData.is_active === false) {
+        await supabase.auth.signOut()
+        set({ user: null, isAuthenticated: false, isLoading: false, error: 'Ваш аккаунт деактивирован' })
+        return
+      }
 
       const user: User = {
         id: userData.id,
@@ -41,6 +48,7 @@ export const useAuthStore = create<AuthStoreState>((set) => ({
         counterpartyId: userData.counterparty_id,
         department: userData.department_id,
         allSites: userData.all_sites ?? false,
+        isActive: userData.is_active ?? true,
       }
       set({ user, isAuthenticated: true, isLoading: false })
     } catch (err) {
@@ -72,10 +80,17 @@ export const useAuthStore = create<AuthStoreState>((set) => ({
 
       const { data: userData, error: userError } = await supabase
         .from('users')
-        .select('id, email, role, counterparty_id, department_id, all_sites, full_name')
+        .select('id, email, role, counterparty_id, department_id, all_sites, full_name, is_active')
         .eq('id', session.user.id)
         .single()
       if (userError) throw userError
+
+      // Проверка деактивации — разлогиниваем
+      if (userData.is_active === false) {
+        await supabase.auth.signOut()
+        set({ user: null, isAuthenticated: false, isLoading: false })
+        return
+      }
 
       const user: User = {
         id: userData.id,
@@ -85,6 +100,7 @@ export const useAuthStore = create<AuthStoreState>((set) => ({
         counterpartyId: userData.counterparty_id,
         department: userData.department_id,
         allSites: userData.all_sites ?? false,
+        isActive: userData.is_active ?? true,
       }
       set({ user, isAuthenticated: true, isLoading: false })
     } catch (err) {

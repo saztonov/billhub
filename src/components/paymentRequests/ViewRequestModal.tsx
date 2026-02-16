@@ -83,15 +83,18 @@ function formatSize(bytes: number | null): string {
 }
 
 /** Форматирование даты */
-function formatDate(dateStr: string): string {
+function formatDate(dateStr: string, withTime = true): string {
   const d = new Date(dateStr)
-  return d.toLocaleDateString('ru-RU', {
+  const opts: Intl.DateTimeFormatOptions = {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  }
+  if (withTime) {
+    opts.hour = '2-digit'
+    opts.minute = '2-digit'
+  }
+  return d.toLocaleDateString('ru-RU', opts)
 }
 
 /** Извлечение порядкового номера из request_number (для обратной совместимости со старым форматом) */
@@ -630,7 +633,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                 : '—'
               }
             </Descriptions.Item>
-            <Descriptions.Item label="Дата создания">{formatDate(request.createdAt)}</Descriptions.Item>
+            <Descriptions.Item label="Дата создания">{formatDate(request.createdAt, !isCounterpartyUser)}</Descriptions.Item>
             {request.comment && (
               <Descriptions.Item label="Комментарий" span={2}>{request.comment}</Descriptions.Item>
             )}
@@ -722,7 +725,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                       <Space>
                         {item.icon}
                         <Text>{item.text}</Text>
-                        {item.date && <Text type="secondary">{formatDate(item.date)}</Text>}
+                        {item.date && <Text type="secondary">{formatDate(item.date, false)}</Text>}
                       </Space>
                       {item.files && item.files.length > 0 && (
                         <div style={{ marginLeft: 22, marginTop: 8 }}>

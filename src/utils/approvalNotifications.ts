@@ -28,6 +28,7 @@ export async function checkAndNotifyMissingSpecialists(
       .from('users')
       .select('id, all_sites')
       .eq('department_id', department)
+      .eq('is_active', true)
       .in('role', ['admin', 'user'])
 
     let hasSpecialist = false
@@ -70,6 +71,7 @@ export async function checkAndNotifyMissingSpecialists(
       const { data: recipients } = await supabase
         .from('users')
         .select('id')
+        .eq('is_active', true)
         .in('role', ['admin', 'user'])
 
       const notifications = (recipients ?? []).map((r: Record<string, unknown>) => ({

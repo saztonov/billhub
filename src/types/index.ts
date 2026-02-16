@@ -285,6 +285,7 @@ export interface User {
   counterpartyId: string | null
   department: Department | null
   allSites: boolean
+  isActive: boolean
 }
 
 /** Тип уведомления */
