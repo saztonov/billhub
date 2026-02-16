@@ -28,6 +28,7 @@ export interface Counterparty {
   address: string
   alternativeNames: string[]
   registrationToken: string | null
+  isActive?: boolean
   createdAt: string
 }
 

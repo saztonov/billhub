@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, type Key } from 'react'
 import {
   Table,
   Button,
@@ -158,7 +158,7 @@ const UsersTab = () => {
         { text: 'Пользователь', value: 'user' },
         { text: 'Подрядчик', value: 'counterparty_user' },
       ],
-      onFilter: (value, record) => record.role === value,
+      onFilter: (value: boolean | Key, record: UserRecord) => record.role === value,
       render: (role: UserRole) => (
         <Tag color={roleColors[role]}>{roleLabels[role]}</Tag>
       ),
@@ -188,10 +188,10 @@ const UsersTab = () => {
         { text: DEPARTMENT_LABELS.omts, value: 'omts' },
         { text: DEPARTMENT_LABELS.shtab, value: 'shtab' },
         { text: DEPARTMENT_LABELS.smetny, value: 'smetny' },
-        { text: 'Не указано', value: null },
+        { text: 'Не указано', value: '__NULL__' },
       ],
-      onFilter: (value, record) => {
-        if (value === null) return record.department === null
+      onFilter: (value: boolean | Key, record: UserRecord) => {
+        if (value === '__NULL__') return record.department === null
         return record.department === value
       },
       render: (dept: Department | null) => dept ? DEPARTMENT_LABELS[dept] : '—',
@@ -200,7 +200,7 @@ const UsersTab = () => {
       title: 'Объекты',
       key: 'sites',
       filters: siteFilters,
-      onFilter: (value, record) => {
+      onFilter: (value: boolean | Key, record: UserRecord) => {
         if (value === '__ALL__') return record.allSites
         if (value === '__NONE__') {
           return record.role === 'counterparty_user' ||

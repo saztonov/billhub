@@ -42,7 +42,7 @@ import FilePreviewModal from './FilePreviewModal'
 import FileUploadList from './FileUploadList'
 import type { FileItem } from './FileUploadList'
 import DeliveryCalculation from './DeliveryCalculation'
-import type { PaymentRequest, PaymentRequestFile, ApprovalDecisionFile } from '@/types'
+import type { PaymentRequest, PaymentRequestFile, ApprovalDecisionFile, ApprovalDecision, PaymentRequestLog } from '@/types'
 import { DEPARTMENT_LABELS } from '@/types'
 
 const { Text } = Typography
@@ -534,7 +534,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                       precision={2}
                       style={{ width: '100%' }}
                       placeholder="Сумма"
-                      parser={(value) => value?.replace(',', '.')}
+                      parser={(value) => Number(value?.replace(',', '.') || 0)}
                     />
                     <Input style={{ width: 50 }} value="₽" readOnly />
                   </Space.Compact>
@@ -590,7 +590,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
         {!isEditing && (
           <DeliveryCalculation
             deliveryDays={request.deliveryDays}
-            deliveryDaysType={request.deliveryDaysType}
+            deliveryDaysType={request.deliveryDaysType as 'working' | 'calendar'}
             defaultExpanded={false}
           />
         )}
@@ -749,7 +749,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                                 Прикрепленные файлы:
                               </Text>
                               <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                                {decision.files.map((file) => (
+                                {decision.files.map((file: ApprovalDecisionFile) => (
                                   <div key={file.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                     <Text style={{ flex: 1, fontSize: 12 }}>{file.fileName}</Text>
                                     <Space size="small">

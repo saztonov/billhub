@@ -17,10 +17,8 @@ import {
 import {
   EyeOutlined,
   DeleteOutlined,
-  SyncOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
-  ReloadOutlined,
   RollbackOutlined,
   CheckOutlined,
   StopOutlined,
@@ -30,7 +28,6 @@ import {
 } from '@ant-design/icons'
 import { useState } from 'react'
 import type { PaymentRequest } from '@/types'
-import type { UploadFile } from 'antd/es/upload/interface'
 
 const { TextArea } = Input
 const { Dragger } = Upload
@@ -85,7 +82,6 @@ export interface RequestsTableProps {
   onDelete?: (id: string) => void
   // Задачи загрузки (для подсветки ошибок)
   uploadTasks?: Record<string, { status: string }>
-  onRetryUpload?: (id: string) => void
   // Прогресс согласования (для counterparty_user)
   totalStages?: number
   // Согласование
@@ -123,7 +119,6 @@ const RequestsTable = (props: RequestsTableProps) => {
     isAdmin,
     onDelete,
     uploadTasks,
-    onRetryUpload,
     showApprovalActions,
     onApprove,
     onReject,

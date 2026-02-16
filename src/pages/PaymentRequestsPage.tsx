@@ -77,10 +77,9 @@ const PaymentRequestsPage = () => {
 
   const { counterparties, fetchCounterparties } = useCounterpartyStore()
   const { sites, fetchSites } = useConstructionSiteStore()
-  const { statuses, fetchStatuses } = useStatusStore()
+  const { fetchStatuses } = useStatusStore()
   const { omtsUsers, fetchOmtsUsers, assignResponsible } = useAssignmentStore()
 
-  const retryTask = useUploadQueueStore((s) => s.retryTask)
   const uploadTasks = useUploadQueueStore((s) => s.tasks)
 
   const {
@@ -493,7 +492,6 @@ const PaymentRequestsPage = () => {
             onWithdraw={handleWithdraw}
             onResubmit={setResubmitRecord}
             uploadTasks={uploadTasks}
-            onRetryUpload={retryTask}
             totalStages={totalStages}
           />
         ),
@@ -510,7 +508,6 @@ const PaymentRequestsPage = () => {
             hideCounterpartyColumn
             onWithdraw={handleWithdraw}
             uploadTasks={uploadTasks}
-            onRetryUpload={retryTask}
             totalStages={totalStages}
           />
         ),
@@ -527,7 +524,6 @@ const PaymentRequestsPage = () => {
             hideCounterpartyColumn
             showApprovedDate
             uploadTasks={uploadTasks}
-            onRetryUpload={retryTask}
             totalStages={totalStages}
           />
         ),
@@ -545,7 +541,6 @@ const PaymentRequestsPage = () => {
             showRejectedDate
             onResubmit={setResubmitRecord}
             uploadTasks={uploadTasks}
-            onRetryUpload={retryTask}
             totalStages={totalStages}
           />
         ),
@@ -611,7 +606,6 @@ const PaymentRequestsPage = () => {
           isAdmin={isAdmin}
           onDelete={handleDelete}
           uploadTasks={uploadTasks}
-          onRetryUpload={retryTask}
           showResponsibleColumn={isOmtsUser || isAdmin}
           canAssignResponsible={false}
           omtsUsers={omtsUsers}

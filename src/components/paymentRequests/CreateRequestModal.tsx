@@ -83,6 +83,12 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
 
   const handleSubmit = async () => {
     try {
+      // Проверка авторизации
+      if (!user) {
+        message.error('Пользователь не авторизован')
+        return
+      }
+
       const values = await form.validateFields()
 
       // Проверка: хотя бы один файл с типом
@@ -277,7 +283,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
                     precision={2}
                     style={{ width: '100%' }}
                     placeholder="Сумма"
-                    parser={(value) => value?.replace(',', '.')}
+                    parser={(value) => Number(value?.replace(',', '.') || 0)}
                   />
                   <Input style={{ width: 50 }} value="₽" readOnly />
                 </Space.Compact>

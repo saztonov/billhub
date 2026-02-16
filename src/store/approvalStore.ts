@@ -70,6 +70,7 @@ function mapRequest(row: Record<string, unknown>): PaymentRequest {
     currentStage: (row.current_stage as number) ?? null,
     approvedAt: row.approved_at as string | null,
     rejectedAt: row.rejected_at as string | null,
+    rejectedStage: (row.rejected_stage as number) ?? null,
     resubmitComment: (row.resubmit_comment as string) ?? null,
     resubmitCount: (row.resubmit_count as number) ?? 0,
     invoiceAmount: (row.invoice_amount as number) ?? null,
@@ -118,7 +119,7 @@ async function getUserSiteIds(userId: string): Promise<{ allSites: boolean; site
   return { allSites: false, siteIds }
 }
 
-export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
+export const useApprovalStore = create<ApprovalStoreState>((set) => ({
   currentDecisions: [],
   currentLogs: [],
   pendingRequests: [],
