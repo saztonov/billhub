@@ -17,6 +17,8 @@ import {
   Col,
   App,
   Collapse,
+  Popconfirm,
+  Upload,
 } from 'antd'
 import {
   DownloadOutlined,
@@ -27,6 +29,10 @@ import {
   SendOutlined,
   EditOutlined,
   FileAddOutlined,
+  CheckOutlined,
+  StopOutlined,
+  InboxOutlined,
+  CloseOutlined,
 } from '@ant-design/icons'
 import { usePaymentRequestStore } from '@/store/paymentRequestStore'
 import type { EditRequestData } from '@/store/paymentRequestStore'
@@ -60,6 +66,12 @@ interface ViewRequestModalProps {
   canEdit?: boolean
   /** Обработчик сохранения изменений */
   onEdit?: (id: string, data: EditRequestData, files: FileItem[]) => void
+  /** Показывать кнопки согласования */
+  canApprove?: boolean
+  /** Обработчик согласования */
+  onApprove?: (requestId: string, comment: string) => void
+  /** Обработчик отклонения */
+  onReject?: (requestId: string, comment: string, files?: { id: string; file: File }[]) => void
 }
 
 /** Форматирование размера файла */
@@ -94,7 +106,12 @@ function extractRequestNumber(requestNumber: string): string {
   return requestNumber
 }
 
-const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, canEdit, onEdit }: ViewRequestModalProps) => {
+const { Dragger } = Upload
+
+// Поддерживаемые расширения файлов для отклонения
+const ACCEPT_REJECT_EXTENSIONS = '.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.tiff,.tif,.bmp,.pdf'
+
+const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, canEdit, onEdit, canApprove, onApprove, onReject }: ViewRequestModalProps) => {
   const { message } = App.useApp()
   const { currentRequestFiles, fetchRequestFiles, isLoading, isSubmitting } = usePaymentRequestStore()
   const { currentDecisions, currentLogs, fetchDecisions, fetchLogs, clearCurrentData } = useApprovalStore()
@@ -114,6 +131,11 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   const [previewFile, setPreviewFile] = useState<{ fileKey: string; fileName: string; mimeType: string | null } | null>(null)
   const [resubmitFileList, setResubmitFileList] = useState<FileItem[]>([])
   const [resubmitComment, setResubmitComment] = useState('')
+
+  // Модалка отклонения
+  const [rejectModalOpen, setRejectModalOpen] = useState(false)
+  const [rejectComment, setRejectComment] = useState('')
+  const [rejectFiles, setRejectFiles] = useState<{ id: string; file: File }[]>([])
 
   // Режим редактирования
   const [isEditing, setIsEditing] = useState(false)
@@ -147,6 +169,9 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       setResubmitComment('')
       setIsEditing(false)
       setEditFileList([])
+      setRejectModalOpen(false)
+      setRejectComment('')
+      setRejectFiles([])
     }
   }, [open])
 
@@ -476,6 +501,20 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       <Space>
         {canEdit && !isCounterpartyUser && (
           <Button icon={<EditOutlined />} onClick={startEditing}>Редактировать</Button>
+        )}
+        {canApprove && (
+          <Popconfirm
+            title="Согласование заявки"
+            description="Подтвердите согласование заявки"
+            onConfirm={() => onApprove?.(request.id, '')}
+            okText="Согласовать"
+            cancelText="Отмена"
+          >
+            <Button type="primary" icon={<CheckOutlined />}>Согласовать</Button>
+          </Popconfirm>
+        )}
+        {canApprove && (
+          <Button danger icon={<StopOutlined />} onClick={() => setRejectModalOpen(true)}>Отклонить</Button>
         )}
         <Button onClick={onClose}>Закрыть</Button>
       </Space>
@@ -900,6 +939,81 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
         fileName={previewFile?.fileName ?? ''}
         mimeType={previewFile?.mimeType ?? null}
       />
+
+      {/* Модалка отклонения заявки */}
+      <Modal
+        title="Отклонение заявки"
+        open={rejectModalOpen}
+        onOk={() => {
+          if (!rejectComment.trim()) return
+          onReject?.(request.id, rejectComment, rejectFiles.length > 0 ? rejectFiles : undefined)
+          setRejectModalOpen(false)
+          setRejectComment('')
+          setRejectFiles([])
+        }}
+        onCancel={() => {
+          setRejectModalOpen(false)
+          setRejectComment('')
+          setRejectFiles([])
+        }}
+        okText="Отклонить"
+        okButtonProps={{ danger: true, disabled: !rejectComment.trim() }}
+        width={600}
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size="large">
+          <div>
+            <div style={{ marginBottom: 8, fontWeight: 500 }}>Комментарий *</div>
+            <TextArea
+              rows={3}
+              placeholder="Укажите причину отклонения"
+              value={rejectComment}
+              onChange={(e) => setRejectComment(e.target.value)}
+              status={!rejectComment.trim() ? 'error' : undefined}
+            />
+          </div>
+          <div>
+            <div style={{ marginBottom: 8, fontWeight: 500 }}>Прикрепить файлы (необязательно)</div>
+            <Dragger
+              accept={ACCEPT_REJECT_EXTENSIONS}
+              multiple
+              fileList={[]}
+              beforeUpload={(file) => {
+                setRejectFiles((prev) => [...prev, { id: crypto.randomUUID(), file }])
+                return false
+              }}
+              showUploadList={false}
+            >
+              <p className="ant-upload-drag-icon">
+                <InboxOutlined />
+              </p>
+              <p className="ant-upload-text">Нажмите или перетащите файлы</p>
+              <p className="ant-upload-hint">Поддерживаются: PDF, изображения, Word, Excel</p>
+            </Dragger>
+            {rejectFiles.length > 0 && (
+              <List
+                size="small"
+                style={{ marginTop: 16 }}
+                bordered
+                dataSource={rejectFiles}
+                renderItem={(item) => (
+                  <List.Item
+                    actions={[
+                      <Button
+                        type="text"
+                        icon={<CloseOutlined />}
+                        size="small"
+                        onClick={() => setRejectFiles((prev) => prev.filter((f) => f.id !== item.id))}
+                      />,
+                    ]}
+                  >
+                    {item.file.name}
+                  </List.Item>
+                )}
+              />
+            )}
+          </div>
+        </Space>
+      </Modal>
     </>
   )
 }
