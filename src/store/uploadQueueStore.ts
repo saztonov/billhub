@@ -158,15 +158,16 @@ async function processQueue(
             if (fileData.isResubmit) {
               const { data: currentReq } = await supabase
                 .from('payment_requests')
-                .select('total_files')
+                .select('total_files, uploaded_files')
                 .eq('id', task.requestId)
                 .single()
 
               const newTotal = (currentReq?.total_files ?? 0) + 1
+              const newUploadedFromDb = (currentReq?.uploaded_files ?? 0) + 1
               await supabase
                 .from('payment_requests')
                 .update({
-                  uploaded_files: newUploaded,
+                  uploaded_files: newUploadedFromDb,
                   total_files: newTotal,
                 })
                 .eq('id', task.requestId)

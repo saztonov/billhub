@@ -31,6 +31,9 @@ interface ApprovalStoreState {
   approveRequest: (paymentRequestId: string, department: Department, userId: string, comment: string) => Promise<void>
   rejectRequest: (paymentRequestId: string, department: Department, userId: string, comment: string, files?: FileItem[]) => Promise<void>
 
+  // Очистка текущих решений/логов
+  clearCurrentData: () => void
+
   // Заявки по вкладкам
   fetchPendingRequests: (department: Department, userId: string, isAdmin?: boolean) => Promise<void>
   fetchApprovedRequests: (userSiteIds?: string[], allSites?: boolean) => Promise<void>
@@ -127,6 +130,10 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
   rejectedRequests: [],
   isLoading: false,
   error: null,
+
+  clearCurrentData: () => {
+    set({ currentDecisions: [], currentLogs: [] })
+  },
 
   fetchDecisions: async (paymentRequestId) => {
     try {

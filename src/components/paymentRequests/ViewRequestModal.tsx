@@ -97,7 +97,7 @@ function extractRequestNumber(requestNumber: string): string {
 const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, canEdit, onEdit }: ViewRequestModalProps) => {
   const { message } = App.useApp()
   const { currentRequestFiles, fetchRequestFiles, isLoading, isSubmitting } = usePaymentRequestStore()
-  const { currentDecisions, currentLogs, fetchDecisions, fetchLogs } = useApprovalStore()
+  const { currentDecisions, currentLogs, fetchDecisions, fetchLogs, clearCurrentData } = useApprovalStore()
   const user = useAuthStore((s) => s.user)
   const isCounterpartyUser = user?.role === 'counterparty_user'
   const {
@@ -125,6 +125,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
 
   useEffect(() => {
     if (open && request) {
+      clearCurrentData()
       fetchRequestFiles(request.id)
       fetchDecisions(request.id)
       fetchLogs(request.id)
@@ -137,7 +138,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
         fetchOmtsUsers()
       }
     }
-  }, [open, request, fetchRequestFiles, fetchDecisions, fetchLogs, fetchCurrentAssignment, fetchAssignmentHistory, fetchDocumentTypes, fetchOmtsUsers, user?.role])
+  }, [open, request, fetchRequestFiles, fetchDecisions, fetchLogs, clearCurrentData, fetchCurrentAssignment, fetchAssignmentHistory, fetchDocumentTypes, fetchOmtsUsers, user?.role])
 
   // Сброс состояния при закрытии
   useEffect(() => {
@@ -220,11 +221,13 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       })
     }
 
-    // Согласования
-    const approved = currentDecisions.filter((d) => d.status === 'approved')
-    for (const d of approved) {
-      const text = d.comment ? `Согласовано. Комментарий: ${d.comment}` : 'Согласовано'
-      log.push({ icon: <CheckCircleOutlined style={{ color: '#52c41a' }} />, text, date: d.decidedAt ?? undefined })
+    // Финальное согласование (только когда вся заявка согласована)
+    if (request.approvedAt) {
+      log.push({
+        icon: <CheckCircleOutlined style={{ color: '#52c41a' }} />,
+        text: 'Согласовано',
+        date: request.approvedAt,
+      })
     }
 
     // Логи редактирования, догрузки и повторной отправки
@@ -692,20 +695,20 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                               <div key={file.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                 <Text style={{ flex: 1, fontSize: 12 }}>{file.fileName}</Text>
                                 <Space size="small">
-                                  <Button
-                                    size="small"
-                                    icon={<EyeOutlined />}
-                                    onClick={() => handleViewDecisionFile(file.fileKey, file.fileName, file.mimeType)}
-                                  >
-                                    Просмотр
-                                  </Button>
-                                  <Button
-                                    size="small"
-                                    icon={<DownloadOutlined />}
-                                    onClick={() => handleDownloadDecisionFile(file.fileKey, file.fileName)}
-                                  >
-                                    Скачать
-                                  </Button>
+                                  <Tooltip title="Просмотр">
+                                    <Button
+                                      size="small"
+                                      icon={<EyeOutlined />}
+                                      onClick={() => handleViewDecisionFile(file.fileKey, file.fileName, file.mimeType)}
+                                    />
+                                  </Tooltip>
+                                  <Tooltip title="Скачать">
+                                    <Button
+                                      size="small"
+                                      icon={<DownloadOutlined />}
+                                      onClick={() => handleDownloadDecisionFile(file.fileKey, file.fileName)}
+                                    />
+                                  </Tooltip>
                                 </Space>
                               </div>
                             ))}
@@ -762,20 +765,20 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                                   <div key={file.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                     <Text style={{ flex: 1, fontSize: 12 }}>{file.fileName}</Text>
                                     <Space size="small">
-                                      <Button
-                                        size="small"
-                                        icon={<EyeOutlined />}
-                                        onClick={() => handleViewDecisionFile(file.fileKey, file.fileName, file.mimeType)}
-                                      >
-                                        Просмотр
-                                      </Button>
-                                      <Button
-                                        size="small"
-                                        icon={<DownloadOutlined />}
-                                        onClick={() => handleDownloadDecisionFile(file.fileKey, file.fileName)}
-                                      >
-                                        Скачать
-                                      </Button>
+                                      <Tooltip title="Просмотр">
+                                        <Button
+                                          size="small"
+                                          icon={<EyeOutlined />}
+                                          onClick={() => handleViewDecisionFile(file.fileKey, file.fileName, file.mimeType)}
+                                        />
+                                      </Tooltip>
+                                      <Tooltip title="Скачать">
+                                        <Button
+                                          size="small"
+                                          icon={<DownloadOutlined />}
+                                          onClick={() => handleDownloadDecisionFile(file.fileKey, file.fileName)}
+                                        />
+                                      </Tooltip>
                                     </Space>
                                   </div>
                                 ))}
