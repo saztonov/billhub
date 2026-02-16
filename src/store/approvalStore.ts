@@ -240,6 +240,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
         .eq('payment_request_id', paymentRequestId)
         .eq('stage_order', currentStage)
         .eq('department_id', department)
+        .eq('status', 'pending')
       if (updError) throw updError
 
       // 3. ЖЕСТКАЯ ЛОГИКА ПЕРЕХОДА МЕЖДУ ЭТАПАМИ
@@ -310,6 +311,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
         .eq('payment_request_id', paymentRequestId)
         .eq('stage_order', pr.current_stage)
         .eq('department_id', department)
+        .eq('status', 'pending')
         .select('id')
         .single()
       if (updError) throw updError

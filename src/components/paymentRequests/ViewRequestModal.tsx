@@ -201,6 +201,13 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
     if (!request) return []
     const log: { icon: React.ReactNode; text: string; date?: string; files?: ApprovalDecisionFile[] }[] = []
 
+    // Первичная отправка
+    log.push({
+      icon: <SendOutlined style={{ color: '#1677ff' }} />,
+      text: 'Отправлено на согласование',
+      date: request.createdAt,
+    })
+
     // Отклонения
     const rejected = currentDecisions.filter((d) => d.status === 'rejected')
     for (const d of rejected) {
@@ -213,15 +220,11 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       })
     }
 
-    // Комментарий повторной отправки
-    if (request.resubmitComment) {
-      log.push({ icon: <SendOutlined style={{ color: '#1677ff' }} />, text: `Повторно отправлено. Комментарий: ${request.resubmitComment}` })
-    }
-
-    // Комментарии согласования
-    const approvedWithComment = currentDecisions.filter((d) => d.status === 'approved' && d.comment)
-    for (const d of approvedWithComment) {
-      log.push({ icon: <CheckCircleOutlined style={{ color: '#52c41a' }} />, text: `Согласовано. Комментарий: ${d.comment}`, date: d.decidedAt ?? undefined })
+    // Согласования
+    const approved = currentDecisions.filter((d) => d.status === 'approved')
+    for (const d of approved) {
+      const text = d.comment ? `Согласовано. Комментарий: ${d.comment}` : 'Согласовано'
+      log.push({ icon: <CheckCircleOutlined style={{ color: '#52c41a' }} />, text, date: d.decidedAt ?? undefined })
     }
 
     // Логи редактирования, догрузки и повторной отправки
