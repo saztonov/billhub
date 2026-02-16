@@ -282,8 +282,14 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       })
     }
 
-    // Сортируем по дате
-    events.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    // Сортируем по дате; pending-записи всегда в конце (у них нет decidedAt)
+    events.sort((a, b) => {
+      const aPending = a.decision?.status === 'pending'
+      const bPending = b.decision?.status === 'pending'
+      if (aPending && !bPending) return 1
+      if (!aPending && bPending) return -1
+      return new Date(a.date).getTime() - new Date(b.date).getTime()
+    })
 
     console.log('[ViewRequestModal] adminLog события:', events.map(e => ({
       type: e.type,

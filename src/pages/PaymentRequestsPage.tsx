@@ -51,6 +51,7 @@ const PaymentRequestsPage = () => {
   const [filters, setFilters] = useState<FilterValues>({})
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [adminSelectedStage, setAdminSelectedStage] = useState<Department>('omts') // Для админа: выбор этапа согласования
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   const user = useAuthStore((s) => s.user)
 
@@ -179,7 +180,7 @@ const PaymentRequestsPage = () => {
       // Вкладка "Отклонено"
       fetchRejectedRequests(sIds, allS)
     }
-  }, [activeTab, sitesLoaded, isCounterpartyUser, user?.counterpartyId, user?.id, user?.department, isUser, isAdmin, adminSelectedStage, userDeptInChain, userSiteIds, userAllSites, fetchRequests, fetchPendingRequests, fetchApprovedRequests, fetchRejectedRequests])
+  }, [activeTab, refreshTrigger, sitesLoaded, isCounterpartyUser, user?.counterpartyId, user?.id, user?.department, isUser, isAdmin, adminSelectedStage, userDeptInChain, userSiteIds, userAllSites, fetchRequests, fetchPendingRequests, fetchApprovedRequests, fetchRejectedRequests])
 
   // Загружаем справочники для фильтров
   useEffect(() => {
@@ -573,7 +574,7 @@ const PaymentRequestsPage = () => {
             onReset={() => setFilters({})}
           />
         )}
-        <Tabs activeKey={activeTab} onChange={setActiveTab} items={counterpartyTabItems} />
+        <Tabs activeKey={activeTab} onChange={setActiveTab} onTabClick={(key) => { if (key === activeTab) setRefreshTrigger((n) => n + 1) }} items={counterpartyTabItems} />
         <CreateRequestModal
           open={isCreateOpen}
           onClose={() => {
@@ -763,7 +764,7 @@ const PaymentRequestsPage = () => {
           onReset={() => setFilters({})}
         />
       )}
-      <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} />
+      <Tabs activeKey={activeTab} onChange={setActiveTab} onTabClick={(key) => { if (key === activeTab) setRefreshTrigger((n) => n + 1) }} items={tabItems} />
       <CreateRequestModal
         open={isCreateOpen}
         onClose={() => {
