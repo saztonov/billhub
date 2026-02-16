@@ -405,6 +405,14 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   const hasResubmitFiles = (request?.resubmitCount ?? 0) > 0
 
   const handleResubmitSubmit = () => {
+    // Проверка: если есть файлы, у каждого должен быть указан тип документа
+    if (resubmitFileList.length > 0) {
+      const filesWithoutType = resubmitFileList.filter((f) => !f.documentTypeId)
+      if (filesWithoutType.length > 0) {
+        message.error('Укажите тип для каждого файла')
+        return
+      }
+    }
     onResubmit?.(resubmitComment, resubmitFileList)
   }
 
