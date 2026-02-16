@@ -79,7 +79,7 @@ BillHub - это Single Page Application (SPA) на React 19 + Vite + TypeScript
 │  └────────────────────────────────────────────────────────┘ │
 │                                                              │
 │  ┌────────────────────────────────────────────────────────┐ │
-│  │   /home/billhub/billhub-app/  (рабочая директория)    │ │
+│  │   /var/www/billhub/data/billhub-app/  (рабочая директория)    │ │
 │  │   - src/            (исходники)                        │ │
 │  │   - dist/           (собранное приложение)             │ │
 │  │   - .env            (переменные окружения)             │ │
@@ -126,7 +126,7 @@ BillHub - это Single Page Application (SPA) на React 19 + Vite + TypeScript
 ```
 GitHub: https://github.com/saztonov/billhub
     ↓ git clone (billhub)
-/home/billhub/billhub-app/
+/var/www/billhub/data/billhub-app/
     ↓ npm install (billhub)
 node_modules/
     ↓ npm run build (billhub)
@@ -143,7 +143,7 @@ dist/ (~3.1 МБ)
 
 ## Структура файлов
 
-### Рабочая директория (/home/billhub/billhub-app/)
+### Рабочая директория (/var/www/billhub/data/billhub-app/)
 
 ```
 billhub-app/
@@ -207,7 +207,7 @@ npm --version    # должно вывести v10.x.x
 
 ```bash
 # Пользователь: billhub
-cd /home/billhub
+cd /var/www/billhub/data
 git clone https://github.com/saztonov/billhub.git billhub-app
 cd billhub-app
 ```
@@ -277,7 +277,7 @@ ls -lh dist/
 ```bash
 # Пользователь: root (через sudo)
 rm -rf /var/www/billhub/data/www/billhub.fvds.ru/*
-cp -r /home/billhub/billhub-app/dist/* /var/www/billhub/data/www/billhub.fvds.ru/
+cp -r /var/www/billhub/data/billhub-app/dist/* /var/www/billhub/data/www/billhub.fvds.ru/
 ```
 
 Установка прав доступа:
@@ -333,8 +333,8 @@ server {
     }
 
     # Логи
-    access_log /var/log/nginx/billhub.fvds.ru.access.log;
-    error_log /var/log/nginx/billhub.fvds.ru.error.log;
+    access_log /var/www/httpd-logs/billhub.fvds.ru.access.log;
+    error_log /var/www/httpd-logs/billhub.fvds.ru.error.log;
 }
 
 # Редирект с HTTP на HTTPS
@@ -439,10 +439,10 @@ curl https://billhub.fvds.ru | grep "<title>"
 ```bash
 # Пользователь: root
 # Мониторинг запросов в реальном времени
-tail -f /var/log/nginx/billhub.fvds.ru.access.log
+tail -f /var/www/httpd-logs/billhub.fvds.ru.access.log
 
 # Просмотр ошибок
-tail -f /var/log/nginx/billhub.fvds.ru.error.log
+tail -f /var/www/httpd-logs/billhub.fvds.ru.error.log
 ```
 
 ### 5. Тестирование на разных устройствах
@@ -464,7 +464,7 @@ tail -f /var/log/nginx/billhub.fvds.ru.error.log
 
 # 2. Перейти в рабочую директорию
 # Пользователь: billhub
-cd /home/billhub/billhub-app
+cd /var/www/billhub/data/billhub-app
 
 # 3. Получить последние изменения из GitHub
 # Пользователь: billhub
@@ -507,7 +507,7 @@ curl -I https://billhub.fvds.ru
 ```bash
 # Создание скрипта
 # Пользователь: billhub
-nano /home/billhub/deploy.sh
+nano /var/www/billhub/data/deploy.sh
 ```
 
 Содержимое `deploy.sh`:
@@ -518,7 +518,7 @@ set -e
 
 echo "=== Обновление BillHub ==="
 
-cd /home/billhub/billhub-app
+cd /var/www/billhub/data/billhub-app
 
 echo "[1/6] Git pull..."
 git pull
@@ -547,14 +547,14 @@ echo "Проверьте: https://billhub.fvds.ru"
 
 ```bash
 # Пользователь: billhub
-chmod +x /home/billhub/deploy.sh
+chmod +x /var/www/billhub/data/deploy.sh
 ```
 
 Использование:
 
 ```bash
 # Пользователь: billhub
-/home/billhub/deploy.sh
+/var/www/billhub/data/deploy.sh
 ```
 
 ---
@@ -623,7 +623,7 @@ ls -lah /var/www/billhub/data/www/billhub.fvds.ru/
 # Пользователь: billhub
 cd ~
 pwd
-# Должно вывести: /home/billhub
+# Должно вывести: /var/www/billhub/data
 
 ls -la
 # Проверьте права и доступность директории
@@ -657,7 +657,7 @@ npm --version
 ```bash
 # === Переход в домашнюю директорию ===
 # Пользователь: billhub
-cd /home/billhub
+cd /var/www/billhub/data
 
 # === Клонирование репозитория ===
 # Пользователь: billhub
@@ -719,7 +719,7 @@ rm -rf /var/www/billhub/data/www/billhub.fvds.ru/*
 
 # === Копирование собранных файлов ===
 # Пользователь: root
-cp -r /home/billhub/billhub-app/dist/* /var/www/billhub/data/www/billhub.fvds.ru/
+cp -r /var/www/billhub/data/billhub-app/dist/* /var/www/billhub/data/www/billhub.fvds.ru/
 
 # === Установка правильных прав доступа ===
 # Пользователь: root
@@ -782,11 +782,11 @@ curl https://billhub.fvds.ru | grep "<title>"
 
 # === Просмотр логов доступа (в реальном времени) ===
 # Пользователь: root
-tail -f /var/log/nginx/billhub.fvds.ru.access.log
+tail -f /var/www/httpd-logs/billhub.fvds.ru.access.log
 
 # === Просмотр логов ошибок ===
 # Пользователь: root
-tail -f /var/log/nginx/billhub.fvds.ru.error.log
+tail -f /var/www/httpd-logs/billhub.fvds.ru.error.log
 ```
 
 #### Обновление приложения (после изменений в коде)
@@ -794,7 +794,7 @@ tail -f /var/log/nginx/billhub.fvds.ru.error.log
 ```bash
 # === Переход в рабочую директорию ===
 # Пользователь: billhub
-cd /home/billhub/billhub-app
+cd /var/www/billhub/data/billhub-app
 
 # === Получение последних изменений ===
 # Пользователь: billhub
@@ -815,7 +815,7 @@ npm run build
 # === Копирование обновленных файлов ===
 # Пользователь: root
 rm -rf /var/www/billhub/data/www/billhub.fvds.ru/*
-cp -r /home/billhub/billhub-app/dist/* /var/www/billhub/data/www/billhub.fvds.ru/
+cp -r /var/www/billhub/data/billhub-app/dist/* /var/www/billhub/data/www/billhub.fvds.ru/
 
 # === Установка прав (если нужно) ===
 # Пользователь: root
@@ -836,7 +836,7 @@ curl -I https://billhub.fvds.ru
 
 ### Безопасность
 
-1. **.env файл** должен находиться ТОЛЬКО в `/home/billhub/billhub-app/`, НЕ в `/var/www/`
+1. **.env файл** должен находиться ТОЛЬКО в `/var/www/billhub/data/billhub-app/`, НЕ в `/var/www/billhub/data/www/billhub.fvds.ru/`
 2. **Переменные окружения** встраиваются в бандл на этапе сборки (публичные ключи, endpoint'ы)
 3. **Права доступа:** убедитесь что файлы в `/var/www/` имеют правильного владельца и права
 
