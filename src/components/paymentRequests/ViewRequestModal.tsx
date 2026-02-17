@@ -420,7 +420,12 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
     let formValues: { deliveryDays: number; deliveryDaysType: string; shippingConditionId: string; invoiceAmount: number }
     try {
       formValues = await resubmitForm.validateFields()
-    } catch {
+    } catch (err: unknown) {
+      const valErr = err as { errorFields?: { errors: string[] }[] }
+      if (valErr.errorFields) {
+        const msgs = valErr.errorFields.flatMap((f) => f.errors)
+        message.error(msgs.join('. '))
+      }
       return
     }
     // Проверка: если есть файлы, у каждого должен быть указан тип документа

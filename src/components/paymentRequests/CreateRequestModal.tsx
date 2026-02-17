@@ -151,7 +151,14 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
       setFileList([])
       setFormValues({})
       onClose()
-    } catch (err) {
+    } catch (err: unknown) {
+      // Ошибка валидации формы — показываем перечень незаполненных полей
+      const valErr = err as { errorFields?: { errors: string[] }[] }
+      if (valErr.errorFields) {
+        const msgs = valErr.errorFields.flatMap((f) => f.errors)
+        message.error(msgs.join('. '))
+        return
+      }
       const errorMsg = err instanceof Error ? err.message : 'Ошибка создания заявки'
       message.error(errorMsg)
     }

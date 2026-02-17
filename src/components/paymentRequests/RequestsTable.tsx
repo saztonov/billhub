@@ -229,7 +229,7 @@ const RequestsTable = (props: RequestsTableProps) => {
       title: 'Сумма счета',
       dataIndex: 'invoiceAmount',
       key: 'invoiceAmount',
-      width: 130,
+      width: 156,
       align: 'right' as const,
       sorter: (a: PaymentRequest, b: PaymentRequest) =>
         (a.invoiceAmount ?? 0) - (b.invoiceAmount ?? 0),
