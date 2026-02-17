@@ -13,7 +13,7 @@ import {
   App,
   Popconfirm,
 } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DeleteOutlined, KeyOutlined } from '@ant-design/icons'
 import { useUserStore } from '@/store/userStore'
 import { useAuthStore } from '@/store/authStore'
 import { useCounterpartyStore } from '@/store/counterpartyStore'
@@ -41,14 +41,17 @@ const UsersTab = () => {
   const { message } = App.useApp()
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false)
+  const [passwordTarget, setPasswordTarget] = useState<UserRecord | null>(null)
   const [editingRecord, setEditingRecord] = useState<UserRecord | null>(null)
   const [selectedRole, setSelectedRole] = useState<UserRole>('user')
   const [allSitesChecked, setAllSitesChecked] = useState(false)
   const [searchFullName, setSearchFullName] = useState('')
   const [searchCounterparty, setSearchCounterparty] = useState('')
   const [form] = Form.useForm()
+  const [passwordForm] = Form.useForm()
 
-  const { users, isLoading, error, fetchUsers, updateUser, deactivateUser } = useUserStore()
+  const { users, isLoading, error, fetchUsers, updateUser, deactivateUser, changePassword } = useUserStore()
   const currentUser = useAuthStore((s) => s.user)
   const { counterparties, fetchCounterparties } = useCounterpartyStore()
   const { sites, fetchSites } = useConstructionSiteStore()
@@ -98,6 +101,25 @@ const UsersTab = () => {
   const handleCancel = () => {
     setIsEditModalOpen(false)
     form.resetFields()
+  }
+
+  const handlePasswordChange = (record: UserRecord) => {
+    setPasswordTarget(record)
+    passwordForm.resetFields()
+    setIsPasswordModalOpen(true)
+  }
+
+  const handlePasswordSubmit = async () => {
+    const values = await passwordForm.validateFields()
+    if (!passwordTarget) return
+    try {
+      await changePassword(passwordTarget.id, values.new_password)
+      message.success('Пароль изменён')
+      setIsPasswordModalOpen(false)
+      passwordForm.resetFields()
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : 'Ошибка смены пароля')
+    }
   }
 
   // Генерация фильтров для объектов
@@ -240,6 +262,9 @@ const UsersTab = () => {
       render: (_: unknown, record: UserRecord) => (
         <Space>
           <Button icon={<EditOutlined />} onClick={() => handleEdit(record)} size="small" />
+          {record.isActive && (
+            <Button icon={<KeyOutlined />} onClick={() => handlePasswordChange(record)} size="small" title="Сменить пароль" />
+          )}
           {record.isActive && record.id !== currentUser?.id && (
             <Popconfirm
               title="Деактивировать пользователя?"
@@ -414,6 +439,43 @@ const UsersTab = () => {
               )}
             </>
           )}
+        </Form>
+      </Modal>
+      <Modal
+        title={`Смена пароля: ${passwordTarget?.fullName || passwordTarget?.email || ''}`}
+        open={isPasswordModalOpen}
+        onOk={handlePasswordSubmit}
+        onCancel={() => { setIsPasswordModalOpen(false); passwordForm.resetFields() }}
+        okText="Сменить"
+        cancelText="Отмена"
+      >
+        <Form form={passwordForm} layout="vertical">
+          <Form.Item
+            name="new_password"
+            label="Новый пароль"
+            rules={[
+              { required: true, message: 'Введите пароль' },
+              { min: 6, message: 'Минимум 6 символов' },
+            ]}
+          >
+            <Input.Password />
+          </Form.Item>
+          <Form.Item
+            name="confirm_password"
+            label="Подтверждение пароля"
+            dependencies={['new_password']}
+            rules={[
+              { required: true, message: 'Подтвердите пароль' },
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  if (!value || getFieldValue('new_password') === value) return Promise.resolve()
+                  return Promise.reject(new Error('Пароли не совпадают'))
+                },
+              }),
+            ]}
+          >
+            <Input.Password />
+          </Form.Item>
         </Form>
       </Modal>
     </div>

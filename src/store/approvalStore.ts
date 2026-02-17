@@ -261,9 +261,18 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
           status: 'pending',
         })
 
+        // Получаем статус "Согласование ОМТС"
+        const { data: omtsStatusData, error: omtsStError } = await supabase
+          .from('statuses')
+          .select('id')
+          .eq('entity_type', 'payment_request')
+          .eq('code', 'approv_omts')
+          .single()
+        if (omtsStError) throw omtsStError
+
         await supabase
           .from('payment_requests')
-          .update({ current_stage: 2 })
+          .update({ current_stage: 2, status_id: omtsStatusData.id })
           .eq('id', paymentRequestId)
 
         // Проверяем специалистов ОМТС для объекта

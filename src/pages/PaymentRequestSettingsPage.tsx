@@ -327,10 +327,16 @@ const PaymentRequestSettingsPage = () => {
               mode="multiple"
               placeholder="Все роли (по умолчанию)"
               options={[
+                { label: 'Все роли', value: 'all' },
                 { label: 'Администратор', value: 'admin' },
                 { label: 'Сотрудник', value: 'user' },
                 { label: 'Подрядчик', value: 'counterparty_user' },
               ]}
+              onChange={(values: string[]) => {
+                if (values.includes('all')) {
+                  statusForm.setFieldsValue({ visible_roles: [] })
+                }
+              }}
             />
           </Form.Item>
           <Form.Item name="display_order" label="Порядок отображения">

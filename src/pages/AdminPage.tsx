@@ -5,7 +5,7 @@ import UsersPage from './UsersPage'
 
 const { Title } = Typography
 
-const DEFAULT_TAB = 'payment-requests'
+const DEFAULT_TAB = 'users'
 
 const AdminPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()

@@ -11,6 +11,7 @@ interface AuthStoreState {
   logout: () => Promise<void>
   checkAuth: () => Promise<void>
   clearError: () => void
+  changeOwnPassword: (currentPassword: string, newPassword: string) => Promise<void>
 }
 
 export const useAuthStore = create<AuthStoreState>((set) => ({
@@ -110,4 +111,22 @@ export const useAuthStore = create<AuthStoreState>((set) => ({
   },
 
   clearError: () => set({ error: null }),
+
+  changeOwnPassword: async (currentPassword: string, newPassword: string) => {
+    const state = useAuthStore.getState()
+    if (!state.user) throw new Error('Пользователь не авторизован')
+
+    // Проверяем текущий пароль
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: state.user.email,
+      password: currentPassword,
+    })
+    if (signInError) throw new Error('Неверный текущий пароль')
+
+    // Обновляем пароль
+    const { error: updateError } = await supabase.auth.updateUser({
+      password: newPassword,
+    })
+    if (updateError) throw updateError
+  },
 }))

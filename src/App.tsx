@@ -12,6 +12,7 @@ import DistributionLettersPage from '@/pages/DistributionLettersPage'
 import EmployeesPage from '@/pages/EmployeesPage'
 import ReferencesPage from '@/pages/ReferencesPage'
 import AdminPage from '@/pages/AdminPage'
+import ProfilePage from '@/pages/ProfilePage'
 import { useAuthStore } from '@/store/authStore'
 
 /** Инициализация сессии при загрузке приложения */
@@ -51,6 +52,7 @@ const App = () => {
             {/* Доступно всем авторизованным */}
             <Route path="/" element={<Navigate to="/payment-requests" replace />} />
             <Route path="/payment-requests" element={<PaymentRequestsPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
 
             {/* Только admin и user (внутренние сотрудники) */}
             <Route element={<RoleGuard allowedRoles={['admin', 'user']} />}>

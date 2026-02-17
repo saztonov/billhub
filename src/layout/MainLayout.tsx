@@ -228,6 +228,13 @@ const MainLayout = () => {
             menu={{
               items: [
                 {
+                  key: 'profile',
+                  icon: <UserOutlined />,
+                  label: 'Личный кабинет',
+                  onClick: () => navigate('/profile'),
+                },
+                { type: 'divider' },
+                {
                   key: 'logout',
                   icon: <LogoutOutlined />,
                   label: 'Выход',

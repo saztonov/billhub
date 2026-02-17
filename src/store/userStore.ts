@@ -47,6 +47,7 @@ interface UserStoreState {
   createUser: (data: CreateUserData) => Promise<void>
   updateUser: (id: string, data: UpdateUserData) => Promise<void>
   deactivateUser: (id: string) => Promise<void>
+  changePassword: (userId: string, newPassword: string) => Promise<void>
 }
 
 export const useUserStore = create<UserStoreState>((set, get) => ({
@@ -236,5 +237,13 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
       const message = err instanceof Error ? err.message : 'Ошибка деактивации пользователя'
       set({ error: message, isLoading: false })
     }
+  },
+
+  changePassword: async (userId, newPassword) => {
+    const { error } = await supabase.rpc('change_user_password', {
+      target_user_id: userId,
+      new_password: newPassword,
+    })
+    if (error) throw error
   },
 }))
