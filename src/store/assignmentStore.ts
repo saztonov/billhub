@@ -134,7 +134,24 @@ export const useAssignmentStore = create<AssignmentStoreState>((set, get) => ({
   },
 
   assignResponsible: async (paymentRequestId, assignedUserId, assignedByUserId) => {
-    set({ isLoading: true, error: null })
+    const prev = get().currentAssignment
+    // Оптимистичное обновление — мгновенно отражаем выбор в UI
+    const omtsUser = get().omtsUsers.find((u) => u.id === assignedUserId)
+    set({
+      error: null,
+      currentAssignment: {
+        id: prev?.id ?? '',
+        paymentRequestId,
+        assignedUserId,
+        assignedByUserId,
+        assignedAt: new Date().toISOString(),
+        isCurrent: true,
+        createdAt: prev?.createdAt ?? new Date().toISOString(),
+        assignedUserEmail: omtsUser?.email,
+        assignedUserFullName: omtsUser?.fullName,
+        assignedByUserEmail: undefined,
+      },
+    })
     try {
       // 1. Пометить текущее назначение как неактуальное
       await supabase
@@ -155,13 +172,14 @@ export const useAssignmentStore = create<AssignmentStoreState>((set, get) => ({
 
       if (error) throw error
 
-      // 3. Обновить текущее назначение в store
+      // 3. Синхронизировать с БД и обновить историю
       await get().fetchCurrentAssignment(paymentRequestId)
-
-      set({ isLoading: false })
+      await get().fetchAssignmentHistory(paymentRequestId)
     } catch (err) {
+      // Откат оптимистичного обновления
+      set({ currentAssignment: prev })
       const message = err instanceof Error ? err.message : 'Ошибка назначения'
-      set({ error: message, isLoading: false })
+      set({ error: message })
       throw err
     }
   },

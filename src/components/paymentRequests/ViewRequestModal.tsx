@@ -60,8 +60,13 @@ interface ViewRequestModalProps {
   onClose: () => void
   /** Режим повторной отправки отклоненной заявки */
   resubmitMode?: boolean
-  /** Обработчик повторной отправки (комментарий, новые файлы) */
-  onResubmit?: (comment: string, files: FileItem[]) => void
+  /** Обработчик повторной отправки (комментарий, новые файлы, обновлённые поля) */
+  onResubmit?: (comment: string, files: FileItem[], fieldUpdates: {
+    deliveryDays: number
+    deliveryDaysType: string
+    shippingConditionId: string
+    invoiceAmount: number
+  }) => void
   /** Возможность редактирования (admin / ответственный менеджер) */
   canEdit?: boolean
   /** Обработчик сохранения изменений */
@@ -144,6 +149,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   const [isEditing, setIsEditing] = useState(false)
   const [editForm] = Form.useForm()
   const [editFileList, setEditFileList] = useState<FileItem[]>([])
+  const [resubmitForm] = Form.useForm()
   const { fieldOptions, fetchFieldOptions, getOptionsByField } = usePaymentRequestSettingsStore()
   const { sites, fetchSites } = useConstructionSiteStore()
   const { fetchDocumentTypes } = useDocumentTypeStore()
@@ -170,21 +176,22 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
     if (!open) {
       setResubmitFileList([])
       setResubmitComment('')
+      resubmitForm.resetFields()
       setIsEditing(false)
       setEditFileList([])
       setRejectModalOpen(false)
       setRejectComment('')
       setRejectFiles([])
     }
-  }, [open])
+  }, [open, resubmitForm])
 
-  // Загрузка справочников при входе в режим редактирования
+  // Загрузка справочников при входе в режим редактирования или повторной отправки
   useEffect(() => {
-    if (isEditing) {
+    if (isEditing || resubmitMode) {
       if (fieldOptions.length === 0) fetchFieldOptions()
       if (sites.length === 0) fetchSites()
     }
-  }, [isEditing, fieldOptions.length, sites.length, fetchFieldOptions, fetchSites])
+  }, [isEditing, resubmitMode, fieldOptions.length, sites.length, fetchFieldOptions, fetchSites])
 
   const shippingOptions = getOptionsByField('shipping_conditions')
   const siteOptions = sites.filter((s) => s.isActive).map((s) => ({ label: s.name, value: s.id }))
@@ -404,7 +411,14 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
 
   const hasResubmitFiles = (request?.resubmitCount ?? 0) > 0
 
-  const handleResubmitSubmit = () => {
+  const handleResubmitSubmit = async () => {
+    // Валидация формы с полями заявки
+    let formValues: { deliveryDays: number; deliveryDaysType: string; shippingConditionId: string; invoiceAmount: number }
+    try {
+      formValues = await resubmitForm.validateFields()
+    } catch {
+      return
+    }
     // Проверка: если есть файлы, у каждого должен быть указан тип документа
     if (resubmitFileList.length > 0) {
       const filesWithoutType = resubmitFileList.filter((f) => !f.documentTypeId)
@@ -413,7 +427,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
         return
       }
     }
-    onResubmit?.(resubmitComment, resubmitFileList)
+    onResubmit?.(resubmitComment, resubmitFileList, formValues)
   }
 
   if (!request) return null
@@ -544,7 +558,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
         style={{ maxHeight: '85vh' }}
         styles={{ body: { maxHeight: 'calc(85vh - 120px)', overflowY: 'auto', overflowX: 'hidden' } }}
       >
-        {/* Реквизиты — просмотр или редактирование */}
+        {/* Реквизиты — просмотр, редактирование или повторная отправка */}
         {isEditing ? (
           <Form form={editForm} layout="vertical" style={{ marginBottom: 16 }}>
             <Descriptions column={2} size="small" bordered style={{ marginBottom: 12 }}>
@@ -625,6 +639,78 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
             </Text>
             <FileUploadList fileList={editFileList} onChange={setEditFileList} />
           </Form>
+        ) : resubmitMode ? (
+          <>
+            <Descriptions column={2} size="small" bordered style={{ marginBottom: 16 }}>
+              <Descriptions.Item label="Номер">{extractRequestNumber(request.requestNumber)}</Descriptions.Item>
+              <Descriptions.Item label="Подрядчик">{request.counterpartyName}</Descriptions.Item>
+              <Descriptions.Item label="Объект">{request.siteName ?? '—'}</Descriptions.Item>
+              <Descriptions.Item label="Статус">
+                <Tag color={request.statusColor ?? 'default'}>{request.statusName}</Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="Дата создания">{formatDate(request.createdAt, !isCounterpartyUser)}</Descriptions.Item>
+            </Descriptions>
+            <Form form={resubmitForm} layout="vertical" style={{ marginBottom: 16 }}>
+              <Row gutter={16}>
+                <Col span={8}>
+                  <Form.Item label="Срок поставки" required style={{ marginBottom: 0 }}>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <Form.Item name="deliveryDays" noStyle rules={[{ required: true, message: 'Укажите срок' }]}>
+                        <InputNumber min={1} style={{ width: 80 }} placeholder="Дни" />
+                      </Form.Item>
+                      <Form.Item name="deliveryDaysType" noStyle initialValue="working">
+                        <Select style={{ width: 120 }} options={[
+                          { label: 'рабочих', value: 'working' },
+                          { label: 'календарных', value: 'calendar' },
+                        ]} />
+                      </Form.Item>
+                    </div>
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item name="shippingConditionId" label="Условия отгрузки" rules={[{ required: true, message: 'Выберите условия' }]}>
+                    <Select placeholder="Выберите условия" options={shippingOptions.map((o) => ({ label: o.value, value: o.id }))} />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item
+                    name="invoiceAmount"
+                    label="Сумма счета"
+                    rules={[
+                      {
+                        validator: (_, value) => {
+                          if (!value || Number(value) <= 0) {
+                            return Promise.reject(new Error('Сумма должна быть больше 0'))
+                          }
+                          return Promise.resolve()
+                        }
+                      }
+                    ]}
+                  >
+                    <Space.Compact style={{ width: '100%' }}>
+                      <InputNumber
+                        min={0.01}
+                        precision={2}
+                        style={{ width: '100%' }}
+                        placeholder="Сумма"
+                        parser={(value) => Number(value?.replace(',', '.') || 0)}
+                      />
+                      <Input style={{ width: 50 }} value="₽" readOnly />
+                    </Space.Compact>
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Form.Item noStyle shouldUpdate={(prev, curr) => prev.deliveryDays !== curr.deliveryDays || prev.deliveryDaysType !== curr.deliveryDaysType}>
+                {({ getFieldValue }) => (
+                  <DeliveryCalculation
+                    deliveryDays={getFieldValue('deliveryDays')}
+                    deliveryDaysType={getFieldValue('deliveryDaysType') || 'working'}
+                    defaultExpanded={false}
+                  />
+                )}
+              </Form.Item>
+            </Form>
+          </>
         ) : (
           <Descriptions column={2} size="small" bordered style={{ marginBottom: 16 }}>
             <Descriptions.Item label="Номер">{extractRequestNumber(request.requestNumber)}</Descriptions.Item>
@@ -714,6 +800,21 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                 </Collapse>
               )}
             </Space>
+          </div>
+        )}
+
+        {/* История изменения сумм */}
+        {request.invoiceAmountHistory && request.invoiceAmountHistory.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <Text strong style={{ display: 'block', marginBottom: 8 }}>История сумм</Text>
+            {request.invoiceAmountHistory.map((entry, idx) => (
+              <div key={idx} style={{ marginBottom: 4 }}>
+                <Text type="secondary">
+                  Сумма {idx + 1}-й заявки: {entry.amount.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽
+                  {' '}({formatDate(entry.changedAt, false)})
+                </Text>
+              </div>
+            ))}
           </div>
         )}
 

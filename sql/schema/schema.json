@@ -1342,6 +1342,15 @@
               "position": 24,
               "max_length": null,
               "numeric_precision": 15
+            },
+            {
+              "name": "invoice_amount_history",
+              "type": "jsonb",
+              "default": "'[]'::jsonb",
+              "nullable": true,
+              "position": 25,
+              "max_length": null,
+              "numeric_precision": null
             }
           ]
         },

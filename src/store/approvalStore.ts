@@ -77,6 +77,7 @@ function mapRequest(row: Record<string, unknown>): PaymentRequest {
     resubmitComment: (row.resubmit_comment as string) ?? null,
     resubmitCount: (row.resubmit_count as number) ?? 0,
     invoiceAmount: (row.invoice_amount as number) ?? null,
+    invoiceAmountHistory: (row.invoice_amount_history as { amount: number; changedAt: string }[]) ?? [],
     counterpartyName: counterparties?.name as string | undefined,
     siteName: site?.name as string | undefined,
     statusName: statuses?.name as string | undefined,

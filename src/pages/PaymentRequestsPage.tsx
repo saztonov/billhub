@@ -437,11 +437,16 @@ const PaymentRequestsPage = () => {
   const filteredCounterpartyRejected = useMemo(() =>
     applyCounterpartyFilters(counterpartyRejectedRequests), [counterpartyRejectedRequests, applyCounterpartyFilters])
 
-  const handleResubmit = async (comment: string, files: FileItem[]) => {
+  const handleResubmit = async (comment: string, files: FileItem[], fieldUpdates: {
+    deliveryDays: number
+    deliveryDaysType: string
+    shippingConditionId: string
+    invoiceAmount: number
+  }) => {
     if (!resubmitRecord || !user?.counterpartyId || !user?.id) return
     try {
-      // Повторная отправка заявки
-      await resubmitRequest(resubmitRecord.id, comment, user.counterpartyId, user.id)
+      // Повторная отправка заявки с обновлёнными полями
+      await resubmitRequest(resubmitRecord.id, comment, user.counterpartyId, user.id, fieldUpdates)
 
       // Если есть новые файлы — загружаем через очередь
       if (files.length > 0) {

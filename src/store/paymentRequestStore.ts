@@ -45,6 +45,12 @@ interface PaymentRequestStoreState {
     comment: string,
     counterpartyId: string,
     userId: string,
+    fieldUpdates?: {
+      deliveryDays: number
+      deliveryDaysType: string
+      shippingConditionId: string
+      invoiceAmount: number
+    },
   ) => Promise<void>
   updateRequest: (
     id: string,
@@ -131,6 +137,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
           resubmitComment: (row.resubmit_comment as string) ?? null,
           resubmitCount: (row.resubmit_count as number) ?? 0,
           invoiceAmount: (row.invoice_amount as number) ?? null,
+          invoiceAmountHistory: (row.invoice_amount_history as { amount: number; changedAt: string }[]) ?? [],
           counterpartyName: counterparties?.name as string | undefined,
           siteName: site?.name as string | undefined,
           statusName: statuses?.name as string | undefined,
@@ -340,7 +347,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
     }
   },
 
-  resubmitRequest: async (id, comment, counterpartyId, userId) => {
+  resubmitRequest: async (id, comment, counterpartyId, userId, fieldUpdates?) => {
     set({ isSubmitting: true, error: null })
     try {
       // 1. Получаем id статуса 'sent'
@@ -352,10 +359,10 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
         .single()
       if (statusError) throw statusError
 
-      // 2. Получаем текущее значение resubmit_count, rejected_stage и site_id
+      // 2. Получаем текущее значение resubmit_count, rejected_stage, site_id, invoice_amount и историю сумм
       const { data: currentReq, error: reqError } = await supabase
         .from('payment_requests')
-        .select('resubmit_count, rejected_stage, site_id')
+        .select('resubmit_count, rejected_stage, site_id, invoice_amount, invoice_amount_history')
         .eq('id', id)
         .single()
       if (reqError) throw reqError
@@ -365,18 +372,37 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
       // Определяем этап для повторной отправки: если была отклонена на ОМТС - идет сразу на ОМТС
       const targetStage = (currentReq.rejected_stage as number) ?? 1
 
-      // 3. Обновляем заявку: сброс статуса, сохранение комментария
+      // 3. Формируем данные для обновления заявки
+      const updateData: Record<string, unknown> = {
+        status_id: statusData.id,
+        rejected_at: null,
+        rejected_stage: null,
+        approved_at: null,
+        current_stage: targetStage,
+        resubmit_comment: comment || null,
+        resubmit_count: newCount,
+      }
+
+      // Если переданы обновленные поля — обновляем их и записываем историю суммы
+      if (fieldUpdates) {
+        // Дописываем текущую сумму в историю
+        const history = (currentReq.invoice_amount_history as { amount: number; changedAt: string }[]) ?? []
+        if (currentReq.invoice_amount != null) {
+          history.push({
+            amount: currentReq.invoice_amount as number,
+            changedAt: new Date().toISOString(),
+          })
+        }
+        updateData.invoice_amount_history = history
+        updateData.delivery_days = fieldUpdates.deliveryDays
+        updateData.delivery_days_type = fieldUpdates.deliveryDaysType
+        updateData.shipping_condition_id = fieldUpdates.shippingConditionId
+        updateData.invoice_amount = fieldUpdates.invoiceAmount
+      }
+
       const { error: updError } = await supabase
         .from('payment_requests')
-        .update({
-          status_id: statusData.id,
-          rejected_at: null,
-          rejected_stage: null, // Очищаем этап отклонения при повторной отправке
-          approved_at: null, // Очищаем дату согласования для нового цикла
-          current_stage: targetStage, // Возвращаем на тот этап, где была отклонена
-          resubmit_comment: comment || null,
-          resubmit_count: newCount,
-        })
+        .update(updateData)
         .eq('id', id)
       if (updError) throw updError
 
