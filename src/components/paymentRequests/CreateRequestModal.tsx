@@ -273,6 +273,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
               <Form.Item
                 name="invoiceAmount"
                 label={fieldLabel('Сумма счета', !!formValues.invoiceAmount)}
+                required
                 rules={[
                   {
                     validator: (_, value) => {

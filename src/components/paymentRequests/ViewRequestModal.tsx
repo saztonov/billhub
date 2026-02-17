@@ -695,6 +695,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                   <Form.Item
                     name="invoiceAmount"
                     label="Сумма счета"
+                    required
                     rules={[
                       {
                         validator: (_, value) => {
@@ -755,7 +756,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
         )}
 
         {/* Расчет ориентировочного срока поставки в режиме просмотра */}
-        {!isEditing && (
+        {!isEditing && !resubmitMode && (
           <DeliveryCalculation
             deliveryDays={request.deliveryDays}
             deliveryDaysType={request.deliveryDaysType as 'working' | 'calendar'}
