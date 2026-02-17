@@ -9,5 +9,6 @@ export const supabaseNoSession = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: false,
     autoRefreshToken: false,
     detectSessionInUrl: false,
+    storageKey: 'sb-no-session',
   },
 })

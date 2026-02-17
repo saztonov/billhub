@@ -3,7 +3,6 @@ import {
   Modal,
   Descriptions,
   Tag,
-  List,
   Button,
   Typography,
   Space,
@@ -176,7 +175,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
     if (!open) {
       setResubmitFileList([])
       setResubmitComment('')
-      resubmitForm.resetFields()
+      try { resubmitForm.resetFields() } catch { /* форма не подключена к DOM */ }
       setIsEditing(false)
       setEditFileList([])
       setRejectModalOpen(false)
@@ -330,13 +329,6 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       if (!aPending && bPending) return -1
       return new Date(a.date).getTime() - new Date(b.date).getTime()
     })
-
-    console.log('[ViewRequestModal] adminLog события:', events.map(e => ({
-      type: e.type,
-      date: e.date,
-      decision: e.decision ? `Этап ${e.decision.stageOrder} ${e.decision.department} ${e.decision.status}` : null,
-      log: e.log?.action
-    })))
 
     return events
   }, [currentDecisions, currentLogs])
@@ -800,26 +792,22 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
 
               {/* История назначений */}
               {assignmentHistory.length > 0 && (
-                <Collapse ghost>
-                  <Collapse.Panel header="История назначений" key="1">
-                    <List
-                      size="small"
-                      dataSource={assignmentHistory}
-                      renderItem={(item) => (
-                        <List.Item>
-                          <Space direction="vertical" size={0}>
-                            <Text strong>
-                              {item.assignedUserFullName || item.assignedUserEmail}
-                            </Text>
-                            <Text type="secondary" style={{ fontSize: 12 }}>
-                              Назначил: {item.assignedByUserEmail} • {formatDate(item.assignedAt)}
-                            </Text>
-                          </Space>
-                        </List.Item>
-                      )}
-                    />
-                  </Collapse.Panel>
-                </Collapse>
+                <Collapse ghost items={[{
+                  key: '1',
+                  label: 'История назначений',
+                  children: assignmentHistory.map((item) => (
+                    <div key={item.id ?? item.assignedAt} style={{ padding: '4px 0' }}>
+                      <div>
+                        <Text strong>
+                          {item.assignedUserFullName || item.assignedUserEmail}
+                        </Text>
+                      </div>
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        Назначил: {item.assignedByUserEmail} • {formatDate(item.assignedAt)}
+                      </Text>
+                    </div>
+                  )),
+                }]} />
               )}
             </Space>
           </div>
@@ -846,52 +834,47 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
           counterpartyLog.length > 0 && (
             <>
               <Text strong style={{ marginBottom: 8, display: 'block' }}>Согласование</Text>
-              <List
-                size="small"
-                dataSource={counterpartyLog}
-                style={{ marginBottom: 16 }}
-                renderItem={(item) => (
-                  <List.Item>
-                    <div style={{ width: '100%' }}>
-                      <Space>
-                        {item.icon}
-                        <Text>{item.text}</Text>
-                        {item.date && <Text type="secondary">{formatDate(item.date, false)}</Text>}
-                      </Space>
-                      {item.files && item.files.length > 0 && (
-                        <div style={{ marginLeft: 22, marginTop: 8 }}>
-                          <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>
-                            Прикрепленные файлы:
-                          </Text>
-                          <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                            {item.files.map((file) => (
-                              <div key={file.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <Text style={{ flex: 1, fontSize: 12 }}>{file.fileName}</Text>
-                                <Space size="small">
-                                  <Tooltip title="Просмотр">
-                                    <Button
-                                      size="small"
-                                      icon={<EyeOutlined />}
-                                      onClick={() => handleViewDecisionFile(file.fileKey, file.fileName, file.mimeType)}
-                                    />
-                                  </Tooltip>
-                                  <Tooltip title="Скачать">
-                                    <Button
-                                      size="small"
-                                      icon={<DownloadOutlined />}
-                                      onClick={() => handleDownloadDecisionFile(file.fileKey, file.fileName)}
-                                    />
-                                  </Tooltip>
-                                </Space>
-                              </div>
-                            ))}
-                          </Space>
+              <div style={{ marginBottom: 16 }}>
+                {counterpartyLog.map((item, idx) => (
+                  <div key={idx} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
+                    <Space>
+                      {item.icon}
+                      <Text>{item.text}</Text>
+                      {item.date && <Text type="secondary">{formatDate(item.date, false)}</Text>}
+                    </Space>
+                    {item.files && item.files.length > 0 && (
+                      <div style={{ marginLeft: 22, marginTop: 8 }}>
+                        <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>
+                          Прикрепленные файлы:
+                        </Text>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {item.files.map((file) => (
+                            <div key={file.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <Text style={{ flex: 1, fontSize: 12 }}>{file.fileName}</Text>
+                              <Space size="small">
+                                <Tooltip title="Просмотр">
+                                  <Button
+                                    size="small"
+                                    icon={<EyeOutlined />}
+                                    onClick={() => handleViewDecisionFile(file.fileKey, file.fileName, file.mimeType)}
+                                  />
+                                </Tooltip>
+                                <Tooltip title="Скачать">
+                                  <Button
+                                    size="small"
+                                    icon={<DownloadOutlined />}
+                                    onClick={() => handleDownloadDecisionFile(file.fileKey, file.fileName)}
+                                  />
+                                </Tooltip>
+                              </Space>
+                            </div>
+                          ))}
                         </div>
-                      )}
-                    </div>
-                  </List.Item>
-                )}
-              />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             </>
           )
         ) : (
@@ -899,11 +882,8 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
           adminLog.length > 0 && (
             <>
               <Text strong style={{ marginBottom: 8, display: 'block' }}>Согласование</Text>
-              <List
-                size="small"
-                dataSource={adminLog}
-                style={{ marginBottom: 16 }}
-                renderItem={(event) => {
+              <div style={{ marginBottom: 16 }}>
+                {adminLog.map((event, idx) => {
                   if (event.type === 'decision' && event.decision) {
                     const decision = event.decision
                     const icon = decision.status === 'approved'
@@ -915,7 +895,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                       ? 'Согласовано'
                       : decision.status === 'rejected' ? 'Отклонено' : 'Ожидает'
                     return (
-                      <List.Item>
+                      <div key={idx} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
                         <div style={{ width: '100%' }}>
                           <Space>
                             {icon}
@@ -933,7 +913,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                               <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>
                                 Прикрепленные файлы:
                               </Text>
-                              <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                                 {decision.files.map((file: ApprovalDecisionFile) => (
                                   <div key={file.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                     <Text style={{ flex: 1, fontSize: 12 }}>{file.fileName}</Text>
@@ -955,11 +935,11 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                                     </Space>
                                   </div>
                                 ))}
-                              </Space>
+                              </div>
                             </div>
                           )}
                         </div>
-                      </List.Item>
+                      </div>
                     )
                   }
 
@@ -970,28 +950,28 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                       const changes = (log.details?.changes as { field: string; newValue: unknown }[]) ?? []
                       const changedFields = changes.map((c) => fieldLabels[c.field] ?? c.field).join(', ')
                       return (
-                        <List.Item>
+                        <div key={idx} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
                           <Space>
                             <EditOutlined style={{ color: '#722ed1' }} />
                             <Text>Изменено: {changedFields}</Text>
                             {log.userEmail && <Text type="secondary">({log.userEmail})</Text>}
                             <Text type="secondary">{formatDate(log.createdAt)}</Text>
                           </Space>
-                        </List.Item>
+                        </div>
                       )
                     }
 
                     if (log.action === 'file_upload') {
                       const count = (log.details?.count as number) ?? 0
                       return (
-                        <List.Item>
+                        <div key={idx} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
                           <Space>
                             <FileAddOutlined style={{ color: '#1677ff' }} />
                             <Text>Догружено файлов: {count}</Text>
                             {log.userEmail && <Text type="secondary">({log.userEmail})</Text>}
                             <Text type="secondary">{formatDate(log.createdAt)}</Text>
                           </Space>
-                        </List.Item>
+                        </div>
                       )
                     }
 
@@ -999,21 +979,21 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                       const comment = (log.details?.comment as string) ?? ''
                       const text = comment ? `Повторно отправлено. Комментарий: ${comment}` : 'Повторно отправлено'
                       return (
-                        <List.Item>
+                        <div key={idx} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
                           <Space>
                             <SendOutlined style={{ color: '#1677ff' }} />
                             <Text>{text}</Text>
                             {log.userEmail && <Text type="secondary">({log.userEmail})</Text>}
                             <Text type="secondary">{formatDate(log.createdAt)}</Text>
                           </Space>
-                        </List.Item>
+                        </div>
                       )
                     }
                   }
 
                   return null
-                }}
-              />
+                })}
+              </div>
             </>
           )
         )}
@@ -1094,7 +1074,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
         okButtonProps={{ danger: true, disabled: !rejectComment.trim() }}
         width={600}
       >
-        <Space direction="vertical" style={{ width: '100%' }} size="large">
+        <Space orientation="vertical" style={{ width: '100%' }} size="large">
           <div>
             <div style={{ marginBottom: 8, fontWeight: 500 }}>Комментарий *</div>
             <TextArea
@@ -1124,26 +1104,19 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
               <p className="ant-upload-hint">Поддерживаются: PDF, изображения, Word, Excel</p>
             </Dragger>
             {rejectFiles.length > 0 && (
-              <List
-                size="small"
-                style={{ marginTop: 16 }}
-                bordered
-                dataSource={rejectFiles}
-                renderItem={(item) => (
-                  <List.Item
-                    actions={[
-                      <Button
-                        type="text"
-                        icon={<CloseOutlined />}
-                        size="small"
-                        onClick={() => setRejectFiles((prev) => prev.filter((f) => f.id !== item.id))}
-                      />,
-                    ]}
-                  >
-                    {item.file.name}
-                  </List.Item>
-                )}
-              />
+              <div style={{ marginTop: 16, border: '1px solid #d9d9d9', borderRadius: 8 }}>
+                {rejectFiles.map((item) => (
+                  <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderBottom: '1px solid #f0f0f0' }}>
+                    <Text>{item.file.name}</Text>
+                    <Button
+                      type="text"
+                      icon={<CloseOutlined />}
+                      size="small"
+                      onClick={() => setRejectFiles((prev) => prev.filter((f) => f.id !== item.id))}
+                    />
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </Space>
