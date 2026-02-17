@@ -3,9 +3,13 @@ import { Collapse, Alert } from 'antd'
 import type { CollapseProps } from 'antd'
 import { calculateDeliveryDate, formatDeliveryDate } from '@/utils/dateCalculations'
 
+// UUID условия отгрузки "Отсрочка"
+const DEFERRED_CONDITION_ID = '78569b50-8670-4012-a791-bf8a5f823939'
+
 interface DeliveryCalculationProps {
   deliveryDays: number | null
   deliveryDaysType: 'working' | 'calendar'
+  shippingConditionId?: string | null
   defaultExpanded?: boolean
 }
 
@@ -13,7 +17,7 @@ interface DeliveryCalculationProps {
  * Компонент отображения расчета ориентировочного срока поставки
  * Сворачиваемый блок с кратким отображением в заголовке
  */
-const DeliveryCalculation = ({ deliveryDays, deliveryDaysType, defaultExpanded = true }: DeliveryCalculationProps) => {
+const DeliveryCalculation = ({ deliveryDays, deliveryDaysType, shippingConditionId, defaultExpanded = true }: DeliveryCalculationProps) => {
   const [activeKey, setActiveKey] = useState<string | string[]>(defaultExpanded ? ['1'] : [])
 
   if (!deliveryDays) {
@@ -26,7 +30,10 @@ const DeliveryCalculation = ({ deliveryDays, deliveryDaysType, defaultExpanded =
     )
   }
 
-  const deliveryDate = calculateDeliveryDate(deliveryDays, deliveryDaysType)
+  // При "Отсрочке" этап оплаты не учитывается
+  const includePayment = shippingConditionId !== DEFERRED_CONDITION_ID
+
+  const deliveryDate = calculateDeliveryDate(deliveryDays, deliveryDaysType, includePayment)
   const formattedDate = formatDeliveryDate(deliveryDate)
   const daysTypeLabel = deliveryDaysType === 'working' ? 'рабочих' : 'календарных'
 
@@ -37,7 +44,7 @@ const DeliveryCalculation = ({ deliveryDays, deliveryDaysType, defaultExpanded =
       children: (
         <div>
           <div>• Время согласования СУ-10: 3 рабочих дня</div>
-          <div>• Время оплаты Заказчиком: 2 недели</div>
+          {includePayment && <div>• Время оплаты Заказчиком: 2 недели</div>}
           <div>
             • Время поставки: {deliveryDays} {daysTypeLabel} дн.
           </div>

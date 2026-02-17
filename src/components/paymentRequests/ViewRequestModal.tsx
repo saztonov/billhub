@@ -48,7 +48,7 @@ import FilePreviewModal from './FilePreviewModal'
 import FileUploadList from './FileUploadList'
 import type { FileItem } from './FileUploadList'
 import DeliveryCalculation from './DeliveryCalculation'
-import type { PaymentRequest, PaymentRequestFile, ApprovalDecisionFile, ApprovalDecision, PaymentRequestLog } from '@/types'
+import type { PaymentRequest, PaymentRequestFile, ApprovalDecisionFile, ApprovalDecision, PaymentRequestLog, Department } from '@/types'
 import { DEPARTMENT_LABELS } from '@/types'
 
 const { Text } = Typography
@@ -247,7 +247,9 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
     // Отклонения
     const rejected = currentDecisions.filter((d) => d.status === 'rejected')
     for (const d of rejected) {
-      const reason = d.comment ? `Отклонено. Причина: ${d.comment}` : 'Отклонено'
+      const deptLabel = DEPARTMENT_LABELS[d.department] ?? ''
+      const prefix = deptLabel ? `Отклонено (${deptLabel})` : 'Отклонено'
+      const reason = d.comment ? `${prefix}. Причина: ${d.comment}` : prefix
       log.push({
         icon: <CloseCircleOutlined style={{ color: '#f5222d' }} />,
         text: reason,
@@ -410,6 +412,8 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   }, [currentRequestFiles])
 
   const hasResubmitFiles = (request?.resubmitCount ?? 0) > 0
+  // Есть ли файлы, загруженные сотрудниками (user/admin)
+  const hasStaffFiles = sortedFiles.some((f) => f.uploaderRole === 'user' || f.uploaderRole === 'admin')
 
   const handleResubmitSubmit = async () => {
     // Валидация формы с полями заявки
@@ -466,14 +470,23 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
     },
   ]
 
-  // Колонка "Догружен" — только если была повторная отправка
-  if (hasResubmitFiles) {
+  // Колонка "Догружен" — если есть повторная отправка или файлы от сотрудников
+  if (hasResubmitFiles || hasStaffFiles) {
     fileColumns.push({
       title: 'Догружен',
       key: 'resubmit',
-      width: 100,
-      render: (_: unknown, file: PaymentRequestFile) =>
-        file.isResubmit ? <Tag color="blue">Догружен</Tag> : null,
+      width: 120,
+      render: (_: unknown, file: PaymentRequestFile) => {
+        // Файл загружен подрядчиком при повторной отправке
+        if (file.isResubmit) return <Tag color="blue">Подрядчик</Tag>
+        // Файл загружен сотрудником (user/admin)
+        if (file.uploaderRole === 'user' || file.uploaderRole === 'admin') {
+          const dept = file.uploaderDepartment as Department | null
+          const label = dept ? DEPARTMENT_LABELS[dept] : '—'
+          return <Tag color="green">{label}</Tag>
+        }
+        return null
+      },
     })
   }
 
@@ -619,11 +632,12 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
             </Row>
 
             {/* Расчет ориентировочного срока поставки при редактировании */}
-            <Form.Item noStyle shouldUpdate={(prev, curr) => prev.deliveryDays !== curr.deliveryDays || prev.deliveryDaysType !== curr.deliveryDaysType}>
+            <Form.Item noStyle shouldUpdate={(prev, curr) => prev.deliveryDays !== curr.deliveryDays || prev.deliveryDaysType !== curr.deliveryDaysType || prev.shippingConditionId !== curr.shippingConditionId}>
               {({ getFieldValue }) => (
                 <DeliveryCalculation
                   deliveryDays={getFieldValue('deliveryDays')}
                   deliveryDaysType={getFieldValue('deliveryDaysType') || 'working'}
+                  shippingConditionId={getFieldValue('shippingConditionId')}
                   defaultExpanded={false}
                 />
               )}
@@ -700,11 +714,12 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                   </Form.Item>
                 </Col>
               </Row>
-              <Form.Item noStyle shouldUpdate={(prev, curr) => prev.deliveryDays !== curr.deliveryDays || prev.deliveryDaysType !== curr.deliveryDaysType}>
+              <Form.Item noStyle shouldUpdate={(prev, curr) => prev.deliveryDays !== curr.deliveryDays || prev.deliveryDaysType !== curr.deliveryDaysType || prev.shippingConditionId !== curr.shippingConditionId}>
                 {({ getFieldValue }) => (
                   <DeliveryCalculation
                     deliveryDays={getFieldValue('deliveryDays')}
                     deliveryDaysType={getFieldValue('deliveryDaysType') || 'working'}
+                    shippingConditionId={getFieldValue('shippingConditionId')}
                     defaultExpanded={false}
                   />
                 )}
@@ -739,6 +754,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
           <DeliveryCalculation
             deliveryDays={request.deliveryDays}
             deliveryDaysType={request.deliveryDaysType as 'working' | 'calendar'}
+            shippingConditionId={request.shippingConditionId}
             defaultExpanded={false}
           />
         )}

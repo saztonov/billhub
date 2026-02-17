@@ -32,6 +32,7 @@ const LoginPage = () => {
         onFinish={onFinish}
         layout="vertical"
         size="large"
+        autoComplete="off"
       >
         <Form.Item
           name="email"
@@ -40,13 +41,13 @@ const LoginPage = () => {
             { type: 'email', message: 'Некорректный email' },
           ]}
         >
-          <Input prefix={<MailOutlined />} placeholder="Email" />
+          <Input prefix={<MailOutlined />} placeholder="Email" autoComplete="off" />
         </Form.Item>
         <Form.Item
           name="password"
           rules={[{ required: true, message: 'Введите пароль' }]}
         >
-          <Input.Password prefix={<LockOutlined />} placeholder="Пароль" />
+          <Input.Password prefix={<LockOutlined />} placeholder="Пароль" autoComplete="new-password" />
         </Form.Item>
         <Form.Item>
           <Button type="primary" htmlType="submit" loading={isLoading} block>

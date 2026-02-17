@@ -188,6 +188,8 @@ export interface PaymentRequestFile {
   isResubmit: boolean
   // Joined
   documentTypeName?: string
+  uploaderRole?: string
+  uploaderDepartment?: string | null
 }
 
 /** Прикреплённый документ контрагента/поставки */

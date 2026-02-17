@@ -295,6 +295,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
           <DeliveryCalculation
             deliveryDays={formValues.deliveryDays as number | null}
             deliveryDaysType={(formValues.deliveryDaysType as 'working' | 'calendar') || 'working'}
+            shippingConditionId={formValues.shippingConditionId as string | undefined}
             defaultExpanded={true}
           />
 

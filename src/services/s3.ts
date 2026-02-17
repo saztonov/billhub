@@ -8,14 +8,32 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { sanitizeForS3 } from '@/utils/transliterate'
 
-// Конфигурация S3 из переменных окружения
-const S3_ENDPOINT = import.meta.env.VITE_S3_ENDPOINT as string
-const S3_REGION = (import.meta.env.VITE_S3_REGION as string) || 'ru-msk'
-const S3_ACCESS_KEY = import.meta.env.VITE_S3_ACCESS_KEY as string
-const S3_SECRET_KEY = import.meta.env.VITE_S3_SECRET_KEY as string
-const S3_BUCKET = import.meta.env.VITE_S3_BUCKET as string
+// Определяем активного провайдера хранилища
+const STORAGE_PROVIDER = (import.meta.env.VITE_STORAGE_PROVIDER as string) || 'cloudru'
+const isCloudflare = STORAGE_PROVIDER === 'cloudflare'
 
-/** Клиент S3 для Cloud.ru (S3-совместимый API) */
+// Конфигурация в зависимости от провайдера
+const S3_ENDPOINT = isCloudflare
+  ? (import.meta.env.VITE_R2_ENDPOINT as string)
+  : (import.meta.env.VITE_S3_ENDPOINT as string)
+
+const S3_REGION = isCloudflare
+  ? 'auto'
+  : ((import.meta.env.VITE_S3_REGION as string) || 'ru-msk')
+
+const S3_ACCESS_KEY = isCloudflare
+  ? (import.meta.env.VITE_R2_ACCESS_KEY as string)
+  : (import.meta.env.VITE_S3_ACCESS_KEY as string)
+
+const S3_SECRET_KEY = isCloudflare
+  ? (import.meta.env.VITE_R2_SECRET_KEY as string)
+  : (import.meta.env.VITE_S3_SECRET_KEY as string)
+
+const S3_BUCKET = isCloudflare
+  ? (import.meta.env.VITE_R2_BUCKET as string)
+  : (import.meta.env.VITE_S3_BUCKET as string)
+
+/** S3-совместимый клиент (Cloud.ru или Cloudflare R2) */
 const s3Client = new S3Client({
   endpoint: S3_ENDPOINT,
   region: S3_REGION,
@@ -23,7 +41,7 @@ const s3Client = new S3Client({
     accessKeyId: S3_ACCESS_KEY,
     secretAccessKey: S3_SECRET_KEY,
   },
-  forcePathStyle: true,
+  forcePathStyle: !isCloudflare,
 })
 
 // Базовый endpoint без trailing slash для корректной подмены в presigned URL

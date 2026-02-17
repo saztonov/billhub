@@ -315,7 +315,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
     try {
       const { data, error } = await supabase
         .from('payment_request_files')
-        .select('*, document_types(name)')
+        .select('*, document_types(name), users!payment_request_files_created_by_fkey(role, department_id)')
         .eq('payment_request_id', requestId)
         .order('created_at', { ascending: true })
       if (error) throw error
@@ -323,6 +323,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
       const files: PaymentRequestFile[] = (data ?? []).map(
         (row: Record<string, unknown>) => {
           const dt = row.document_types as Record<string, unknown> | null
+          const uploader = row.users as Record<string, unknown> | null
           return {
             id: row.id as string,
             paymentRequestId: row.payment_request_id as string,
@@ -336,6 +337,8 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
             createdAt: row.created_at as string,
             isResubmit: (row.is_resubmit as boolean) ?? false,
             documentTypeName: dt?.name as string | undefined,
+            uploaderRole: uploader?.role as string | undefined,
+            uploaderDepartment: uploader?.department_id as string | null | undefined,
           }
         },
       )
