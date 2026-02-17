@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Form, Select, Input, Space, Button, DatePicker } from 'antd'
 import type { Counterparty, ConstructionSite, Status } from '@/types'
 import type { OmtsUser } from '@/store/assignmentStore'
@@ -14,6 +15,7 @@ export interface FilterValues {
   dateTo?: string
   responsibleFilter?: 'assigned' | 'unassigned' | null
   responsibleUserId?: string
+  myRequestsFilter?: 'all' | 'assigned_to_me'
 }
 
 interface RequestFiltersProps {
@@ -23,6 +25,7 @@ interface RequestFiltersProps {
   hideCounterpartyFilter?: boolean
   hideStatusFilter?: boolean
   showResponsibleFilter?: boolean
+  showMyRequestsFilter?: boolean
   omtsUsers?: OmtsUser[]
   values: FilterValues
   onChange: (values: FilterValues) => void
@@ -37,6 +40,7 @@ const RequestFilters = (props: RequestFiltersProps) => {
     hideCounterpartyFilter,
     hideStatusFilter,
     showResponsibleFilter,
+    showMyRequestsFilter,
     omtsUsers,
     values,
     onChange,
@@ -68,6 +72,21 @@ const RequestFilters = (props: RequestFiltersProps) => {
     }
     onChange(transformed)
   }
+
+  // Синхронизация формы при внешнем изменении values (сброс к дефолтным)
+  useEffect(() => {
+    form.setFieldsValue({
+      ...values,
+      dateRange:
+        values.dateFrom && values.dateTo
+          ? [dayjs(values.dateFrom), dayjs(values.dateTo)]
+          : values.dateFrom
+          ? [dayjs(values.dateFrom), null]
+          : values.dateTo
+          ? [null, dayjs(values.dateTo)]
+          : undefined,
+    })
+  }, [values, form])
 
   const handleReset = () => {
     form.resetFields()
@@ -148,6 +167,17 @@ const RequestFilters = (props: RequestFiltersProps) => {
                   label: u.fullName || u.email,
                   value: u.id,
                 }))}
+              />
+            </Form.Item>
+          )}
+
+          {showMyRequestsFilter && (
+            <Form.Item label="Заявки" name="myRequestsFilter" style={{ marginBottom: 0, width: 200 }}>
+              <Select
+                options={[
+                  { label: 'Все', value: 'all' },
+                  { label: 'Назначенные мне', value: 'assigned_to_me' },
+                ]}
               />
             </Form.Item>
           )}

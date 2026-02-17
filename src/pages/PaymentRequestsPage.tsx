@@ -49,22 +49,30 @@ const PaymentRequestsPage = () => {
   const [userAllSites, setUserAllSites] = useState(true)
   const [sitesLoaded, setSitesLoaded] = useState(false)
   const [filters, setFilters] = useState<FilterValues>({})
-  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [defaultFilters, setDefaultFilters] = useState<FilterValues>({})
+  const [filtersOpen, setFiltersOpen] = useState(true)
   const [adminSelectedStage, setAdminSelectedStage] = useState<Department>('omts') // Для админа: выбор этапа согласования
   const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   const user = useAuthStore((s) => s.user)
 
-  // Разворачиваем фильтры по умолчанию для контрагента
-  useEffect(() => {
-    if (user?.role === 'counterparty_user') {
-      setFiltersOpen(true)
-    }
-  }, [user?.role])
   const isCounterpartyUser = user?.role === 'counterparty_user'
   const isAdmin = user?.role === 'admin'
   const isUser = user?.role === 'user'
   const isOmtsUser = user?.department === 'omts'
+
+  // Устанавливаем фильтры по умолчанию в зависимости от роли
+  useEffect(() => {
+    if (isAdmin) {
+      const defaults: FilterValues = { responsibleFilter: 'unassigned' }
+      setFilters(defaults)
+      setDefaultFilters(defaults)
+    } else if (isOmtsUser) {
+      const defaults: FilterValues = { myRequestsFilter: 'assigned_to_me' }
+      setFilters(defaults)
+      setDefaultFilters(defaults)
+    }
+  }, [isAdmin, isOmtsUser])
 
   const {
     requests,
@@ -362,9 +370,13 @@ const PaymentRequestsPage = () => {
     if (filters.responsibleUserId) {
       filtered = filtered.filter(r => r.assignedUserId === filters.responsibleUserId)
     }
+    // Фильтр "Заявки" для ОМТС-пользователя
+    if (filters.myRequestsFilter === 'assigned_to_me' && user?.id) {
+      filtered = filtered.filter(r => r.assignedUserId === user.id)
+    }
 
     return filtered
-  }, [filters])
+  }, [filters, user?.id])
 
   // Фильтрация заявок для всех вкладок
   const filteredRequests = useMemo(() => applyFilters(requests), [requests, applyFilters])
@@ -762,11 +774,12 @@ const PaymentRequestsPage = () => {
           sites={sites}
           hideCounterpartyFilter={false}
           hideStatusFilter={true}
-          showResponsibleFilter={isOmtsUser || isAdmin}
+          showResponsibleFilter={isAdmin}
+          showMyRequestsFilter={isOmtsUser && !isAdmin}
           omtsUsers={omtsUsers}
           values={filters}
           onChange={setFilters}
-          onReset={() => setFilters({})}
+          onReset={() => setFilters(defaultFilters)}
         />
       )}
       <Tabs activeKey={activeTab} onChange={setActiveTab} onTabClick={(key) => { if (key === activeTab) setRefreshTrigger((n) => n + 1) }} items={tabItems} />
