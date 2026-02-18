@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { supabase } from '@/services/supabase'
+import { logError } from '@/services/errorLogger'
 import { checkAndNotifyMissingSpecialists } from '@/utils/approvalNotifications'
 import { useUploadQueueStore } from '@/store/uploadQueueStore'
 import type { Department, ApprovalDecision, ApprovalDecisionFile, PaymentRequest, PaymentRequestLog } from '@/types'
@@ -303,6 +304,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
       set({ isLoading: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка согласования'
+      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'approveRequest', paymentRequestId } })
       set({ error: message, isLoading: false })
     }
   },
@@ -370,6 +372,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
       set({ isLoading: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка отклонения'
+      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'rejectRequest', paymentRequestId } })
       set({ error: message, isLoading: false })
       throw err // Пробрасываем ошибку для обработки в UI
     }

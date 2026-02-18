@@ -4,8 +4,13 @@ import { BrowserRouter } from 'react-router-dom'
 import { ConfigProvider } from 'antd'
 import ruRU from 'antd/locale/ru_RU'
 import App from '@/App'
+import ErrorBoundary from '@/components/ErrorBoundary'
+import { setupGlobalErrorHandlers } from '@/services/errorLogger'
 import { theme } from '@/theme'
 import '@/index.css'
+
+// Установка глобальных обработчиков ошибок до рендера приложения
+setupGlobalErrorHandlers()
 
 // Подавление предупреждения Multiple GoTrueClient в dev режиме
 if (import.meta.env.DEV) {
@@ -25,9 +30,11 @@ if (import.meta.env.DEV) {
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ConfigProvider locale={ruRU} theme={theme}>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
+      <ErrorBoundary>
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
+      </ErrorBoundary>
     </ConfigProvider>
   </React.StrictMode>,
 )

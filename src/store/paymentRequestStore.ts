@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { supabase } from '@/services/supabase'
+import { logError } from '@/services/errorLogger'
 import { checkAndNotifyMissingSpecialists } from '@/utils/approvalNotifications'
 import type { PaymentRequest, PaymentRequestFile } from '@/types'
 
@@ -223,6 +224,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
       return { requestId: requestData.id as string, requestNumber: requestNumber as string }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка создания заявки'
+      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'createRequest' } })
       set({ error: message, isSubmitting: false })
       throw err
     }
@@ -447,6 +449,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
       set({ isSubmitting: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка повторной отправки'
+      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'resubmitRequest' } })
       set({ error: message, isSubmitting: false })
       throw err
     }
@@ -529,6 +532,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
       set({ isSubmitting: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка обновления заявки'
+      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'updateRequest' } })
       set({ error: message, isSubmitting: false })
       throw err
     }

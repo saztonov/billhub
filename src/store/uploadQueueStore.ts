@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { supabase } from '@/services/supabase'
+import { logError } from '@/services/errorLogger'
 import { uploadRequestFile, uploadDecisionFile } from '@/services/s3'
 import { usePaymentRequestStore } from '@/store/paymentRequestStore'
 
@@ -237,6 +238,7 @@ async function processQueue(
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Ошибка загрузки файла'
         console.error('[UploadQueue] Ошибка загрузки:', { taskId, error: err })
+        logError({ errorType: 'api_error', errorMessage, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'uploadFile', taskId } })
         set((state) => ({
           tasks: {
             ...state.tasks,

@@ -1734,6 +1734,101 @@
               "numeric_precision": null
             }
           ]
+        },
+        {
+          "name": "error_logs",
+          "columns": [
+            {
+              "name": "id",
+              "type": "uuid",
+              "default": "gen_random_uuid()",
+              "nullable": false,
+              "position": 1,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "created_at",
+              "type": "timestamp with time zone",
+              "default": "now()",
+              "nullable": false,
+              "position": 2,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "error_type",
+              "type": "character varying",
+              "default": null,
+              "nullable": false,
+              "position": 3,
+              "max_length": 50,
+              "numeric_precision": null
+            },
+            {
+              "name": "error_message",
+              "type": "text",
+              "default": null,
+              "nullable": false,
+              "position": 4,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "error_stack",
+              "type": "text",
+              "default": null,
+              "nullable": true,
+              "position": 5,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "url",
+              "type": "text",
+              "default": null,
+              "nullable": true,
+              "position": 6,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "user_id",
+              "type": "uuid",
+              "default": null,
+              "nullable": true,
+              "position": 7,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "user_agent",
+              "type": "text",
+              "default": null,
+              "nullable": true,
+              "position": 8,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "component",
+              "type": "character varying",
+              "default": null,
+              "nullable": true,
+              "position": 9,
+              "max_length": 255,
+              "numeric_precision": null
+            },
+            {
+              "name": "metadata",
+              "type": "jsonb",
+              "default": null,
+              "nullable": true,
+              "position": 10,
+              "max_length": null,
+              "numeric_precision": null
+            }
+          ]
         }
       ],
       "indexes": [
@@ -1771,6 +1866,31 @@
           "name": "idx_approval_decisions_status",
           "definition": "CREATE INDEX idx_approval_decisions_status ON public.approval_decisions USING btree (status)",
           "table_name": "approval_decisions"
+        },
+        {
+          "name": "error_logs_pkey",
+          "definition": "CREATE UNIQUE INDEX error_logs_pkey ON public.error_logs USING btree (id)",
+          "table_name": "error_logs"
+        },
+        {
+          "name": "idx_error_logs_created_at",
+          "definition": "CREATE INDEX idx_error_logs_created_at ON public.error_logs USING btree (created_at DESC)",
+          "table_name": "error_logs"
+        },
+        {
+          "name": "idx_error_logs_error_type",
+          "definition": "CREATE INDEX idx_error_logs_error_type ON public.error_logs USING btree (error_type)",
+          "table_name": "error_logs"
+        },
+        {
+          "name": "idx_error_logs_user_id",
+          "definition": "CREATE INDEX idx_error_logs_user_id ON public.error_logs USING btree (user_id)",
+          "table_name": "error_logs"
+        },
+        {
+          "name": "idx_error_logs_type_created",
+          "definition": "CREATE INDEX idx_error_logs_type_created ON public.error_logs USING btree (error_type, created_at DESC)",
+          "table_name": "error_logs"
         },
         {
           "name": "construction_sites_pkey",
@@ -2097,6 +2217,17 @@
           "table_name": "approval_decisions",
           "constraint_name": "approval_decisions_payment_request_id_fkey",
           "references_table": "payment_requests",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "user_id"
+          ],
+          "table_name": "error_logs",
+          "constraint_name": "error_logs_user_id_fkey",
+          "references_table": "users",
           "references_columns": [
             "id"
           ]
@@ -2478,6 +2609,13 @@
           "columns": [
             "id"
           ],
+          "table_name": "error_logs",
+          "constraint_name": "error_logs_pkey"
+        },
+        {
+          "columns": [
+            "id"
+          ],
           "table_name": "documents",
           "constraint_name": "documents_pkey"
         },
@@ -2807,6 +2945,26 @@
           "table_name": "documents",
           "check_clause": "is_marked_for_deletion IS NOT NULL",
           "constraint_name": "2200_17578_8_not_null"
+        },
+        {
+          "table_name": "error_logs",
+          "check_clause": "id IS NOT NULL",
+          "constraint_name": "error_logs_1_not_null"
+        },
+        {
+          "table_name": "error_logs",
+          "check_clause": "created_at IS NOT NULL",
+          "constraint_name": "error_logs_2_not_null"
+        },
+        {
+          "table_name": "error_logs",
+          "check_clause": "error_type IS NOT NULL",
+          "constraint_name": "error_logs_3_not_null"
+        },
+        {
+          "table_name": "error_logs",
+          "check_clause": "error_message IS NOT NULL",
+          "constraint_name": "error_logs_4_not_null"
         },
         {
           "table_name": "employees",

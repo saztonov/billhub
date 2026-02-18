@@ -314,6 +314,25 @@ export interface AppNotification {
   requestNumber?: string
 }
 
+/** Тип ошибки в логах */
+export type ErrorLogType = 'js_error' | 'unhandled_rejection' | 'react_error' | 'api_error'
+
+/** Запись лога ошибки */
+export interface ErrorLog {
+  id: string
+  createdAt: string
+  errorType: ErrorLogType
+  errorMessage: string
+  errorStack: string | null
+  url: string | null
+  userId: string | null
+  userAgent: string | null
+  component: string | null
+  metadata: Record<string, unknown> | null
+  // Joined
+  userEmail?: string
+}
+
 /** Состояние аутентификации */
 export interface AuthState {
   user: User | null
