@@ -362,12 +362,13 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   const handleDownload = async (fileKey: string, fileName: string) => {
     setDownloading(fileKey)
     try {
-      const url = await getDownloadUrl(fileKey)
+      const blob = await downloadFileBlob(fileKey)
+      const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
       a.download = fileName
-      a.target = '_blank'
       a.click()
+      URL.revokeObjectURL(url)
     } finally {
       setDownloading(null)
     }
@@ -382,13 +383,13 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   const handleDownloadDecisionFile = async (fileKey: string, fileName: string) => {
     setDownloading(fileKey)
     try {
-      // Передаем fileName для установки Content-Disposition: attachment
-      const url = await getDownloadUrl(fileKey, 3600, fileName)
+      const blob = await downloadFileBlob(fileKey)
+      const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
       a.download = fileName
-      a.target = '_blank'
       a.click()
+      URL.revokeObjectURL(url)
     } finally {
       setDownloading(null)
     }
