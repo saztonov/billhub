@@ -78,6 +78,8 @@ function mapRequest(row: Record<string, unknown>): PaymentRequest {
     resubmitCount: (row.resubmit_count as number) ?? 0,
     invoiceAmount: (row.invoice_amount as number) ?? null,
     invoiceAmountHistory: (row.invoice_amount_history as { amount: number; changedAt: string }[]) ?? [],
+    isDeleted: (row.is_deleted as boolean) ?? false,
+    deletedAt: (row.deleted_at as string) ?? null,
     counterpartyName: counterparties?.name as string | undefined,
     siteName: site?.name as string | undefined,
     statusName: statuses?.name as string | undefined,
@@ -404,6 +406,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
         .from('payment_requests')
         .select(PR_SELECT)
         .in('id', requestIds)
+        .eq('is_deleted', false)
         .order('created_at', { ascending: false })
 
       // Фильтрация по объектам (работает для Штаба и ОМТС)
@@ -440,6 +443,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
         .from('payment_requests')
         .select(PR_SELECT)
         .not('approved_at', 'is', null)
+        .eq('is_deleted', false)
         .order('approved_at', { ascending: false })
 
       // Фильтрация по объектам для role=user
@@ -467,6 +471,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
         .from('payment_requests')
         .select(PR_SELECT)
         .not('rejected_at', 'is', null)
+        .eq('is_deleted', false)
         .order('rejected_at', { ascending: false })
 
       // Фильтрация по объектам для role=user

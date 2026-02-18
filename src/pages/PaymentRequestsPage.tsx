@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
-import { Typography, Button, Tabs, App, Radio } from 'antd'
+import { Typography, Button, Tabs, App, Radio, Switch } from 'antd'
 import { PlusOutlined, FilterOutlined } from '@ant-design/icons'
 import { usePaymentRequestStore } from '@/store/paymentRequestStore'
 import type { EditRequestData } from '@/store/paymentRequestStore'
@@ -53,6 +53,7 @@ const PaymentRequestsPage = () => {
   const [filtersOpen, setFiltersOpen] = useState(true)
   const [adminSelectedStage, setAdminSelectedStage] = useState<Department>('omts') // Для админа: выбор этапа согласования
   const [refreshTrigger, setRefreshTrigger] = useState(0)
+  const [showDeleted, setShowDeleted] = useState(false) // Для админа: показать удаленные заявки
 
   const user = useAuthStore((s) => s.user)
 
@@ -138,11 +139,11 @@ const PaymentRequestsPage = () => {
     if (isCounterpartyUser && user?.counterpartyId) {
       fetchRequests(user.counterpartyId)
     } else if (isAdmin) {
-      fetchRequests()
+      fetchRequests(undefined, undefined, undefined, showDeleted)
     } else if (isUser) {
       fetchRequests(undefined, userSiteIds, userAllSites)
     }
-  }, [fetchRequests, isCounterpartyUser, isAdmin, isUser, user?.counterpartyId, sitesLoaded, userSiteIds, userAllSites])
+  }, [fetchRequests, isCounterpartyUser, isAdmin, isUser, user?.counterpartyId, sitesLoaded, userSiteIds, userAllSites, showDeleted])
 
   // Загружаем pendingRequests для счетчика вкладки (независимо от activeTab)
   useEffect(() => {
@@ -171,7 +172,7 @@ const PaymentRequestsPage = () => {
       if (isUser) {
         fetchRequests(undefined, sIds, allS)
       } else if (isAdmin) {
-        fetchRequests()
+        fetchRequests(undefined, undefined, undefined, showDeleted)
       }
     } else if (activeTab === 'pending') {
       // Вкладка "На согласование"
@@ -188,7 +189,7 @@ const PaymentRequestsPage = () => {
       // Вкладка "Отклонено"
       fetchRejectedRequests(sIds, allS)
     }
-  }, [activeTab, refreshTrigger, sitesLoaded, isCounterpartyUser, user?.counterpartyId, user?.id, user?.department, isUser, isAdmin, adminSelectedStage, userDeptInChain, userSiteIds, userAllSites, fetchRequests, fetchPendingRequests, fetchApprovedRequests, fetchRejectedRequests])
+  }, [activeTab, refreshTrigger, sitesLoaded, isCounterpartyUser, user?.counterpartyId, user?.id, user?.department, isUser, isAdmin, adminSelectedStage, userDeptInChain, userSiteIds, userAllSites, showDeleted, fetchRequests, fetchPendingRequests, fetchApprovedRequests, fetchRejectedRequests])
 
   // Загружаем справочники для фильтров
   useEffect(() => {
@@ -279,7 +280,7 @@ const PaymentRequestsPage = () => {
 
   const handleDelete = async (id: string) => {
     await deleteRequest(id)
-    message.success('Заявка удалена')
+    message.success('Заявка перемещена в удаленные')
   }
 
   const handleApprove = async (requestId: string, comment: string) => {
@@ -764,9 +765,17 @@ const PaymentRequestsPage = () => {
             </>
           )}
         </div>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsCreateOpen(true)}>
-          Добавить
-        </Button>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          {isAdmin && (
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Switch size="small" checked={showDeleted} onChange={setShowDeleted} />
+              <span style={{ fontSize: 13, color: '#8c8c8c', whiteSpace: 'nowrap' }}>Удаленные</span>
+            </span>
+          )}
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsCreateOpen(true)}>
+            Добавить
+          </Button>
+        </div>
       </div>
       {filtersOpen && (
         <RequestFilters

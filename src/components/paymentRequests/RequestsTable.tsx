@@ -503,11 +503,11 @@ const RequestsTable = (props: RequestsTableProps) => {
           />
         )}
 
-        {/* admin: удаление */}
-        {isAdmin && onDelete && (
+        {/* admin: удаление (скрываем для уже удаленных) */}
+        {isAdmin && onDelete && !record.isDeleted && (
           <Popconfirm
             title="Удалить заявку?"
-            description="Заявка и все файлы будут удалены безвозвратно"
+            description="Заявка станет неактивной, но данные и файлы сохранятся"
             onConfirm={() => onDelete(record.id)}
           >
             <Tooltip title="Удалить">
@@ -534,15 +534,21 @@ const RequestsTable = (props: RequestsTableProps) => {
           pageSizeOptions: [10, 20, 50, 100],
           defaultPageSize: 20
         }}
-        rowClassName={(record: PaymentRequest) =>
-          uploadTasks?.[record.id]?.status === 'error' ? 'row-upload-error' : ''
-        }
+        rowClassName={(record: PaymentRequest) => {
+          const classes: string[] = []
+          if (uploadTasks?.[record.id]?.status === 'error') classes.push('row-upload-error')
+          if (record.isDeleted) classes.push('row-deleted')
+          return classes.join(' ')
+        }}
       />
 
-      {/* Стили подсветки строки с ошибкой загрузки */}
+      {/* Стили подсветки строк */}
       <style>{`
         .row-upload-error td {
           background-color: #fff1f0 !important;
+        }
+        .row-deleted td {
+          opacity: 0.45;
         }
       `}</style>
 

@@ -1,6 +1,5 @@
 import { create } from 'zustand'
 import { supabase } from '@/services/supabase'
-import { deleteFile } from '@/services/s3'
 import { checkAndNotifyMissingSpecialists } from '@/utils/approvalNotifications'
 import type { PaymentRequest, PaymentRequestFile } from '@/types'
 
@@ -29,7 +28,7 @@ interface PaymentRequestStoreState {
   isLoading: boolean
   isSubmitting: boolean
   error: string | null
-  fetchRequests: (counterpartyId?: string, userSiteIds?: string[], allSites?: boolean) => Promise<void>
+  fetchRequests: (counterpartyId?: string, userSiteIds?: string[], allSites?: boolean, includeDeleted?: boolean) => Promise<void>
   createRequest: (
     data: CreateRequestData,
     counterpartyId: string,
@@ -67,7 +66,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
   isSubmitting: false,
   error: null,
 
-  fetchRequests: async (counterpartyId?, userSiteIds?, allSites?) => {
+  fetchRequests: async (counterpartyId?, userSiteIds?, allSites?, includeDeleted?) => {
     set({ isLoading: true, error: null })
     try {
       let query = supabase
@@ -85,6 +84,11 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
           )
         `)
         .order('created_at', { ascending: false })
+
+      // Фильтрация удаленных заявок (по умолчанию скрыты)
+      if (!includeDeleted) {
+        query = query.eq('is_deleted', false)
+      }
 
       if (counterpartyId) {
         query = query.eq('counterparty_id', counterpartyId)
@@ -138,6 +142,8 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
           resubmitCount: (row.resubmit_count as number) ?? 0,
           invoiceAmount: (row.invoice_amount as number) ?? null,
           invoiceAmountHistory: (row.invoice_amount_history as { amount: number; changedAt: string }[]) ?? [],
+          isDeleted: (row.is_deleted as boolean) ?? false,
+          deletedAt: (row.deleted_at as string) ?? null,
           counterpartyName: counterparties?.name as string | undefined,
           siteName: site?.name as string | undefined,
           statusName: statuses?.name as string | undefined,
@@ -225,22 +231,13 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
   deleteRequest: async (id) => {
     set({ isLoading: true, error: null })
     try {
-      // Загружаем файлы заявки для удаления из S3
-      const { data: files, error: filesError } = await supabase
-        .from('payment_request_files')
-        .select('file_key')
-        .eq('payment_request_id', id)
-      if (filesError) throw filesError
-
-      // Удаляем файлы из S3
-      for (const file of files ?? []) {
-        await deleteFile(file.file_key).catch(() => {})
-      }
-
-      // Удаляем заявку из БД (каскад удалит payment_request_files)
+      // Мягкое удаление: помечаем заявку как удаленную, файлы и данные сохраняются
       const { error } = await supabase
         .from('payment_requests')
-        .delete()
+        .update({
+          is_deleted: true,
+          deleted_at: new Date().toISOString(),
+        })
         .eq('id', id)
       if (error) throw error
 

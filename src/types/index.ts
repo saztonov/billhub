@@ -135,6 +135,8 @@ export interface PaymentRequest {
   resubmitCount: number
   invoiceAmount: number | null // Сумма счета в рублях
   invoiceAmountHistory: { amount: number; changedAt: string }[] // История изменения сумм при повторных отправках
+  isDeleted: boolean // Мягкое удаление
+  deletedAt: string | null // Дата мягкого удаления
   // Joined
   counterpartyName?: string
   siteName?: string

@@ -457,60 +457,77 @@ tail -f /var/www/httpd-logs/billhub.fvds.ru.error.log
 
 ## Обновление приложения
 
-### Процесс обновления после изменений в коде
+### Быстрое обновление (стандартный случай)
+
+Подключиться к серверу через PuTTY.
+
+**Шаг 1. Получить код и собрать (пользователь: billhub)**
 
 ```bash
-# 1. Подключиться к серверу (PuTTY)
+cd /var/www/billhub/data/billhub-app
+git pull
+npm install
+npm run build
+```
 
-# 2. Перейти в рабочую директорию
+> `npm install` можно пропустить, если package.json не менялся.
+
+**Шаг 2. Скопировать сборку в production (пользователь: root)**
+
+```bash
+rm -rf /var/www/billhub/data/www/billhub.fvds.ru/*
+cp -r /var/www/billhub/data/billhub-app/dist/* /var/www/billhub/data/www/billhub.fvds.ru/
+chown -R billhub:billhub /var/www/billhub/data/www/billhub.fvds.ru/
+systemctl reload nginx
+```
+
+**Шаг 3. Проверить (пользователь: billhub или root)**
+
+```bash
+curl -I https://billhub.fvds.ru
+```
+
+Ожидаемый ответ: `HTTP/2 200`.
+
+### Обновление с изменением переменных окружения
+
+Если добавились новые переменные или изменились значения существующих:
+
+```bash
 # Пользователь: billhub
 cd /var/www/billhub/data/billhub-app
-
-# 3. Получить последние изменения из GitHub
-# Пользователь: billhub
-git pull
-
-# 4. Установить новые зависимости (если package.json изменился)
-# Пользователь: billhub
-npm install
-
-# 5. Обновить .env (если были изменения переменных)
-# Пользователь: billhub
 nano .env
+```
 
-# 6. Пересобрать проект
+После редактирования `.env` необходима пересборка (`npm run build`), так как переменные `VITE_*` встраиваются в бандл на этапе сборки.
+
+Далее выполнить шаги 1-3 из раздела "Быстрое обновление".
+
+### Откат к предыдущей версии
+
+Если после обновления обнаружены проблемы:
+
+```bash
 # Пользователь: billhub
+cd /var/www/billhub/data/billhub-app
+git log --oneline -5          # посмотреть последние коммиты
+git checkout <хеш-коммита>    # откатиться к нужному коммиту
+npm install
 npm run build
+```
 
-# 7. Скопировать обновленные файлы
-# Пользователь: root (через sudo)
-sudo rm -rf /var/www/billhub/data/www/billhub.fvds.ru/*
-sudo cp -r dist/* /var/www/billhub/data/www/billhub.fvds.ru/
+Затем выполнить шаг 2 (копирование в production от root).
 
-# 8. Установить права (если нужно)
-# Пользователь: root (через sudo)
-sudo chown -R billhub:billhub /var/www/billhub/data/www/billhub.fvds.ru/
+Вернуться на последнюю версию:
 
-# 9. Перезагрузить nginx (опционально, для очистки кеша)
-# Пользователь: root (через sudo)
-sudo systemctl reload nginx
-
-# 10. Проверить работоспособность
-# Пользователь: billhub или root
-curl -I https://billhub.fvds.ru
+```bash
+# Пользователь: billhub
+git checkout main
 ```
 
 ### Автоматизация обновления (скрипт)
 
-Можно создать скрипт для автоматизации обновления:
-
-```bash
-# Создание скрипта
-# Пользователь: billhub
-nano /var/www/billhub/data/deploy.sh
-```
-
-Содержимое `deploy.sh`:
+Скрипт `/var/www/billhub/data/deploy.sh` для автоматизации:
 
 ```bash
 #!/bin/bash
@@ -543,19 +560,18 @@ echo "=== Готово! ==="
 echo "Проверьте: https://billhub.fvds.ru"
 ```
 
-Сделать скрипт исполняемым:
+Создание и использование:
 
 ```bash
 # Пользователь: billhub
+nano /var/www/billhub/data/deploy.sh   # вставить содержимое выше
 chmod +x /var/www/billhub/data/deploy.sh
-```
 
-Использование:
-
-```bash
-# Пользователь: billhub
+# Запуск обновления одной командой:
 /var/www/billhub/data/deploy.sh
 ```
+
+> Скрипт требует sudo для копирования файлов и перезагрузки nginx. Пользователь billhub должен иметь права sudo.
 
 ---
 
@@ -791,42 +807,24 @@ tail -f /var/www/httpd-logs/billhub.fvds.ru.error.log
 
 #### Обновление приложения (после изменений в коде)
 
+Подробная инструкция в разделе [Обновление приложения](#обновление-приложения).
+
+Краткая последовательность:
+
 ```bash
-# === Переход в рабочую директорию ===
-# Пользователь: billhub
+# === Пользователь: billhub ===
 cd /var/www/billhub/data/billhub-app
-
-# === Получение последних изменений ===
-# Пользователь: billhub
 git pull
-
-# === Установка зависимостей (если package.json изменился) ===
-# Пользователь: billhub
 npm install
-
-# === Обновление .env (если нужно) ===
-# Пользователь: billhub
-nano .env
-
-# === Пересборка проекта ===
-# Пользователь: billhub
 npm run build
 
-# === Копирование обновленных файлов ===
-# Пользователь: root
+# === Пользователь: root ===
 rm -rf /var/www/billhub/data/www/billhub.fvds.ru/*
 cp -r /var/www/billhub/data/billhub-app/dist/* /var/www/billhub/data/www/billhub.fvds.ru/
-
-# === Установка прав (если нужно) ===
-# Пользователь: root
 chown -R billhub:billhub /var/www/billhub/data/www/billhub.fvds.ru/
-
-# === Перезагрузка nginx ===
-# Пользователь: root
 systemctl reload nginx
 
-# === Проверка ===
-# Пользователь: billhub (или root)
+# === Проверка (любой пользователь) ===
 curl -I https://billhub.fvds.ru
 ```
 
