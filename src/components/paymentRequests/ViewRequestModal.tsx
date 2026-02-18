@@ -41,7 +41,7 @@ import { usePaymentRequestSettingsStore } from '@/store/paymentRequestSettingsSt
 import { useConstructionSiteStore } from '@/store/constructionSiteStore'
 import { useAssignmentStore } from '@/store/assignmentStore'
 import { useDocumentTypeStore } from '@/store/documentTypeStore'
-import { getDownloadUrl, downloadFileBlob } from '@/services/s3'
+import { downloadFileBlob } from '@/services/s3'
 import JSZip from 'jszip'
 import FilePreviewModal from './FilePreviewModal'
 import FileUploadList from './FileUploadList'
