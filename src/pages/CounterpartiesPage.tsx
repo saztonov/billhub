@@ -10,13 +10,17 @@ import {
   Tooltip,
   App,
 } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined, MinusCircleOutlined, LinkOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DeleteOutlined, MinusCircleOutlined, LinkOutlined, UploadOutlined } from '@ant-design/icons'
 import { useCounterpartyStore } from '@/store/counterpartyStore'
+import { useAuthStore } from '@/store/authStore'
+import ImportCounterpartiesModal from '@/components/counterparties/ImportCounterpartiesModal'
 import type { Counterparty } from '@/types'
 
 const CounterpartiesPage = () => {
   const { message } = App.useApp()
+  const user = useAuthStore((s) => s.user)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false)
   const [editingRecord, setEditingRecord] = useState<Counterparty | null>(null)
   const [form] = Form.useForm()
   const {
@@ -104,7 +108,12 @@ const CounterpartiesPage = () => {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 16 }}>
+        {user?.role === 'admin' && (
+          <Button icon={<UploadOutlined />} onClick={() => setIsImportModalOpen(true)}>
+            Импорт из Excel
+          </Button>
+        )}
         <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
           Добавить
         </Button>
@@ -166,6 +175,10 @@ const CounterpartiesPage = () => {
           </Form.List>
         </Form>
       </Modal>
+      <ImportCounterpartiesModal
+        open={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+      />
     </div>
   )
 }

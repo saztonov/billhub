@@ -2,6 +2,17 @@ import { create } from 'zustand'
 import { supabase } from '@/services/supabase'
 import type { Counterparty } from '@/types'
 
+export interface ImportCounterpartyRow {
+  name: string
+  inn: string
+}
+
+export interface ImportResult {
+  created: number
+  updated: number
+  skipped: number
+}
+
 interface CounterpartyStoreState {
   counterparties: Counterparty[]
   isLoading: boolean
@@ -10,6 +21,8 @@ interface CounterpartyStoreState {
   createCounterparty: (data: Partial<Counterparty>) => Promise<void>
   updateCounterparty: (id: string, data: Partial<Counterparty>) => Promise<void>
   deleteCounterparty: (id: string) => Promise<void>
+  batchInsertCounterparties: (rows: ImportCounterpartyRow[], onProgress?: (done: number, total: number) => void) => Promise<number>
+  updateCounterpartyForImport: (id: string, name: string, alternativeNames: string[]) => Promise<void>
 }
 
 export const useCounterpartyStore = create<CounterpartyStoreState>((set, get) => ({
@@ -93,5 +106,32 @@ export const useCounterpartyStore = create<CounterpartyStoreState>((set, get) =>
       const message = err instanceof Error ? err.message : 'Ошибка удаления'
       set({ error: message, isLoading: false })
     }
+  },
+
+  batchInsertCounterparties: async (rows, onProgress) => {
+    const BATCH_SIZE = 20
+    let created = 0
+    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+      const batch = rows.slice(i, i + BATCH_SIZE).map((r) => ({
+        name: r.name,
+        inn: r.inn,
+        address: '',
+        alternative_names: [],
+      }))
+      const { error } = await supabase.from('counterparties').insert(batch)
+      if (error) throw error
+      created += batch.length
+      onProgress?.(created, rows.length)
+    }
+    await get().fetchCounterparties()
+    return created
+  },
+
+  updateCounterpartyForImport: async (id, name, alternativeNames) => {
+    const { error } = await supabase
+      .from('counterparties')
+      .update({ name, alternative_names: alternativeNames })
+      .eq('id', id)
+    if (error) throw error
   },
 }))
