@@ -205,6 +205,11 @@ const RequestsTable = (props: RequestsTableProps) => {
       title: 'Подрядчик',
       dataIndex: 'counterpartyName',
       key: 'counterpartyName',
+      sorter: (a: PaymentRequest, b: PaymentRequest) => {
+        const aVal = a.counterpartyName || ''
+        const bVal = b.counterpartyName || ''
+        return aVal.localeCompare(bVal, 'ru')
+      },
     })
   }
 
@@ -213,12 +218,22 @@ const RequestsTable = (props: RequestsTableProps) => {
       title: 'Объект',
       dataIndex: 'siteName',
       key: 'siteName',
+      sorter: (a: PaymentRequest, b: PaymentRequest) => {
+        const aVal = a.siteName || ''
+        const bVal = b.siteName || ''
+        return aVal.localeCompare(bVal, 'ru')
+      },
       render: (name: string | undefined) => name ?? '—',
     },
     {
       title: 'Статус',
       key: 'status',
       width: 150,
+      sorter: (a: PaymentRequest, b: PaymentRequest) => {
+        const aVal = a.statusName || ''
+        const bVal = b.statusName || ''
+        return aVal.localeCompare(bVal, 'ru')
+      },
       render: (_: unknown, record: PaymentRequest) => (
         <Tag color={record.statusColor ?? 'default'}>
           {record.statusName}
@@ -249,6 +264,14 @@ const RequestsTable = (props: RequestsTableProps) => {
       title: 'Ответственный',
       key: 'responsible',
       width: 200,
+      sorter: (a: PaymentRequest, b: PaymentRequest) => {
+        const aVal = a.assignedUserFullName || ''
+        const bVal = b.assignedUserFullName || ''
+        if (!aVal && !bVal) return 0
+        if (!aVal) return 1
+        if (!bVal) return -1
+        return aVal.localeCompare(bVal, 'ru')
+      },
       render: (_: unknown, record: PaymentRequest) => {
         // Для admin - dropdown
         if (canAssignResponsible && omtsUsers && onAssignResponsible) {
@@ -369,6 +392,16 @@ const RequestsTable = (props: RequestsTableProps) => {
       title: 'Согласование',
       key: 'approval',
       width: 160,
+      sorter: (a: PaymentRequest, b: PaymentRequest) => {
+        // Приоритет: согласованные (3), в процессе по currentStage (2), отклоненные (1), остальные (0)
+        const getWeight = (r: PaymentRequest) => {
+          if (r.approvedAt) return 3000
+          if (r.currentStage && !r.withdrawnAt && !r.rejectedAt) return 2000 + (r.currentStage || 0)
+          if (r.rejectedAt) return 1000
+          return 0
+        }
+        return getWeight(a) - getWeight(b)
+      },
       render: (_: unknown, record: PaymentRequest) => {
         // Ошибка загрузки файлов
         if (uploadTasks?.[record.id]?.status === 'error') {

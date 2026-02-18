@@ -131,7 +131,7 @@ const CreateUserModal = ({ open, onClose, onSuccess }: CreateUserModalProps) => 
             setSelectedRole(value)
             if (value === 'counterparty_user') {
               setAllSitesChecked(false)
-              form.setFieldsValue({ all_sites: false, site_ids: [] })
+              form.setFieldsValue({ all_sites: false, site_ids: [], department: undefined })
             }
           }}>
             <Select.Option value="admin">Администратор</Select.Option>
@@ -158,16 +158,18 @@ const CreateUserModal = ({ open, onClose, onSuccess }: CreateUserModalProps) => 
             </Select>
           </Form.Item>
         )}
-        <Form.Item name="department" label="Подразделение">
-          <Select
-            placeholder="Выберите подразделение"
-            allowClear
-          >
-            <Select.Option value="shtab">{DEPARTMENT_LABELS.shtab}</Select.Option>
-            <Select.Option value="omts">{DEPARTMENT_LABELS.omts}</Select.Option>
-            <Select.Option value="smetny">{DEPARTMENT_LABELS.smetny}</Select.Option>
-          </Select>
-        </Form.Item>
+        {selectedRole !== 'counterparty_user' && (
+          <Form.Item name="department" label="Подразделение">
+            <Select
+              placeholder="Выберите подразделение"
+              allowClear
+            >
+              <Select.Option value="shtab">{DEPARTMENT_LABELS.shtab}</Select.Option>
+              <Select.Option value="omts">{DEPARTMENT_LABELS.omts}</Select.Option>
+              <Select.Option value="smetny">{DEPARTMENT_LABELS.smetny}</Select.Option>
+            </Select>
+          </Form.Item>
+        )}
         {showSiteFields && (
           <>
             <Form.Item name="all_sites" valuePropName="checked">
