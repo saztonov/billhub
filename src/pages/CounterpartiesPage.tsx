@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Table,
   Button,
@@ -10,7 +10,7 @@ import {
   Tooltip,
   App,
 } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined, MinusCircleOutlined, LinkOutlined, UploadOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DeleteOutlined, MinusCircleOutlined, LinkOutlined, UploadOutlined, SearchOutlined } from '@ant-design/icons'
 import { useCounterpartyStore } from '@/store/counterpartyStore'
 import { useAuthStore } from '@/store/authStore'
 import ImportCounterpartiesModal from '@/components/counterparties/ImportCounterpartiesModal'
@@ -23,6 +23,7 @@ const CounterpartiesPage = () => {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false)
   const [editingRecord, setEditingRecord] = useState<Counterparty | null>(null)
   const [form] = Form.useForm()
+  const [searchText, setSearchText] = useState('')
   const {
     counterparties,
     isLoading,
@@ -35,6 +36,16 @@ const CounterpartiesPage = () => {
   useEffect(() => {
     fetchCounterparties()
   }, [fetchCounterparties])
+
+  const filteredCounterparties = useMemo(() => {
+    if (!searchText.trim()) return counterparties
+    const query = searchText.trim().toLowerCase()
+    return counterparties.filter((c) =>
+      c.name.toLowerCase().includes(query) ||
+      c.inn.toLowerCase().includes(query) ||
+      c.alternativeNames?.some((n) => n.toLowerCase().includes(query))
+    )
+  }, [counterparties, searchText])
 
   const handleCreate = () => {
     setEditingRecord(null)
@@ -108,6 +119,14 @@ const CounterpartiesPage = () => {
 
   return (
     <div>
+      <Input.Search
+        prefix={<SearchOutlined />}
+        placeholder="Поиск по наименованию, ИНН или альтернативному наименованию"
+        allowClear
+        value={searchText}
+        onChange={(e) => setSearchText(e.target.value)}
+        style={{ marginBottom: 16 }}
+      />
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 16 }}>
         {user?.role === 'admin' && (
           <Button icon={<UploadOutlined />} onClick={() => setIsImportModalOpen(true)}>
@@ -120,7 +139,7 @@ const CounterpartiesPage = () => {
       </div>
       <Table
         columns={columns}
-        dataSource={counterparties}
+        dataSource={filteredCounterparties}
         rowKey="id"
         loading={isLoading}
         scroll={{ x: 800 }}
