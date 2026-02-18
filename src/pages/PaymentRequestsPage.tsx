@@ -49,7 +49,7 @@ const PaymentRequestsPage = () => {
   const [userAllSites, setUserAllSites] = useState(true)
   const [sitesLoaded, setSitesLoaded] = useState(false)
   const [filters, setFilters] = useState<FilterValues>({})
-  const [defaultFilters, setDefaultFilters] = useState<FilterValues>({})
+  const [, setDefaultFilters] = useState<FilterValues>({})
   const [filtersOpen, setFiltersOpen] = useState(true)
   const [adminSelectedStage, setAdminSelectedStage] = useState<Department>('omts') // Для админа: выбор этапа согласования
   const [refreshTrigger, setRefreshTrigger] = useState(0)
