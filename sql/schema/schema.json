@@ -1351,6 +1351,24 @@
               "position": 25,
               "max_length": null,
               "numeric_precision": null
+            },
+            {
+              "name": "is_deleted",
+              "type": "boolean",
+              "default": "false",
+              "nullable": false,
+              "position": 26,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "deleted_at",
+              "type": "timestamp with time zone",
+              "default": null,
+              "nullable": true,
+              "position": 27,
+              "max_length": null,
+              "numeric_precision": null
             }
           ]
         },
@@ -1915,6 +1933,11 @@
           "table_name": "payment_request_logs"
         },
         {
+          "name": "idx_payment_requests_is_deleted",
+          "definition": "CREATE INDEX idx_payment_requests_is_deleted ON public.payment_requests USING btree (is_deleted)",
+          "table_name": "payment_requests"
+        },
+        {
           "name": "idx_pr_counterparty",
           "definition": "CREATE INDEX idx_pr_counterparty ON public.payment_requests USING btree (counterparty_id)",
           "table_name": "payment_requests"
@@ -2013,6 +2036,15 @@
       "policies": [],
       "triggers": [],
       "functions": [
+        {
+          "name": "change_user_password",
+          "source": "\r\nDECLARE\r\n  v_caller_role text;\r\nBEGIN\r\n  -- Проверяем роль вызывающего пользователя\r\n  SELECT role INTO v_caller_role\r\n    FROM public.users\r\n   WHERE id = auth.uid();\r\n\r\n  IF v_caller_role IS NULL OR v_caller_role != 'admin' THEN\r\n    RAISE EXCEPTION 'Доступ запрещён: только администратор может менять пароли';\r\n  END IF;\r\n\r\n  -- Проверяем минимальную длину пароля\r\n  IF length(new_password) < 6 THEN\r\n    RAISE EXCEPTION 'Пароль должен содержать минимум 6 символов';\r\n  END IF;\r\n\r\n  -- Проверяем что целевой пользователь существует\r\n  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE id = target_user_id) THEN\r\n    RAISE EXCEPTION 'Пользователь не найден';\r\n  END IF;\r\n\r\n  -- Обновляем пароль\r\n  UPDATE auth.users\r\n     SET encrypted_password = crypt(new_password, gen_salt('bf'))\r\n   WHERE id = target_user_id;\r\nEND;\r\n",
+          "language": "plpgsql",
+          "security": "DEFINER",
+          "arguments": "target_user_id uuid, new_password text",
+          "volatility": "VOLATILE",
+          "return_type": "void"
+        },
         {
           "name": "generate_request_number",
           "source": "\r\nDECLARE\r\n  current_year INT;\r\n  next_number INT;\r\nBEGIN\r\n  current_year := EXTRACT(YEAR FROM CURRENT_DATE);\r\n\r\n  INSERT INTO request_number_sequence (year, last_number)\r\n  VALUES (current_year, 1)\r\n  ON CONFLICT (year) DO UPDATE\r\n    SET last_number = request_number_sequence.last_number + 1\r\n  RETURNING last_number INTO next_number;\r\n\r\n  -- Возвращаем только порядковый номер без нулей и даты\r\n  RETURN next_number::TEXT;\r\nEND;\r\n",
@@ -2398,7 +2430,7 @@
           "references_columns": null
         }
       ],
-      "generated_at": "2026-02-16T08:52:22.891738+00:00",
+      "generated_at": "2026-02-18T11:27:01.162404+00:00",
       "primary_keys": [
         {
           "columns": [
@@ -2918,8 +2950,8 @@
         },
         {
           "table_name": "ocr_models",
-          "check_clause": "is_active IS NOT NULL",
-          "constraint_name": "2200_17693_4_not_null"
+          "check_clause": "name IS NOT NULL",
+          "constraint_name": "2200_17693_2_not_null"
         },
         {
           "table_name": "ocr_models",
@@ -2928,18 +2960,23 @@
         },
         {
           "table_name": "ocr_models",
+          "check_clause": "id IS NOT NULL",
+          "constraint_name": "2200_17693_1_not_null"
+        },
+        {
+          "table_name": "ocr_models",
+          "check_clause": "is_active IS NOT NULL",
+          "constraint_name": "2200_17693_4_not_null"
+        },
+        {
+          "table_name": "ocr_models",
           "check_clause": "model_id IS NOT NULL",
           "constraint_name": "2200_17693_3_not_null"
         },
         {
-          "table_name": "ocr_models",
-          "check_clause": "name IS NOT NULL",
-          "constraint_name": "2200_17693_2_not_null"
-        },
-        {
-          "table_name": "ocr_models",
-          "check_clause": "id IS NOT NULL",
-          "constraint_name": "2200_17693_1_not_null"
+          "table_name": "payment_request_assignments",
+          "check_clause": "payment_request_id IS NOT NULL",
+          "constraint_name": "2200_22815_2_not_null"
         },
         {
           "table_name": "payment_request_assignments",
@@ -2972,14 +3009,14 @@
           "constraint_name": "2200_22815_1_not_null"
         },
         {
-          "table_name": "payment_request_assignments",
-          "check_clause": "payment_request_id IS NOT NULL",
-          "constraint_name": "2200_22815_2_not_null"
+          "table_name": "payment_request_field_options",
+          "check_clause": "value IS NOT NULL",
+          "constraint_name": "2200_18952_3_not_null"
         },
         {
           "table_name": "payment_request_field_options",
-          "check_clause": "is_active IS NOT NULL",
-          "constraint_name": "2200_18952_4_not_null"
+          "check_clause": "display_order IS NOT NULL",
+          "constraint_name": "2200_18952_5_not_null"
         },
         {
           "table_name": "payment_request_field_options",
@@ -2998,18 +3035,18 @@
         },
         {
           "table_name": "payment_request_field_options",
-          "check_clause": "value IS NOT NULL",
-          "constraint_name": "2200_18952_3_not_null"
-        },
-        {
-          "table_name": "payment_request_field_options",
-          "check_clause": "display_order IS NOT NULL",
-          "constraint_name": "2200_18952_5_not_null"
+          "check_clause": "is_active IS NOT NULL",
+          "constraint_name": "2200_18952_4_not_null"
         },
         {
           "table_name": "payment_request_files",
           "check_clause": "created_at IS NOT NULL",
           "constraint_name": "2200_19001_9_not_null"
+        },
+        {
+          "table_name": "payment_request_files",
+          "check_clause": "created_by IS NOT NULL",
+          "constraint_name": "2200_19001_8_not_null"
         },
         {
           "table_name": "payment_request_files",
@@ -3037,9 +3074,9 @@
           "constraint_name": "2200_19001_1_not_null"
         },
         {
-          "table_name": "payment_request_files",
-          "check_clause": "created_by IS NOT NULL",
-          "constraint_name": "2200_19001_8_not_null"
+          "table_name": "payment_request_logs",
+          "check_clause": "action IS NOT NULL",
+          "constraint_name": "2200_20486_4_not_null"
         },
         {
           "table_name": "payment_request_logs",
@@ -3055,11 +3092,6 @@
           "table_name": "payment_request_logs",
           "check_clause": "user_id IS NOT NULL",
           "constraint_name": "2200_20486_3_not_null"
-        },
-        {
-          "table_name": "payment_request_logs",
-          "check_clause": "action IS NOT NULL",
-          "constraint_name": "2200_20486_4_not_null"
         },
         {
           "table_name": "payment_requests",
@@ -3120,6 +3152,11 @@
           "table_name": "payment_requests",
           "check_clause": "delivery_days_type IS NOT NULL",
           "constraint_name": "2200_18962_20_not_null"
+        },
+        {
+          "table_name": "payment_requests",
+          "check_clause": "is_deleted IS NOT NULL",
+          "constraint_name": "2200_18962_26_not_null"
         },
         {
           "table_name": "request_number_sequence",

@@ -12,6 +12,7 @@ import {
   Alert,
   App,
   Popconfirm,
+  Segmented,
 } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined, KeyOutlined } from '@ant-design/icons'
 import { useUserStore } from '@/store/userStore'
@@ -48,6 +49,9 @@ const UsersTab = () => {
   const [allSitesChecked, setAllSitesChecked] = useState(false)
   const [searchFullName, setSearchFullName] = useState('')
   const [searchCounterparty, setSearchCounterparty] = useState('')
+  const [filterDepartment, setFilterDepartment] = useState<Department | undefined>(undefined)
+  const [filterSiteId, setFilterSiteId] = useState<string | undefined>(undefined)
+  const [filterActive, setFilterActive] = useState<string>('active')
   const [form] = Form.useForm()
   const [passwordForm] = Form.useForm()
 
@@ -149,16 +153,21 @@ const UsersTab = () => {
     return filters
   }, [users])
 
-  // Фильтрация данных по поисковым полям
+  // Фильтрация данных по поисковым полям и фильтрам
   const filteredUsers = useMemo(() => {
     return users.filter(user => {
       const matchFullName = !searchFullName ||
         (user.fullName?.toLowerCase() || '').includes(searchFullName.toLowerCase())
       const matchCounterparty = !searchCounterparty ||
         (user.counterpartyName?.toLowerCase() || '').includes(searchCounterparty.toLowerCase())
-      return matchFullName && matchCounterparty
+      const matchDepartment = !filterDepartment || user.department === filterDepartment
+      const matchSite = !filterSiteId || user.allSites || user.siteIds.includes(filterSiteId)
+      const matchActive = filterActive === 'all' ||
+        (filterActive === 'active' && user.isActive) ||
+        (filterActive === 'inactive' && !user.isActive)
+      return matchFullName && matchCounterparty && matchDepartment && matchSite && matchActive
     })
-  }, [users, searchFullName, searchCounterparty])
+  }, [users, searchFullName, searchCounterparty, filterDepartment, filterSiteId, filterActive])
 
   const columns = [
     {
@@ -288,27 +297,62 @@ const UsersTab = () => {
 
   return (
     <div>
-      <Space style={{ marginBottom: 16, width: '100%', justifyContent: 'space-between' }}>
-        <Space>
-          <Input.Search
-            placeholder="Поиск по ФИО"
-            allowClear
-            style={{ width: 250 }}
-            value={searchFullName}
-            onChange={(e) => setSearchFullName(e.target.value)}
-          />
-          <Input.Search
-            placeholder="Поиск по подрядчику"
-            allowClear
-            style={{ width: 250 }}
-            value={searchCounterparty}
-            onChange={(e) => setSearchCounterparty(e.target.value)}
-          />
-        </Space>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsCreateModalOpen(true)}>
-          Добавить
-        </Button>
-      </Space>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16, alignItems: 'center' }}>
+        <Input.Search
+          placeholder="Поиск по ФИО"
+          allowClear
+          style={{ width: 200 }}
+          value={searchFullName}
+          onChange={(e) => setSearchFullName(e.target.value)}
+        />
+        <Input.Search
+          placeholder="Поиск по подрядчику"
+          allowClear
+          style={{ width: 200 }}
+          value={searchCounterparty}
+          onChange={(e) => setSearchCounterparty(e.target.value)}
+        />
+        <Select
+          placeholder="Подразделение"
+          allowClear
+          style={{ width: 160 }}
+          value={filterDepartment}
+          onChange={setFilterDepartment}
+        >
+          <Select.Option value="omts">{DEPARTMENT_LABELS.omts}</Select.Option>
+          <Select.Option value="shtab">{DEPARTMENT_LABELS.shtab}</Select.Option>
+          <Select.Option value="smetny">{DEPARTMENT_LABELS.smetny}</Select.Option>
+        </Select>
+        <Select
+          placeholder="Объект"
+          allowClear
+          showSearch
+          optionFilterProp="children"
+          style={{ width: 200 }}
+          value={filterSiteId}
+          onChange={setFilterSiteId}
+        >
+          {activeSites.map((s) => (
+            <Select.Option key={s.id} value={s.id}>
+              {s.name}
+            </Select.Option>
+          ))}
+        </Select>
+        <Segmented
+          options={[
+            { label: 'Активные', value: 'active' },
+            { label: 'Неактивные', value: 'inactive' },
+            { label: 'Все', value: 'all' },
+          ]}
+          value={filterActive}
+          onChange={(val) => setFilterActive(val as string)}
+        />
+        <div style={{ marginLeft: 'auto' }}>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsCreateModalOpen(true)}>
+            Добавить
+          </Button>
+        </div>
+      </div>
       {error && (
         <Alert
           type="error"
