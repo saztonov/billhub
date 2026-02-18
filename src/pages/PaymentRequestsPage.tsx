@@ -788,7 +788,7 @@ const PaymentRequestsPage = () => {
           omtsUsers={omtsUsers}
           values={filters}
           onChange={setFilters}
-          onReset={() => setFilters(defaultFilters)}
+          onReset={() => setFilters({})}
         />
       )}
       <Tabs activeKey={activeTab} onChange={setActiveTab} onTabClick={(key) => { if (key === activeTab) setRefreshTrigger((n) => n + 1) }} items={tabItems} />
