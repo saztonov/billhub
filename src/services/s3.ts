@@ -41,7 +41,7 @@ const s3Client = new S3Client({
     accessKeyId: S3_ACCESS_KEY,
     secretAccessKey: S3_SECRET_KEY,
   },
-  forcePathStyle: !isCloudflare,
+  forcePathStyle: true,
 })
 
 // Базовый endpoint без trailing slash для корректной подмены в presigned URL
