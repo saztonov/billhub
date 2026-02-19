@@ -9,7 +9,6 @@ import {
   Col,
   App,
   Spin,
-  Space,
 } from 'antd'
 import { CheckCircleFilled } from '@ant-design/icons'
 import FileUploadList from './FileUploadList'
