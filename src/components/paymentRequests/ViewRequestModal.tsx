@@ -749,13 +749,11 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                       return parts.join('.')
                     }}
                   >
-                    <Space.Compact style={{ width: '100%' }}>
-                      <Input
-                        style={{ width: '100%' }}
-                        placeholder="Сумма"
-                      />
-                      <Input style={{ width: 50 }} value="₽" readOnly />
-                    </Space.Compact>
+                    <Input
+                      addonAfter="₽"
+                      style={{ width: '100%' }}
+                      placeholder="Сумма"
+                    />
                   </Form.Item>
                 </Col>
               </Row>
