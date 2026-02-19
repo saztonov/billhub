@@ -128,7 +128,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
           siteId: values.siteId,
           comment: values.comment,
           totalFiles: fileList.length,
-          invoiceAmount: values.invoiceAmount,
+          invoiceAmount: Number(String(values.invoiceAmount).replace(/\s/g, '')),
         },
         counterpartyId,
         user.id,
@@ -281,28 +281,33 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
                 rules={[
                   {
                     validator: (_, value) => {
-                      if (!value || Number(value) <= 0) {
+                      const num = Number(String(value ?? '').replace(/\s/g, '').replace(',', '.'))
+                      if (!value || isNaN(num) || num <= 0) {
                         return Promise.reject(new Error('Сумма должна быть больше 0'))
                       }
                       return Promise.resolve()
                     }
                   }
                 ]}
+                getValueFromEvent={(e) => {
+                  const raw = e.target.value.replace(/[^\d.,]/g, '').replace(',', '.')
+                  // Не допускаем больше одной точки
+                  const dotIdx = raw.indexOf('.')
+                  const clean = dotIdx >= 0
+                    ? raw.slice(0, dotIdx + 1) + raw.slice(dotIdx + 1).replace(/\./g, '')
+                    : raw
+                  // Ограничиваем 2 знака после точки
+                  const parts = clean.split('.')
+                  if (parts[1] && parts[1].length > 2) parts[1] = parts[1].slice(0, 2)
+                  // Форматируем целую часть пробелами
+                  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
+                  return parts.join('.')
+                }}
               >
                 <Space.Compact style={{ width: '100%' }}>
-                  <InputNumber
-                    min={0.01}
-                    precision={2}
-                    controls={false}
+                  <Input
                     style={{ width: '100%' }}
                     placeholder="Сумма"
-                    formatter={(value) => {
-                      if (!value) return ''
-                      const parts = String(value).split('.')
-                      parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
-                      return parts.join('.')
-                    }}
-                    parser={(value) => Number(value?.replace(/\s/g, '').replace(',', '.') || 0)}
                   />
                   <Input style={{ width: 50 }} value="₽" readOnly />
                 </Space.Compact>

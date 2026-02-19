@@ -208,7 +208,13 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       deliveryDaysType: request.deliveryDaysType,
       shippingConditionId: request.shippingConditionId,
       comment: request.comment ?? '',
-      invoiceAmount: request.invoiceAmount ?? undefined,
+      invoiceAmount: request.invoiceAmount != null
+        ? (() => {
+            const parts = String(request.invoiceAmount).split('.')
+            parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
+            return parts.join('.')
+          })()
+        : undefined,
     })
     setIsEditing(true)
   }
@@ -227,7 +233,13 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
           return
         }
       }
-      onEdit(request.id, values as EditRequestData, editFileList)
+      const parsedValues = {
+        ...values,
+        invoiceAmount: values.invoiceAmount
+          ? Number(String(values.invoiceAmount).replace(/\s/g, ''))
+          : values.invoiceAmount,
+      }
+      onEdit(request.id, parsedValues as EditRequestData, editFileList)
       setIsEditing(false)
       setEditFileList([])
       setShowEditFileValidation(false)
@@ -444,7 +456,10 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
         return
       }
     }
-    onResubmit?.(resubmitComment, resubmitFileList, formValues)
+    onResubmit?.(resubmitComment, resubmitFileList, {
+      ...formValues,
+      invoiceAmount: Number(String(formValues.invoiceAmount).replace(/\s/g, '')),
+    })
   }
 
   if (!request) return null
@@ -622,28 +637,30 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                   rules={[
                     {
                       validator: (_, value) => {
-                        if (!value || Number(value) <= 0) {
+                        const num = Number(String(value ?? '').replace(/\s/g, '').replace(',', '.'))
+                        if (!value || isNaN(num) || num <= 0) {
                           return Promise.reject(new Error('Сумма должна быть больше 0'))
                         }
                         return Promise.resolve()
                       }
                     }
                   ]}
+                  getValueFromEvent={(e) => {
+                    const raw = e.target.value.replace(/[^\d.,]/g, '').replace(',', '.')
+                    const dotIdx = raw.indexOf('.')
+                    const clean = dotIdx >= 0
+                      ? raw.slice(0, dotIdx + 1) + raw.slice(dotIdx + 1).replace(/\./g, '')
+                      : raw
+                    const parts = clean.split('.')
+                    if (parts[1] && parts[1].length > 2) parts[1] = parts[1].slice(0, 2)
+                    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
+                    return parts.join('.')
+                  }}
                 >
                   <Space.Compact style={{ width: '100%' }}>
-                    <InputNumber
-                      min={0.01}
-                      precision={2}
-                      controls={false}
+                    <Input
                       style={{ width: '100%' }}
                       placeholder="Сумма"
-                      formatter={(value) => {
-                        if (!value) return ''
-                        const parts = String(value).split('.')
-                        parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
-                        return parts.join('.')
-                      }}
-                      parser={(value) => Number(value?.replace(/\s/g, '').replace(',', '.') || 0)}
                     />
                     <Input style={{ width: 50 }} value="₽" readOnly />
                   </Space.Compact>
@@ -714,21 +731,30 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                     rules={[
                       {
                         validator: (_, value) => {
-                          if (!value || Number(value) <= 0) {
+                          const num = Number(String(value ?? '').replace(/\s/g, '').replace(',', '.'))
+                          if (!value || isNaN(num) || num <= 0) {
                             return Promise.reject(new Error('Сумма должна быть больше 0'))
                           }
                           return Promise.resolve()
                         }
                       }
                     ]}
+                    getValueFromEvent={(e) => {
+                      const raw = e.target.value.replace(/[^\d.,]/g, '').replace(',', '.')
+                      const dotIdx = raw.indexOf('.')
+                      const clean = dotIdx >= 0
+                        ? raw.slice(0, dotIdx + 1) + raw.slice(dotIdx + 1).replace(/\./g, '')
+                        : raw
+                      const parts = clean.split('.')
+                      if (parts[1] && parts[1].length > 2) parts[1] = parts[1].slice(0, 2)
+                      parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
+                      return parts.join('.')
+                    }}
                   >
                     <Space.Compact style={{ width: '100%' }}>
-                      <InputNumber
-                        min={0.01}
-                        precision={2}
+                      <Input
                         style={{ width: '100%' }}
                         placeholder="Сумма"
-                        parser={(value) => Number(value?.replace(',', '.') || 0)}
                       />
                       <Input style={{ width: 50 }} value="₽" readOnly />
                     </Space.Compact>
