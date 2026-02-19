@@ -45,6 +45,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
   const [form] = Form.useForm()
   const [fileList, setFileList] = useState<FileItem[]>([])
   const [formValues, setFormValues] = useState<Record<string, unknown>>({})
+  const [showFileValidation, setShowFileValidation] = useState(false)
 
   const user = useAuthStore((s) => s.user)
   const isCounterpartyUser = user?.role === 'counterparty_user'
@@ -98,6 +99,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
       }
       const filesWithoutType = fileList.filter((f) => !f.documentTypeId)
       if (filesWithoutType.length > 0) {
+        setShowFileValidation(true)
         message.error('Укажите тип для каждого файла')
         return
       }
@@ -150,6 +152,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
       form.resetFields()
       setFileList([])
       setFormValues({})
+      setShowFileValidation(false)
       onClose()
     } catch (err: unknown) {
       // Ошибка валидации формы — показываем перечень незаполненных полей
@@ -168,6 +171,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
     form.resetFields()
     setFileList([])
     setFormValues({})
+    setShowFileValidation(false)
     onClose()
   }
 
@@ -321,7 +325,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
 
         {/* Загрузка файлов */}
         <div style={{ marginTop: 8 }}>
-          <FileUploadList fileList={fileList} onChange={setFileList} />
+          <FileUploadList fileList={fileList} onChange={setFileList} showValidation={showFileValidation} />
         </div>
       </Spin>
     </Modal>

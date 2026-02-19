@@ -148,6 +148,8 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   const [isEditing, setIsEditing] = useState(false)
   const [editForm] = Form.useForm()
   const [editFileList, setEditFileList] = useState<FileItem[]>([])
+  const [showEditFileValidation, setShowEditFileValidation] = useState(false)
+  const [showResubmitFileValidation, setShowResubmitFileValidation] = useState(false)
   const [resubmitForm] = Form.useForm()
   const { fieldOptions, fetchFieldOptions, getOptionsByField } = usePaymentRequestSettingsStore()
   const { sites, fetchSites } = useConstructionSiteStore()
@@ -178,6 +180,8 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       try { resubmitForm.resetFields() } catch { /* форма не подключена к DOM */ }
       setIsEditing(false)
       setEditFileList([])
+      setShowEditFileValidation(false)
+      setShowResubmitFileValidation(false)
       setRejectModalOpen(false)
       setRejectComment('')
       setRejectFiles([])
@@ -214,9 +218,19 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
     if (!request || !onEdit) return
     try {
       const values = await editForm.validateFields()
+      // Проверка типов документов у новых файлов
+      if (editFileList.length > 0) {
+        const filesWithoutType = editFileList.filter((f) => !f.documentTypeId)
+        if (filesWithoutType.length > 0) {
+          setShowEditFileValidation(true)
+          message.error('Укажите тип для каждого файла')
+          return
+        }
+      }
       onEdit(request.id, values as EditRequestData, editFileList)
       setIsEditing(false)
       setEditFileList([])
+      setShowEditFileValidation(false)
     } catch {
       // Ошибки валидации формы
     }
@@ -425,6 +439,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
     if (resubmitFileList.length > 0) {
       const filesWithoutType = resubmitFileList.filter((f) => !f.documentTypeId)
       if (filesWithoutType.length > 0) {
+        setShowResubmitFileValidation(true)
         message.error('Укажите тип для каждого файла')
         return
       }
@@ -656,7 +671,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
             <Text strong style={{ display: 'block', marginBottom: 8 }}>
               <FileAddOutlined /> Догрузить файлы
             </Text>
-            <FileUploadList fileList={editFileList} onChange={setEditFileList} />
+            <FileUploadList fileList={editFileList} onChange={setEditFileList} showValidation={showEditFileValidation} />
           </Form>
         ) : resubmitMode ? (
           <>
@@ -1039,7 +1054,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
             <Text strong style={{ display: 'block', marginBottom: 8 }}>
               Догрузить файлы
             </Text>
-            <FileUploadList fileList={resubmitFileList} onChange={setResubmitFileList} />
+            <FileUploadList fileList={resubmitFileList} onChange={setResubmitFileList} showValidation={showResubmitFileValidation} />
 
             <Text strong style={{ display: 'block', marginTop: 16, marginBottom: 8 }}>
               Комментарий к повторной отправке

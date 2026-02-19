@@ -19,6 +19,8 @@ export interface FileItem {
 interface FileUploadListProps {
   fileList: FileItem[]
   onChange: (files: FileItem[]) => void
+  /** Показывать ошибку валидации для файлов без типа документа */
+  showValidation?: boolean
 }
 
 // Допустимые MIME-типы
@@ -43,7 +45,7 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`
 }
 
-const FileUploadList = ({ fileList, onChange }: FileUploadListProps) => {
+const FileUploadList = ({ fileList, onChange, showValidation }: FileUploadListProps) => {
   const { message } = App.useApp()
   const { documentTypes } = useDocumentTypeStore()
   const [dragKey, setDragKey] = useState(0)
@@ -162,9 +164,10 @@ const FileUploadList = ({ fileList, onChange }: FileUploadListProps) => {
                   </Text>
                 )}
                 <Select
-                  placeholder="Тип документа"
+                  placeholder={<span>Тип документа <span style={{ color: '#ff4d4f' }}>*</span></span>}
                   size="small"
                   style={{ width: 180, flexShrink: 0 }}
+                  status={showValidation && !item.documentTypeId ? 'error' : undefined}
                   popupMatchSelectWidth={false}
                   dropdownStyle={{ maxWidth: 250 }}
                   options={typeOptions}
