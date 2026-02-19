@@ -291,7 +291,13 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
                     precision={2}
                     style={{ width: '100%' }}
                     placeholder="Сумма"
-                    parser={(value) => Number(value?.replace(',', '.') || 0)}
+                    formatter={(value) => {
+                      if (!value) return ''
+                      const parts = String(value).split('.')
+                      parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
+                      return parts.join('.')
+                    }}
+                    parser={(value) => Number(value?.replace(/\s/g, '').replace(',', '.') || 0)}
                   />
                   <Input style={{ width: 50 }} value="₽" readOnly />
                 </Space.Compact>
