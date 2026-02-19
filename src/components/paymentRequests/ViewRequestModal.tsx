@@ -619,6 +619,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                     <InputNumber
                       min={0.01}
                       precision={2}
+                      controls={false}
                       style={{ width: '100%' }}
                       placeholder="Сумма"
                       formatter={(value) => {
