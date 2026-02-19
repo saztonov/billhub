@@ -1,4 +1,6 @@
-const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY as string
+import { getEnvVar } from '@/utils/env'
+
+const OPENROUTER_API_KEY = getEnvVar('VITE_OPENROUTER_API_KEY', 'VITE_TEST_OPENROUTER_API_KEY')
 const CHAT_COMPLETIONS_URL = 'https://openrouter.ai/api/v1/chat/completions'
 const MODELS_URL = 'https://openrouter.ai/api/v1/models'
 
