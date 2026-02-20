@@ -3,6 +3,7 @@ import { Upload, Select, Button, List, Typography, App } from 'antd'
 import { InboxOutlined, DeleteOutlined, CheckCircleFilled, EyeOutlined } from '@ant-design/icons'
 import { useDocumentTypeStore } from '@/store/documentTypeStore'
 import { getPdfPageCount } from '@/utils/pdfUtils'
+import { checkFileMagicBytes } from '@/utils/fileValidation'
 import LocalFilePreviewModal from './LocalFilePreviewModal'
 import type { UploadFile } from 'antd/es/upload/interface'
 
@@ -38,6 +39,10 @@ const ACCEPTED_TYPES = [
 
 const ACCEPT_EXTENSIONS = '.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.tiff,.tif,.bmp,.pdf'
 
+/** Максимальный размер файла */
+const MAX_FILE_SIZE_MB = Number(import.meta.env.VITE_MAX_FILE_SIZE_MB) || 100
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
+
 /** Форматирование размера файла */
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} Б`
@@ -64,14 +69,24 @@ const FileUploadList = ({ fileList, onChange, showValidation }: FileUploadListPr
         message.error(`Неподдерживаемый формат: ${f.name}`)
         continue
       }
+      if (f.size > MAX_FILE_SIZE_BYTES) {
+        message.error(`Файл "${f.name}" превышает ${MAX_FILE_SIZE_MB} МБ`)
+        continue
+      }
       validFiles.push(f)
     }
 
     if (validFiles.length > 0) {
-      // Подсчёт страниц PDF выполняется асинхронно
+      // Подсчёт страниц PDF и проверка magic bytes выполняются асинхронно
       void (async () => {
         const items: FileItem[] = []
         for (const f of validFiles) {
+          // Проверка содержимого файла по magic bytes
+          const isValidContent = await checkFileMagicBytes(f)
+          if (!isValidContent) {
+            message.error(`Файл "${f.name}" не соответствует заявленному формату`)
+            continue
+          }
           const isPdf = f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')
           const pageCount = isPdf ? await getPdfPageCount(f) : null
           items.push({
@@ -81,7 +96,9 @@ const FileUploadList = ({ fileList, onChange, showValidation }: FileUploadListPr
             pageCount,
           })
         }
-        onChange([...fileList, ...items])
+        if (items.length > 0) {
+          onChange([...fileList, ...items])
+        }
         setDragKey((k) => k + 1)
       })()
     }

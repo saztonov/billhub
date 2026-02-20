@@ -15,23 +15,16 @@ import {
   Row,
   Col,
   App,
-  Collapse,
   Popconfirm,
-  Upload,
 } from 'antd'
 import {
   DownloadOutlined,
   EyeOutlined,
-  CheckCircleOutlined,
-  CloseCircleOutlined,
-  ClockCircleOutlined,
   SendOutlined,
   EditOutlined,
   FileAddOutlined,
   CheckOutlined,
   StopOutlined,
-  InboxOutlined,
-  CloseOutlined,
 } from '@ant-design/icons'
 import { usePaymentRequestStore } from '@/store/paymentRequestStore'
 import type { EditRequestData } from '@/store/paymentRequestStore'
@@ -47,7 +40,11 @@ import FilePreviewModal from './FilePreviewModal'
 import FileUploadList from './FileUploadList'
 import type { FileItem } from './FileUploadList'
 import DeliveryCalculation from './DeliveryCalculation'
-import type { PaymentRequest, PaymentRequestFile, ApprovalDecisionFile, ApprovalDecision, PaymentRequestLog, Department } from '@/types'
+import ApprovalLog from './ApprovalLog'
+import OmtsAssignmentBlock from './OmtsAssignmentBlock'
+import RejectModal from './RejectModal'
+import { formatSize, formatDate, extractRequestNumber, sanitizeFileName } from '@/utils/requestFormatters'
+import type { PaymentRequest, PaymentRequestFile, Department } from '@/types'
 import { DEPARTMENT_LABELS } from '@/types'
 
 const { Text } = Typography
@@ -57,66 +54,19 @@ interface ViewRequestModalProps {
   open: boolean
   request: PaymentRequest | null
   onClose: () => void
-  /** Режим повторной отправки отклоненной заявки */
   resubmitMode?: boolean
-  /** Обработчик повторной отправки (комментарий, новые файлы, обновлённые поля) */
   onResubmit?: (comment: string, files: FileItem[], fieldUpdates: {
     deliveryDays: number
     deliveryDaysType: string
     shippingConditionId: string
     invoiceAmount: number
   }) => void
-  /** Возможность редактирования (admin / ответственный менеджер) */
   canEdit?: boolean
-  /** Обработчик сохранения изменений */
   onEdit?: (id: string, data: EditRequestData, files: FileItem[]) => void
-  /** Показывать кнопки согласования */
   canApprove?: boolean
-  /** Обработчик согласования */
   onApprove?: (requestId: string, comment: string) => void
-  /** Обработчик отклонения */
   onReject?: (requestId: string, comment: string, files?: { id: string; file: File }[]) => void
 }
-
-/** Форматирование размера файла */
-function formatSize(bytes: number | null): string {
-  if (!bytes) return ''
-  if (bytes < 1024) return `${bytes} Б`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} КБ`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`
-}
-
-/** Форматирование даты */
-function formatDate(dateStr: string, withTime = true): string {
-  const d = new Date(dateStr)
-  const opts: Intl.DateTimeFormatOptions = {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  }
-  if (withTime) {
-    opts.hour = '2-digit'
-    opts.minute = '2-digit'
-  }
-  return d.toLocaleDateString('ru-RU', opts)
-}
-
-/** Извлечение порядкового номера из request_number (для обратной совместимости со старым форматом) */
-function extractRequestNumber(requestNumber: string): string {
-  // Если есть старый формат "000018_140226", извлекаем порядковый номер
-  const parts = requestNumber.split('_')
-  if (parts.length > 1) {
-    // Старый формат - убираем нули впереди
-    return parseInt(parts[0], 10).toString()
-  }
-  // Новый формат - возвращаем как есть
-  return requestNumber
-}
-
-const { Dragger } = Upload
-
-// Поддерживаемые расширения файлов для отклонения
-const ACCEPT_REJECT_EXTENSIONS = '.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.tiff,.tif,.bmp,.pdf'
 
 const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, canEdit, onEdit, canApprove, onApprove, onReject }: ViewRequestModalProps) => {
   const { message } = App.useApp()
@@ -141,8 +91,6 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
 
   // Модалка отклонения
   const [rejectModalOpen, setRejectModalOpen] = useState(false)
-  const [rejectComment, setRejectComment] = useState('')
-  const [rejectFiles, setRejectFiles] = useState<{ id: string; file: File }[]>([])
 
   // Режим редактирования
   const [isEditing, setIsEditing] = useState(false)
@@ -163,16 +111,11 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       fetchLogs(request.id)
       fetchCurrentAssignment(request.id)
       fetchAssignmentHistory(request.id)
-      fetchDocumentTypes() // Загрузка типов документов для FileUploadList
-
-      // Загрузить список ОМТС если user может назначать
-      if (user?.role === 'admin') {
-        fetchOmtsUsers()
-      }
+      fetchDocumentTypes()
+      if (user?.role === 'admin') fetchOmtsUsers()
     }
   }, [open, request, fetchRequestFiles, fetchDecisions, fetchLogs, clearCurrentData, fetchCurrentAssignment, fetchAssignmentHistory, fetchDocumentTypes, fetchOmtsUsers, user?.role])
 
-  // Сброс состояния при закрытии
   useEffect(() => {
     if (!open) {
       setResubmitFileList([])
@@ -183,12 +126,9 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       setShowEditFileValidation(false)
       setShowResubmitFileValidation(false)
       setRejectModalOpen(false)
-      setRejectComment('')
-      setRejectFiles([])
     }
   }, [open, resubmitForm])
 
-  // Загрузка справочников при входе в режим редактирования или повторной отправки
   useEffect(() => {
     if (isEditing || resubmitMode) {
       if (fieldOptions.length === 0) fetchFieldOptions()
@@ -199,7 +139,6 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   const shippingOptions = getOptionsByField('shipping_conditions')
   const siteOptions = sites.filter((s) => s.isActive).map((s) => ({ label: s.name, value: s.id }))
 
-  /** Начать редактирование */
   const startEditing = () => {
     if (!request) return
     editForm.setFieldsValue({
@@ -219,12 +158,10 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
     setIsEditing(true)
   }
 
-  /** Сохранить изменения */
   const handleEditSave = async () => {
     if (!request || !onEdit) return
     try {
       const values = await editForm.validateFields()
-      // Проверка типов документов у новых файлов
       if (editFileList.length > 0) {
         const filesWithoutType = editFileList.filter((f) => !f.documentTypeId)
         if (filesWithoutType.length > 0) {
@@ -248,118 +185,6 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
     }
   }
 
-  /** Маппинг имён полей для логов */
-  const fieldLabels: Record<string, string> = {
-    delivery_days: 'Срок поставки',
-    delivery_days_type: 'Тип дней',
-    shipping_condition_id: 'Условия отгрузки',
-    site_id: 'Объект',
-    comment: 'Комментарий',
-  }
-
-  /** Лог событий для контрагента */
-  const counterpartyLog = useMemo(() => {
-    if (!request) return []
-    const log: { icon: React.ReactNode; text: string; date?: string; files?: ApprovalDecisionFile[] }[] = []
-
-    // Первичная отправка
-    log.push({
-      icon: <SendOutlined style={{ color: '#1677ff' }} />,
-      text: 'Отправлено на согласование',
-      date: request.createdAt,
-    })
-
-    // Отклонения
-    const rejected = currentDecisions.filter((d) => d.status === 'rejected')
-    for (const d of rejected) {
-      const deptLabel = DEPARTMENT_LABELS[d.department] ?? ''
-      const prefix = deptLabel ? `Отклонено (${deptLabel})` : 'Отклонено'
-      const reason = d.comment ? `${prefix}. Причина: ${d.comment}` : prefix
-      log.push({
-        icon: <CloseCircleOutlined style={{ color: '#f5222d' }} />,
-        text: reason,
-        date: d.decidedAt ?? undefined,
-        files: d.files && d.files.length > 0 ? d.files : undefined
-      })
-    }
-
-    // Финальное согласование (только когда вся заявка согласована)
-    if (request.approvedAt) {
-      log.push({
-        icon: <CheckCircleOutlined style={{ color: '#52c41a' }} />,
-        text: 'Согласовано',
-        date: request.approvedAt,
-      })
-    }
-
-    // Логи редактирования, догрузки и повторной отправки
-    for (const l of currentLogs) {
-      if (l.action === 'edit') {
-        const changes = (l.details?.changes as { field: string; newValue: unknown }[]) ?? []
-        const changedFields = changes.map((c) => fieldLabels[c.field] ?? c.field).join(', ')
-        log.push({ icon: <EditOutlined style={{ color: '#722ed1' }} />, text: `Изменено: ${changedFields}`, date: l.createdAt })
-      } else if (l.action === 'file_upload') {
-        const count = (l.details?.count as number) ?? 0
-        log.push({ icon: <FileAddOutlined style={{ color: '#1677ff' }} />, text: `Догружено файлов: ${count}`, date: l.createdAt })
-      } else if (l.action === 'resubmit') {
-        const comment = (l.details?.comment as string) ?? ''
-        const text = comment ? `Повторно отправлено. Комментарий: ${comment}` : 'Повторно отправлено'
-        log.push({ icon: <SendOutlined style={{ color: '#1677ff' }} />, text, date: l.createdAt })
-      }
-    }
-
-    // Сортировка по дате
-    log.sort((a, b) => {
-      if (!a.date) return 1
-      if (!b.date) return -1
-      return new Date(a.date).getTime() - new Date(b.date).getTime()
-    })
-
-    return log
-  }, [request, currentDecisions, currentLogs])
-
-  /** Объединенный лог для user/admin */
-  const adminLog = useMemo(() => {
-    type LogEvent = {
-      type: 'decision' | 'log'
-      date: string
-      decision?: ApprovalDecision
-      log?: PaymentRequestLog
-    }
-
-    const events: LogEvent[] = []
-
-    // Добавляем все решения
-    for (const d of currentDecisions) {
-      events.push({
-        type: 'decision',
-        date: d.decidedAt || d.createdAt,
-        decision: d,
-      })
-    }
-
-    // Добавляем все логи
-    for (const l of currentLogs) {
-      events.push({
-        type: 'log',
-        date: l.createdAt,
-        log: l,
-      })
-    }
-
-    // Сортируем по дате; pending-записи всегда в конце (у них нет decidedAt)
-    events.sort((a, b) => {
-      const aPending = a.decision?.status === 'pending'
-      const bPending = b.decision?.status === 'pending'
-      if (aPending && !bPending) return 1
-      if (!aPending && bPending) return -1
-      return new Date(a.date).getTime() - new Date(b.date).getTime()
-    })
-
-    return events
-  }, [currentDecisions, currentLogs])
-
-  /** Скачать все файлы в ZIP-архиве */
   const handleDownloadAll = async () => {
     if (!currentRequestFiles.length || !request) return
     setDownloadingAll(true)
@@ -368,7 +193,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       const results = await Promise.allSettled(
         currentRequestFiles.map(async (file) => {
           const blob = await downloadFileBlob(file.fileKey)
-          zip.file(file.fileName, blob)
+          zip.file(sanitizeFileName(file.fileName), blob)
         }),
       )
       const failed = results.filter((r) => r.status === 'rejected').length
@@ -400,12 +225,10 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
     }
   }
 
-  /** Просмотр файла решения об отклонении */
   const handleViewDecisionFile = (fileKey: string, fileName: string, mimeType: string | null) => {
     setPreviewFile({ fileKey, fileName, mimeType })
   }
 
-  /** Скачивание файла решения об отклонении */
   const handleDownloadDecisionFile = async (fileKey: string, fileName: string) => {
     setDownloading(fileKey)
     try {
@@ -421,7 +244,6 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
     }
   }
 
-  // Сортировка файлов: догруженные (isResubmit) сверху
   const sortedFiles = useMemo(() => {
     return [...currentRequestFiles].sort((a, b) => {
       if (a.isResubmit && !b.isResubmit) return -1
@@ -431,11 +253,9 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   }, [currentRequestFiles])
 
   const hasResubmitFiles = (request?.resubmitCount ?? 0) > 0
-  // Есть ли файлы, загруженные сотрудниками (user/admin)
   const hasStaffFiles = sortedFiles.some((f) => f.uploaderRole === 'user' || f.uploaderRole === 'admin')
 
   const handleResubmitSubmit = async () => {
-    // Валидация формы с полями заявки
     let formValues: { deliveryDays: number; deliveryDaysType: string; shippingConditionId: string; invoiceAmount: number }
     try {
       formValues = await resubmitForm.validateFields()
@@ -447,7 +267,6 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       }
       return
     }
-    // Проверка: если есть файлы, у каждого должен быть указан тип документа
     if (resubmitFileList.length > 0) {
       const filesWithoutType = resubmitFileList.filter((f) => !f.documentTypeId)
       if (filesWithoutType.length > 0) {
@@ -464,25 +283,12 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
 
   if (!request) return null
 
-  /** Столбцы таблицы файлов */
+  // Колонки таблицы файлов
   const fileColumns: Record<string, unknown>[] = [
+    { title: '№', key: 'index', width: 50, render: (_: unknown, __: PaymentRequestFile, index: number) => index + 1 },
+    { title: 'Файл', dataIndex: 'fileName', key: 'fileName', width: hasResubmitFiles ? '40%' : '50%', ellipsis: true },
     {
-      title: '№',
-      key: 'index',
-      width: 50,
-      render: (_: unknown, __: PaymentRequestFile, index: number) => index + 1,
-    },
-    {
-      title: 'Файл',
-      dataIndex: 'fileName',
-      key: 'fileName',
-      width: hasResubmitFiles ? '40%' : '50%',
-      ellipsis: true,
-    },
-    {
-      title: 'Размер',
-      key: 'fileSize',
-      width: 100,
+      title: 'Размер', key: 'fileSize', width: 100,
       render: (_: unknown, file: PaymentRequestFile) => (
         <Text type="secondary">
           {formatSize(file.fileSize)}
@@ -491,23 +297,16 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       ),
     },
     {
-      title: 'Тип документа',
-      key: 'documentType',
-      render: (_: unknown, file: PaymentRequestFile) =>
-        file.documentTypeName ? <Tag>{file.documentTypeName}</Tag> : null,
+      title: 'Тип документа', key: 'documentType',
+      render: (_: unknown, file: PaymentRequestFile) => file.documentTypeName ? <Tag>{file.documentTypeName}</Tag> : null,
     },
   ]
 
-  // Колонка "Догружен" — если есть повторная отправка или файлы от сотрудников
   if (hasResubmitFiles || hasStaffFiles) {
     fileColumns.push({
-      title: 'Догружен',
-      key: 'resubmit',
-      width: 120,
+      title: 'Догружен', key: 'resubmit', width: 120,
       render: (_: unknown, file: PaymentRequestFile) => {
-        // Файл загружен подрядчиком при повторной отправке
         if (file.isResubmit) return <Tag color="blue">Подрядчик</Tag>
-        // Файл загружен сотрудником (user/admin)
         if (file.uploaderRole === 'user' || file.uploaderRole === 'admin') {
           const dept = file.uploaderDepartment as Department | null
           const label = dept ? DEPARTMENT_LABELS[dept] : '—'
@@ -518,41 +317,44 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
     })
   }
 
-  // Колонка действий
   fileColumns.push({
-    title: '',
-    key: 'actions',
-    width: 80,
+    title: '', key: 'actions', width: 80,
     render: (_: unknown, file: PaymentRequestFile) => (
       <Space size={4}>
         <Tooltip title="Просмотр">
-          <Button
-            icon={<EyeOutlined />}
-            size="small"
-            onClick={() => setPreviewFile(file)}
-          />
+          <Button icon={<EyeOutlined />} size="small" onClick={() => setPreviewFile(file)} />
         </Tooltip>
         <Tooltip title="Скачать">
-          <Button
-            icon={<DownloadOutlined />}
-            size="small"
-            loading={downloading === file.fileKey}
-            onClick={() => handleDownload(file.fileKey, file.fileName)}
-          />
+          <Button icon={<DownloadOutlined />} size="small" loading={downloading === file.fileKey} onClick={() => handleDownload(file.fileKey, file.fileName)} />
         </Tooltip>
       </Space>
     ),
   })
 
-  // Footer модального окна
+  // Маска суммы
+  const invoiceAmountMask = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value.replace(/[^\d.,]/g, '').replace(',', '.')
+    const dotIdx = raw.indexOf('.')
+    const clean = dotIdx >= 0 ? raw.slice(0, dotIdx + 1) + raw.slice(dotIdx + 1).replace(/\./g, '') : raw
+    const parts = clean.split('.')
+    if (parts[1] && parts[1].length > 2) parts[1] = parts[1].slice(0, 2)
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
+    return parts.join('.')
+  }
+
+  const invoiceAmountValidator = (_: unknown, value: unknown) => {
+    const num = Number(String(value ?? '').replace(/\s/g, '').replace(',', '.'))
+    if (!value || isNaN(num) || num <= 0) return Promise.reject(new Error('Сумма должна быть больше 0'))
+    return Promise.resolve()
+  }
+
+  // Footer
   let modalFooter: React.ReactNode
   if (resubmitMode) {
     modalFooter = (
       <Space>
         <Button onClick={onClose}>Отмена</Button>
-        <Button type="primary" icon={<SendOutlined />} loading={isSubmitting} onClick={handleResubmitSubmit}>
-          Отправить повторно
-        </Button>
+        <Button type="primary" icon={<SendOutlined />} loading={isSubmitting} onClick={handleResubmitSubmit}>Отправить повторно</Button>
       </Space>
     )
   } else if (isEditing) {
@@ -565,23 +367,13 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   } else {
     modalFooter = (
       <Space>
-        {canEdit && !isCounterpartyUser && (
-          <Button icon={<EditOutlined />} onClick={startEditing}>Редактировать</Button>
-        )}
+        {canEdit && !isCounterpartyUser && <Button icon={<EditOutlined />} onClick={startEditing}>Редактировать</Button>}
         {canApprove && (
-          <Popconfirm
-            title="Согласование заявки"
-            description="Подтвердите согласование заявки"
-            onConfirm={() => onApprove?.(request.id, '')}
-            okText="Согласовать"
-            cancelText="Отмена"
-          >
+          <Popconfirm title="Согласование заявки" description="Подтвердите согласование заявки" onConfirm={() => onApprove?.(request.id, '')} okText="Согласовать" cancelText="Отмена">
             <Button type="primary" icon={<CheckOutlined />}>Согласовать</Button>
           </Popconfirm>
         )}
-        {canApprove && (
-          <Button danger icon={<StopOutlined />} onClick={() => setRejectModalOpen(true)}>Отклонить</Button>
-        )}
+        {canApprove && <Button danger icon={<StopOutlined />} onClick={() => setRejectModalOpen(true)}>Отклонить</Button>}
         <Button onClick={onClose}>Закрыть</Button>
       </Space>
     )
@@ -599,7 +391,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
         style={{ maxHeight: '85vh' }}
         styles={{ body: { maxHeight: 'calc(85vh - 120px)', overflowY: 'auto', overflowX: 'hidden' } }}
       >
-        {/* Реквизиты — просмотр, редактирование или повторная отправка */}
+        {/* Реквизиты */}
         {isEditing ? (
           <Form form={editForm} layout="vertical" style={{ marginBottom: 16 }}>
             <Descriptions column={2} size="small" bordered style={{ marginBottom: 12 }}>
@@ -617,10 +409,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                       <InputNumber min={1} style={{ width: 80 }} placeholder="Дни" />
                     </Form.Item>
                     <Form.Item name="deliveryDaysType" noStyle>
-                      <Select style={{ width: 120 }} options={[
-                        { label: 'рабочих', value: 'working' },
-                        { label: 'календарных', value: 'calendar' },
-                      ]} />
+                      <Select style={{ width: 120 }} options={[{ label: 'рабочих', value: 'working' }, { label: 'календарных', value: 'calendar' }]} />
                     </Form.Item>
                   </div>
                 </Form.Item>
@@ -631,61 +420,20 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                 </Form.Item>
               </Col>
               <Col span={8}>
-                <Form.Item
-                  name="invoiceAmount"
-                  label="Сумма счета"
-                  rules={[
-                    {
-                      validator: (_, value) => {
-                        const num = Number(String(value ?? '').replace(/\s/g, '').replace(',', '.'))
-                        if (!value || isNaN(num) || num <= 0) {
-                          return Promise.reject(new Error('Сумма должна быть больше 0'))
-                        }
-                        return Promise.resolve()
-                      }
-                    }
-                  ]}
-                  getValueFromEvent={(e) => {
-                    const raw = e.target.value.replace(/[^\d.,]/g, '').replace(',', '.')
-                    const dotIdx = raw.indexOf('.')
-                    const clean = dotIdx >= 0
-                      ? raw.slice(0, dotIdx + 1) + raw.slice(dotIdx + 1).replace(/\./g, '')
-                      : raw
-                    const parts = clean.split('.')
-                    if (parts[1] && parts[1].length > 2) parts[1] = parts[1].slice(0, 2)
-                    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
-                    return parts.join('.')
-                  }}
-                >
-                  <Input
-                    addonAfter="₽"
-                    style={{ width: '100%' }}
-                    placeholder="Сумма"
-                  />
+                <Form.Item name="invoiceAmount" label="Сумма счета" rules={[{ validator: invoiceAmountValidator }]} getValueFromEvent={invoiceAmountMask}>
+                  <Input addonAfter="₽" style={{ width: '100%' }} placeholder="Сумма" />
                 </Form.Item>
               </Col>
             </Row>
-
-            {/* Расчет ориентировочного срока поставки при редактировании */}
             <Form.Item noStyle shouldUpdate={(prev, curr) => prev.deliveryDays !== curr.deliveryDays || prev.deliveryDaysType !== curr.deliveryDaysType || prev.shippingConditionId !== curr.shippingConditionId}>
               {({ getFieldValue }) => (
-                <DeliveryCalculation
-                  deliveryDays={getFieldValue('deliveryDays')}
-                  deliveryDaysType={getFieldValue('deliveryDaysType') || 'working'}
-                  shippingConditionId={getFieldValue('shippingConditionId')}
-                  defaultExpanded={false}
-                />
+                <DeliveryCalculation deliveryDays={getFieldValue('deliveryDays')} deliveryDaysType={getFieldValue('deliveryDaysType') || 'working'} shippingConditionId={getFieldValue('shippingConditionId')} defaultExpanded={false} />
               )}
             </Form.Item>
-
             <Form.Item name="comment" label="Комментарий">
               <TextArea rows={2} placeholder="Необязательное поле" />
             </Form.Item>
-
-            {/* Догрузка файлов при редактировании */}
-            <Text strong style={{ display: 'block', marginBottom: 8 }}>
-              <FileAddOutlined /> Догрузить файлы
-            </Text>
+            <Text strong style={{ display: 'block', marginBottom: 8 }}><FileAddOutlined /> Догрузить файлы</Text>
             <FileUploadList fileList={editFileList} onChange={setEditFileList} showValidation={showEditFileValidation} />
           </Form>
         ) : resubmitMode ? (
@@ -694,9 +442,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
               <Descriptions.Item label="Номер">{extractRequestNumber(request.requestNumber)}</Descriptions.Item>
               <Descriptions.Item label="Подрядчик">{request.counterpartyName}</Descriptions.Item>
               <Descriptions.Item label="Объект">{request.siteName ?? '—'}</Descriptions.Item>
-              <Descriptions.Item label="Статус">
-                <Tag color={request.statusColor ?? 'default'}>{request.statusName}</Tag>
-              </Descriptions.Item>
+              <Descriptions.Item label="Статус"><Tag color={request.statusColor ?? 'default'}>{request.statusName}</Tag></Descriptions.Item>
               <Descriptions.Item label="Дата создания">{formatDate(request.createdAt, !isCounterpartyUser)}</Descriptions.Item>
             </Descriptions>
             <Form form={resubmitForm} layout="vertical" style={{ marginBottom: 16 }}>
@@ -708,10 +454,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                         <InputNumber min={1} style={{ width: 80 }} placeholder="Дни" />
                       </Form.Item>
                       <Form.Item name="deliveryDaysType" noStyle initialValue="working">
-                        <Select style={{ width: 120 }} options={[
-                          { label: 'рабочих', value: 'working' },
-                          { label: 'календарных', value: 'calendar' },
-                        ]} />
+                        <Select style={{ width: 120 }} options={[{ label: 'рабочих', value: 'working' }, { label: 'календарных', value: 'calendar' }]} />
                       </Form.Item>
                     </div>
                   </Form.Item>
@@ -722,49 +465,14 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                   </Form.Item>
                 </Col>
                 <Col span={8}>
-                  <Form.Item
-                    name="invoiceAmount"
-                    label="Сумма счета"
-                    required
-                    rules={[
-                      {
-                        validator: (_, value) => {
-                          const num = Number(String(value ?? '').replace(/\s/g, '').replace(',', '.'))
-                          if (!value || isNaN(num) || num <= 0) {
-                            return Promise.reject(new Error('Сумма должна быть больше 0'))
-                          }
-                          return Promise.resolve()
-                        }
-                      }
-                    ]}
-                    getValueFromEvent={(e) => {
-                      const raw = e.target.value.replace(/[^\d.,]/g, '').replace(',', '.')
-                      const dotIdx = raw.indexOf('.')
-                      const clean = dotIdx >= 0
-                        ? raw.slice(0, dotIdx + 1) + raw.slice(dotIdx + 1).replace(/\./g, '')
-                        : raw
-                      const parts = clean.split('.')
-                      if (parts[1] && parts[1].length > 2) parts[1] = parts[1].slice(0, 2)
-                      parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
-                      return parts.join('.')
-                    }}
-                  >
-                    <Input
-                      addonAfter="₽"
-                      style={{ width: '100%' }}
-                      placeholder="Сумма"
-                    />
+                  <Form.Item name="invoiceAmount" label="Сумма счета" required rules={[{ validator: invoiceAmountValidator }]} getValueFromEvent={invoiceAmountMask}>
+                    <Input addonAfter="₽" style={{ width: '100%' }} placeholder="Сумма" />
                   </Form.Item>
                 </Col>
               </Row>
               <Form.Item noStyle shouldUpdate={(prev, curr) => prev.deliveryDays !== curr.deliveryDays || prev.deliveryDaysType !== curr.deliveryDaysType || prev.shippingConditionId !== curr.shippingConditionId}>
                 {({ getFieldValue }) => (
-                  <DeliveryCalculation
-                    deliveryDays={getFieldValue('deliveryDays')}
-                    deliveryDaysType={getFieldValue('deliveryDaysType') || 'working'}
-                    shippingConditionId={getFieldValue('shippingConditionId')}
-                    defaultExpanded={false}
-                  />
+                  <DeliveryCalculation deliveryDays={getFieldValue('deliveryDays')} deliveryDaysType={getFieldValue('deliveryDaysType') || 'working'} shippingConditionId={getFieldValue('shippingConditionId')} defaultExpanded={false} />
                 )}
               </Form.Item>
             </Form>
@@ -774,91 +482,35 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
             <Descriptions.Item label="Номер">{extractRequestNumber(request.requestNumber)}</Descriptions.Item>
             <Descriptions.Item label="Подрядчик">{request.counterpartyName}</Descriptions.Item>
             <Descriptions.Item label="Объект">{request.siteName ?? '—'}</Descriptions.Item>
-            <Descriptions.Item label="Статус">
-              <Tag color={request.statusColor ?? 'default'}>{request.statusName}</Tag>
-            </Descriptions.Item>
+            <Descriptions.Item label="Статус"><Tag color={request.statusColor ?? 'default'}>{request.statusName}</Tag></Descriptions.Item>
             <Descriptions.Item label="Срок поставки">{request.deliveryDays} {request.deliveryDaysType === 'calendar' ? 'кал.' : 'раб.'} дн.</Descriptions.Item>
             <Descriptions.Item label="Условия отгрузки">{request.shippingConditionValue}</Descriptions.Item>
             <Descriptions.Item label="Сумма счета">
               {request.invoiceAmount != null
                 ? `${request.invoiceAmount.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽`
-                : '—'
-              }
+                : '—'}
             </Descriptions.Item>
             <Descriptions.Item label="Дата создания">{formatDate(request.createdAt, !isCounterpartyUser)}</Descriptions.Item>
-            {request.comment && (
-              <Descriptions.Item label="Комментарий" span={2}>{request.comment}</Descriptions.Item>
-            )}
+            {request.comment && <Descriptions.Item label="Комментарий" span={2}>{request.comment}</Descriptions.Item>}
           </Descriptions>
         )}
 
-        {/* Расчет ориентировочного срока поставки в режиме просмотра */}
         {!isEditing && !resubmitMode && (
-          <DeliveryCalculation
-            deliveryDays={request.deliveryDays}
-            deliveryDaysType={request.deliveryDaysType as 'working' | 'calendar'}
-            shippingConditionId={request.shippingConditionId}
-            defaultExpanded={false}
+          <DeliveryCalculation deliveryDays={request.deliveryDays} deliveryDaysType={request.deliveryDaysType as 'working' | 'calendar'} shippingConditionId={request.shippingConditionId} defaultExpanded={false} />
+        )}
+
+        {!isEditing && (user?.department === 'omts' || user?.role === 'admin') && (
+          <OmtsAssignmentBlock
+            request={request}
+            isAdmin={user?.role === 'admin'}
+            userId={user?.id}
+            currentAssignment={currentAssignment}
+            assignmentHistory={assignmentHistory}
+            omtsUsers={omtsUsers}
+            assignResponsible={assignResponsible}
           />
         )}
 
-        {/* Блок назначения ответственного (только для ОМТС или admin) */}
-        {!isEditing && (user?.department === 'omts' || user?.role === 'admin') && (
-          <div style={{ marginTop: 24, marginBottom: 24 }}>
-            <Text strong style={{ display: 'block', marginBottom: 12 }}>Ответственный ОМТС</Text>
-            <Space orientation="vertical" style={{ width: '100%' }}>
-              {user?.role === 'admin' ? (
-                <Select
-                  value={currentAssignment?.assignedUserId ?? undefined}
-                  placeholder="Выберите ответственного"
-                  style={{ width: '100%' }}
-                  allowClear
-                  onChange={async (value) => {
-                    if (!request || !user?.id) return
-                    try {
-                      await assignResponsible(request.id, value, user.id)
-                      message.success('Ответственный назначен')
-                    } catch {
-                      message.error('Ошибка назначения')
-                    }
-                  }}
-                  options={omtsUsers.map((u) => ({
-                    label: u.fullName,
-                    value: u.id,
-                  }))}
-                />
-              ) : (
-                <Text>
-                  {currentAssignment?.assignedUserFullName ||
-                   currentAssignment?.assignedUserEmail ||
-                   'Не назначен'}
-                </Text>
-              )}
-
-              {/* История назначений */}
-              {assignmentHistory.length > 0 && (
-                <Collapse ghost items={[{
-                  key: '1',
-                  label: 'История назначений',
-                  children: assignmentHistory.map((item) => (
-                    <div key={item.id ?? item.assignedAt} style={{ padding: '4px 0' }}>
-                      <div>
-                        <Text strong>
-                          {item.assignedUserFullName || item.assignedUserEmail}
-                        </Text>
-                      </div>
-                      <Text type="secondary" style={{ fontSize: 12 }}>
-                        Назначил: {item.assignedByUserEmail} • {formatDate(item.assignedAt)}
-                      </Text>
-                    </div>
-                  )),
-                }]} />
-              )}
-            </Space>
-          </div>
-        )}
-
-        {/* История изменения сумм */}
         {request.invoiceAmountHistory && request.invoiceAmountHistory.length > 0 && (
           <div style={{ marginBottom: 16 }}>
             <Text strong style={{ display: 'block', marginBottom: 8 }}>История сумм</Text>
@@ -873,299 +525,44 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
           </div>
         )}
 
-        {/* Секция согласования — между реквизитами и файлами */}
-        {isCounterpartyUser ? (
-          // Для контрагента — упрощенный лог
-          counterpartyLog.length > 0 && (
-            <>
-              <Text strong style={{ marginBottom: 8, display: 'block' }}>Согласование</Text>
-              <div style={{ marginBottom: 16 }}>
-                {counterpartyLog.map((item, idx) => (
-                  <div key={idx} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
-                    <Space>
-                      {item.icon}
-                      <Text>{item.text}</Text>
-                      {item.date && <Text type="secondary">{formatDate(item.date, false)}</Text>}
-                    </Space>
-                    {item.files && item.files.length > 0 && (
-                      <div style={{ marginLeft: 22, marginTop: 8 }}>
-                        <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>
-                          Прикрепленные файлы:
-                        </Text>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          {item.files.map((file) => (
-                            <div key={file.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <Text style={{ flex: 1, fontSize: 12 }}>{file.fileName}</Text>
-                              <Space size="small">
-                                <Tooltip title="Просмотр">
-                                  <Button
-                                    size="small"
-                                    icon={<EyeOutlined />}
-                                    onClick={() => handleViewDecisionFile(file.fileKey, file.fileName, file.mimeType)}
-                                  />
-                                </Tooltip>
-                                <Tooltip title="Скачать">
-                                  <Button
-                                    size="small"
-                                    icon={<DownloadOutlined />}
-                                    onClick={() => handleDownloadDecisionFile(file.fileKey, file.fileName)}
-                                  />
-                                </Tooltip>
-                              </Space>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </>
-          )
-        ) : (
-          // Для admin/user — объединенный хронологический лог
-          adminLog.length > 0 && (
-            <>
-              <Text strong style={{ marginBottom: 8, display: 'block' }}>Согласование</Text>
-              <div style={{ marginBottom: 16 }}>
-                {adminLog.map((event, idx) => {
-                  if (event.type === 'decision' && event.decision) {
-                    const decision = event.decision
-                    const icon = decision.status === 'approved'
-                      ? <CheckCircleOutlined style={{ color: '#52c41a' }} />
-                      : decision.status === 'rejected'
-                        ? <CloseCircleOutlined style={{ color: '#f5222d' }} />
-                        : <ClockCircleOutlined style={{ color: '#faad14' }} />
-                    const statusText = decision.status === 'approved'
-                      ? 'Согласовано'
-                      : decision.status === 'rejected' ? 'Отклонено' : 'Ожидает'
-                    return (
-                      <div key={idx} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
-                        <div style={{ width: '100%' }}>
-                          <Space>
-                            {icon}
-                            <Text>Этап {decision.stageOrder}</Text>
-                            <Tag>{DEPARTMENT_LABELS[decision.department]}</Tag>
-                            <Text type="secondary">{statusText}</Text>
-                            {decision.userEmail && <Text type="secondary">({decision.userEmail})</Text>}
-                            {decision.decidedAt && <Text type="secondary">{formatDate(decision.decidedAt)}</Text>}
-                          </Space>
-                          {decision.comment && (
-                            <Text type="secondary" style={{ display: 'block', marginLeft: 22 }}>{decision.comment}</Text>
-                          )}
-                          {decision.files && decision.files.length > 0 && (
-                            <div style={{ marginLeft: 22, marginTop: 8 }}>
-                              <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>
-                                Прикрепленные файлы:
-                              </Text>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                {decision.files.map((file: ApprovalDecisionFile) => (
-                                  <div key={file.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <Text style={{ flex: 1, fontSize: 12 }}>{file.fileName}</Text>
-                                    <Space size="small">
-                                      <Tooltip title="Просмотр">
-                                        <Button
-                                          size="small"
-                                          icon={<EyeOutlined />}
-                                          onClick={() => handleViewDecisionFile(file.fileKey, file.fileName, file.mimeType)}
-                                        />
-                                      </Tooltip>
-                                      <Tooltip title="Скачать">
-                                        <Button
-                                          size="small"
-                                          icon={<DownloadOutlined />}
-                                          onClick={() => handleDownloadDecisionFile(file.fileKey, file.fileName)}
-                                        />
-                                      </Tooltip>
-                                    </Space>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  }
-
-                  if (event.type === 'log' && event.log) {
-                    const log = event.log
-
-                    if (log.action === 'edit') {
-                      const changes = (log.details?.changes as { field: string; newValue: unknown }[]) ?? []
-                      const changedFields = changes.map((c) => fieldLabels[c.field] ?? c.field).join(', ')
-                      return (
-                        <div key={idx} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
-                          <Space>
-                            <EditOutlined style={{ color: '#722ed1' }} />
-                            <Text>Изменено: {changedFields}</Text>
-                            {log.userEmail && <Text type="secondary">({log.userEmail})</Text>}
-                            <Text type="secondary">{formatDate(log.createdAt)}</Text>
-                          </Space>
-                        </div>
-                      )
-                    }
-
-                    if (log.action === 'file_upload') {
-                      const count = (log.details?.count as number) ?? 0
-                      return (
-                        <div key={idx} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
-                          <Space>
-                            <FileAddOutlined style={{ color: '#1677ff' }} />
-                            <Text>Догружено файлов: {count}</Text>
-                            {log.userEmail && <Text type="secondary">({log.userEmail})</Text>}
-                            <Text type="secondary">{formatDate(log.createdAt)}</Text>
-                          </Space>
-                        </div>
-                      )
-                    }
-
-                    if (log.action === 'resubmit') {
-                      const comment = (log.details?.comment as string) ?? ''
-                      const text = comment ? `Повторно отправлено. Комментарий: ${comment}` : 'Повторно отправлено'
-                      return (
-                        <div key={idx} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
-                          <Space>
-                            <SendOutlined style={{ color: '#1677ff' }} />
-                            <Text>{text}</Text>
-                            {log.userEmail && <Text type="secondary">({log.userEmail})</Text>}
-                            <Text type="secondary">{formatDate(log.createdAt)}</Text>
-                          </Space>
-                        </div>
-                      )
-                    }
-                  }
-
-                  return null
-                })}
-              </div>
-            </>
-          )
-        )}
-
-        {/* Файлы */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <Text strong>
-            Файлы ({currentRequestFiles.length})
-          </Text>
-          {currentRequestFiles.length > 0 && (
-            <Button
-              size="small"
-              icon={<DownloadOutlined />}
-              loading={downloadingAll}
-              onClick={handleDownloadAll}
-            >
-              Скачать все
-            </Button>
-          )}
-        </div>
-
-        <Table
-          size="small"
-          columns={fileColumns as any}
-          dataSource={sortedFiles}
-          rowKey="id"
-          loading={isLoading}
-          pagination={false}
-          locale={{ emptyText: 'Нет файлов' }}
+        <ApprovalLog
+          request={request}
+          decisions={currentDecisions}
+          logs={currentLogs}
+          isCounterpartyUser={isCounterpartyUser}
+          downloading={downloading}
+          onViewFile={handleViewDecisionFile}
+          onDownloadFile={handleDownloadDecisionFile}
         />
 
-        {/* Режим повторной отправки: загрузка новых файлов + комментарий */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <Text strong>Файлы ({currentRequestFiles.length})</Text>
+          {currentRequestFiles.length > 0 && (
+            <Button size="small" icon={<DownloadOutlined />} loading={downloadingAll} onClick={handleDownloadAll}>Скачать все</Button>
+          )}
+        </div>
+        <Table size="small" columns={fileColumns as any} dataSource={sortedFiles} rowKey="id" loading={isLoading} pagination={false} locale={{ emptyText: 'Нет файлов' }} />
+
         {resubmitMode && (
           <div style={{ marginTop: 16 }}>
-            <Text strong style={{ display: 'block', marginBottom: 8 }}>
-              Догрузить файлы
-            </Text>
+            <Text strong style={{ display: 'block', marginBottom: 8 }}>Догрузить файлы</Text>
             <FileUploadList fileList={resubmitFileList} onChange={setResubmitFileList} showValidation={showResubmitFileValidation} />
-
-            <Text strong style={{ display: 'block', marginTop: 16, marginBottom: 8 }}>
-              Комментарий к повторной отправке
-            </Text>
-            <TextArea
-              rows={3}
-              placeholder="Необязательное поле"
-              value={resubmitComment}
-              onChange={(e) => setResubmitComment(e.target.value)}
-            />
+            <Text strong style={{ display: 'block', marginTop: 16, marginBottom: 8 }}>Комментарий к повторной отправке</Text>
+            <TextArea rows={3} placeholder="Необязательное поле" value={resubmitComment} onChange={(e) => setResubmitComment(e.target.value)} />
           </div>
         )}
       </Modal>
 
-      <FilePreviewModal
-        open={!!previewFile}
-        onClose={() => setPreviewFile(null)}
-        fileKey={previewFile?.fileKey ?? null}
-        fileName={previewFile?.fileName ?? ''}
-        mimeType={previewFile?.mimeType ?? null}
-      />
+      <FilePreviewModal open={!!previewFile} onClose={() => setPreviewFile(null)} fileKey={previewFile?.fileKey ?? null} fileName={previewFile?.fileName ?? ''} mimeType={previewFile?.mimeType ?? null} />
 
-      {/* Модалка отклонения заявки */}
-      <Modal
-        title="Отклонение заявки"
+      <RejectModal
         open={rejectModalOpen}
-        onOk={() => {
-          if (!rejectComment.trim()) return
-          onReject?.(request.id, rejectComment, rejectFiles.length > 0 ? rejectFiles : undefined)
+        onConfirm={(comment, files) => {
+          onReject?.(request.id, comment, files.length > 0 ? files : undefined)
           setRejectModalOpen(false)
-          setRejectComment('')
-          setRejectFiles([])
         }}
-        onCancel={() => {
-          setRejectModalOpen(false)
-          setRejectComment('')
-          setRejectFiles([])
-        }}
-        okText="Отклонить"
-        okButtonProps={{ danger: true, disabled: !rejectComment.trim() }}
-        width={600}
-      >
-        <Space orientation="vertical" style={{ width: '100%' }} size="large">
-          <div>
-            <div style={{ marginBottom: 8, fontWeight: 500 }}>Комментарий *</div>
-            <TextArea
-              rows={3}
-              placeholder="Укажите причину отклонения"
-              value={rejectComment}
-              onChange={(e) => setRejectComment(e.target.value)}
-              status={!rejectComment.trim() ? 'error' : undefined}
-            />
-          </div>
-          <div>
-            <div style={{ marginBottom: 8, fontWeight: 500 }}>Прикрепить файлы (необязательно)</div>
-            <Dragger
-              accept={ACCEPT_REJECT_EXTENSIONS}
-              multiple
-              fileList={[]}
-              beforeUpload={(file) => {
-                setRejectFiles((prev) => [...prev, { id: crypto.randomUUID(), file }])
-                return false
-              }}
-              showUploadList={false}
-            >
-              <p className="ant-upload-drag-icon">
-                <InboxOutlined />
-              </p>
-              <p className="ant-upload-text">Нажмите или перетащите файлы</p>
-              <p className="ant-upload-hint">Поддерживаются: PDF, изображения, Word, Excel</p>
-            </Dragger>
-            {rejectFiles.length > 0 && (
-              <div style={{ marginTop: 16, border: '1px solid #d9d9d9', borderRadius: 8 }}>
-                {rejectFiles.map((item) => (
-                  <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderBottom: '1px solid #f0f0f0' }}>
-                    <Text>{item.file.name}</Text>
-                    <Button
-                      type="text"
-                      icon={<CloseOutlined />}
-                      size="small"
-                      onClick={() => setRejectFiles((prev) => prev.filter((f) => f.id !== item.id))}
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </Space>
-      </Modal>
+        onCancel={() => setRejectModalOpen(false)}
+      />
     </>
   )
 }

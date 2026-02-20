@@ -24,11 +24,17 @@ export const useSettingsStore = create<SettingsStoreState>((set, get) => ({
     try {
       const { data, error } = await supabase
         .from('ocr_models')
-        .select('*')
+        .select('id, model_id, model_name, is_active, created_at')
         .order('created_at', { ascending: false })
       if (error) throw error
 
-      const models = data as OcrModel[]
+      const models: OcrModel[] = (data ?? []).map((row: Record<string, unknown>) => ({
+        id: row.id as string,
+        name: row.model_name as string,
+        modelId: row.model_id as string,
+        isActive: row.is_active as boolean,
+        createdAt: row.created_at as string,
+      }))
       const active = models.find((m) => m.isActive)
       set({ ocrModels: models, activeModelId: active?.id ?? null, isLoading: false })
     } catch (err) {

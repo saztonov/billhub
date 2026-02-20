@@ -35,7 +35,7 @@ export const useCounterpartyStore = create<CounterpartyStoreState>((set, get) =>
     try {
       const { data, error } = await supabase
         .from('counterparties')
-        .select('*')
+        .select('id, name, inn, address, alternative_names, registration_token, created_at')
         .order('created_at', { ascending: false })
       if (error) throw error
 

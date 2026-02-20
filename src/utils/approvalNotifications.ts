@@ -1,4 +1,5 @@
 import { supabase } from '@/services/supabase'
+import { logError } from '@/services/errorLogger'
 import { DEPARTMENT_LABELS, type Department } from '@/types'
 
 /**
@@ -88,7 +89,7 @@ export async function checkAndNotifyMissingSpecialists(
       }
     }
   } catch (err) {
-    console.error('Ошибка проверки специалистов:', err)
+    logError({ errorType: 'api_error', errorMessage: err instanceof Error ? err.message : 'Ошибка проверки специалистов', errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'checkAndNotifyMissingSpecialists', paymentRequestId } })
   }
 }
 

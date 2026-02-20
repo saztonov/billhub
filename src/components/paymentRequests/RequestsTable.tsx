@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import {
   Table,
   Tag,
@@ -7,11 +7,7 @@ import {
   Tooltip,
   Popconfirm,
   Select,
-  Input,
-  Modal,
   Progress,
-  Upload,
-  List,
   App,
 } from 'antd'
 import {
@@ -23,80 +19,34 @@ import {
   CheckOutlined,
   StopOutlined,
   RedoOutlined,
-  InboxOutlined,
-  CloseOutlined,
 } from '@ant-design/icons'
-import { useState } from 'react'
+import RejectModal from './RejectModal'
+import WithdrawModal from './WithdrawModal'
+import { formatDateShort, extractRequestNumber, calculateDays } from '@/utils/requestFormatters'
 import type { PaymentRequest } from '@/types'
-
-const { TextArea } = Input
-const { Dragger } = Upload
-
-// Поддерживаемые расширения файлов для отклонения
-const ACCEPT_EXTENSIONS = '.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.tiff,.tif,.bmp,.pdf'
-
-/** Форматирование даты (только день и месяц) */
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return '—'
-  const d = new Date(dateStr)
-  return d.toLocaleDateString('ru-RU', {
-    day: '2-digit',
-    month: '2-digit',
-  })
-}
-
-/** Извлечение порядкового номера из request_number (для обратной совместимости со старым форматом) */
-function extractRequestNumber(requestNumber: string): string {
-  // Если есть старый формат "000018_140226", извлекаем порядковый номер
-  const parts = requestNumber.split('_')
-  if (parts.length > 1) {
-    // Старый формат - убираем нули впереди
-    return parseInt(parts[0], 10).toString()
-  }
-  // Новый формат - возвращаем как есть
-  return requestNumber
-}
-
-/** Расчет количества дней между двумя датами */
-function calculateDays(fromDate: string, toDate: string | null): number {
-  const from = new Date(fromDate)
-  const to = toDate ? new Date(toDate) : new Date()
-  const diffMs = to.getTime() - from.getTime()
-  return Math.floor(diffMs / (1000 * 60 * 60 * 24))
-}
 
 export interface RequestsTableProps {
   requests: PaymentRequest[]
   isLoading: boolean
   onView: (record: PaymentRequest) => void
-  // Для counterparty_user
   isCounterpartyUser?: boolean
   onWithdraw?: (id: string, comment: string) => void
   hideCounterpartyColumn?: boolean
-  // Для admin/user — смена статуса
   statusOptions?: { label: string; value: string }[]
   onStatusChange?: (id: string, statusId: string) => void
   statusChangingId?: string | null
-  // Только admin — удаление
   isAdmin?: boolean
   onDelete?: (id: string) => void
-  // Задачи загрузки (для подсветки ошибок)
   uploadTasks?: Record<string, { status: string }>
-  // Прогресс согласования (для counterparty_user)
   totalStages?: number
-  // Согласование
   showApprovalActions?: boolean
   onApprove?: (id: string, comment: string) => void
   onReject?: (id: string, comment: string, files?: { id: string; file: File }[]) => void
-  // Повторная отправка
   onResubmit?: (record: PaymentRequest) => void
-  // Дополнительные столбцы для вкладок
   showApprovedDate?: boolean
   showRejectedDate?: boolean
-  // Доп. фильтры
   showDepartmentFilter?: boolean
   rejectionDepartments?: { text: string; value: string }[]
-  // Назначение ответственного
   showResponsibleColumn?: boolean
   canAssignResponsible?: boolean
   omtsUsers?: { id: string; fullName: string }[]
@@ -105,165 +55,63 @@ export interface RequestsTableProps {
 }
 
 const RequestsTable = (props: RequestsTableProps) => {
-  const { message } = App.useApp()
+  const { message: _message } = App.useApp()
   const {
-    requests,
-    isLoading,
-    onView,
-    isCounterpartyUser,
-    onWithdraw,
-    hideCounterpartyColumn,
-    statusOptions,
-    onStatusChange,
-    statusChangingId,
-    isAdmin,
-    onDelete,
-    uploadTasks,
-    showApprovalActions,
-    onApprove,
-    onReject,
-    showApprovedDate,
-    showRejectedDate,
-    totalStages,
-    showDepartmentFilter,
-    rejectionDepartments,
-    onResubmit,
-    showResponsibleColumn,
-    canAssignResponsible,
-    omtsUsers,
-    onAssignResponsible,
-    responsibleFilter,
+    requests, isLoading, onView, isCounterpartyUser, onWithdraw, hideCounterpartyColumn,
+    statusOptions, onStatusChange, statusChangingId, isAdmin, onDelete, uploadTasks,
+    showApprovalActions, onApprove, onReject, showApprovedDate, showRejectedDate,
+    totalStages, showDepartmentFilter, rejectionDepartments, onResubmit,
+    showResponsibleColumn, canAssignResponsible, omtsUsers, onAssignResponsible, responsibleFilter,
   } = props
 
-  const [rejectModal, setRejectModal] = useState<string | null>(null)
-  const [rejectComment, setRejectComment] = useState('')
-  const [rejectFiles, setRejectFiles] = useState<File[]>([])
-  const [withdrawModal, setWithdrawModal] = useState<string | null>(null)
-  const [withdrawComment, setWithdrawComment] = useState('')
+  const [rejectModalId, setRejectModalId] = useState<string | null>(null)
+  const [withdrawModalId, setWithdrawModalId] = useState<string | null>(null)
 
-  // Фильтрация по наличию ответственного
   const filteredRequests = useMemo(() => {
-    let filtered = requests
-
-    if (responsibleFilter === 'assigned') {
-      filtered = filtered.filter(r => r.assignedUserId !== null)
-    } else if (responsibleFilter === 'unassigned') {
-      filtered = filtered.filter(r => r.assignedUserId === null)
-    }
-
-    return filtered
+    if (responsibleFilter === 'assigned') return requests.filter(r => r.assignedUserId !== null)
+    if (responsibleFilter === 'unassigned') return requests.filter(r => r.assignedUserId === null)
+    return requests
   }, [requests, responsibleFilter])
-
-  const handleRejectConfirm = async () => {
-    if (!rejectModal) return
-
-    // Валидация комментария
-    if (!rejectComment.trim()) {
-      message.error('Комментарий обязателен при отклонении заявки')
-      return
-    }
-
-    // Конвертируем File[] в FileItem[]
-    const fileItems = rejectFiles.map((file, index) => ({
-      id: `${Date.now()}_${index}`,
-      file,
-    }))
-
-    await onReject?.(rejectModal, rejectComment, fileItems)
-    setRejectModal(null)
-    setRejectComment('')
-    setRejectFiles([])
-  }
-
-  const handleFileBeforeUpload = (file: File): boolean => {
-    setRejectFiles(prev => [...prev, file])
-    return false // Отмена автоматической загрузки
-  }
-
-  const handleFileRemove = (file: File) => {
-    setRejectFiles(prev => prev.filter(f => f !== file))
-  }
 
   const columns: Record<string, unknown>[] = [
     {
-      title: 'Номер',
-      dataIndex: 'requestNumber',
-      key: 'requestNumber',
-      width: 100,
-      sorter: (a: PaymentRequest, b: PaymentRequest) => {
-        const numA = parseInt(extractRequestNumber(a.requestNumber), 10)
-        const numB = parseInt(extractRequestNumber(b.requestNumber), 10)
-        return numA - numB
-      },
+      title: 'Номер', dataIndex: 'requestNumber', key: 'requestNumber', width: 100,
+      sorter: (a: PaymentRequest, b: PaymentRequest) => parseInt(extractRequestNumber(a.requestNumber), 10) - parseInt(extractRequestNumber(b.requestNumber), 10),
       render: (requestNumber: string) => extractRequestNumber(requestNumber),
     },
   ]
 
-  // Столбец "Подрядчик" (скрывается для counterparty_user)
   if (!hideCounterpartyColumn) {
     columns.push({
-      title: 'Подрядчик',
-      dataIndex: 'counterpartyName',
-      key: 'counterpartyName',
-      sorter: (a: PaymentRequest, b: PaymentRequest) => {
-        const aVal = a.counterpartyName || ''
-        const bVal = b.counterpartyName || ''
-        return aVal.localeCompare(bVal, 'ru')
-      },
+      title: 'Подрядчик', dataIndex: 'counterpartyName', key: 'counterpartyName',
+      sorter: (a: PaymentRequest, b: PaymentRequest) => (a.counterpartyName || '').localeCompare(b.counterpartyName || '', 'ru'),
     })
   }
 
   columns.push(
     {
-      title: 'Объект',
-      dataIndex: 'siteName',
-      key: 'siteName',
-      sorter: (a: PaymentRequest, b: PaymentRequest) => {
-        const aVal = a.siteName || ''
-        const bVal = b.siteName || ''
-        return aVal.localeCompare(bVal, 'ru')
-      },
+      title: 'Объект', dataIndex: 'siteName', key: 'siteName',
+      sorter: (a: PaymentRequest, b: PaymentRequest) => (a.siteName || '').localeCompare(b.siteName || '', 'ru'),
       render: (name: string | undefined) => name ?? '—',
     },
     {
-      title: 'Статус',
-      key: 'status',
-      width: 150,
-      sorter: (a: PaymentRequest, b: PaymentRequest) => {
-        const aVal = a.statusName || ''
-        const bVal = b.statusName || ''
-        return aVal.localeCompare(bVal, 'ru')
-      },
-      render: (_: unknown, record: PaymentRequest) => (
-        <Tag color={record.statusColor ?? 'default'}>
-          {record.statusName}
-        </Tag>
-      ),
+      title: 'Статус', key: 'status', width: 150,
+      sorter: (a: PaymentRequest, b: PaymentRequest) => (a.statusName || '').localeCompare(b.statusName || '', 'ru'),
+      render: (_: unknown, record: PaymentRequest) => <Tag color={record.statusColor ?? 'default'}>{record.statusName}</Tag>,
     },
     {
-      title: 'Сумма счета',
-      dataIndex: 'invoiceAmount',
-      key: 'invoiceAmount',
-      width: 156,
-      align: 'right' as const,
-      sorter: (a: PaymentRequest, b: PaymentRequest) =>
-        (a.invoiceAmount ?? 0) - (b.invoiceAmount ?? 0),
+      title: 'Сумма счета', dataIndex: 'invoiceAmount', key: 'invoiceAmount', width: 156, align: 'right' as const,
+      sorter: (a: PaymentRequest, b: PaymentRequest) => (a.invoiceAmount ?? 0) - (b.invoiceAmount ?? 0),
       render: (amount: number | null) => {
         if (amount == null) return <span style={{ color: '#bfbfbf' }}>—</span>
-        return amount.toLocaleString('ru-RU', {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2
-        }) + ' ₽'
+        return amount.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ₽'
       },
     },
   )
 
-  // Столбец "Ответственный" (только для ОМТС)
   if (showResponsibleColumn) {
     columns.push({
-      title: 'Ответственный',
-      key: 'responsible',
-      width: 200,
+      title: 'Ответственный', key: 'responsible', width: 200,
       sorter: (a: PaymentRequest, b: PaymentRequest) => {
         const aVal = a.assignedUserFullName || ''
         const bVal = b.assignedUserFullName || ''
@@ -273,7 +121,6 @@ const RequestsTable = (props: RequestsTableProps) => {
         return aVal.localeCompare(bVal, 'ru')
       },
       render: (_: unknown, record: PaymentRequest) => {
-        // Для admin - dropdown
         if (canAssignResponsible && omtsUsers && onAssignResponsible) {
           return (
             <Select
@@ -282,118 +129,68 @@ const RequestsTable = (props: RequestsTableProps) => {
               style={{ width: '100%' }}
               allowClear
               onChange={(value) => onAssignResponsible(record.id, value)}
-              options={omtsUsers.map((u) => ({
-                label: u.fullName,
-                value: u.id,
-              }))}
+              options={omtsUsers.map((u) => ({ label: u.fullName, value: u.id }))}
             />
           )
         }
-        // Для обычных user - только отображение
-        return (
-          <span>{record.assignedUserFullName || record.assignedUserEmail || '—'}</span>
-        )
+        return <span>{record.assignedUserFullName || record.assignedUserEmail || '—'}</span>
       },
     })
   }
 
-  columns.push({
-    title: 'Дата создания',
-    dataIndex: 'createdAt',
-    key: 'createdAt',
-    width: 100,
-    sorter: (a: PaymentRequest, b: PaymentRequest) =>
-      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-    defaultSortOrder: 'descend' as const,
-    render: (date: string) => formatDate(date),
-  })
-
-  // Столбец "Срок"
-  columns.push({
-    title: 'Срок',
-    key: 'days',
-    width: 80,
-    sorter: (a: PaymentRequest, b: PaymentRequest) => {
-      const daysA = calculateDays(a.createdAt, a.approvedAt)
-      const daysB = calculateDays(b.createdAt, b.approvedAt)
-      return daysA - daysB
+  columns.push(
+    {
+      title: 'Дата создания', dataIndex: 'createdAt', key: 'createdAt', width: 100,
+      sorter: (a: PaymentRequest, b: PaymentRequest) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+      defaultSortOrder: 'descend' as const,
+      render: (date: string) => formatDateShort(date),
     },
-    render: (_: unknown, record: PaymentRequest) => {
-      const days = calculateDays(record.createdAt, record.approvedAt)
-      return <span>{days}</span>
+    {
+      title: 'Срок', key: 'days', width: 80,
+      sorter: (a: PaymentRequest, b: PaymentRequest) => calculateDays(a.createdAt, a.approvedAt) - calculateDays(b.createdAt, b.approvedAt),
+      render: (_: unknown, record: PaymentRequest) => <span>{calculateDays(record.createdAt, record.approvedAt)}</span>,
     },
-  })
+  )
 
-  // Дата согласования
   if (showApprovedDate) {
     columns.push({
-      title: 'Дата согласования',
-      dataIndex: 'approvedAt',
-      key: 'approvedAt',
-      width: 100,
-      sorter: (a: PaymentRequest, b: PaymentRequest) =>
-        new Date(a.approvedAt ?? '').getTime() - new Date(b.approvedAt ?? '').getTime(),
-      render: (date: string | null) => formatDate(date),
+      title: 'Дата согласования', dataIndex: 'approvedAt', key: 'approvedAt', width: 100,
+      sorter: (a: PaymentRequest, b: PaymentRequest) => new Date(a.approvedAt ?? '').getTime() - new Date(b.approvedAt ?? '').getTime(),
+      render: (date: string | null) => formatDateShort(date),
     })
   }
 
-  // Дата отклонения
   if (showRejectedDate) {
     columns.push({
-      title: 'Дата отклонения',
-      dataIndex: 'rejectedAt',
-      key: 'rejectedAt',
-      width: 100,
-      sorter: (a: PaymentRequest, b: PaymentRequest) =>
-        new Date(a.rejectedAt ?? '').getTime() - new Date(b.rejectedAt ?? '').getTime(),
-      render: (date: string | null) => formatDate(date),
+      title: 'Дата отклонения', dataIndex: 'rejectedAt', key: 'rejectedAt', width: 100,
+      sorter: (a: PaymentRequest, b: PaymentRequest) => new Date(a.rejectedAt ?? '').getTime() - new Date(b.rejectedAt ?? '').getTime(),
+      render: (date: string | null) => formatDateShort(date),
     })
   }
 
-  // Фильтр по подразделению (на вкладке Отклонено)
   if (showDepartmentFilter && rejectionDepartments) {
-    columns.push({
-      title: 'Кто отклонил',
-      key: 'rejectedBy',
-      width: 180,
-      filters: rejectionDepartments,
-      onFilter: () => true, // Фильтрация происходит на уровне данных
-    })
+    columns.push({ title: 'Кто отклонил', key: 'rejectedBy', width: 180, filters: rejectionDepartments, onFilter: () => true })
   }
 
-  // Файлы (количество загруженных / общее)
   columns.push({
-    title: 'Файлы',
-    key: 'files',
-    width: 100,
+    title: 'Файлы', key: 'files', width: 100,
     render: (_: unknown, record: PaymentRequest) => {
       if (record.totalFiles === 0) return <span style={{ color: '#bfbfbf' }}>—</span>
       if (record.uploadedFiles >= record.totalFiles) {
         return (
           <Tooltip title={`${record.totalFiles} файл(ов)`}>
-            <Space size={4}>
-              <CheckCircleOutlined style={{ color: '#52c41a' }} />
-              <span>{record.totalFiles}</span>
-            </Space>
+            <Space size={4}><CheckCircleOutlined style={{ color: '#52c41a' }} /><span>{record.totalFiles}</span></Space>
           </Tooltip>
         )
       }
-      return (
-        <span style={{ color: '#fa8c16' }}>
-          {record.uploadedFiles}/{record.totalFiles}
-        </span>
-      )
+      return <span style={{ color: '#fa8c16' }}>{record.uploadedFiles}/{record.totalFiles}</span>
     },
   })
 
-  // Прогресс согласования (для counterparty_user)
   if (isCounterpartyUser && totalStages && totalStages > 0) {
     columns.push({
-      title: 'Согласование',
-      key: 'approval',
-      width: 160,
+      title: 'Согласование', key: 'approval', width: 160,
       sorter: (a: PaymentRequest, b: PaymentRequest) => {
-        // Приоритет: согласованные (3), в процессе по currentStage (2), отклоненные (1), остальные (0)
         const getWeight = (r: PaymentRequest) => {
           if (r.approvedAt) return 3000
           if (r.currentStage && !r.withdrawnAt && !r.rejectedAt) return 2000 + (r.currentStage || 0)
@@ -403,156 +200,55 @@ const RequestsTable = (props: RequestsTableProps) => {
         return getWeight(a) - getWeight(b)
       },
       render: (_: unknown, record: PaymentRequest) => {
-        // Ошибка загрузки файлов
         if (uploadTasks?.[record.id]?.status === 'error') {
-          return (
-            <Tooltip title="Ошибка загрузки файлов">
-              <Space size={4}>
-                <CloseCircleOutlined style={{ color: '#f5222d' }} />
-                <span style={{ color: '#f5222d', fontSize: 12 }}>Ошибка загрузки</span>
-              </Space>
-            </Tooltip>
-          )
+          return <Tooltip title="Ошибка загрузки файлов"><Space size={4}><CloseCircleOutlined style={{ color: '#f5222d' }} /><span style={{ color: '#f5222d', fontSize: 12 }}>Ошибка загрузки</span></Space></Tooltip>
         }
-        // Согласовано
-        if (record.approvedAt) {
-          return (
-            <Tooltip title="Согласовано">
-              <div style={{ width: '80%' }}>
-                <Progress percent={100} size={{ height: 5 }} status="success" showInfo={false} />
-              </div>
-            </Tooltip>
-          )
-        }
-        // Отклонено
+        if (record.approvedAt) return <Tooltip title="Согласовано"><div style={{ width: '80%' }}><Progress percent={100} size={{ height: 5 }} status="success" showInfo={false} /></div></Tooltip>
         if (record.rejectedAt) {
-          // Определяем процент по этапу отклонения
           const rejectedPercent = record.rejectedStage === 1 ? 50 : 100
-          return (
-            <Tooltip title={`Отклонено на ${record.rejectedStage === 1 ? 'Штабе' : 'ОМТС'}`}>
-              <div style={{ width: '80%' }}>
-                <Progress percent={rejectedPercent} size={{ height: 5 }} status="exception" showInfo={false} />
-              </div>
-            </Tooltip>
-          )
+          return <Tooltip title={`Отклонено на ${record.rejectedStage === 1 ? 'Штабе' : 'ОМТС'}`}><div style={{ width: '80%' }}><Progress percent={rejectedPercent} size={{ height: 5 }} status="exception" showInfo={false} /></div></Tooltip>
         }
-        // Отозвано или не на согласовании
-        if (record.withdrawnAt || !record.currentStage) {
-          return <span style={{ color: '#bfbfbf' }}>—</span>
-        }
-        // В процессе согласования
+        if (record.withdrawnAt || !record.currentStage) return <span style={{ color: '#bfbfbf' }}>—</span>
         const completedStages = record.currentStage - 1
         const percent = Math.round((completedStages / totalStages) * 100)
         const stageLabel = record.currentStage === 1 ? 'Штаб' : 'ОМТС'
-        return (
-          <Tooltip title={`На стадии ${stageLabel}`}>
-            <div style={{ width: '80%' }}>
-              <Progress
-                percent={percent}
-                size={{ height: 5 }}
-                strokeColor="#fa8c16"
-                showInfo={false}
-              />
-            </div>
-          </Tooltip>
-        )
+        return <Tooltip title={`На стадии ${stageLabel}`}><div style={{ width: '80%' }}><Progress percent={percent} size={{ height: 5 }} strokeColor="#fa8c16" showInfo={false} /></div></Tooltip>
       },
     })
   }
 
-  // Действия
-  const actionsColumn: Record<string, unknown> = {
-    title: 'Действия',
-    key: 'actions',
-    width: showApprovalActions ? 200 : 180,
+  columns.push({
+    title: 'Действия', key: 'actions', width: showApprovalActions ? 200 : 180,
     render: (_: unknown, record: PaymentRequest) => (
       <Space>
-        <Tooltip title="Просмотр">
-          <Button icon={<EyeOutlined />} size="small" onClick={() => onView(record)} />
-        </Tooltip>
-
-        {/* Кнопки согласования */}
+        <Tooltip title="Просмотр"><Button icon={<EyeOutlined />} size="small" onClick={() => onView(record)} /></Tooltip>
         {showApprovalActions && (
           <>
             <Tooltip title="Согласовать">
-              <Popconfirm
-                title="Согласование заявки"
-                description="Подтвердите согласование заявки"
-                onConfirm={() => onApprove?.(record.id, '')}
-                okText="Согласовать"
-                cancelText="Отмена"
-              >
-                <Button
-                  type="primary"
-                  icon={<CheckOutlined />}
-                  size="small"
-                />
+              <Popconfirm title="Согласование заявки" description="Подтвердите согласование заявки" onConfirm={() => onApprove?.(record.id, '')} okText="Согласовать" cancelText="Отмена">
+                <Button type="primary" icon={<CheckOutlined />} size="small" />
               </Popconfirm>
             </Tooltip>
-            <Tooltip title="Отклонить">
-              <Button
-                danger
-                icon={<StopOutlined />}
-                size="small"
-                onClick={() => setRejectModal(record.id)}
-              />
-            </Tooltip>
+            <Tooltip title="Отклонить"><Button danger icon={<StopOutlined />} size="small" onClick={() => setRejectModalId(record.id)} /></Tooltip>
           </>
         )}
-
-        {/* counterparty_user: отзыв */}
         {isCounterpartyUser && onWithdraw && !record.withdrawnAt && (
-          <Tooltip title="Отозвать">
-            <Button
-              icon={<RollbackOutlined />}
-              danger
-              size="small"
-              onClick={() => setWithdrawModal(record.id)}
-            />
-          </Tooltip>
+          <Tooltip title="Отозвать"><Button icon={<RollbackOutlined />} danger size="small" onClick={() => setWithdrawModalId(record.id)} /></Tooltip>
         )}
-
-        {/* counterparty_user: повторная отправка отклоненной заявки */}
         {isCounterpartyUser && onResubmit && record.rejectedAt && (
-          <Tooltip title="Отправить повторно">
-            <Button
-              icon={<RedoOutlined />}
-              type="primary"
-              size="small"
-              onClick={() => onResubmit(record)}
-            />
-          </Tooltip>
+          <Tooltip title="Отправить повторно"><Button icon={<RedoOutlined />} type="primary" size="small" onClick={() => onResubmit(record)} /></Tooltip>
         )}
-
-        {/* admin/user: смена статуса */}
         {!isCounterpartyUser && statusOptions && onStatusChange && !showApprovalActions && (
-          <Select
-            size="small"
-            style={{ width: 150 }}
-            value={record.statusId}
-            options={statusOptions}
-            loading={statusChangingId === record.id}
-            onChange={(val) => onStatusChange(record.id, val)}
-          />
+          <Select size="small" style={{ width: 150 }} value={record.statusId} options={statusOptions} loading={statusChangingId === record.id} onChange={(val) => onStatusChange(record.id, val)} />
         )}
-
-        {/* admin: удаление (скрываем для уже удаленных) */}
         {isAdmin && onDelete && !record.isDeleted && (
-          <Popconfirm
-            title="Удалить заявку?"
-            description="Заявка станет неактивной, но данные и файлы сохранятся"
-            onConfirm={() => onDelete(record.id)}
-          >
-            <Tooltip title="Удалить">
-              <Button icon={<DeleteOutlined />} danger size="small" />
-            </Tooltip>
+          <Popconfirm title="Удалить заявку?" description="Заявка станет неактивной, но данные и файлы сохранятся" onConfirm={() => onDelete(record.id)}>
+            <Tooltip title="Удалить"><Button icon={<DeleteOutlined />} danger size="small" /></Tooltip>
           </Popconfirm>
         )}
       </Space>
     ),
-  }
-
-  columns.push(actionsColumn)
+  })
 
   return (
     <>
@@ -562,11 +258,7 @@ const RequestsTable = (props: RequestsTableProps) => {
         rowKey="id"
         loading={isLoading}
         scroll={{ x: 1200 }}
-        pagination={{
-          showSizeChanger: true,
-          pageSizeOptions: [10, 20, 50, 100],
-          defaultPageSize: 20
-        }}
+        pagination={{ showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100], defaultPageSize: 20 }}
         rowClassName={(record: PaymentRequest) => {
           const classes: string[] = []
           if (uploadTasks?.[record.id]?.status === 'error') classes.push('row-upload-error')
@@ -574,107 +266,25 @@ const RequestsTable = (props: RequestsTableProps) => {
           return classes.join(' ')
         }}
       />
+      <style>{`.row-upload-error td { background-color: #fff1f0 !important; } .row-deleted td { opacity: 0.45; }`}</style>
 
-      {/* Стили подсветки строк */}
-      <style>{`
-        .row-upload-error td {
-          background-color: #fff1f0 !important;
-        }
-        .row-deleted td {
-          opacity: 0.45;
-        }
-      `}</style>
-
-      {/* Модал отклонения заявки */}
-      <Modal
-        title="Отклонение заявки"
-        open={!!rejectModal}
-        onOk={handleRejectConfirm}
-        onCancel={() => {
-          setRejectModal(null)
-          setRejectComment('')
-          setRejectFiles([])
+      <RejectModal
+        open={!!rejectModalId}
+        onConfirm={(comment, files) => {
+          if (rejectModalId) onReject?.(rejectModalId, comment, files)
+          setRejectModalId(null)
         }}
-        okText="Отклонить"
-        okButtonProps={{ danger: true }}
-        width={600}
-      >
-        <Space direction="vertical" style={{ width: '100%' }} size="large">
-          <div>
-            <div style={{ marginBottom: 8, fontWeight: 500 }}>Комментарий *</div>
-            <TextArea
-              rows={3}
-              placeholder="Укажите причину отклонения"
-              value={rejectComment}
-              onChange={(e) => setRejectComment(e.target.value)}
-              status={!rejectComment.trim() ? 'error' : undefined}
-            />
-          </div>
+        onCancel={() => setRejectModalId(null)}
+      />
 
-          <div>
-            <div style={{ marginBottom: 8, fontWeight: 500 }}>Прикрепить файлы (необязательно)</div>
-            <Dragger
-              accept={ACCEPT_EXTENSIONS}
-              multiple
-              fileList={[]}
-              beforeUpload={handleFileBeforeUpload}
-              showUploadList={false}
-            >
-              <p className="ant-upload-drag-icon">
-                <InboxOutlined />
-              </p>
-              <p className="ant-upload-text">Нажмите или перетащите файлы</p>
-              <p className="ant-upload-hint">
-                Поддерживаются: PDF, изображения, Word, Excel
-              </p>
-            </Dragger>
-
-            {rejectFiles.length > 0 && (
-              <List
-                size="small"
-                style={{ marginTop: 16 }}
-                bordered
-                dataSource={rejectFiles}
-                renderItem={(file) => (
-                  <List.Item
-                    actions={[
-                      <Button
-                        type="text"
-                        icon={<CloseOutlined />}
-                        size="small"
-                        onClick={() => handleFileRemove(file)}
-                      />,
-                    ]}
-                  >
-                    {file.name}
-                  </List.Item>
-                )}
-              />
-            )}
-          </div>
-        </Space>
-      </Modal>
-
-      {/* Модал отзыва заявки */}
-      <Modal
-        title="Отзыв заявки"
-        open={!!withdrawModal}
-        onOk={() => {
-          if (withdrawModal) onWithdraw?.(withdrawModal, withdrawComment)
-          setWithdrawModal(null)
-          setWithdrawComment('')
+      <WithdrawModal
+        open={!!withdrawModalId}
+        onConfirm={(comment) => {
+          if (withdrawModalId) onWithdraw?.(withdrawModalId, comment)
+          setWithdrawModalId(null)
         }}
-        onCancel={() => { setWithdrawModal(null); setWithdrawComment('') }}
-        okText="Отозвать"
-        okButtonProps={{ danger: true }}
-      >
-        <TextArea
-          rows={3}
-          placeholder="Комментарий (необязательно)"
-          value={withdrawComment}
-          onChange={(e) => setWithdrawComment(e.target.value)}
-        />
-      </Modal>
+        onCancel={() => setWithdrawModalId(null)}
+      />
     </>
   )
 }

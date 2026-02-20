@@ -1,245 +1,80 @@
-import { useEffect, useMemo, useState, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { Typography, Button, Tabs, App, Radio, Switch } from 'antd'
 import { PlusOutlined, FilterOutlined } from '@ant-design/icons'
-import { usePaymentRequestStore } from '@/store/paymentRequestStore'
-import type { EditRequestData } from '@/store/paymentRequestStore'
-import { useAuthStore } from '@/store/authStore'
+import { usePaymentRequestsData } from '@/hooks/usePaymentRequestsData'
+import { useRequestFiltering } from '@/hooks/useRequestFiltering'
+import { useCounterpartyStore } from '@/store/counterpartyStore'
 import { useUploadQueueStore } from '@/store/uploadQueueStore'
-import { useApprovalStore } from '@/store/approvalStore'
-import { supabase } from '@/services/supabase'
+import type { EditRequestData } from '@/store/paymentRequestStore'
 import CreateRequestModal from '@/components/paymentRequests/CreateRequestModal'
 import ViewRequestModal from '@/components/paymentRequests/ViewRequestModal'
 import RequestsTable from '@/components/paymentRequests/RequestsTable'
-import { useCounterpartyStore } from '@/store/counterpartyStore'
-import { useConstructionSiteStore } from '@/store/constructionSiteStore'
-import { useStatusStore } from '@/store/statusStore'
-import { useAssignmentStore } from '@/store/assignmentStore'
 import RequestFilters from '@/components/paymentRequests/RequestFilters'
+import CounterpartyRequestsView from '@/components/paymentRequests/CounterpartyRequestsView'
 import type { FilterValues } from '@/components/paymentRequests/RequestFilters'
 import type { FileItem } from '@/components/paymentRequests/FileUploadList'
 import type { PaymentRequest, Department } from '@/types'
 
 const { Title } = Typography
 
-/** Загрузить объекты пользователя из БД */
-async function loadUserSiteIds(userId: string): Promise<{ allSites: boolean; siteIds: string[] }> {
-  const { data: userData } = await supabase
-    .from('users')
-    .select('all_sites')
-    .eq('id', userId)
-    .single()
-  const allSites = (userData?.all_sites as boolean) ?? false
-  if (allSites) return { allSites: true, siteIds: [] }
-
-  const { data: mappings } = await supabase
-    .from('user_construction_sites_mapping')
-    .select('construction_site_id')
-    .eq('user_id', userId)
-  const siteIds = (mappings ?? []).map((m: Record<string, unknown>) => m.construction_site_id as string)
-  return { allSites: false, siteIds }
-}
-
 const PaymentRequestsPage = () => {
   const { message } = App.useApp()
+
+  // UI state
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [viewRecord, setViewRecord] = useState<PaymentRequest | null>(null)
   const [resubmitRecord, setResubmitRecord] = useState<PaymentRequest | null>(null)
   const [activeTab, setActiveTab] = useState('all')
-  const [userSiteIds, setUserSiteIds] = useState<string[]>([])
-  const [userAllSites, setUserAllSites] = useState(true)
-  const [sitesLoaded, setSitesLoaded] = useState(false)
   const [filters, setFilters] = useState<FilterValues>({})
-  const [, setDefaultFilters] = useState<FilterValues>({})
   const [filtersOpen, setFiltersOpen] = useState(true)
-  const [adminSelectedStage, setAdminSelectedStage] = useState<Department>('omts') // Для админа: выбор этапа согласования
+  const [adminSelectedStage, setAdminSelectedStage] = useState<Department>('omts')
   const [refreshTrigger, setRefreshTrigger] = useState(0)
-  const [showDeleted, setShowDeleted] = useState(false) // Для админа: показать удаленные заявки
+  const [showDeleted, setShowDeleted] = useState(false)
 
-  const user = useAuthStore((s) => s.user)
-
-  const isCounterpartyUser = user?.role === 'counterparty_user'
-  const isAdmin = user?.role === 'admin'
-  const isUser = user?.role === 'user'
-  const isOmtsUser = user?.department === 'omts'
-
-  // Устанавливаем фильтры по умолчанию в зависимости от роли
-  useEffect(() => {
-    if (isAdmin) {
-      const defaults: FilterValues = { responsibleFilter: 'unassigned' }
-      setFilters(defaults)
-      setDefaultFilters(defaults)
-    } else if (isOmtsUser) {
-      const defaults: FilterValues = { myRequestsFilter: 'assigned_to_me' }
-      setFilters(defaults)
-      setDefaultFilters(defaults)
-    }
-  }, [isAdmin, isOmtsUser])
-
+  // Данные
   const {
-    requests,
-    isLoading,
-    fetchRequests,
-    deleteRequest,
-    withdrawRequest,
-    resubmitRequest,
-    updateRequest,
-  } = usePaymentRequestStore()
+    user, isCounterpartyUser, isAdmin, isUser, isOmtsUser,
+    userDeptInChain, totalStages,
+    requests, pendingRequests, approvedRequests, rejectedRequests,
+    isLoading, approvalLoading,
+    counterparties, sites, omtsUsers, uploadTasks,
+    siteFilterParams, canEditRequest,
+    fetchRequests, fetchCounterparties, fetchPendingRequests,
+    approveRequest, rejectRequest,
+    deleteRequest, withdrawRequest, resubmitRequest, updateRequest,
+    assignResponsible,
+  } = usePaymentRequestsData({
+    activeTab,
+    refreshTrigger,
+    adminSelectedStage,
+    showDeleted,
+    setFilters,
+  })
 
-  const { counterparties, fetchCounterparties } = useCounterpartyStore()
-  const { sites, fetchSites } = useConstructionSiteStore()
-  const { fetchStatuses } = useStatusStore()
-  const { omtsUsers, fetchOmtsUsers, assignResponsible } = useAssignmentStore()
-
-  const uploadTasks = useUploadQueueStore((s) => s.tasks)
-
+  // Фильтрация
   const {
-    pendingRequests,
-    approvedRequests,
-    rejectedRequests,
-    isLoading: approvalLoading,
-    fetchPendingRequests,
-    fetchApprovedRequests,
-    fetchRejectedRequests,
-    approveRequest,
-    rejectRequest,
-  } = useApprovalStore()
+    filteredRequests, filteredPendingRequests, filteredApprovedRequests, filteredRejectedRequests,
+    filteredCounterpartyAll, filteredCounterpartyPending, filteredCounterpartyApproved, filteredCounterpartyRejected,
+    totalInvoiceAmount, unassignedOmtsCount,
+  } = useRequestFiltering({
+    requests, pendingRequests, approvedRequests, rejectedRequests,
+    filters, userId: user?.id, isAdmin: !!isAdmin,
+  })
 
-  // Загружаем объекты пользователя для role=user
-  useEffect(() => {
-    if (!user?.id || !isUser) {
-      setSitesLoaded(true)
-      return
-    }
-    loadUserSiteIds(user.id).then(({ allSites, siteIds }) => {
-      setUserAllSites(allSites)
-      setUserSiteIds(siteIds)
-      setSitesLoaded(true)
-    })
-  }, [user?.id, isUser])
+  // --- Обработчики ---
 
-  // Общее количество уникальных этапов согласования (жесткая цепочка: Штаб → ОМТС)
-  const totalStages = 2
-
-  // Проверяем, участвует ли подразделение пользователя в цепочке (только Штаб и ОМТС)
-  // Для админа вкладка всегда видна
-  const userDeptInChain = useMemo(() => {
-    if (isAdmin) return true // Админ всегда видит вкладку "На согласовании"
-    if (!user?.department) return false
-    return user.department === 'shtab' || user.department === 'omts'
-  }, [isAdmin, user?.department])
-
-  // Параметры фильтрации для role=user
-  const siteFilterParams = useCallback((): [string[]?, boolean?] => {
-    if (!isUser) return [undefined, undefined]
-    return [userSiteIds, userAllSites]
-  }, [isUser, userSiteIds, userAllSites])
-
-  useEffect(() => {
-    if (!sitesLoaded) return
-    if (isCounterpartyUser && user?.counterpartyId) {
-      fetchRequests(user.counterpartyId)
-    } else if (isAdmin) {
-      fetchRequests(undefined, undefined, undefined, showDeleted)
-    } else if (isUser) {
-      fetchRequests(undefined, userSiteIds, userAllSites)
-    }
-  }, [fetchRequests, isCounterpartyUser, isAdmin, isUser, user?.counterpartyId, sitesLoaded, userSiteIds, userAllSites, showDeleted])
-
-  // Загружаем pendingRequests для счетчика вкладки (независимо от activeTab)
-  useEffect(() => {
-    if (isCounterpartyUser || !sitesLoaded || !user?.id) return
-    const department = isAdmin ? adminSelectedStage : user?.department
-    if (department && userDeptInChain) {
-      fetchPendingRequests(department, user.id, isAdmin)
-    }
-  }, [isCounterpartyUser, sitesLoaded, user?.id, user?.department, isAdmin, adminSelectedStage, userDeptInChain, fetchPendingRequests])
-
-  // Загружаем данные при переключении вкладок для всех ролей
-  useEffect(() => {
-    if (!sitesLoaded) return
-
-    // Для контрагента: обновляем базовый список заявок для всех вкладок
-    if (isCounterpartyUser && user?.counterpartyId) {
-      fetchRequests(user.counterpartyId)
-      return
-    }
-
-    // Для user/admin: обновляем данные в зависимости от вкладки
-    const [sIds, allS] = siteFilterParams()
-
-    if (activeTab === 'all') {
-      // Вкладка "Все"
-      if (isUser) {
-        fetchRequests(undefined, sIds, allS)
-      } else if (isAdmin) {
-        fetchRequests(undefined, undefined, undefined, showDeleted)
-      }
-    } else if (activeTab === 'pending') {
-      // Вкладка "На согласование"
-      if (user?.id && userDeptInChain) {
-        const department = isAdmin ? adminSelectedStage : user?.department
-        if (department) {
-          fetchPendingRequests(department, user.id, isAdmin)
-        }
-      }
-    } else if (activeTab === 'approved') {
-      // Вкладка "Согласовано"
-      fetchApprovedRequests(sIds, allS)
-    } else if (activeTab === 'rejected') {
-      // Вкладка "Отклонено"
-      fetchRejectedRequests(sIds, allS)
-    }
-  }, [activeTab, refreshTrigger, sitesLoaded, isCounterpartyUser, user?.counterpartyId, user?.id, user?.department, isUser, isAdmin, adminSelectedStage, userDeptInChain, userSiteIds, userAllSites, showDeleted, fetchRequests, fetchPendingRequests, fetchApprovedRequests, fetchRejectedRequests])
-
-  // Загружаем справочники для фильтров
-  useEffect(() => {
-    if (!isCounterpartyUser) {
-      fetchCounterparties()
-      fetchSites()
-      fetchStatuses('payment_request')
-    } else {
-      // Для counterparty_user загружаем только объекты (для фильтров)
-      fetchSites()
-    }
-  }, [isCounterpartyUser, fetchCounterparties, fetchSites, fetchStatuses])
-
-  // Загружаем список ОМТС для назначения (для пользователей ОМТС и для админов)
-  useEffect(() => {
-    if (isOmtsUser || isAdmin) {
-      fetchOmtsUsers()
-    }
-  }, [isOmtsUser, isAdmin, fetchOmtsUsers])
-
-  /** Проверяет, может ли текущий пользователь редактировать заявку */
-  const canEditRequest = useCallback((record: PaymentRequest | null): boolean => {
-    if (!record || isCounterpartyUser) return false
-    if (isAdmin) return true
-    // user может редактировать заявки своих объектов
-    if (isUser) {
-      // Если all_sites=true, может редактировать все заявки
-      if (userAllSites) return true
-      // Если all_sites=false, может редактировать только заявки своих объектов
-      return userSiteIds.includes(record.siteId)
-    }
-    return false
-  }, [isAdmin, isCounterpartyUser, isUser, userAllSites, userSiteIds, user?.role])
-
-  /** Обработчик сохранения редактирования */
   const handleEdit = async (id: string, data: EditRequestData, files: FileItem[]) => {
     if (!user?.id) return
     try {
       await updateRequest(id, data, user.id, files.length > 0 ? files.length : undefined)
 
-      // Если есть новые файлы — загружаем через очередь
       if (files.length > 0) {
-        // Находим заявку для получения данных
         const req = requests.find((r) => r.id === id)
         if (req) {
           if (counterparties.length === 0) await fetchCounterparties()
           const cp = useCounterpartyStore.getState().counterparties.find((c) => c.id === req.counterpartyId)
           if (cp) {
-            const addUploadTask = useUploadQueueStore.getState().addTask
-            addUploadTask({
+            useUploadQueueStore.getState().addTask({
               type: 'request_files',
               requestId: id,
               requestNumber: req.requestNumber,
@@ -257,25 +92,18 @@ const PaymentRequestsPage = () => {
 
       message.success('Заявка обновлена')
       setViewRecord(null)
-      // Обновляем список
       const [sIds, allS] = siteFilterParams()
-      if (isUser) {
-        fetchRequests(undefined, sIds, allS)
-      } else {
-        fetchRequests()
-      }
+      if (isUser) fetchRequests(undefined, sIds, allS)
+      else fetchRequests()
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Ошибка обновления'
-      message.error(errorMsg)
+      message.error(err instanceof Error ? err.message : 'Ошибка обновления')
     }
   }
 
   const handleWithdraw = async (id: string, comment: string) => {
     await withdrawRequest(id, comment || undefined)
     message.success('Заявка отозвана')
-    if (isCounterpartyUser && user?.counterpartyId) {
-      fetchRequests(user.counterpartyId)
-    }
+    if (isCounterpartyUser && user?.counterpartyId) fetchRequests(user.counterpartyId)
   }
 
   const handleDelete = async (id: string) => {
@@ -285,34 +113,26 @@ const PaymentRequestsPage = () => {
 
   const handleApprove = async (requestId: string, comment: string) => {
     if (!user?.id) return
-    // Для админа используем выбранный этап, для обычных пользователей - их department
     const department = isAdmin ? adminSelectedStage : user?.department
     if (!department) return
     await approveRequest(requestId, department, user.id, comment)
     message.success('Заявка согласована')
     fetchPendingRequests(department, user.id, isAdmin)
     const [sIds, allS] = siteFilterParams()
-    if (isUser) {
-      fetchRequests(undefined, sIds, allS)
-    } else {
-      fetchRequests()
-    }
+    if (isUser) fetchRequests(undefined, sIds, allS)
+    else fetchRequests()
   }
 
   const handleReject = async (requestId: string, comment: string, files?: { id: string; file: File }[]) => {
     if (!user?.id) return
-    // Для админа используем выбранный этап, для обычных пользователей - их department
     const department = isAdmin ? adminSelectedStage : user?.department
     if (!department) return
     await rejectRequest(requestId, department, user.id, comment, files)
     message.success('Заявка отклонена')
     fetchPendingRequests(department, user.id, isAdmin)
     const [sIds, allS] = siteFilterParams()
-    if (isUser) {
-      fetchRequests(undefined, sIds, allS)
-    } else {
-      fetchRequests()
-    }
+    if (isUser) fetchRequests(undefined, sIds, allS)
+    else fetchRequests()
   }
 
   const handleAssignResponsible = useCallback(async (requestId: string, userId: string) => {
@@ -320,135 +140,13 @@ const PaymentRequestsPage = () => {
     try {
       await assignResponsible(requestId, userId, user.id)
       message.success('Ответственный назначен')
-      // Обновить список заявок
       const [sIds, allS] = siteFilterParams()
-      if (isUser) {
-        fetchRequests(undefined, sIds, allS)
-      } else {
-        fetchRequests()
-      }
+      if (isUser) fetchRequests(undefined, sIds, allS)
+      else fetchRequests()
     } catch {
       message.error('Ошибка назначения')
     }
-  }, [user?.id, assignResponsible, isUser, siteFilterParams, fetchRequests])
-
-  // Общая функция фильтрации для всех вкладок
-  const applyFilters = useCallback((items: PaymentRequest[]) => {
-    let filtered = items
-
-    if (filters.counterpartyId) {
-      filtered = filtered.filter(r => r.counterpartyId === filters.counterpartyId)
-    }
-    if (filters.siteId) {
-      filtered = filtered.filter(r => r.siteId === filters.siteId)
-    }
-    if (filters.statusId) {
-      filtered = filtered.filter(r => r.statusId === filters.statusId)
-    }
-    if (filters.requestNumber) {
-      filtered = filtered.filter(r =>
-        r.requestNumber.toLowerCase().includes(filters.requestNumber!.toLowerCase())
-      )
-    }
-    if (filters.dateFrom) {
-      filtered = filtered.filter(r =>
-        new Date(r.createdAt) >= new Date(filters.dateFrom!)
-      )
-    }
-    if (filters.dateTo) {
-      // Добавляем 1 день к dateTo, чтобы включить конечную дату в фильтр
-      const nextDay = new Date(filters.dateTo!)
-      nextDay.setDate(nextDay.getDate() + 1)
-      filtered = filtered.filter(r =>
-        new Date(r.createdAt) < nextDay
-      )
-    }
-    if (filters.responsibleFilter === 'assigned') {
-      filtered = filtered.filter(r => r.assignedUserId !== null)
-    } else if (filters.responsibleFilter === 'unassigned') {
-      filtered = filtered.filter(r => r.assignedUserId === null)
-    }
-    if (filters.responsibleUserId) {
-      filtered = filtered.filter(r => r.assignedUserId === filters.responsibleUserId)
-    }
-    // Фильтр "Заявки" для ОМТС-пользователя
-    if (filters.myRequestsFilter === 'assigned_to_me' && user?.id) {
-      filtered = filtered.filter(r => r.assignedUserId === user.id)
-    }
-
-    return filtered
-  }, [filters, user?.id])
-
-  // Фильтрация заявок для всех вкладок
-  const filteredRequests = useMemo(() => applyFilters(requests), [requests, applyFilters])
-  const filteredPendingRequests = useMemo(() => applyFilters(pendingRequests), [pendingRequests, applyFilters])
-  const filteredApprovedRequests = useMemo(() => applyFilters(approvedRequests), [approvedRequests, applyFilters])
-  const filteredRejectedRequests = useMemo(() => applyFilters(rejectedRequests), [rejectedRequests, applyFilters])
-
-  // Статистика для вкладки "На согласование"
-  const totalInvoiceAmount = useMemo(() => {
-    return filteredPendingRequests.reduce((sum, req) => {
-      return sum + (req.invoiceAmount ?? 0)
-    }, 0)
-  }, [filteredPendingRequests])
-
-  const unassignedOmtsCount = useMemo(() => {
-    if (!isAdmin) return 0
-    return filteredPendingRequests.filter(req =>
-      req.currentStage === 2 && !req.assignedUserId
-    ).length
-  }, [filteredPendingRequests, isAdmin])
-
-  // Фильтрация для counterparty_user (только объект, дата, номер)
-  const applyCounterpartyFilters = useCallback((items: PaymentRequest[]) => {
-    let filtered = items
-    if (filters.siteId) {
-      filtered = filtered.filter(r => r.siteId === filters.siteId)
-    }
-    if (filters.requestNumber) {
-      filtered = filtered.filter(r =>
-        r.requestNumber.toLowerCase().includes(filters.requestNumber!.toLowerCase())
-      )
-    }
-    if (filters.dateFrom) {
-      filtered = filtered.filter(r =>
-        new Date(r.createdAt) >= new Date(filters.dateFrom!)
-      )
-    }
-    if (filters.dateTo) {
-      // Добавляем 1 день к dateTo, чтобы включить конечную дату в фильтр
-      const nextDay = new Date(filters.dateTo!)
-      nextDay.setDate(nextDay.getDate() + 1)
-      filtered = filtered.filter(r =>
-        new Date(r.createdAt) < nextDay
-      )
-    }
-    return filtered
-  }, [filters])
-
-  // Разделение заявок counterparty_user по статусам (локальная фильтрация)
-  const counterpartyAllRequests = useMemo(() => requests, [requests])
-  const counterpartyPendingRequests = useMemo(() =>
-    requests.filter(r =>
-      r.currentStage !== null &&
-      r.approvedAt === null &&
-      r.rejectedAt === null &&
-      r.withdrawnAt === null
-    ), [requests])
-  const counterpartyApprovedRequests = useMemo(() =>
-    requests.filter(r => r.approvedAt !== null), [requests])
-  const counterpartyRejectedRequests = useMemo(() =>
-    requests.filter(r => r.rejectedAt !== null), [requests])
-
-  // Применение фильтров к вкладкам counterparty_user
-  const filteredCounterpartyAll = useMemo(() =>
-    applyCounterpartyFilters(counterpartyAllRequests), [counterpartyAllRequests, applyCounterpartyFilters])
-  const filteredCounterpartyPending = useMemo(() =>
-    applyCounterpartyFilters(counterpartyPendingRequests), [counterpartyPendingRequests, applyCounterpartyFilters])
-  const filteredCounterpartyApproved = useMemo(() =>
-    applyCounterpartyFilters(counterpartyApprovedRequests), [counterpartyApprovedRequests, applyCounterpartyFilters])
-  const filteredCounterpartyRejected = useMemo(() =>
-    applyCounterpartyFilters(counterpartyRejectedRequests), [counterpartyRejectedRequests, applyCounterpartyFilters])
+  }, [user?.id, assignResponsible, isUser, siteFilterParams, fetchRequests, message])
 
   const handleResubmit = async (comment: string, files: FileItem[], fieldUpdates: {
     deliveryDays: number
@@ -458,19 +156,13 @@ const PaymentRequestsPage = () => {
   }) => {
     if (!resubmitRecord || !user?.counterpartyId || !user?.id) return
     try {
-      // Повторная отправка заявки с обновлёнными полями
       await resubmitRequest(resubmitRecord.id, comment, user.counterpartyId, user.id, fieldUpdates)
 
-      // Если есть новые файлы — загружаем через очередь
       if (files.length > 0) {
-        // Загружаем контрагентов для имени, если ещё не загружены
         if (counterparties.length === 0) await fetchCounterparties()
         const cp = useCounterpartyStore.getState().counterparties.find((c) => c.id === user.counterpartyId)
         if (cp) {
-          // Добавляем файлы в очередь загрузки
-          // total_files будет автоматически увеличен в uploadQueueStore при загрузке каждого файла
-          const addUploadTask = useUploadQueueStore.getState().addTask
-          addUploadTask({
+          useUploadQueueStore.getState().addTask({
             type: 'request_files',
             requestId: resubmitRecord.id,
             requestNumber: resubmitRecord.requestNumber,
@@ -490,109 +182,35 @@ const PaymentRequestsPage = () => {
       setResubmitRecord(null)
       fetchRequests(user.counterpartyId)
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Ошибка повторной отправки'
-      message.error(errorMsg)
+      message.error(err instanceof Error ? err.message : 'Ошибка повторной отправки')
     }
   }
 
-  // Для counterparty_user — с вкладками и фильтрами
+  // --- Counterparty UI ---
   if (isCounterpartyUser) {
-    const counterpartyTabItems = [
-      {
-        key: 'all',
-        label: 'Все',
-        children: (
-          <RequestsTable
-            requests={filteredCounterpartyAll}
-            isLoading={isLoading}
-            onView={setViewRecord}
-            isCounterpartyUser
-            hideCounterpartyColumn
-            onWithdraw={handleWithdraw}
-            onResubmit={setResubmitRecord}
-            uploadTasks={uploadTasks}
-            totalStages={totalStages}
-          />
-        ),
-      },
-      {
-        key: 'pending',
-        label: 'На согласовании',
-        children: (
-          <RequestsTable
-            requests={filteredCounterpartyPending}
-            isLoading={isLoading}
-            onView={setViewRecord}
-            isCounterpartyUser
-            hideCounterpartyColumn
-            onWithdraw={handleWithdraw}
-            uploadTasks={uploadTasks}
-            totalStages={totalStages}
-          />
-        ),
-      },
-      {
-        key: 'approved',
-        label: 'Согласовано',
-        children: (
-          <RequestsTable
-            requests={filteredCounterpartyApproved}
-            isLoading={isLoading}
-            onView={setViewRecord}
-            isCounterpartyUser
-            hideCounterpartyColumn
-            showApprovedDate
-            uploadTasks={uploadTasks}
-            totalStages={totalStages}
-          />
-        ),
-      },
-      {
-        key: 'rejected',
-        label: 'Отклонено',
-        children: (
-          <RequestsTable
-            requests={filteredCounterpartyRejected}
-            isLoading={isLoading}
-            onView={setViewRecord}
-            isCounterpartyUser
-            hideCounterpartyColumn
-            showRejectedDate
-            onResubmit={setResubmitRecord}
-            uploadTasks={uploadTasks}
-            totalStages={totalStages}
-          />
-        ),
-      },
-    ]
-
     return (
       <div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <Title level={2} style={{ margin: 0 }}>Заявки на оплату</Title>
-            <Button
-              icon={<FilterOutlined />}
-              onClick={() => setFiltersOpen(!filtersOpen)}
-              type={filtersOpen ? 'primary' : 'default'}
-            />
-          </div>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsCreateOpen(true)}>
-            Добавить
-          </Button>
-        </div>
-        {filtersOpen && (
-          <RequestFilters
-            sites={sites}
-            hideCounterpartyFilter={true}
-            hideStatusFilter={true}
-            showResponsibleFilter={false}
-            values={filters}
-            onChange={setFilters}
-            onReset={() => setFilters({})}
-          />
-        )}
-        <Tabs activeKey={activeTab} onChange={setActiveTab} onTabClick={(key) => { if (key === activeTab) setRefreshTrigger((n) => n + 1) }} items={counterpartyTabItems} />
+        <CounterpartyRequestsView
+          filteredAll={filteredCounterpartyAll}
+          filteredPending={filteredCounterpartyPending}
+          filteredApproved={filteredCounterpartyApproved}
+          filteredRejected={filteredCounterpartyRejected}
+          isLoading={isLoading}
+          sites={sites}
+          filters={filters}
+          onFiltersChange={setFilters}
+          filtersOpen={filtersOpen}
+          onFiltersToggle={() => setFiltersOpen(!filtersOpen)}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          onTabClick={(key) => { if (key === activeTab) setRefreshTrigger((n) => n + 1) }}
+          onView={setViewRecord}
+          onWithdraw={handleWithdraw}
+          onResubmit={setResubmitRecord}
+          onCreateOpen={() => setIsCreateOpen(true)}
+          uploadTasks={uploadTasks}
+          totalStages={totalStages}
+        />
         <CreateRequestModal
           open={isCreateOpen}
           onClose={() => {
@@ -612,7 +230,7 @@ const PaymentRequestsPage = () => {
     )
   }
 
-  // Формируем вкладки для admin/user
+  // --- Admin/User UI ---
   const tabItems = [
     {
       key: 'all',
@@ -635,14 +253,12 @@ const PaymentRequestsPage = () => {
     },
   ]
 
-  // Вкладка "На согласование" — только если подразделение в цепочке или админ
   if (userDeptInChain) {
     tabItems.push({
       key: 'pending',
       label: `На согласование (${filteredPendingRequests.length})`,
       children: (
         <div>
-          {/* Переключатель этапов для админа */}
           {isAdmin && (
             <div style={{ marginBottom: 16 }}>
               <Radio.Group
@@ -720,7 +336,6 @@ const PaymentRequestsPage = () => {
             onClick={() => setFiltersOpen(!filtersOpen)}
             type={filtersOpen ? 'primary' : 'default'}
           />
-          {/* Виджеты для вкладки "На согласование" */}
           {activeTab === 'pending' && userDeptInChain && (
             <>
               <div
@@ -797,11 +412,8 @@ const PaymentRequestsPage = () => {
         onClose={() => {
           setIsCreateOpen(false)
           const [sIds, allS] = siteFilterParams()
-          if (isUser) {
-            fetchRequests(undefined, sIds, allS)
-          } else {
-            fetchRequests()
-          }
+          if (isUser) fetchRequests(undefined, sIds, allS)
+          else fetchRequests()
         }}
       />
       <ViewRequestModal

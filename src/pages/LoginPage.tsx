@@ -16,7 +16,9 @@ const LoginPage = () => {
     const { isAuthenticated } = useAuthStore.getState()
     if (isAuthenticated) {
       const returnUrl = searchParams.get('returnUrl') || '/'
-      navigate(returnUrl)
+      // Защита от Open Redirect — только относительные пути
+      const safeUrl = returnUrl.startsWith('/') && !returnUrl.startsWith('//') ? returnUrl : '/'
+      navigate(safeUrl)
     } else {
       message.error(error || 'Ошибка авторизации')
     }

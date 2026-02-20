@@ -22,7 +22,7 @@ export const useDocumentTypeStore = create<DocumentTypeStoreState>((set, get) =>
     try {
       const { data, error } = await supabase
         .from('document_types')
-        .select('*')
+        .select('id, name, created_at')
         .order('created_at', { ascending: false })
       if (error) throw error
 

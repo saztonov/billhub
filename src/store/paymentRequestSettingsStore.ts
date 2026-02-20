@@ -29,7 +29,7 @@ export const usePaymentRequestSettingsStore = create<PaymentRequestSettingsStore
       try {
         const { data, error } = await supabase
           .from('payment_request_field_options')
-          .select('*')
+          .select('id, field_code, value, is_active, display_order, created_at')
           .order('field_code', { ascending: true })
           .order('display_order', { ascending: true })
         if (error) throw error

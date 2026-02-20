@@ -155,7 +155,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
           // Загружаем файлы для этого решения
           const { data: filesData } = await supabase
             .from('approval_decision_files')
-            .select('*')
+            .select('id, approval_decision_id, file_name, file_key, file_size, mime_type, created_by, created_at')
             .eq('approval_decision_id', row.id as string)
             .order('created_at', { ascending: true })
 
@@ -185,12 +185,6 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
           }
         })
       )
-      console.log('[ApprovalStore] Загружено решений:', decisions.length, decisions.map(d => ({
-        stage: d.stageOrder,
-        dept: d.department,
-        status: d.status,
-        decidedAt: d.decidedAt
-      })))
       set({ currentDecisions: decisions })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка загрузки решений'

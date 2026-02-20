@@ -29,7 +29,7 @@ export const useStatusStore = create<StatusStoreState>((set, get) => ({
     try {
       const { data, error } = await supabase
         .from('statuses')
-        .select('*')
+        .select('id, entity_type, code, name, color, is_active, display_order, visible_roles, created_at')
         .eq('entity_type', entityType)
         .order('display_order', { ascending: true })
       if (error) throw error

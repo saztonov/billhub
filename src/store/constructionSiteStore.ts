@@ -22,7 +22,7 @@ export const useConstructionSiteStore = create<ConstructionSiteStoreState>((set,
     try {
       const { data, error } = await supabase
         .from('construction_sites')
-        .select('*')
+        .select('id, name, is_active, created_at')
         .order('created_at', { ascending: false })
       if (error) throw error
 
