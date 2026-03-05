@@ -408,35 +408,39 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
         {/* Реквизиты */}
         {isEditing ? (
           <Form form={editForm} layout="vertical" style={{ marginBottom: 16 }}>
-            <Descriptions column={2} size="small" bordered style={{ marginBottom: 12 }}>
+            <Descriptions column={2} size="small" bordered={false} style={{ marginBottom: 4 }}>
               <Descriptions.Item label="Номер">{extractRequestNumber(request.requestNumber)}</Descriptions.Item>
               <Descriptions.Item label="Подрядчик">{request.counterpartyName}</Descriptions.Item>
             </Descriptions>
-            <Form.Item name="siteId" label="Объект" rules={[{ required: true, message: 'Выберите объект' }]}>
-              <Select placeholder="Выберите объект" showSearch optionFilterProp="label" options={siteOptions} />
-            </Form.Item>
-            <Form.Item name="supplierId" label="Поставщик">
-              <Select placeholder="Выберите поставщика" showSearch allowClear optionFilterProp="label" options={supplierOptions} />
-            </Form.Item>
-            <Row gutter={16}>
-              <Col span={8}>
+            <Row gutter={8}>
+              <Col span={6}>
+                <Form.Item name="siteId" label="Объект" rules={[{ required: true, message: 'Выберите объект' }]}>
+                  <Select placeholder="Выберите объект" showSearch optionFilterProp="label" options={siteOptions} />
+                </Form.Item>
+              </Col>
+              <Col span={5}>
+                <Form.Item name="supplierId" label="Поставщик">
+                  <Select placeholder="Выберите поставщика" showSearch allowClear optionFilterProp="label" options={supplierOptions} />
+                </Form.Item>
+              </Col>
+              <Col span={5}>
                 <Form.Item label="Срок поставки" required style={{ marginBottom: 0 }}>
-                  <div style={{ display: 'flex', gap: 8 }}>
+                  <div style={{ display: 'flex', gap: 4 }}>
                     <Form.Item name="deliveryDays" noStyle rules={[{ required: true, message: 'Укажите срок' }]}>
-                      <InputNumber min={1} style={{ width: 80 }} placeholder="Дни" />
+                      <InputNumber min={1} style={{ width: 70 }} placeholder="Дни" />
                     </Form.Item>
                     <Form.Item name="deliveryDaysType" noStyle>
-                      <Select style={{ width: 120 }} options={[{ label: 'рабочих', value: 'working' }, { label: 'календарных', value: 'calendar' }]} />
+                      <Select style={{ width: 100 }} options={[{ label: 'раб.', value: 'working' }, { label: 'кал.', value: 'calendar' }]} />
                     </Form.Item>
                   </div>
                 </Form.Item>
               </Col>
-              <Col span={8}>
+              <Col span={5}>
                 <Form.Item name="shippingConditionId" label="Условия отгрузки" rules={[{ required: true, message: 'Выберите условия' }]}>
                   <Select placeholder="Выберите условия" options={shippingOptions.map((o) => ({ label: o.value, value: o.id }))} />
                 </Form.Item>
               </Col>
-              <Col span={8}>
+              <Col span={3}>
                 <Form.Item name="invoiceAmount" label="Сумма счета" rules={[{ validator: invoiceAmountValidator }]} getValueFromEvent={invoiceAmountMask}>
                   <Input addonAfter="₽" style={{ width: '100%' }} placeholder="Сумма" />
                 </Form.Item>
