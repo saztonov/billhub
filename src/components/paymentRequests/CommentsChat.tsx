@@ -4,7 +4,8 @@ import { SendOutlined, EditOutlined, DeleteOutlined, CloseOutlined, CheckOutline
 import dayjs from 'dayjs'
 import { useCommentStore } from '@/store/commentStore'
 import { useAuthStore } from '@/store/authStore'
-import type { PaymentRequestComment } from '@/types'
+import type { PaymentRequestComment, Department } from '@/types'
+import { DEPARTMENT_LABELS } from '@/types'
 
 const { Text } = Typography
 const { TextArea } = Input
@@ -77,6 +78,26 @@ const CommentsChat = ({ paymentRequestId }: CommentsChatProps) => {
     setEditText(comment.text)
   }
 
+  const getAuthorDisplayName = (comment: PaymentRequestComment): string => {
+    if (comment.authorRole === 'counterparty_user') {
+      return comment.authorCounterpartyName ?? comment.authorEmail ?? '—'
+    }
+    const parts: string[] = []
+    if (comment.authorDepartment) {
+      const label = DEPARTMENT_LABELS[comment.authorDepartment as Department]
+      if (label) parts.push(label)
+    }
+    if (comment.authorFullName) {
+      const words = comment.authorFullName.trim().split(/\s+/)
+      // 3+ слова — имя и отчество (2-е и 3-е), 2 слова — оба
+      const shortName = words.length >= 3
+        ? `${words[1]} ${words[2]}`
+        : words.join(' ')
+      parts.push(shortName)
+    }
+    return parts.join(', ') || comment.authorEmail || '—'
+  }
+
   // Определяем последний комментарий текущего пользователя
   const lastOwnComment = user
     ? [...comments].reverse().find((c) => c.authorId === user.id)
@@ -122,7 +143,7 @@ const CommentsChat = ({ paymentRequestId }: CommentsChatProps) => {
           <div key={comment.id} style={{ marginBottom: 12, padding: '8px 12px', background: '#fff', borderRadius: 6, border: '1px solid #f0f0f0' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
               <div>
-                <Text strong style={{ fontSize: 13 }}>{comment.authorFullName ?? comment.authorEmail ?? '—'}</Text>
+                <Text strong style={{ fontSize: 13 }}>{getAuthorDisplayName(comment)}</Text>
                 <Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>
                   {dayjs(comment.createdAt).format('DD.MM.YYYY HH:mm')}
                   {comment.updatedAt && ' (ред.)'}

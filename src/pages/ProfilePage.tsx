@@ -41,7 +41,6 @@ const ProfilePage = () => {
       <Space direction="vertical" size="large" style={{ width: '100%', maxWidth: 600 }}>
         <Card title="Информация о пользователе">
           <Descriptions column={1} bordered size="small">
-            <Descriptions.Item label="ФИО">{user.fullName || '—'}</Descriptions.Item>
             <Descriptions.Item label="Email">{user.email}</Descriptions.Item>
             <Descriptions.Item label="Роль">{roleLabels[user.role]}</Descriptions.Item>
             {user.department && (

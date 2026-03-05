@@ -23,7 +23,7 @@ export const useCommentStore = create<CommentStoreState>((set, get) => ({
     try {
       const { data, error } = await supabase
         .from('payment_request_comments')
-        .select('id, payment_request_id, author_id, text, created_at, updated_at, author:users!payment_request_comments_author_id_fkey(full_name, email)')
+        .select('id, payment_request_id, author_id, text, created_at, updated_at, author:users!payment_request_comments_author_id_fkey(full_name, email, role, department_id, counterparty:counterparties!users_counterparty_id_fkey(name))')
         .eq('payment_request_id', paymentRequestId)
         .order('created_at', { ascending: true })
 
@@ -31,6 +31,7 @@ export const useCommentStore = create<CommentStoreState>((set, get) => ({
 
       const comments: PaymentRequestComment[] = (data ?? []).map((row: Record<string, unknown>) => {
         const author = row.author as Record<string, unknown> | null
+        const counterparty = author?.counterparty as Record<string, unknown> | null
         return {
           id: row.id as string,
           paymentRequestId: row.payment_request_id as string,
@@ -40,6 +41,9 @@ export const useCommentStore = create<CommentStoreState>((set, get) => ({
           updatedAt: (row.updated_at as string) ?? null,
           authorFullName: (author?.full_name as string) ?? undefined,
           authorEmail: (author?.email as string) ?? undefined,
+          authorRole: (author?.role as string) ?? undefined,
+          authorDepartment: (author?.department_id as string) ?? null,
+          authorCounterpartyName: (counterparty?.name as string) ?? undefined,
         }
       })
 
