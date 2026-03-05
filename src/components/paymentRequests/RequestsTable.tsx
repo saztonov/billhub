@@ -105,12 +105,19 @@ const RequestsTable = (props: RequestsTableProps) => {
       render: (_: unknown, record: PaymentRequest) => <Tag color={record.statusColor ?? 'default'}>{record.statusName}</Tag>,
     },
     {
-      title: 'Оплата', key: 'paidStatus', width: 150,
+      title: 'Оплата', key: 'paidStatus', width: 110,
       sorter: (a: PaymentRequest, b: PaymentRequest) => (a.paidStatusName || '').localeCompare(b.paidStatusName || '', 'ru'),
-      render: (_: unknown, record: PaymentRequest) => <Tag color={record.paidStatusColor ?? 'default'}>{record.paidStatusName ?? '—'}</Tag>,
+      render: (_: unknown, record: PaymentRequest) => <Tag color={record.paidStatusColor ?? 'default'} style={{ whiteSpace: 'normal', lineHeight: 1.3 }}>{record.paidStatusName ?? '—'}</Tag>,
     },
     {
-      title: 'Сумма счета / оплачено', key: 'invoiceAmount', width: 200, align: 'right' as const,
+      title: (
+        <div style={{ textAlign: 'center', lineHeight: 1.3 }}>
+          <div>Сумма РП</div>
+          <div style={{ borderBottom: '1px solid #d9d9d9', margin: '2px 0' }} />
+          <div>Сумма оплачено</div>
+        </div>
+      ),
+      key: 'invoiceAmount', width: 180, align: 'right' as const,
       sorter: (a: PaymentRequest, b: PaymentRequest) => (a.invoiceAmount ?? 0) - (b.invoiceAmount ?? 0),
       render: (_: unknown, record: PaymentRequest) => {
         const invoiceStr = record.invoiceAmount != null
@@ -119,7 +126,16 @@ const RequestsTable = (props: RequestsTableProps) => {
         const paidStr = record.totalPaid > 0
           ? record.totalPaid.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
           : '0,00'
-        return <span>{invoiceStr} / {paidStr} ₽</span>
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
+            <span style={{ backgroundColor: '#1d3557', color: '#fff', borderRadius: 4, padding: '1px 8px', fontSize: 13, whiteSpace: 'nowrap' }}>
+              {invoiceStr} ₽
+            </span>
+            <span style={{ backgroundColor: '#1b5e20', color: '#fff', borderRadius: 4, padding: '1px 8px', fontSize: 13, whiteSpace: 'nowrap' }}>
+              {paidStr} ₽
+            </span>
+          </div>
+        )
       },
     },
   )

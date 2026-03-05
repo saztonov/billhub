@@ -55,7 +55,7 @@ const PaymentRequestsPage = () => {
   const {
     filteredRequests, filteredPendingRequests, filteredApprovedRequests, filteredRejectedRequests,
     filteredCounterpartyAll, filteredCounterpartyPending, filteredCounterpartyApproved, filteredCounterpartyRejected,
-    totalInvoiceAmount, unassignedOmtsCount,
+    totalInvoiceAmount, totalInvoiceAmountAll, totalPaidAll, unassignedOmtsCount,
   } = useRequestFiltering({
     requests, pendingRequests, approvedRequests, rejectedRequests,
     filters, userId: user?.id, isAdmin: !!isAdmin,
@@ -336,6 +336,33 @@ const PaymentRequestsPage = () => {
             onClick={() => setFiltersOpen(!filtersOpen)}
             type={filtersOpen ? 'primary' : 'default'}
           />
+          {activeTab === 'all' && (
+            <div
+              style={{
+                padding: '8px 16px',
+                border: '1px solid #d9d9d9',
+                borderRadius: '6px',
+                backgroundColor: '#fafafa',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              <span style={{ color: '#8c8c8c', marginRight: 8 }}>РП на сумму:</span>
+              <span style={{ fontWeight: 500, fontSize: '16px' }}>
+                {totalInvoiceAmountAll.toLocaleString('ru-RU', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2
+                })} ₽
+              </span>
+              <span style={{ color: '#d9d9d9', margin: '0 12px' }}>|</span>
+              <span style={{ color: '#8c8c8c', marginRight: 8 }}>Оплачено РП:</span>
+              <span style={{ fontWeight: 500, fontSize: '16px' }}>
+                {totalPaidAll.toLocaleString('ru-RU', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2
+                })} ₽
+              </span>
+            </div>
+          )}
           {activeTab === 'pending' && userDeptInChain && (
             <>
               <div

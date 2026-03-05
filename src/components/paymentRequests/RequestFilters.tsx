@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Form, Select, Input, Space, Button, DatePicker } from 'antd'
+import { Form, Select, Input, InputNumber, Space, Button, DatePicker } from 'antd'
 import type { Counterparty, ConstructionSite, Status } from '@/types'
 import type { OmtsUser } from '@/store/assignmentStore'
 import dayjs from 'dayjs'
@@ -16,6 +16,8 @@ export interface FilterValues {
   responsibleFilter?: 'assigned' | 'unassigned' | null
   responsibleUserId?: string
   myRequestsFilter?: 'all' | 'assigned_to_me'
+  amountOperator?: '>=' | '<=' | '='
+  amountValue?: number
 }
 
 interface RequestFiltersProps {
@@ -181,6 +183,31 @@ const RequestFilters = (props: RequestFiltersProps) => {
               />
             </Form.Item>
           )}
+
+          <Form.Item label="Сумма РП" style={{ marginBottom: 0 }}>
+            <Space.Compact>
+              <Form.Item name="amountOperator" noStyle>
+                <Select
+                  placeholder="="
+                  style={{ width: 70 }}
+                  allowClear
+                  options={[
+                    { label: '>=', value: '>=' },
+                    { label: '<=', value: '<=' },
+                    { label: '=', value: '=' },
+                  ]}
+                />
+              </Form.Item>
+              <Form.Item name="amountValue" noStyle>
+                <InputNumber
+                  placeholder="Сумма"
+                  style={{ width: 130 }}
+                  min={0}
+                  controls={false}
+                />
+              </Form.Item>
+            </Space.Compact>
+          </Form.Item>
 
           <Form.Item label="Номер заявки" name="requestNumber" style={{ marginBottom: 0, width: 180 }}>
             <Input placeholder="Поиск по номеру" allowClear />

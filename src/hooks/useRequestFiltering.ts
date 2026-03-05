@@ -66,6 +66,15 @@ export function useRequestFiltering({
     if (filters.myRequestsFilter === 'assigned_to_me' && userId) {
       filtered = filtered.filter(r => r.assignedUserId === userId)
     }
+    if (filters.amountOperator && filters.amountValue != null) {
+      const val = filters.amountValue
+      filtered = filtered.filter(r => {
+        const amount = r.invoiceAmount ?? 0
+        if (filters.amountOperator === '>=') return amount >= val
+        if (filters.amountOperator === '<=') return amount <= val
+        return amount === val
+      })
+    }
 
     return filtered
   }, [filters, userId])
@@ -132,6 +141,15 @@ export function useRequestFiltering({
     }, 0)
   }, [filteredPendingRequests])
 
+  // Статистика для вкладки "Все"
+  const totalInvoiceAmountAll = useMemo(() => {
+    return filteredRequests.reduce((sum, req) => sum + (req.invoiceAmount ?? 0), 0)
+  }, [filteredRequests])
+
+  const totalPaidAll = useMemo(() => {
+    return filteredRequests.reduce((sum, req) => sum + (req.totalPaid ?? 0), 0)
+  }, [filteredRequests])
+
   const unassignedOmtsCount = useMemo(() => {
     if (!isAdmin) return 0
     return filteredPendingRequests.filter(req =>
@@ -152,6 +170,8 @@ export function useRequestFiltering({
     filteredCounterpartyRejected,
     // Статистика
     totalInvoiceAmount,
+    totalInvoiceAmountAll,
+    totalPaidAll,
     unassignedOmtsCount,
   }
 }
