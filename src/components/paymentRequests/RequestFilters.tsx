@@ -96,16 +96,17 @@ const RequestFilters = (props: RequestFiltersProps) => {
   }
 
   return (
-    <div style={{ marginBottom: 16, background: '#fafafa', borderRadius: 8, padding: 16 }}>
+    <div style={{ marginBottom: 16, background: '#fafafa', borderRadius: 8, padding: '12px 16px' }}>
       <Form
         form={form}
         layout="vertical"
         initialValues={initialValues}
         onValuesChange={handleValuesChange}
+        size="small"
       >
-        <Space size="large" wrap>
+        <Space size="middle" wrap>
           {!hideCounterpartyFilter && (
-            <Form.Item label="Подрядчик" name="counterpartyId" style={{ marginBottom: 0, width: 250 }}>
+            <Form.Item label="Подрядчик" name="counterpartyId" style={{ marginBottom: 0, width: 170 }}>
               <Select
                 placeholder="Все"
                 allowClear
@@ -119,7 +120,7 @@ const RequestFilters = (props: RequestFiltersProps) => {
             </Form.Item>
           )}
 
-          <Form.Item label="Объект" name="siteId" style={{ marginBottom: 0, width: 250 }}>
+          <Form.Item label="Объект" name="siteId" style={{ marginBottom: 0, width: 170 }}>
             <Select
               placeholder="Все"
               allowClear
@@ -133,7 +134,7 @@ const RequestFilters = (props: RequestFiltersProps) => {
           </Form.Item>
 
           {!hideStatusFilter && (
-            <Form.Item label="Статус" name="statusId" style={{ marginBottom: 0, width: 200 }}>
+            <Form.Item label="Статус" name="statusId" style={{ marginBottom: 0, width: 150 }}>
               <Select
                 placeholder="Все"
                 allowClear
@@ -146,7 +147,7 @@ const RequestFilters = (props: RequestFiltersProps) => {
           )}
 
           {showResponsibleFilter && (
-            <Form.Item label="Ответственный" name="responsibleFilter" style={{ marginBottom: 0, width: 180 }}>
+            <Form.Item label="Ответственный" name="responsibleFilter" style={{ marginBottom: 0, width: 150 }}>
               <Select
                 placeholder="Все"
                 allowClear
@@ -159,7 +160,7 @@ const RequestFilters = (props: RequestFiltersProps) => {
           )}
 
           {showResponsibleFilter && omtsUsers && omtsUsers.length > 0 && (
-            <Form.Item label="Ответственный ОМТС" name="responsibleUserId" style={{ marginBottom: 0, width: 220 }}>
+            <Form.Item label="Ответственный ОМТС" name="responsibleUserId" style={{ marginBottom: 0, width: 180 }}>
               <Select
                 placeholder="Все"
                 allowClear
@@ -174,7 +175,7 @@ const RequestFilters = (props: RequestFiltersProps) => {
           )}
 
           {showMyRequestsFilter && (
-            <Form.Item label="Заявки" name="myRequestsFilter" style={{ marginBottom: 0, width: 200 }}>
+            <Form.Item label="Заявки" name="myRequestsFilter" style={{ marginBottom: 0, width: 160 }}>
               <Select
                 options={[
                   { label: 'Все', value: 'all' },
@@ -189,7 +190,7 @@ const RequestFilters = (props: RequestFiltersProps) => {
               <Form.Item name="amountOperator" noStyle>
                 <Select
                   placeholder="="
-                  style={{ width: 70 }}
+                  style={{ width: 60 }}
                   allowClear
                   options={[
                     { label: '>=', value: '>=' },
@@ -201,7 +202,7 @@ const RequestFilters = (props: RequestFiltersProps) => {
               <Form.Item name="amountValue" noStyle>
                 <InputNumber
                   placeholder="Сумма"
-                  style={{ width: 130 }}
+                  style={{ width: 110 }}
                   min={0}
                   controls={false}
                 />
@@ -209,11 +210,11 @@ const RequestFilters = (props: RequestFiltersProps) => {
             </Space.Compact>
           </Form.Item>
 
-          <Form.Item label="Номер заявки" name="requestNumber" style={{ marginBottom: 0, width: 180 }}>
-            <Input placeholder="Поиск по номеру" allowClear />
+          <Form.Item label="Номер заявки" name="requestNumber" style={{ marginBottom: 0, width: 140 }}>
+            <Input placeholder="По номеру" allowClear />
           </Form.Item>
 
-          <Form.Item label="Диапазон дат" name="dateRange" style={{ marginBottom: 0, width: 250 }}>
+          <Form.Item label="Диапазон дат" name="dateRange" style={{ marginBottom: 0, width: 220 }}>
             <RangePicker
               format="DD.MM.YYYY"
               placeholder={['Дата от', 'Дата до']}
