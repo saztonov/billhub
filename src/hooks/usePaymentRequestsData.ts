@@ -6,6 +6,7 @@ import { useCounterpartyStore } from '@/store/counterpartyStore'
 import { useConstructionSiteStore } from '@/store/constructionSiteStore'
 import { useStatusStore } from '@/store/statusStore'
 import { useAssignmentStore } from '@/store/assignmentStore'
+import { useOmtsRpStore } from '@/store/omtsRpStore'
 import { useUploadQueueStore } from '@/store/uploadQueueStore'
 import { supabase } from '@/services/supabase'
 import type { PaymentRequest, Department } from '@/types'
@@ -73,6 +74,7 @@ export function usePaymentRequestsData({
   const { sites, fetchSites } = useConstructionSiteStore()
   const { fetchStatuses } = useStatusStore()
   const { omtsUsers, fetchOmtsUsers, assignResponsible } = useAssignmentStore()
+  const { fetchSites: fetchOmtsRpSites, fetchConfig: fetchOmtsRpConfig } = useOmtsRpStore()
 
   const uploadTasks = useUploadQueueStore((s) => s.tasks)
 
@@ -189,12 +191,14 @@ export function usePaymentRequestsData({
     }
   }, [isCounterpartyUser, fetchCounterparties, fetchSites, fetchStatuses])
 
-  // Загружаем список ОМТС для назначения
+  // Загружаем список ОМТС для назначения + данные ОМТС РП
   useEffect(() => {
     if (isOmtsUser || isAdmin) {
       fetchOmtsUsers()
+      fetchOmtsRpSites()
+      fetchOmtsRpConfig()
     }
-  }, [isOmtsUser, isAdmin, fetchOmtsUsers])
+  }, [isOmtsUser, isAdmin, fetchOmtsUsers, fetchOmtsRpSites, fetchOmtsRpConfig])
 
   /** Проверяет, может ли текущий пользователь редактировать заявку */
   const canEditRequest = useCallback((record: PaymentRequest | null): boolean => {

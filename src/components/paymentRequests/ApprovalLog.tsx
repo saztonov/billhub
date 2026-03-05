@@ -116,6 +116,10 @@ const CounterpartyLog = ({ request, decisions, logs, downloading, onViewFile, on
         const comment = (l.details?.comment as string) ?? ''
         const text = comment ? `Повторно отправлено. Комментарий: ${comment}` : 'Повторно отправлено'
         items.push({ icon: <SendOutlined style={{ color: '#1677ff' }} />, text, date: l.createdAt })
+      } else if (l.action === 'revision') {
+        const comment = (l.details?.comment as string) ?? ''
+        const text = comment ? `На доработку. Комментарий: ${comment}` : 'На доработку'
+        items.push({ icon: <EditOutlined style={{ color: '#faad14' }} />, text, date: l.createdAt })
       }
     }
 
@@ -210,6 +214,7 @@ const AdminLog = ({ decisions, logs, downloading, onViewFile, onDownloadFile }: 
                     {icon}
                     <Text>Этап {decision.stageOrder}</Text>
                     <Tag>{DEPARTMENT_LABELS[decision.department]}</Tag>
+                    {decision.isOmtsRp && <Tag color="purple">ОМТС РП</Tag>}
                     <Text type="secondary">{statusText}</Text>
                     {decision.userEmail && <Text type="secondary">({decision.userEmail})</Text>}
                     {decision.decidedAt && <Text type="secondary">{formatDate(decision.decidedAt)}</Text>}
@@ -269,6 +274,21 @@ const AdminLog = ({ decisions, logs, downloading, onViewFile, onDownloadFile }: 
                 <div key={idx} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
                   <Space>
                     <SendOutlined style={{ color: '#1677ff' }} />
+                    <Text>{text}</Text>
+                    {log.userEmail && <Text type="secondary">({log.userEmail})</Text>}
+                    <Text type="secondary">{formatDate(log.createdAt)}</Text>
+                  </Space>
+                </div>
+              )
+            }
+
+            if (log.action === 'revision') {
+              const comment = (log.details?.comment as string) ?? ''
+              const text = comment ? `На доработку. Комментарий: ${comment}` : 'На доработку'
+              return (
+                <div key={idx} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
+                  <Space>
+                    <EditOutlined style={{ color: '#faad14' }} />
                     <Text>{text}</Text>
                     {log.userEmail && <Text type="secondary">({log.userEmail})</Text>}
                     <Text type="secondary">{formatDate(log.createdAt)}</Text>

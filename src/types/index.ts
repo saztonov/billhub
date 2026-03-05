@@ -315,6 +315,7 @@ export interface ApprovalDecision {
   createdAt: string
   userEmail?: string
   files?: ApprovalDecisionFile[] // Файлы, прикрепленные к решению (для отклонения)
+  isOmtsRp?: boolean
 }
 
 /** Файл, прикрепленный к решению об отклонении */
@@ -395,6 +396,12 @@ export interface ErrorLog {
   metadata: Record<string, unknown> | null
   // Joined
   userEmail?: string
+}
+
+/** Объект ОМТС РП (привязка к объекту строительства) */
+export interface OmtsRpSite {
+  constructionSiteId: string
+  siteName?: string
 }
 
 /** Состояние аутентификации */

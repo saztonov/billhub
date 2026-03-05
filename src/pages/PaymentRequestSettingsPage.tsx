@@ -17,6 +17,7 @@ import {
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useStatusStore } from '@/store/statusStore'
 import { usePaymentRequestSettingsStore } from '@/store/paymentRequestSettingsStore'
+import OmtsRpSettingsTab from '@/components/admin/OmtsRpSettingsTab'
 import type { Status, PaymentRequestFieldOption } from '@/types'
 
 const STATUS_ENTITY_TYPES = [
@@ -298,6 +299,11 @@ const PaymentRequestSettingsPage = () => {
         </>
       ),
     },
+    {
+      key: 'omts-rp',
+      label: 'ОМТС РП',
+      children: <OmtsRpSettingsTab />,
+    },
   ]
 
   return (
@@ -329,6 +335,8 @@ const PaymentRequestSettingsPage = () => {
                 { label: 'Синий', value: 'blue' },
                 { label: 'Серый', value: 'default' },
                 { label: 'Фиолетовый', value: 'purple' },
+                { label: 'Чёрный', value: 'black' },
+                { label: 'Жёлтый', value: 'yellow' },
               ]}
             />
           </Form.Item>

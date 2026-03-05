@@ -3,6 +3,7 @@ import { supabase } from '@/services/supabase'
 import { logError } from '@/services/errorLogger'
 import { checkAndNotifyMissingSpecialists } from '@/utils/approvalNotifications'
 import { useUploadQueueStore } from '@/store/uploadQueueStore'
+import { useOmtsRpStore } from '@/store/omtsRpStore'
 import type { Department, ApprovalDecision, ApprovalDecisionFile, PaymentRequest, PaymentRequestLog } from '@/types'
 
 /** Элемент списка файлов для загрузки */
@@ -31,6 +32,9 @@ interface ApprovalStoreState {
   fetchLogs: (paymentRequestId: string) => Promise<void>
   approveRequest: (paymentRequestId: string, department: Department, userId: string, comment: string) => Promise<void>
   rejectRequest: (paymentRequestId: string, department: Department, userId: string, comment: string, files?: FileItem[]) => Promise<void>
+
+  // На доработку (ОМТС РП)
+  sendToRevision: (paymentRequestId: string, comment: string) => Promise<void>
 
   // Очистка текущих решений/логов
   clearCurrentData: () => void
@@ -138,6 +142,45 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
   isLoading: false,
   error: null,
 
+  sendToRevision: async (paymentRequestId, comment) => {
+    set({ isLoading: true, error: null })
+    try {
+      // Получаем статус "На доработку"
+      const { data: statusData, error: stError } = await supabase
+        .from('statuses')
+        .select('id')
+        .eq('entity_type', 'payment_request')
+        .eq('code', 'revision')
+        .single()
+      if (stError) throw stError
+
+      // Меняем статус заявки (current_stage и pending decision остаются)
+      const { error: updError } = await supabase
+        .from('payment_requests')
+        .update({ status_id: statusData.id })
+        .eq('id', paymentRequestId)
+      if (updError) throw updError
+
+      // Логируем действие
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        await supabase.from('payment_request_logs').insert({
+          payment_request_id: paymentRequestId,
+          user_id: user.id,
+          action: 'revision',
+          details: comment ? { comment } : null,
+        })
+      }
+
+      set({ isLoading: false })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Ошибка отправки на доработку'
+      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'sendToRevision', paymentRequestId } })
+      set({ error: message, isLoading: false })
+      throw err
+    }
+  },
+
   clearCurrentData: () => {
     set({ currentDecisions: [], currentLogs: [] })
   },
@@ -185,6 +228,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
             createdAt: row.created_at as string,
             userEmail: usr?.email as string | undefined,
             files: files.length > 0 ? files : undefined,
+            isOmtsRp: (row.is_omts_rp as boolean) ?? false,
           }
         })
       )
@@ -236,7 +280,18 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
       const currentStage = pr.current_stage as number
       const siteId = pr.site_id as string
 
-      // 2. Обновляем решение
+      // 2. Находим текущее pending-решение (нужно знать is_omts_rp)
+      const { data: pendingDecision, error: pendingErr } = await supabase
+        .from('approval_decisions')
+        .select('id, is_omts_rp')
+        .eq('payment_request_id', paymentRequestId)
+        .eq('stage_order', currentStage)
+        .eq('department_id', department)
+        .eq('status', 'pending')
+        .single()
+      if (pendingErr) throw pendingErr
+
+      // 3. Обновляем решение
       const { error: updError } = await supabase
         .from('approval_decisions')
         .update({
@@ -245,13 +300,10 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
           comment,
           decided_at: new Date().toISOString(),
         })
-        .eq('payment_request_id', paymentRequestId)
-        .eq('stage_order', currentStage)
-        .eq('department_id', department)
-        .eq('status', 'pending')
+        .eq('id', pendingDecision.id)
       if (updError) throw updError
 
-      // 3. ЖЕСТКАЯ ЛОГИКА ПЕРЕХОДА МЕЖДУ ЭТАПАМИ
+      // 4. ЛОГИКА ПЕРЕХОДА МЕЖДУ ЭТАПАМИ
       if (currentStage === 1) {
         // Этап 1 (Штаб) согласован → переходим на Этап 2 (ОМТС)
         await supabase.from('approval_decisions').insert({
@@ -259,6 +311,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
           stage_order: 2,
           department_id: 'omts',
           status: 'pending',
+          is_omts_rp: false,
         })
 
         // Получаем статус "Согласование ОМТС"
@@ -279,23 +332,41 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
         await checkAndNotifyMissingSpecialists(paymentRequestId, siteId, 'omts')
 
       } else if (currentStage === 2) {
-        // Этап 2 (ОМТС) согласован → статус Согласована
-        const { data: statusData, error: stError } = await supabase
-          .from('statuses')
-          .select('id')
-          .eq('entity_type', 'payment_request')
-          .eq('code', 'approved')
-          .single()
-        if (stError) throw stError
+        const isCurrentDecisionOmtsRp = pendingDecision.is_omts_rp as boolean
 
-        await supabase
-          .from('payment_requests')
-          .update({
-            status_id: statusData.id,
-            current_stage: null,
-            approved_at: new Date().toISOString(),
+        // Проверяем, нужно ли двойное согласование ОМТС РП
+        const omtsRpStore = useOmtsRpStore.getState()
+        const needsOmtsRp = omtsRpStore.isOmtsRpSite(siteId)
+
+        if (!isCurrentDecisionOmtsRp && needsOmtsRp) {
+          // Обычное ОМТС согласовано, но объект требует ОМТС РП → создаём pending для спец. лица
+          await supabase.from('approval_decisions').insert({
+            payment_request_id: paymentRequestId,
+            stage_order: 2,
+            department_id: 'omts',
+            status: 'pending',
+            is_omts_rp: true,
           })
-          .eq('id', paymentRequestId)
+          // current_stage и статус НЕ меняем — остаётся этап 2 / approv_omts
+        } else {
+          // Стандартная логика: ОМТС РП согласовано (или объект не требует ОМТС РП) → Согласована
+          const { data: statusData, error: stError } = await supabase
+            .from('statuses')
+            .select('id')
+            .eq('entity_type', 'payment_request')
+            .eq('code', 'approved')
+            .single()
+          if (stError) throw stError
+
+          await supabase
+            .from('payment_requests')
+            .update({
+              status_id: statusData.id,
+              current_stage: null,
+              approved_at: new Date().toISOString(),
+            })
+            .eq('id', paymentRequestId)
+        }
       }
 
       set({ isLoading: false })
@@ -382,11 +453,23 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
       const { allSites, siteIds: userSiteIds } = await getUserSiteIds(userId)
 
       // Находим id заявок, ожидающих решения этого подразделения
-      const { data: decisions, error: decError } = await supabase
+      // Для ОМТС: обычные сотрудники видят только is_omts_rp=false,
+      // специальное лицо ОМТС РП видит все pending
+      let decisionsQuery = supabase
         .from('approval_decisions')
         .select('payment_request_id')
         .eq('department_id', department)
         .eq('status', 'pending')
+
+      if (department === 'omts' && !isAdmin) {
+        const omtsRpResponsible = useOmtsRpStore.getState().getResponsibleUserId()
+        if (userId !== omtsRpResponsible) {
+          // Обычный ОМТС — не видит заявки, ожидающие ОМТС РП
+          decisionsQuery = decisionsQuery.eq('is_omts_rp', false)
+        }
+      }
+
+      const { data: decisions, error: decError } = await decisionsQuery
       if (decError) throw decError
 
       const requestIds = [...new Set((decisions ?? []).map((d: Record<string, unknown>) => d.payment_request_id as string))]

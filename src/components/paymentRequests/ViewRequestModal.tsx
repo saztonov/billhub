@@ -35,6 +35,7 @@ import { usePaymentRequestSettingsStore } from '@/store/paymentRequestSettingsSt
 import { useConstructionSiteStore } from '@/store/constructionSiteStore'
 import { useSupplierStore } from '@/store/supplierStore'
 import { useAssignmentStore } from '@/store/assignmentStore'
+import { useOmtsRpStore } from '@/store/omtsRpStore'
 import { useDocumentTypeStore } from '@/store/documentTypeStore'
 import { downloadFileBlob } from '@/services/s3'
 import JSZip from 'jszip'
@@ -76,7 +77,10 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   const { message } = App.useApp()
   const { currentRequestFiles, fetchRequestFiles, fetchRequests, isLoading, isSubmitting } = usePaymentRequestStore()
   const { payments, fetchPayments } = usePaymentPaymentStore()
-  const { currentDecisions, currentLogs, fetchDecisions, fetchLogs, clearCurrentData } = useApprovalStore()
+  const { currentDecisions, currentLogs, fetchDecisions, fetchLogs, clearCurrentData, sendToRevision } = useApprovalStore()
+  const omtsRpResponsibleUserId = useOmtsRpStore((s) => s.responsibleUserId)
+  const fetchOmtsRpConfig = useOmtsRpStore((s) => s.fetchConfig)
+  const fetchOmtsRpSites = useOmtsRpStore((s) => s.fetchSites)
   const user = useAuthStore((s) => s.user)
   const isCounterpartyUser = user?.role === 'counterparty_user'
   const {
@@ -96,6 +100,9 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
 
   // Модалка отклонения
   const [rejectModalOpen, setRejectModalOpen] = useState(false)
+  // Комментарий для "На доработку"
+  const [revisionComment, setRevisionComment] = useState('')
+  const [revisionModalOpen, setRevisionModalOpen] = useState(false)
 
   // Режим редактирования
   const [isEditing, setIsEditing] = useState(false)
@@ -120,8 +127,10 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       fetchAssignmentHistory(request.id)
       fetchDocumentTypes()
       if (user?.role === 'admin') fetchOmtsUsers()
+      fetchOmtsRpConfig()
+      fetchOmtsRpSites()
     }
-  }, [open, request, fetchRequestFiles, fetchPayments, fetchDecisions, fetchLogs, clearCurrentData, fetchCurrentAssignment, fetchAssignmentHistory, fetchDocumentTypes, fetchOmtsUsers, user?.role])
+  }, [open, request, fetchRequestFiles, fetchPayments, fetchDecisions, fetchLogs, clearCurrentData, fetchCurrentAssignment, fetchAssignmentHistory, fetchDocumentTypes, fetchOmtsUsers, user?.role, fetchOmtsRpConfig, fetchOmtsRpSites])
 
   useEffect(() => {
     if (!open) {
@@ -133,6 +142,8 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       setShowEditFileValidation(false)
       setShowResubmitFileValidation(false)
       setRejectModalOpen(false)
+      setRevisionComment('')
+      setRevisionModalOpen(false)
     }
   }, [open, resubmitForm])
 
@@ -362,6 +373,27 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
     return Promise.resolve()
   }
 
+  // Проверяем, может ли текущий пользователь отправить на доработку (ОМТС РП)
+  const hasPendingOmtsRpDecision = currentDecisions.some(
+    (d) => d.status === 'pending' && d.isOmtsRp
+  )
+  const isOmtsRpResponsible = user?.id === omtsRpResponsibleUserId
+  const canSendToRevision = canApprove && hasPendingOmtsRpDecision && isOmtsRpResponsible
+
+  const handleSendToRevision = async () => {
+    if (!request) return
+    try {
+      await sendToRevision(request.id, revisionComment)
+      message.success('Заявка отправлена на доработку')
+      setRevisionModalOpen(false)
+      setRevisionComment('')
+      fetchDecisions(request.id)
+      fetchLogs(request.id)
+    } catch {
+      message.error('Ошибка отправки на доработку')
+    }
+  }
+
   // Footer
   let modalFooter: React.ReactNode
   if (resubmitMode) {
@@ -387,6 +419,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
             <Button type="primary" icon={<CheckOutlined />}>Согласовать</Button>
           </Popconfirm>
         )}
+        {canSendToRevision && <Button icon={<EditOutlined />} style={{ borderColor: '#faad14', color: '#faad14' }} onClick={() => setRevisionModalOpen(true)}>На доработку</Button>}
         {canApprove && <Button danger icon={<StopOutlined />} onClick={() => setRejectModalOpen(true)}>Отклонить</Button>}
         <Button onClick={onClose}>Закрыть</Button>
       </Space>
@@ -602,6 +635,22 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
         }}
         onCancel={() => setRejectModalOpen(false)}
       />
+
+      <Modal
+        title="На доработку"
+        open={revisionModalOpen}
+        onOk={handleSendToRevision}
+        onCancel={() => { setRevisionModalOpen(false); setRevisionComment('') }}
+        okText="Отправить"
+        cancelText="Отмена"
+      >
+        <TextArea
+          rows={3}
+          placeholder="Комментарий (необязательно)"
+          value={revisionComment}
+          onChange={(e) => setRevisionComment(e.target.value)}
+        />
+      </Modal>
     </>
   )
 }
