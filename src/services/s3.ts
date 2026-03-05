@@ -121,6 +121,20 @@ export async function uploadDecisionFile(
   return { key }
 }
 
+/** Загружает файл оплаты в S3: /{контрагент}/payment/{payment_id}/{timestamp}_{имя} */
+export async function uploadPaymentFile(
+  counterpartyName: string,
+  paymentId: string,
+  file: File,
+): Promise<{ key: string }> {
+  const safeFolder = sanitizeForS3(counterpartyName)
+  const safeName = sanitizeForS3(file.name)
+  const timestamp = Date.now()
+  const key = `${safeFolder}/payment/${paymentId}/${timestamp}_${safeName}`
+  await uploadToS3(key, file)
+  return { key }
+}
+
 /** Получает presigned URL для скачивания файла (время жизни 1 час) */
 export async function getDownloadUrl(
   key: string,

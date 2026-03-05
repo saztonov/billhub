@@ -77,6 +77,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
           counterparties(name),
           construction_sites(name),
           statuses!payment_requests_status_id_fkey(name, color),
+          paid_statuses:statuses!payment_requests_paid_status_id_fkey(name, color),
           shipping:payment_request_field_options!payment_requests_shipping_condition_id_fkey(value),
           current_assignment:payment_request_assignments!left(
             assigned_user_id,
@@ -110,6 +111,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
         const counterparties = row.counterparties as Record<string, unknown> | null
         const site = row.construction_sites as Record<string, unknown> | null
         const statuses = row.statuses as Record<string, unknown> | null
+        const paidStatuses = row.paid_statuses as Record<string, unknown> | null
         const shipping = row.shipping as Record<string, unknown> | null
 
         // Извлекаем текущее назначение (is_current = true)
@@ -143,12 +145,16 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
           resubmitCount: (row.resubmit_count as number) ?? 0,
           invoiceAmount: (row.invoice_amount as number) ?? null,
           invoiceAmountHistory: (row.invoice_amount_history as { amount: number; changedAt: string }[]) ?? [],
+          paidStatusId: (row.paid_status_id as string) ?? null,
+          totalPaid: Number(row.total_paid ?? 0),
           isDeleted: (row.is_deleted as boolean) ?? false,
           deletedAt: (row.deleted_at as string) ?? null,
           counterpartyName: counterparties?.name as string | undefined,
           siteName: site?.name as string | undefined,
           statusName: statuses?.name as string | undefined,
           statusColor: (statuses?.color as string) ?? null,
+          paidStatusName: paidStatuses?.name as string | undefined,
+          paidStatusColor: (paidStatuses?.color as string) ?? null,
           shippingConditionValue: shipping?.value as string | undefined,
           assignedUserId: (currentAssignment?.assigned_user_id as string) ?? null,
           assignedUserEmail: (assignedUser?.email as string) ?? null,

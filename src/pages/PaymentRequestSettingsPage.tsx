@@ -19,7 +19,10 @@ import { useStatusStore } from '@/store/statusStore'
 import { usePaymentRequestSettingsStore } from '@/store/paymentRequestSettingsStore'
 import type { Status, PaymentRequestFieldOption } from '@/types'
 
-const ENTITY_TYPE = 'payment_request'
+const STATUS_ENTITY_TYPES = [
+  { label: 'Заявки', value: 'payment_request' },
+  { label: 'Оплата', value: 'paid' },
+]
 
 const fieldCodeLabels: Record<string, string> = {
   shipping_conditions: 'Условия отгрузки',
@@ -39,6 +42,7 @@ const PaymentRequestSettingsPage = () => {
     fetchFieldOptions, createFieldOption, updateFieldOption, deleteFieldOption,
   } = usePaymentRequestSettingsStore()
 
+  const [statusEntityType, setStatusEntityType] = useState('payment_request')
   const [statusModal, setStatusModal] = useState(false)
   const [editingStatus, setEditingStatus] = useState<Status | null>(null)
   const [statusForm] = Form.useForm()
@@ -48,9 +52,9 @@ const PaymentRequestSettingsPage = () => {
   const [optionForm] = Form.useForm()
 
   useEffect(() => {
-    fetchStatuses(ENTITY_TYPE)
+    fetchStatuses(statusEntityType)
     fetchFieldOptions()
-  }, [fetchStatuses, fetchFieldOptions])
+  }, [fetchStatuses, fetchFieldOptions, statusEntityType])
 
   // --- Статусы ---
   const handleCreateStatus = () => {
@@ -78,17 +82,17 @@ const PaymentRequestSettingsPage = () => {
       await updateStatus(editingStatus.id, values)
       message.success('Статус обновлён')
     } else {
-      await createStatus({ ...values, entity_type: ENTITY_TYPE })
+      await createStatus({ ...values, entity_type: statusEntityType })
       message.success('Статус создан')
     }
     setStatusModal(false)
-    fetchStatuses(ENTITY_TYPE)
+    fetchStatuses(statusEntityType)
   }
 
   const handleDeleteStatus = async (id: string) => {
     await deleteStatus(id)
     message.success('Статус удалён')
-    fetchStatuses(ENTITY_TYPE)
+    fetchStatuses(statusEntityType)
   }
 
   const statusColumns = [
@@ -241,7 +245,13 @@ const PaymentRequestSettingsPage = () => {
       label: 'Статусы заявок',
       children: (
         <>
-          <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 16, display: 'flex', gap: 12, alignItems: 'center' }}>
+            <Select
+              value={statusEntityType}
+              onChange={setStatusEntityType}
+              options={STATUS_ENTITY_TYPES}
+              style={{ width: 200 }}
+            />
             <Button type="primary" icon={<PlusOutlined />} onClick={handleCreateStatus}>
               Добавить статус
             </Button>

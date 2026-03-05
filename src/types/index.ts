@@ -137,11 +137,15 @@ export interface PaymentRequest {
   invoiceAmountHistory: { amount: number; changedAt: string }[] // История изменения сумм при повторных отправках
   isDeleted: boolean // Мягкое удаление
   deletedAt: string | null // Дата мягкого удаления
+  paidStatusId: string | null // Статус оплаты (FK на statuses, entity_type='paid')
+  totalPaid: number // Денормализованная сумма оплат
   // Joined
   counterpartyName?: string
   siteName?: string
   statusName?: string
   statusColor?: string | null
+  paidStatusName?: string
+  paidStatusColor?: string | null
   shippingConditionValue?: string
   assignedUserId?: string | null
   assignedUserEmail?: string | null
@@ -192,6 +196,32 @@ export interface PaymentRequestFile {
   documentTypeName?: string
   uploaderRole?: string
   uploaderDepartment?: string | null
+}
+
+/** Оплата по заявке */
+export interface PaymentPayment {
+  id: string
+  paymentRequestId: string
+  paymentNumber: number
+  paymentDate: string
+  amount: number
+  createdBy: string
+  updatedBy: string | null
+  createdAt: string
+  updatedAt: string | null
+  files: PaymentPaymentFile[]
+}
+
+/** Файл оплаты */
+export interface PaymentPaymentFile {
+  id: string
+  paymentPaymentId: string
+  fileName: string
+  fileKey: string
+  fileSize: number | null
+  mimeType: string | null
+  createdBy: string
+  createdAt: string
 }
 
 /** Прикреплённый документ контрагента/поставки */

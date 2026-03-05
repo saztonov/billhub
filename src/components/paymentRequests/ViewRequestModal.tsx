@@ -27,6 +27,7 @@ import {
   StopOutlined,
 } from '@ant-design/icons'
 import { usePaymentRequestStore } from '@/store/paymentRequestStore'
+import { usePaymentPaymentStore } from '@/store/paymentPaymentStore'
 import type { EditRequestData } from '@/store/paymentRequestStore'
 import { useApprovalStore } from '@/store/approvalStore'
 import { useAuthStore } from '@/store/authStore'
@@ -42,6 +43,7 @@ import type { FileItem } from './FileUploadList'
 import DeliveryCalculation from './DeliveryCalculation'
 import ApprovalLog from './ApprovalLog'
 import OmtsAssignmentBlock from './OmtsAssignmentBlock'
+import PaymentsTable from './PaymentsTable'
 import RejectModal from './RejectModal'
 import { formatSize, formatDate, extractRequestNumber, sanitizeFileName } from '@/utils/requestFormatters'
 import type { PaymentRequest, PaymentRequestFile, Department } from '@/types'
@@ -70,7 +72,8 @@ interface ViewRequestModalProps {
 
 const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, canEdit, onEdit, canApprove, onApprove, onReject }: ViewRequestModalProps) => {
   const { message } = App.useApp()
-  const { currentRequestFiles, fetchRequestFiles, isLoading, isSubmitting } = usePaymentRequestStore()
+  const { currentRequestFiles, fetchRequestFiles, fetchRequests, isLoading, isSubmitting } = usePaymentRequestStore()
+  const { payments, fetchPayments } = usePaymentPaymentStore()
   const { currentDecisions, currentLogs, fetchDecisions, fetchLogs, clearCurrentData } = useApprovalStore()
   const user = useAuthStore((s) => s.user)
   const isCounterpartyUser = user?.role === 'counterparty_user'
@@ -107,6 +110,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
     if (open && request) {
       clearCurrentData()
       fetchRequestFiles(request.id)
+      fetchPayments(request.id)
       fetchDecisions(request.id)
       fetchLogs(request.id)
       fetchCurrentAssignment(request.id)
@@ -114,7 +118,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       fetchDocumentTypes()
       if (user?.role === 'admin') fetchOmtsUsers()
     }
-  }, [open, request, fetchRequestFiles, fetchDecisions, fetchLogs, clearCurrentData, fetchCurrentAssignment, fetchAssignmentHistory, fetchDocumentTypes, fetchOmtsUsers, user?.role])
+  }, [open, request, fetchRequestFiles, fetchPayments, fetchDecisions, fetchLogs, clearCurrentData, fetchCurrentAssignment, fetchAssignmentHistory, fetchDocumentTypes, fetchOmtsUsers, user?.role])
 
   useEffect(() => {
     if (!open) {
@@ -135,6 +139,10 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       if (sites.length === 0) fetchSites()
     }
   }, [isEditing, resubmitMode, fieldOptions.length, sites.length, fetchFieldOptions, fetchSites])
+
+  // Сумма оплат и права на управление оплатами
+  const paymentsTotalPaid = useMemo(() => payments.reduce((sum, p) => sum + p.amount, 0), [payments])
+  const canManagePayments = user?.role === 'admin' || user?.department === 'shtab' || user?.department === 'omts'
 
   const shippingOptions = getOptionsByField('shipping_conditions')
   const siteOptions = sites.filter((s) => s.isActive).map((s) => ({ label: s.name, value: s.id }))
@@ -490,6 +498,14 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                 ? `${request.invoiceAmount.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽`
                 : '—'}
             </Descriptions.Item>
+            <Descriptions.Item label="Оплачено">
+              {paymentsTotalPaid > 0
+                ? `${paymentsTotalPaid.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽`
+                : '0,00 ₽'}
+            </Descriptions.Item>
+            <Descriptions.Item label="Статус оплаты">
+              <Tag color={request.paidStatusColor ?? 'default'}>{request.paidStatusName ?? '—'}</Tag>
+            </Descriptions.Item>
             <Descriptions.Item label="Дата создания">{formatDate(request.createdAt, !isCounterpartyUser)}</Descriptions.Item>
             {request.comment && <Descriptions.Item label="Комментарий" span={2}>{request.comment}</Descriptions.Item>}
           </Descriptions>
@@ -542,6 +558,15 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
           )}
         </div>
         <Table size="small" columns={fileColumns as any} dataSource={sortedFiles} rowKey="id" loading={isLoading} pagination={false} locale={{ emptyText: 'Нет файлов' }} />
+
+        {!isEditing && !resubmitMode && request && (
+          <PaymentsTable
+            paymentRequestId={request.id}
+            counterpartyName={request.counterpartyName ?? ''}
+            canManage={!!canManagePayments}
+            onTotalChanged={() => fetchRequests()}
+          />
+        )}
 
         {resubmitMode && (
           <div style={{ marginTop: 16 }}>

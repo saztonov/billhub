@@ -100,11 +100,21 @@ const RequestsTable = (props: RequestsTableProps) => {
       render: (_: unknown, record: PaymentRequest) => <Tag color={record.statusColor ?? 'default'}>{record.statusName}</Tag>,
     },
     {
-      title: 'Сумма счета', dataIndex: 'invoiceAmount', key: 'invoiceAmount', width: 156, align: 'right' as const,
+      title: 'Оплата', key: 'paidStatus', width: 150,
+      sorter: (a: PaymentRequest, b: PaymentRequest) => (a.paidStatusName || '').localeCompare(b.paidStatusName || '', 'ru'),
+      render: (_: unknown, record: PaymentRequest) => <Tag color={record.paidStatusColor ?? 'default'}>{record.paidStatusName ?? '—'}</Tag>,
+    },
+    {
+      title: 'Сумма счета / оплачено', key: 'invoiceAmount', width: 200, align: 'right' as const,
       sorter: (a: PaymentRequest, b: PaymentRequest) => (a.invoiceAmount ?? 0) - (b.invoiceAmount ?? 0),
-      render: (amount: number | null) => {
-        if (amount == null) return <span style={{ color: '#bfbfbf' }}>—</span>
-        return amount.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ₽'
+      render: (_: unknown, record: PaymentRequest) => {
+        const invoiceStr = record.invoiceAmount != null
+          ? record.invoiceAmount.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+          : '—'
+        const paidStr = record.totalPaid > 0
+          ? record.totalPaid.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+          : '0,00'
+        return <span>{invoiceStr} / {paidStr} ₽</span>
       },
     },
   )
