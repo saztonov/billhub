@@ -33,6 +33,7 @@ import { useApprovalStore } from '@/store/approvalStore'
 import { useAuthStore } from '@/store/authStore'
 import { usePaymentRequestSettingsStore } from '@/store/paymentRequestSettingsStore'
 import { useConstructionSiteStore } from '@/store/constructionSiteStore'
+import { useSupplierStore } from '@/store/supplierStore'
 import { useAssignmentStore } from '@/store/assignmentStore'
 import { useDocumentTypeStore } from '@/store/documentTypeStore'
 import { downloadFileBlob } from '@/services/s3'
@@ -104,6 +105,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   const [resubmitForm] = Form.useForm()
   const { fieldOptions, fetchFieldOptions, getOptionsByField } = usePaymentRequestSettingsStore()
   const { sites, fetchSites } = useConstructionSiteStore()
+  const { suppliers, fetchSuppliers } = useSupplierStore()
   const { fetchDocumentTypes } = useDocumentTypeStore()
 
   useEffect(() => {
@@ -137,8 +139,9 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
     if (isEditing || resubmitMode) {
       if (fieldOptions.length === 0) fetchFieldOptions()
       if (sites.length === 0) fetchSites()
+      if (suppliers.length === 0) fetchSuppliers()
     }
-  }, [isEditing, resubmitMode, fieldOptions.length, sites.length, fetchFieldOptions, fetchSites])
+  }, [isEditing, resubmitMode, fieldOptions.length, sites.length, suppliers.length, fetchFieldOptions, fetchSites, fetchSuppliers])
 
   // Сумма оплат и права на управление оплатами
   const paymentsTotalPaid = useMemo(() => payments.reduce((sum, p) => sum + p.amount, 0), [payments])
@@ -146,11 +149,13 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
 
   const shippingOptions = getOptionsByField('shipping_conditions')
   const siteOptions = sites.filter((s) => s.isActive).map((s) => ({ label: s.name, value: s.id }))
+  const supplierOptions = suppliers.map((s) => ({ label: s.name, value: s.id }))
 
   const startEditing = () => {
     if (!request) return
     editForm.setFieldsValue({
       siteId: request.siteId,
+      supplierId: request.supplierId ?? undefined,
       deliveryDays: request.deliveryDays,
       deliveryDaysType: request.deliveryDaysType,
       shippingConditionId: request.shippingConditionId,
@@ -409,6 +414,9 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
             <Form.Item name="siteId" label="Объект" rules={[{ required: true, message: 'Выберите объект' }]}>
               <Select placeholder="Выберите объект" showSearch optionFilterProp="label" options={siteOptions} />
             </Form.Item>
+            <Form.Item name="supplierId" label="Поставщик">
+              <Select placeholder="Выберите поставщика" showSearch allowClear optionFilterProp="label" options={supplierOptions} />
+            </Form.Item>
             <Row gutter={16}>
               <Col span={8}>
                 <Form.Item label="Срок поставки" required style={{ marginBottom: 0 }}>
@@ -490,6 +498,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
             <Descriptions.Item label="Номер">{extractRequestNumber(request.requestNumber)}</Descriptions.Item>
             <Descriptions.Item label="Подрядчик">{request.counterpartyName}</Descriptions.Item>
             <Descriptions.Item label="Объект">{request.siteName ?? '—'}</Descriptions.Item>
+            <Descriptions.Item label="Поставщик">{request.supplierName ?? '—'}</Descriptions.Item>
             <Descriptions.Item label="Статус"><Tag color={request.statusColor ?? 'default'}>{request.statusName}</Tag></Descriptions.Item>
             <Descriptions.Item label="Срок поставки">{request.deliveryDays} {request.deliveryDaysType === 'calendar' ? 'кал.' : 'раб.'} дн.</Descriptions.Item>
             <Descriptions.Item label="Условия отгрузки">{request.shippingConditionValue}</Descriptions.Item>

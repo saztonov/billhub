@@ -32,6 +32,21 @@ export interface Counterparty {
   createdAt: string
 }
 
+/** Поставщик */
+export interface Supplier {
+  id: string
+  name: string
+  inn: string
+  alternativeNames: string[]
+  createdAt: string
+}
+
+/** Строка импорта поставщика */
+export interface ImportSupplierRow {
+  name: string
+  inn: string
+}
+
 /** Роль сотрудника в системе */
 export type EmployeeRole = 'admin' | 'user'
 
@@ -139,8 +154,10 @@ export interface PaymentRequest {
   deletedAt: string | null // Дата мягкого удаления
   paidStatusId: string | null // Статус оплаты (FK на statuses, entity_type='paid')
   totalPaid: number // Денормализованная сумма оплат
+  supplierId: string | null // Поставщик
   // Joined
   counterpartyName?: string
+  supplierName?: string
   siteName?: string
   statusName?: string
   statusColor?: string | null

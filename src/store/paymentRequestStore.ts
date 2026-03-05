@@ -12,6 +12,7 @@ interface CreateRequestData {
   comment?: string
   totalFiles: number
   invoiceAmount?: number
+  supplierId?: string
 }
 
 export interface EditRequestData {
@@ -21,6 +22,7 @@ export interface EditRequestData {
   siteId?: string
   comment?: string
   invoiceAmount?: number | null
+  supplierId?: string | null
 }
 
 interface PaymentRequestStoreState {
@@ -75,6 +77,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
         .select(`
           *,
           counterparties(name),
+          suppliers(name),
           construction_sites(name),
           statuses!payment_requests_status_id_fkey(name, color),
           paid_statuses:statuses!payment_requests_paid_status_id_fkey(name, color),
@@ -109,6 +112,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
 
       const requests: PaymentRequest[] = (data ?? []).map((row: Record<string, unknown>) => {
         const counterparties = row.counterparties as Record<string, unknown> | null
+        const supplier = row.suppliers as Record<string, unknown> | null
         const site = row.construction_sites as Record<string, unknown> | null
         const statuses = row.statuses as Record<string, unknown> | null
         const paidStatuses = row.paid_statuses as Record<string, unknown> | null
@@ -149,7 +153,9 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
           totalPaid: Number(row.total_paid ?? 0),
           isDeleted: (row.is_deleted as boolean) ?? false,
           deletedAt: (row.deleted_at as string) ?? null,
+          supplierId: (row.supplier_id as string) ?? null,
           counterpartyName: counterparties?.name as string | undefined,
+          supplierName: supplier?.name as string | undefined,
           siteName: site?.name as string | undefined,
           statusName: statuses?.name as string | undefined,
           statusColor: (statuses?.color as string) ?? null,
@@ -199,6 +205,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
           shipping_condition_id: data.shippingConditionId,
           comment: data.comment || null,
           invoice_amount: data.invoiceAmount || null,
+          supplier_id: data.supplierId || null,
           total_files: data.totalFiles,
           uploaded_files: 0,
           created_by: userId,
@@ -467,7 +474,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
       // Получаем текущие значения для логирования изменений
       const { data: current, error: fetchError } = await supabase
         .from('payment_requests')
-        .select('delivery_days, delivery_days_type, shipping_condition_id, site_id, comment, invoice_amount, total_files')
+        .select('delivery_days, delivery_days_type, shipping_condition_id, site_id, comment, invoice_amount, total_files, supplier_id')
         .eq('id', id)
         .single()
       if (fetchError) throw fetchError
@@ -499,6 +506,10 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
       if (data.invoiceAmount !== undefined && data.invoiceAmount !== current.invoice_amount) {
         updates.invoice_amount = data.invoiceAmount ?? null
         changes.push({ field: 'invoice_amount', oldValue: current.invoice_amount, newValue: data.invoiceAmount ?? null })
+      }
+      if (data.supplierId !== undefined && data.supplierId !== current.supplier_id) {
+        updates.supplier_id = data.supplierId ?? null
+        changes.push({ field: 'supplier_id', oldValue: current.supplier_id, newValue: data.supplierId ?? null })
       }
 
       // Обновляем total_files если догружаются файлы

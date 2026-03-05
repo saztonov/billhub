@@ -19,6 +19,7 @@ import { usePaymentRequestSettingsStore } from '@/store/paymentRequestSettingsSt
 import { useDocumentTypeStore } from '@/store/documentTypeStore'
 import { useAuthStore } from '@/store/authStore'
 import { useCounterpartyStore } from '@/store/counterpartyStore'
+import { useSupplierStore } from '@/store/supplierStore'
 import { useConstructionSiteStore } from '@/store/constructionSiteStore'
 import { useUploadQueueStore } from '@/store/uploadQueueStore'
 
@@ -53,6 +54,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
   const { fieldOptions, fetchFieldOptions, getOptionsByField } = usePaymentRequestSettingsStore()
   const { documentTypes, fetchDocumentTypes } = useDocumentTypeStore()
   const { counterparties, fetchCounterparties } = useCounterpartyStore()
+  const { suppliers, fetchSuppliers } = useSupplierStore()
   const { sites, fetchSites } = useConstructionSiteStore()
   const addUploadTask = useUploadQueueStore((s) => s.addTask)
 
@@ -61,9 +63,10 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
       fetchFieldOptions()
       if (documentTypes.length === 0) fetchDocumentTypes()
       if (counterparties.length === 0) fetchCounterparties()
+      if (suppliers.length === 0) fetchSuppliers()
       if (sites.length === 0) fetchSites()
     }
-  }, [open, fetchFieldOptions, fetchDocumentTypes, fetchCounterparties, fetchSites, documentTypes.length, counterparties.length, sites.length])
+  }, [open, fetchFieldOptions, fetchDocumentTypes, fetchCounterparties, fetchSuppliers, fetchSites, documentTypes.length, counterparties.length, suppliers.length, sites.length])
 
   const shippingOptions = getOptionsByField('shipping_conditions')
 
@@ -71,6 +74,10 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
   const counterpartyOptions = counterparties
     .filter((c) => c.isActive !== false)
     .map((c) => ({ label: c.name, value: c.id }))
+
+  // Опции поставщиков
+  const supplierOptions = suppliers
+    .map((s) => ({ label: s.name, value: s.id }))
 
   // Опции объектов (только активные)
   const siteOptions = sites
@@ -128,6 +135,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
           comment: values.comment,
           totalFiles: fileList.length,
           invoiceAmount: Number(String(values.invoiceAmount).replace(/\s/g, '')),
+          supplierId: values.supplierId || undefined,
         },
         counterpartyId,
         user.id,
@@ -224,6 +232,21 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
                   showSearch
                   optionFilterProp="label"
                   options={siteOptions}
+                />
+              </Form.Item>
+            </Col>
+
+            <Col span={isCounterpartyUser ? 5 : 4}>
+              <Form.Item
+                name="supplierId"
+                label={fieldLabel('Поставщик', !!formValues.supplierId)}
+              >
+                <Select
+                  placeholder="Выберите поставщика"
+                  showSearch
+                  allowClear
+                  optionFilterProp="label"
+                  options={supplierOptions}
                 />
               </Form.Item>
             </Col>

@@ -75,7 +75,7 @@ const RequestsTable = (props: RequestsTableProps) => {
 
   const columns: Record<string, unknown>[] = [
     {
-      title: 'Номер', dataIndex: 'requestNumber', key: 'requestNumber', width: 100,
+      title: '№', dataIndex: 'requestNumber', key: 'requestNumber', width: 60,
       sorter: (a: PaymentRequest, b: PaymentRequest) => parseInt(extractRequestNumber(a.requestNumber), 10) - parseInt(extractRequestNumber(b.requestNumber), 10),
       render: (requestNumber: string) => extractRequestNumber(requestNumber),
     },
@@ -92,6 +92,11 @@ const RequestsTable = (props: RequestsTableProps) => {
     {
       title: 'Объект', dataIndex: 'siteName', key: 'siteName',
       sorter: (a: PaymentRequest, b: PaymentRequest) => (a.siteName || '').localeCompare(b.siteName || '', 'ru'),
+      render: (name: string | undefined) => name ?? '—',
+    },
+    {
+      title: 'Поставщик', dataIndex: 'supplierName', key: 'supplierName',
+      sorter: (a: PaymentRequest, b: PaymentRequest) => (a.supplierName || '').localeCompare(b.supplierName || '', 'ru'),
       render: (name: string | undefined) => name ?? '—',
     },
     {

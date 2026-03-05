@@ -1,6 +1,7 @@
 import { Typography, Tabs } from 'antd'
 import { useSearchParams } from 'react-router-dom'
 import CounterpartiesPage from './CounterpartiesPage'
+import SuppliersPage from './SuppliersPage'
 import ConstructionSitesPage from './ConstructionSitesPage'
 import DocumentTypesPage from './DocumentTypesPage'
 
@@ -18,6 +19,7 @@ const ReferencesPage = () => {
 
   const items = [
     { key: 'counterparties', label: 'Подрядчики', children: <CounterpartiesPage /> },
+    { key: 'suppliers', label: 'Поставщики', children: <SuppliersPage /> },
     { key: 'sites', label: 'Объекты строительства', children: <ConstructionSitesPage /> },
     { key: 'document-types', label: 'Типы документов', children: <DocumentTypesPage /> },
   ]
