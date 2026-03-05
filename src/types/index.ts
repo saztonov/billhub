@@ -222,6 +222,7 @@ export interface PaymentPayment {
   paymentNumber: number
   paymentDate: string
   amount: number
+  isExecuted: boolean // true = Исполнена (есть файл), false = Планируется
   createdBy: string
   updatedBy: string | null
   createdAt: string
@@ -239,6 +240,19 @@ export interface PaymentPaymentFile {
   mimeType: string | null
   createdBy: string
   createdAt: string
+}
+
+/** Комментарий (чат) заявки на оплату */
+export interface PaymentRequestComment {
+  id: string
+  paymentRequestId: string
+  authorId: string
+  text: string
+  createdAt: string
+  updatedAt: string | null
+  // Joined
+  authorFullName?: string
+  authorEmail?: string
 }
 
 /** Прикреплённый документ контрагента/поставки */

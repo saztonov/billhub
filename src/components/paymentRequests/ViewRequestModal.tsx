@@ -45,6 +45,7 @@ import DeliveryCalculation from './DeliveryCalculation'
 import ApprovalLog from './ApprovalLog'
 import OmtsAssignmentBlock from './OmtsAssignmentBlock'
 import PaymentsTable from './PaymentsTable'
+import CommentsChat from './CommentsChat'
 import RejectModal from './RejectModal'
 import { formatSize, formatDate, extractRequestNumber, sanitizeFileName } from '@/utils/requestFormatters'
 import type { PaymentRequest, PaymentRequestFile, Department } from '@/types'
@@ -446,9 +447,6 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                 <DeliveryCalculation deliveryDays={getFieldValue('deliveryDays')} deliveryDaysType={getFieldValue('deliveryDaysType') || 'working'} shippingConditionId={getFieldValue('shippingConditionId')} defaultExpanded={false} />
               )}
             </Form.Item>
-            <Form.Item name="comment" label="Комментарий">
-              <TextArea rows={2} placeholder="Необязательное поле" />
-            </Form.Item>
             <Text strong style={{ display: 'block', marginBottom: 8 }}><FileAddOutlined /> Догрузить файлы</Text>
             <FileUploadList fileList={editFileList} onChange={setEditFileList} showValidation={showEditFileValidation} />
           </Form>
@@ -516,7 +514,6 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
               <Tag color={request.paidStatusColor ?? 'default'}>{request.paidStatusName ?? '—'}</Tag>
             </Descriptions.Item>
             <Descriptions.Item label="Дата создания">{formatDate(request.createdAt, !isCounterpartyUser)}</Descriptions.Item>
-            {request.comment && <Descriptions.Item label="Комментарий" span={2}>{request.comment}</Descriptions.Item>}
           </Descriptions>
         )}
 
@@ -575,6 +572,10 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
             canManage={!!canManagePayments}
             onTotalChanged={() => fetchRequests()}
           />
+        )}
+
+        {request && (
+          <CommentsChat paymentRequestId={request.id} />
         )}
 
         {resubmitMode && (

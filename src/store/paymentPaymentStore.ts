@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { supabase } from '@/services/supabase'
 import { logError } from '@/services/errorLogger'
 import { deleteFile } from '@/services/s3'
-import type { PaymentPayment, PaymentPaymentFile } from '@/types'
+import type { PaymentPayment } from '@/types'
 
 interface CreatePaymentData {
   paymentDate: string
@@ -24,7 +24,7 @@ interface PaymentPaymentStoreState {
   updatePayment: (id: string, data: UpdatePaymentData, userId: string) => Promise<void>
   deletePayment: (id: string) => Promise<void>
   addPaymentFile: (paymentId: string, fileRecord: { fileName: string; fileKey: string; fileSize: number | null; mimeType: string | null }, userId: string) => Promise<void>
-  removePaymentFile: (fileId: string, fileKey: string) => Promise<void>
+  removePaymentFile: (fileId: string, fileKey: string, paymentId?: string) => Promise<void>
   recalcPaidStatus: (paymentRequestId: string) => Promise<void>
 }
 
@@ -39,7 +39,7 @@ export const usePaymentPaymentStore = create<PaymentPaymentStoreState>((set, get
     try {
       const { data, error } = await supabase
         .from('payment_payments')
-        .select('id, payment_request_id, payment_number, payment_date, amount, created_by, updated_by, created_at, updated_at, payment_payment_files(id, payment_payment_id, file_name, file_key, file_size, mime_type, created_by, created_at)')
+        .select('id, payment_request_id, payment_number, payment_date, amount, is_executed, created_by, updated_by, created_at, updated_at, payment_payment_files(id, payment_payment_id, file_name, file_key, file_size, mime_type, created_by, created_at)')
         .eq('payment_request_id', paymentRequestId)
         .order('payment_number', { ascending: true })
 
@@ -51,6 +51,7 @@ export const usePaymentPaymentStore = create<PaymentPaymentStoreState>((set, get
         paymentNumber: row.payment_number as number,
         paymentDate: row.payment_date as string,
         amount: row.amount as number,
+        isExecuted: row.is_executed as boolean,
         createdBy: row.created_by as string,
         updatedBy: (row.updated_by as string) ?? null,
         createdAt: row.created_at as string,
@@ -189,6 +190,12 @@ export const usePaymentPaymentStore = create<PaymentPaymentStoreState>((set, get
         })
       if (error) throw error
 
+      // Обновляем is_executed = true (файл добавлен)
+      await supabase
+        .from('payment_payments')
+        .update({ is_executed: true })
+        .eq('id', paymentId)
+
       // Перезагружаем оплаты для обновления списка файлов
       const payment = get().payments.find((p) => p.id === paymentId)
       if (payment) await get().fetchPayments(payment.paymentRequestId)
@@ -199,7 +206,7 @@ export const usePaymentPaymentStore = create<PaymentPaymentStoreState>((set, get
     }
   },
 
-  removePaymentFile: async (fileId, fileKey) => {
+  removePaymentFile: async (fileId, fileKey, paymentId) => {
     try {
       // Удаляем из S3
       try { await deleteFile(fileKey) } catch { /* файл мог быть уже удален */ }
@@ -209,6 +216,20 @@ export const usePaymentPaymentStore = create<PaymentPaymentStoreState>((set, get
         .delete()
         .eq('id', fileId)
       if (error) throw error
+
+      // Пересчитываем is_executed: если файлов не осталось -- false
+      if (paymentId) {
+        const { data: remainingFiles } = await supabase
+          .from('payment_payment_files')
+          .select('id')
+          .eq('payment_payment_id', paymentId)
+          .limit(1)
+        const hasFiles = (remainingFiles ?? []).length > 0
+        await supabase
+          .from('payment_payments')
+          .update({ is_executed: hasFiles })
+          .eq('id', paymentId)
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка удаления файла оплаты'
       logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'removePaymentFile' } })

@@ -23,7 +23,6 @@ import { useSupplierStore } from '@/store/supplierStore'
 import { useConstructionSiteStore } from '@/store/constructionSiteStore'
 import { useUploadQueueStore } from '@/store/uploadQueueStore'
 
-const { TextArea } = Input
 
 interface CreateRequestModalProps {
   open: boolean
@@ -343,9 +342,6 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
             defaultExpanded={true}
           />
 
-          <Form.Item name="comment" label="Комментарий">
-            <TextArea rows={2} placeholder="Необязательное поле" />
-          </Form.Item>
         </Form>
 
         {/* Загрузка файлов */}

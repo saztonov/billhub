@@ -12,6 +12,7 @@ import {
   InputNumber,
   Upload,
   App,
+  Tag,
 } from 'antd'
 import {
   PlusOutlined,
@@ -152,7 +153,7 @@ const PaymentsTable = ({ paymentRequestId, counterpartyName, canManage, onTotalC
   }
 
   const handleRemoveFile = async (fileId: string, fileKey: string, paymentId: string) => {
-    await removePaymentFile(fileId, fileKey)
+    await removePaymentFile(fileId, fileKey, paymentId)
     await fetchPayments(paymentRequestId)
     message.success('Файл удалён')
   }
@@ -204,6 +205,12 @@ const PaymentsTable = ({ paymentRequestId, counterpartyName, canManage, onTotalC
     {
       title: 'Сумма', dataIndex: 'amount', key: 'amount', width: 160, align: 'right' as const,
       render: (amount: number) => formatAmount(amount),
+    },
+    {
+      title: 'Оплата', dataIndex: 'isExecuted', key: 'isExecuted', width: 130,
+      render: (isExecuted: boolean) => isExecuted
+        ? <Tag color="green">Исполнена</Tag>
+        : <Tag color="orange">Планируется</Tag>,
     },
     {
       title: 'Документы', key: 'files',
@@ -284,7 +291,8 @@ const PaymentsTable = ({ paymentRequestId, counterpartyName, canManage, onTotalC
                 <Text strong>{formatAmount(totalPaid)}</Text>
               </Table.Summary.Cell>
               <Table.Summary.Cell index={3} />
-              {canManage && <Table.Summary.Cell index={4} />}
+              <Table.Summary.Cell index={4} />
+              {canManage && <Table.Summary.Cell index={5} />}
             </Table.Summary.Row>
           )
         }}
