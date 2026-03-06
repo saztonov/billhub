@@ -26,6 +26,7 @@ import {
   FileAddOutlined,
   CheckOutlined,
   StopOutlined,
+  PlusOutlined,
 } from '@ant-design/icons'
 import { usePaymentRequestStore } from '@/store/paymentRequestStore'
 import { usePaymentPaymentStore } from '@/store/paymentPaymentStore'
@@ -49,6 +50,7 @@ import OmtsAssignmentBlock from './OmtsAssignmentBlock'
 import PaymentsTable from './PaymentsTable'
 import CommentsChat from './CommentsChat'
 import RejectModal from './RejectModal'
+import AddFilesModal from './AddFilesModal'
 import { formatSize, formatDate, extractRequestNumber, sanitizeFileName } from '@/utils/requestFormatters'
 import type { PaymentRequest, PaymentRequestFile, Department } from '@/types'
 import { DEPARTMENT_LABELS } from '@/types'
@@ -104,6 +106,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   // Комментарий для "На доработку"
   const [revisionComment, setRevisionComment] = useState('')
   const [revisionModalOpen, setRevisionModalOpen] = useState(false)
+  const [addFilesModalOpen, setAddFilesModalOpen] = useState(false)
 
   // Режим редактирования
   const [isEditing, setIsEditing] = useState(false)
@@ -145,6 +148,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       setRejectModalOpen(false)
       setRevisionComment('')
       setRevisionModalOpen(false)
+      setAddFilesModalOpen(false)
     }
   }, [open, resubmitForm])
 
@@ -435,6 +439,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
         onCancel={onClose}
         footer={modalFooter}
         width="80%"
+        maskClosable={false}
         centered
         style={{ maxHeight: '85vh' }}
         styles={{ body: { maxHeight: 'calc(85vh - 120px)', overflowY: 'auto', overflowX: 'hidden' } }}
@@ -611,9 +616,16 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
           items={[{
             key: 'files',
             label: `Файлы (${currentRequestFiles.length})`,
-            extra: currentRequestFiles.length > 0 ? (
-              <Button size="small" icon={<DownloadOutlined />} loading={downloadingAll} onClick={(e) => { e.stopPropagation(); handleDownloadAll() }}>Скачать все</Button>
-            ) : undefined,
+            extra: (
+              <Space size={4} onClick={(e) => e.stopPropagation()}>
+                {!isEditing && !resubmitMode && (
+                  <Button size="small" icon={<PlusOutlined />} onClick={() => setAddFilesModalOpen(true)}>Добавить</Button>
+                )}
+                {currentRequestFiles.length > 0 && (
+                  <Button size="small" icon={<DownloadOutlined />} loading={downloadingAll} onClick={handleDownloadAll}>Скачать все</Button>
+                )}
+              </Space>
+            ),
             children: (
               <Table size="small" columns={fileColumns as any} dataSource={sortedFiles} rowKey="id" loading={isLoading} pagination={false} locale={{ emptyText: 'Нет файлов' }} />
             ),
@@ -664,6 +676,14 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       </Modal>
 
       <FilePreviewModal open={!!previewFile} onClose={() => setPreviewFile(null)} fileKey={previewFile?.fileKey ?? null} fileName={previewFile?.fileName ?? ''} mimeType={previewFile?.mimeType ?? null} />
+
+      <AddFilesModal
+        open={addFilesModalOpen}
+        onClose={() => { setAddFilesModalOpen(false); if (request) fetchRequestFiles(request.id) }}
+        requestId={request.id}
+        requestNumber={request.requestNumber}
+        counterpartyName={request.counterpartyName ?? ''}
+      />
 
       <RejectModal
         open={rejectModalOpen}
