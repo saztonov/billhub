@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Upload, Select, Button, List, Typography, App } from 'antd'
+import { Upload, Select, Button, Typography, Space, App } from 'antd'
 import { InboxOutlined, DeleteOutlined, CheckCircleFilled, EyeOutlined } from '@ant-design/icons'
 import { useDocumentTypeStore } from '@/store/documentTypeStore'
 import { getPdfPageCount } from '@/utils/pdfUtils'
@@ -144,65 +144,58 @@ const FileUploadList = ({ fileList, onChange, showValidation }: FileUploadListPr
       </Dragger>
 
       {fileList.length > 0 && (
-        <List
-          size="small"
-          dataSource={fileList}
-          renderItem={(item) => (
-            <List.Item
-              actions={[
+        <div>
+          {fileList.map((item) => (
+            <div key={item.uid} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
+              <Text
+                ellipsis={{ tooltip: item.file.name }}
+                style={{ flex: '1 1 70%', minWidth: 0 }}
+              >
+                {item.file.name}
+              </Text>
+              <Text type="secondary" style={{ flexShrink: 0, whiteSpace: 'nowrap' }}>
+                {formatSize(item.file.size)}
+              </Text>
+              {item.pageCount != null && (
+                <Text type="secondary" style={{ flexShrink: 0, whiteSpace: 'nowrap', marginLeft: 8 }}>
+                  {item.pageCount} стр.
+                </Text>
+              )}
+              <Select
+                placeholder={<span>Тип документа <span style={{ color: '#ff4d4f' }}>*</span></span>}
+                size="small"
+                style={{ width: 180, flexShrink: 0 }}
+                status={showValidation && !item.documentTypeId ? 'error' : undefined}
+                popupMatchSelectWidth={false}
+                styles={{ popup: { root: { maxWidth: 250 } } }}
+                options={typeOptions}
+                value={item.documentTypeId ?? undefined}
+                onChange={(val) => handleTypeChange(item.uid, val)}
+              />
+              <CheckCircleFilled
+                style={{
+                  color: '#52c41a',
+                  fontSize: 16,
+                  flexShrink: 0,
+                  visibility: item.documentTypeId ? 'visible' : 'hidden'
+                }}
+              />
+              <Space size={4}>
                 <Button
-                  key="preview"
                   icon={<EyeOutlined />}
                   size="small"
                   onClick={() => setPreviewFile({ file: item.file, name: item.file.name })}
-                />,
+                />
                 <Button
-                  key="delete"
                   icon={<DeleteOutlined />}
                   danger
                   size="small"
                   onClick={() => handleRemove(item.uid)}
-                />,
-              ]}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
-                <Text
-                  ellipsis={{ tooltip: item.file.name }}
-                  style={{ flex: '1 1 70%', minWidth: 0 }}
-                >
-                  {item.file.name}
-                </Text>
-                <Text type="secondary" style={{ flexShrink: 0, whiteSpace: 'nowrap' }}>
-                  {formatSize(item.file.size)}
-                </Text>
-                {item.pageCount != null && (
-                  <Text type="secondary" style={{ flexShrink: 0, whiteSpace: 'nowrap', marginLeft: 8 }}>
-                    {item.pageCount} стр.
-                  </Text>
-                )}
-                <Select
-                  placeholder={<span>Тип документа <span style={{ color: '#ff4d4f' }}>*</span></span>}
-                  size="small"
-                  style={{ width: 180, flexShrink: 0 }}
-                  status={showValidation && !item.documentTypeId ? 'error' : undefined}
-                  popupMatchSelectWidth={false}
-                  dropdownStyle={{ maxWidth: 250 }}
-                  options={typeOptions}
-                  value={item.documentTypeId ?? undefined}
-                  onChange={(val) => handleTypeChange(item.uid, val)}
                 />
-                <CheckCircleFilled
-                  style={{
-                    color: '#52c41a',
-                    fontSize: 16,
-                    flexShrink: 0,
-                    visibility: item.documentTypeId ? 'visible' : 'hidden'
-                  }}
-                />
-              </div>
-            </List.Item>
-          )}
-        />
+              </Space>
+            </div>
+          ))}
+        </div>
       )}
 
       {/* Модал предпросмотра файла */}

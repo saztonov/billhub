@@ -140,7 +140,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
     if (!open) {
       setResubmitFileList([])
       setResubmitComment('')
-      try { resubmitForm.resetFields() } catch { /* форма не подключена к DOM */ }
+      try { if (resubmitMode) resubmitForm.resetFields() } catch { /* форма не подключена к DOM */ }
       setIsEditing(false)
       setEditFileList([])
       setShowEditFileValidation(false)
