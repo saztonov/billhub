@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { Typography, Input, Button, Space, Popconfirm, App } from 'antd'
 import { SendOutlined, EditOutlined, DeleteOutlined, CloseOutlined, CheckOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
@@ -23,18 +23,13 @@ const CommentsChat = ({ paymentRequestId }: CommentsChatProps) => {
   const [newText, setNewText] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editText, setEditText] = useState('')
-  const listRef = useRef<HTMLDivElement>(null)
+
 
   useEffect(() => {
     fetchComments(paymentRequestId)
   }, [paymentRequestId, fetchComments])
 
-  useEffect(() => {
-    // Прокрутка вниз при новых сообщениях
-    if (listRef.current) {
-      listRef.current.scrollTop = listRef.current.scrollHeight
-    }
-  }, [comments.length])
+
 
   const handleSend = async () => {
     if (!newText.trim() || !user) return
@@ -99,8 +94,9 @@ const CommentsChat = ({ paymentRequestId }: CommentsChatProps) => {
   }
 
   // Определяем последний комментарий текущего пользователя
+  // Комментарии отсортированы от новых к старым — первый найденный = последний по времени
   const lastOwnComment = user
-    ? [...comments].reverse().find((c) => c.authorId === user.id)
+    ? comments.find((c) => c.authorId === user.id)
     : null
 
   const canEditComment = (comment: PaymentRequestComment) => {
@@ -114,11 +110,8 @@ const CommentsChat = ({ paymentRequestId }: CommentsChatProps) => {
   }
 
   return (
-    <div style={{ marginTop: 16 }}>
-      <Text strong style={{ display: 'block', marginBottom: 8 }}>Комментарии</Text>
-
+    <div>
       <div
-        ref={listRef}
         style={{
           maxHeight: 300,
           overflowY: 'auto',

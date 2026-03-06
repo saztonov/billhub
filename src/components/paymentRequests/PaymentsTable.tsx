@@ -213,7 +213,7 @@ const PaymentsTable = ({ paymentRequestId, counterpartyName, canManage, onTotalC
         : <Tag color="orange">Планируется</Tag>,
     },
     {
-      title: 'Документы', key: 'files',
+      title: 'Платежные поручения', key: 'files',
       render: (_: unknown, record: PaymentPayment) => (
         <Space size={4} wrap>
           {record.files.map((f: PaymentPaymentFile) => (

@@ -33,13 +33,13 @@ const PaymentRequestsPage = () => {
 
   // Данные
   const {
-    user, isCounterpartyUser, isAdmin, isUser, isOmtsUser,
+    user, isCounterpartyUser, isAdmin, isUser, isOmtsUser, isOmtsRpUser,
     userDeptInChain, totalStages,
-    requests, pendingRequests, approvedRequests, rejectedRequests,
+    requests, pendingRequests, approvedRequests, rejectedRequests, omtsRpPendingRequests,
     isLoading, approvalLoading,
     counterparties, sites, omtsUsers, uploadTasks,
     siteFilterParams, canEditRequest,
-    fetchRequests, fetchCounterparties, fetchPendingRequests,
+    fetchRequests, fetchCounterparties, fetchPendingRequests, fetchOmtsRpPendingRequests,
     approveRequest, rejectRequest,
     deleteRequest, withdrawRequest, resubmitRequest, updateRequest,
     assignResponsible,
@@ -54,10 +54,11 @@ const PaymentRequestsPage = () => {
   // Фильтрация
   const {
     filteredRequests, filteredPendingRequests, filteredApprovedRequests, filteredRejectedRequests,
+    filteredOmtsRpPendingRequests,
     filteredCounterpartyAll, filteredCounterpartyPending, filteredCounterpartyApproved, filteredCounterpartyRejected,
     totalInvoiceAmount, totalInvoiceAmountAll, totalPaidAll, unassignedOmtsCount,
   } = useRequestFiltering({
-    requests, pendingRequests, approvedRequests, rejectedRequests,
+    requests, pendingRequests, approvedRequests, rejectedRequests, omtsRpPendingRequests,
     filters, userId: user?.id, isAdmin: !!isAdmin,
   })
 
@@ -118,6 +119,7 @@ const PaymentRequestsPage = () => {
     await approveRequest(requestId, department, user.id, comment)
     message.success('Заявка согласована')
     fetchPendingRequests(department, user.id, isAdmin)
+    if (isOmtsRpUser || isAdmin) fetchOmtsRpPendingRequests()
     const [sIds, allS] = siteFilterParams()
     if (isUser) fetchRequests(undefined, sIds, allS)
     else fetchRequests()
@@ -130,6 +132,7 @@ const PaymentRequestsPage = () => {
     await rejectRequest(requestId, department, user.id, comment, files)
     message.success('Заявка отклонена')
     fetchPendingRequests(department, user.id, isAdmin)
+    if (isOmtsRpUser || isAdmin) fetchOmtsRpPendingRequests()
     const [sIds, allS] = siteFilterParams()
     if (isUser) fetchRequests(undefined, sIds, allS)
     else fetchRequests()
@@ -285,6 +288,28 @@ const PaymentRequestsPage = () => {
             responsibleFilter={filters.responsibleFilter}
           />
         </div>
+      ),
+    })
+  }
+
+  if (isOmtsRpUser || isAdmin) {
+    tabItems.push({
+      key: 'omts_rp',
+      label: `ОМТС РП (${filteredOmtsRpPendingRequests.length})`,
+      children: (
+        <RequestsTable
+          requests={filteredOmtsRpPendingRequests}
+          isLoading={approvalLoading}
+          onView={setViewRecord}
+          showApprovalActions
+          onApprove={handleApprove}
+          onReject={handleReject}
+          showResponsibleColumn
+          canAssignResponsible={false}
+          omtsUsers={omtsUsers}
+          onAssignResponsible={handleAssignResponsible}
+          responsibleFilter={filters.responsibleFilter}
+        />
       ),
     })
   }

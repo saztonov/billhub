@@ -7,6 +7,7 @@ interface UseRequestFilteringParams {
   pendingRequests: PaymentRequest[]
   approvedRequests: PaymentRequest[]
   rejectedRequests: PaymentRequest[]
+  omtsRpPendingRequests: PaymentRequest[]
   filters: FilterValues
   userId?: string
   isAdmin: boolean
@@ -21,6 +22,7 @@ export function useRequestFiltering({
   pendingRequests,
   approvedRequests,
   rejectedRequests,
+  omtsRpPendingRequests,
   filters,
   userId,
   isAdmin,
@@ -110,6 +112,7 @@ export function useRequestFiltering({
   const filteredPendingRequests = useMemo(() => applyFilters(pendingRequests), [pendingRequests, applyFilters])
   const filteredApprovedRequests = useMemo(() => applyFilters(approvedRequests), [approvedRequests, applyFilters])
   const filteredRejectedRequests = useMemo(() => applyFilters(rejectedRequests), [rejectedRequests, applyFilters])
+  const filteredOmtsRpPendingRequests = useMemo(() => applyFilters(omtsRpPendingRequests), [omtsRpPendingRequests, applyFilters])
 
   // Разделение заявок counterparty_user по статусам
   const counterpartyPendingRequests = useMemo(() =>
@@ -163,6 +166,7 @@ export function useRequestFiltering({
     filteredPendingRequests,
     filteredApprovedRequests,
     filteredRejectedRequests,
+    filteredOmtsRpPendingRequests,
     // Фильтрованные списки counterparty
     filteredCounterpartyAll,
     filteredCounterpartyPending,

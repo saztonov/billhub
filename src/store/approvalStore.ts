@@ -23,6 +23,7 @@ interface ApprovalStoreState {
   pendingRequests: PaymentRequest[]
   approvedRequests: PaymentRequest[]
   rejectedRequests: PaymentRequest[]
+  omtsRpPendingRequests: PaymentRequest[]
 
   isLoading: boolean
   error: string | null
@@ -41,6 +42,7 @@ interface ApprovalStoreState {
 
   // Заявки по вкладкам
   fetchPendingRequests: (department: Department, userId: string, isAdmin?: boolean) => Promise<void>
+  fetchOmtsRpPendingRequests: () => Promise<void>
   fetchApprovedRequests: (userSiteIds?: string[], allSites?: boolean) => Promise<void>
   fetchRejectedRequests: (userSiteIds?: string[], allSites?: boolean) => Promise<void>
 }
@@ -139,6 +141,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
   pendingRequests: [],
   approvedRequests: [],
   rejectedRequests: [],
+  omtsRpPendingRequests: [],
   isLoading: false,
   error: null,
 
@@ -515,6 +518,39 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
       set({ pendingRequests: filteredRequests, isLoading: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка загрузки заявок'
+      set({ error: message, isLoading: false })
+    }
+  },
+
+  fetchOmtsRpPendingRequests: async () => {
+    set({ isLoading: true, error: null })
+    try {
+      // Находим заявки с pending решением ОМТС РП
+      const { data: decisions, error: decError } = await supabase
+        .from('approval_decisions')
+        .select('payment_request_id')
+        .eq('is_omts_rp', true)
+        .eq('status', 'pending')
+      if (decError) throw decError
+
+      const requestIds = [...new Set((decisions ?? []).map((d: Record<string, unknown>) => d.payment_request_id as string))]
+      if (requestIds.length === 0) {
+        set({ omtsRpPendingRequests: [], isLoading: false })
+        return
+      }
+
+      const { data, error } = await supabase
+        .from('payment_requests')
+        .select(PR_SELECT)
+        .in('id', requestIds)
+        .eq('is_deleted', false)
+        .order('created_at', { ascending: false })
+      if (error) throw error
+
+      set({ omtsRpPendingRequests: (data ?? []).map(mapRequest), isLoading: false })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Ошибка загрузки заявок ОМТС РП'
+      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'fetchOmtsRpPendingRequests' } })
       set({ error: message, isLoading: false })
     }
   },

@@ -74,7 +74,8 @@ export function usePaymentRequestsData({
   const { sites, fetchSites } = useConstructionSiteStore()
   const { fetchStatuses } = useStatusStore()
   const { omtsUsers, fetchOmtsUsers, assignResponsible } = useAssignmentStore()
-  const { fetchSites: fetchOmtsRpSites, fetchConfig: fetchOmtsRpConfig } = useOmtsRpStore()
+  const { fetchSites: fetchOmtsRpSites, fetchConfig: fetchOmtsRpConfig, responsibleUserId: omtsRpResponsibleUserId } = useOmtsRpStore()
+  const isOmtsRpUser = !!user?.id && user.id === omtsRpResponsibleUserId
 
   const uploadTasks = useUploadQueueStore((s) => s.tasks)
 
@@ -82,8 +83,10 @@ export function usePaymentRequestsData({
     pendingRequests,
     approvedRequests,
     rejectedRequests,
+    omtsRpPendingRequests,
     isLoading: approvalLoading,
     fetchPendingRequests,
+    fetchOmtsRpPendingRequests,
     fetchApprovedRequests,
     fetchRejectedRequests,
     approveRequest,
@@ -149,6 +152,12 @@ export function usePaymentRequestsData({
     }
   }, [isCounterpartyUser, sitesLoaded, user?.id, user?.department, isAdmin, adminSelectedStage, userDeptInChain, fetchPendingRequests])
 
+  // Загружаем заявки ОМТС РП для счетчика вкладки
+  useEffect(() => {
+    if (!isOmtsRpUser && !isAdmin) return
+    fetchOmtsRpPendingRequests()
+  }, [isOmtsRpUser, isAdmin, fetchOmtsRpPendingRequests])
+
   // Загружаем данные при переключении вкладок
   useEffect(() => {
     if (!sitesLoaded) return
@@ -173,12 +182,14 @@ export function usePaymentRequestsData({
           fetchPendingRequests(department, user.id, isAdmin)
         }
       }
+    } else if (activeTab === 'omts_rp') {
+      fetchOmtsRpPendingRequests()
     } else if (activeTab === 'approved') {
       fetchApprovedRequests(sIds, allS)
     } else if (activeTab === 'rejected') {
       fetchRejectedRequests(sIds, allS)
     }
-  }, [activeTab, refreshTrigger, sitesLoaded, isCounterpartyUser, user?.counterpartyId, user?.id, user?.department, isUser, isAdmin, adminSelectedStage, userDeptInChain, userSiteIds, userAllSites, showDeleted, fetchRequests, fetchPendingRequests, fetchApprovedRequests, fetchRejectedRequests, siteFilterParams])
+  }, [activeTab, refreshTrigger, sitesLoaded, isCounterpartyUser, user?.counterpartyId, user?.id, user?.department, isUser, isAdmin, adminSelectedStage, userDeptInChain, userSiteIds, userAllSites, showDeleted, fetchRequests, fetchPendingRequests, fetchOmtsRpPendingRequests, fetchApprovedRequests, fetchRejectedRequests, siteFilterParams])
 
   // Загружаем справочники для фильтров
   useEffect(() => {
@@ -218,6 +229,7 @@ export function usePaymentRequestsData({
     isAdmin,
     isUser,
     isOmtsUser,
+    isOmtsRpUser,
     userDeptInChain,
     totalStages,
     // Данные
@@ -225,6 +237,7 @@ export function usePaymentRequestsData({
     pendingRequests,
     approvedRequests,
     rejectedRequests,
+    omtsRpPendingRequests,
     isLoading,
     approvalLoading,
     counterparties,
@@ -237,6 +250,7 @@ export function usePaymentRequestsData({
     fetchRequests,
     fetchCounterparties,
     fetchPendingRequests,
+    fetchOmtsRpPendingRequests,
     approveRequest,
     rejectRequest,
     deleteRequest,

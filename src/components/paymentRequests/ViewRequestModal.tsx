@@ -16,6 +16,7 @@ import {
   Col,
   App,
   Popconfirm,
+  Collapse,
 } from 'antd'
 import {
   DownloadOutlined,
@@ -584,35 +585,72 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
           </div>
         )}
 
-        <ApprovalLog
-          request={request}
-          decisions={currentDecisions}
-          logs={currentLogs}
-          isCounterpartyUser={isCounterpartyUser}
-          downloading={downloading}
-          onViewFile={handleViewDecisionFile}
-          onDownloadFile={handleDownloadDecisionFile}
+        <Collapse
+          defaultActiveKey={['approval']}
+          style={{ marginBottom: 12 }}
+          items={[{
+            key: 'approval',
+            label: 'Согласование',
+            children: (
+              <ApprovalLog
+                request={request}
+                decisions={currentDecisions}
+                logs={currentLogs}
+                isCounterpartyUser={isCounterpartyUser}
+                downloading={downloading}
+                onViewFile={handleViewDecisionFile}
+                onDownloadFile={handleDownloadDecisionFile}
+              />
+            ),
+          }]}
         />
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <Text strong>Файлы ({currentRequestFiles.length})</Text>
-          {currentRequestFiles.length > 0 && (
-            <Button size="small" icon={<DownloadOutlined />} loading={downloadingAll} onClick={handleDownloadAll}>Скачать все</Button>
-          )}
-        </div>
-        <Table size="small" columns={fileColumns as any} dataSource={sortedFiles} rowKey="id" loading={isLoading} pagination={false} locale={{ emptyText: 'Нет файлов' }} />
+        <Collapse
+          defaultActiveKey={['files']}
+          style={{ marginBottom: 12 }}
+          items={[{
+            key: 'files',
+            label: `Файлы (${currentRequestFiles.length})`,
+            extra: currentRequestFiles.length > 0 ? (
+              <Button size="small" icon={<DownloadOutlined />} loading={downloadingAll} onClick={(e) => { e.stopPropagation(); handleDownloadAll() }}>Скачать все</Button>
+            ) : undefined,
+            children: (
+              <Table size="small" columns={fileColumns as any} dataSource={sortedFiles} rowKey="id" loading={isLoading} pagination={false} locale={{ emptyText: 'Нет файлов' }} />
+            ),
+          }]}
+        />
 
         {!isEditing && !resubmitMode && request && (
-          <PaymentsTable
-            paymentRequestId={request.id}
-            counterpartyName={request.counterpartyName ?? ''}
-            canManage={!!canManagePayments}
-            onTotalChanged={() => fetchRequests()}
+          <Collapse
+            defaultActiveKey={['payments']}
+            style={{ marginBottom: 12 }}
+            items={[{
+              key: 'payments',
+              label: 'Оплаты',
+              children: (
+                <PaymentsTable
+                  paymentRequestId={request.id}
+                  counterpartyName={request.counterpartyName ?? ''}
+                  canManage={!!canManagePayments}
+                  onTotalChanged={() => fetchRequests()}
+                />
+              ),
+            }]}
           />
         )}
 
         {request && (
-          <CommentsChat paymentRequestId={request.id} />
+          <Collapse
+            defaultActiveKey={['comments']}
+            style={{ marginBottom: 12 }}
+            items={[{
+              key: 'comments',
+              label: 'Комментарии',
+              children: (
+                <CommentsChat paymentRequestId={request.id} />
+              ),
+            }]}
+          />
         )}
 
         {resubmitMode && (

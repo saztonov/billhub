@@ -25,7 +25,7 @@ export const useCommentStore = create<CommentStoreState>((set, get) => ({
         .from('payment_request_comments')
         .select('id, payment_request_id, author_id, text, created_at, updated_at, author:users!payment_request_comments_author_id_fkey(full_name, email, role, department_id, counterparty:counterparties!users_counterparty_id_fkey(name))')
         .eq('payment_request_id', paymentRequestId)
-        .order('created_at', { ascending: true })
+        .order('created_at', { ascending: false })
 
       if (error) throw error
 
