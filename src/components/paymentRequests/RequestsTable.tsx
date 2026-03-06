@@ -177,7 +177,7 @@ const RequestsTable = (props: RequestsTableProps) => {
 
   columns.push(
     {
-      title: 'Дата создания', dataIndex: 'createdAt', key: 'createdAt', width: 100,
+      title: 'Дата', dataIndex: 'createdAt', key: 'createdAt', width: 100,
       sorter: (a: PaymentRequest, b: PaymentRequest) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
       defaultSortOrder: 'descend' as const,
       render: (date: string) => formatDateShort(date),
