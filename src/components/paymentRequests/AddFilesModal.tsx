@@ -74,8 +74,8 @@ const AddFilesModal = ({ open, onClose, requestId, requestNumber, counterpartyNa
       okText="Сохранить"
       cancelText="Отмена"
       width={700}
-      maskClosable={false}
-      destroyOnClose
+      mask={{ closable: false }}
+      destroyOnHidden
     >
       <FileUploadList fileList={fileList} onChange={setFileList} showValidation={showValidation} />
     </Modal>
