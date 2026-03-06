@@ -72,7 +72,7 @@ const PaymentsTable = ({ paymentRequestId, counterpartyName, canManage, onTotalC
   const [downloading, setDownloading] = useState<string | null>(null)
   const [previewFile, setPreviewFile] = useState<{ fileKey: string; fileName: string } | null>(null)
 
-  const totalPaid = useMemo(() => payments.reduce((sum, p) => sum + p.amount, 0), [payments])
+  const totalPaid = useMemo(() => payments.filter(p => p.isExecuted).reduce((sum, p) => sum + p.amount, 0), [payments])
 
   const handleAdd = () => {
     setEditingPayment(null)

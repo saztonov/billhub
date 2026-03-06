@@ -163,7 +163,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   }, [isEditing, resubmitMode, fieldOptions.length, sites.length, suppliers.length, fetchFieldOptions, fetchSites, fetchSuppliers])
 
   // Сумма оплат и права на управление оплатами
-  const paymentsTotalPaid = useMemo(() => payments.reduce((sum, p) => sum + p.amount, 0), [payments])
+  const paymentsTotalPaid = useMemo(() => payments.filter(p => p.isExecuted).reduce((sum, p) => sum + p.amount, 0), [payments])
   const canManagePayments = user?.role === 'admin' || user?.department === 'shtab' || user?.department === 'omts'
 
   const shippingOptions = getOptionsByField('shipping_conditions')

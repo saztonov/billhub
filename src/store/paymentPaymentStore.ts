@@ -244,6 +244,7 @@ export const usePaymentPaymentStore = create<PaymentPaymentStoreState>((set, get
         .from('payment_payments')
         .select('amount')
         .eq('payment_request_id', paymentRequestId)
+        .eq('is_executed', true)
       if (paymentsError) throw paymentsError
 
       const totalPaid = (paymentsData ?? []).reduce((sum, p) => sum + Number(p.amount), 0)
