@@ -213,6 +213,7 @@ export interface PaymentRequestFile {
   documentTypeName?: string
   uploaderRole?: string
   uploaderDepartment?: string | null
+  uploaderCounterpartyName?: string | null
 }
 
 /** Оплата по заявке */

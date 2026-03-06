@@ -284,6 +284,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
 
   const hasResubmitFiles = (request?.resubmitCount ?? 0) > 0
   const hasStaffFiles = sortedFiles.some((f) => f.uploaderRole === 'user' || f.uploaderRole === 'admin')
+  const hasCounterpartyFiles = sortedFiles.some((f) => f.uploaderRole === 'counterparty_user' && !f.isResubmit)
 
   const handleResubmitSubmit = async () => {
     let formValues: { deliveryDays: number; deliveryDaysType: string; shippingConditionId: string; invoiceAmount: number }
@@ -332,11 +333,18 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
     },
   ]
 
-  if (hasResubmitFiles || hasStaffFiles) {
+  if (hasResubmitFiles || hasStaffFiles || hasCounterpartyFiles) {
     fileColumns.push({
-      title: 'Догружен', key: 'resubmit', width: 120,
+      title: 'Догружен', key: 'resubmit', width: 180,
       render: (_: unknown, file: PaymentRequestFile) => {
-        if (file.isResubmit) return <Tag color="blue">Подрядчик</Tag>
+        if (file.isResubmit) {
+          const cpName = file.uploaderCounterpartyName
+          return <Tag color="blue">{cpName ? `Подрядчик (${cpName})` : 'Подрядчик'}</Tag>
+        }
+        if (file.uploaderRole === 'counterparty_user') {
+          const cpName = file.uploaderCounterpartyName
+          return <Tag color="blue">{cpName ? `Подрядчик (${cpName})` : 'Подрядчик'}</Tag>
+        }
         if (file.uploaderRole === 'user' || file.uploaderRole === 'admin') {
           const dept = file.uploaderDepartment as Department | null
           const label = dept ? DEPARTMENT_LABELS[dept] : '—'

@@ -327,7 +327,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
     try {
       const { data, error } = await supabase
         .from('payment_request_files')
-        .select('*, document_types(name), users!payment_request_files_created_by_fkey(role, department_id)')
+        .select('*, document_types(name), users!payment_request_files_created_by_fkey(role, department_id, counterparties(name))')
         .eq('payment_request_id', requestId)
         .order('created_at', { ascending: true })
       if (error) throw error
@@ -351,6 +351,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
             documentTypeName: dt?.name as string | undefined,
             uploaderRole: uploader?.role as string | undefined,
             uploaderDepartment: uploader?.department_id as string | null | undefined,
+            uploaderCounterpartyName: (uploader?.counterparties as Record<string, unknown> | null)?.name as string | null | undefined,
           }
         },
       )
