@@ -55,13 +55,36 @@ body {
   padding: 4px 8px !important;
 }
 
-/* Визуальные разделители между вкладками */
-.flex-tabs .ant-tabs-tab + .ant-tabs-tab {
-  border-left: 1px solid #d9d9d9;
-  padding-left: 16px;
+/* Стиль вкладок «карточка-таб» */
+.flex-tabs .ant-tabs-nav::before {
+  border-bottom: 1px solid #d9d9d9;
 }
 
-/* Подчёркивание активной вкладки */
+.flex-tabs .ant-tabs-tab {
+  border: 1px solid transparent;
+  border-bottom: 1px solid #d9d9d9;
+  border-radius: 8px 8px 0 0;
+  padding: 6px 16px !important;
+  margin: 0 0 -1px 0 !important;
+  background: transparent;
+  transition: all 0.2s;
+}
+
+.flex-tabs .ant-tabs-tab:hover {
+  background: #fafafa;
+}
+
+.flex-tabs .ant-tabs-tab-active {
+  background: #fff !important;
+  border-color: #d9d9d9 !important;
+  border-bottom-color: #fff !important;
+}
+
 .flex-tabs .ant-tabs-tab-active .ant-tabs-tab-btn {
   font-weight: 600;
+}
+
+/* Скрыть стандартный inkBar */
+.flex-tabs .ant-tabs-ink-bar {
+  display: none;
 }
