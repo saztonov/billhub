@@ -13,6 +13,7 @@ import {
 } from '@ant-design/icons'
 import { useAuthStore } from '@/store/authStore'
 import { useNotificationStore } from '@/store/notificationStore'
+import { useHeaderStore } from '@/store/headerStore'
 import type { UserRole, AppNotification } from '@/types'
 
 const { Header, Sider, Content } = Layout
@@ -107,6 +108,10 @@ const MainLayout = () => {
       markAllAsRead(user.id)
     }
   }, [user?.id, markAllAsRead])
+
+  const headerTitle = useHeaderStore((s) => s.title)
+  const headerExtra = useHeaderStore((s) => s.extra)
+  const headerActions = useHeaderStore((s) => s.actions)
 
   const menuItems = useMemo(
     () => getMenuItems(user?.role ?? 'counterparty_user'),
@@ -206,14 +211,23 @@ const MainLayout = () => {
             background: '#fff',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'flex-end',
-            gap: 16,
+            justifyContent: 'space-between',
             borderBottom: '1px solid #f0f0f0',
             position: 'sticky',
             top: 0,
             zIndex: 10,
           }}
         >
+          <Flex align="center" gap={12} style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
+            {headerTitle && (
+              <Typography.Title level={5} style={{ margin: 0, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                {headerTitle}
+              </Typography.Title>
+            )}
+            {headerExtra}
+          </Flex>
+          <Flex align="center" gap={12} style={{ flexShrink: 0 }}>
+            {headerActions}
           {showNotifications && (
             <Popover
               content={notificationContent}
@@ -260,9 +274,10 @@ const MainLayout = () => {
               </Flex>
             </Flex>
           </Dropdown>
+          </Flex>
         </Header>
 
-        <Content id="main-content" style={{ padding: 24, overflow: 'auto' }}>
+        <Content id="main-content" style={{ padding: 16, overflow: 'auto' }}>
           <Outlet />
         </Content>
       </Layout>

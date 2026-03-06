@@ -99,7 +99,7 @@ const RequestFilters = (props: RequestFiltersProps) => {
   }
 
   return (
-    <div style={{ marginBottom: 16, background: '#fafafa', borderRadius: 8, padding: '12px 16px' }}>
+    <div style={{ marginBottom: 8, background: '#fafafa', borderRadius: 8, padding: '8px 12px' }}>
       <Form
         form={form}
         layout="vertical"

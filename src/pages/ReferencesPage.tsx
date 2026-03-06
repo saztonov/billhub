@@ -25,7 +25,7 @@ const ReferencesPage = () => {
   ]
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px - 1px - 48px)', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px - 1px - 32px)', overflow: 'hidden' }}>
       <Tabs
         activeKey={activeTab}
         onChange={handleTabChange}

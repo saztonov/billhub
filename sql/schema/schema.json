@@ -1767,6 +1767,51 @@
               "position": 30,
               "max_length": null,
               "numeric_precision": null
+            },
+            {
+              "name": "dp_number",
+              "type": "text",
+              "default": null,
+              "nullable": true,
+              "position": 31,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "dp_date",
+              "type": "date",
+              "default": null,
+              "nullable": true,
+              "position": 32,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "dp_amount",
+              "type": "numeric",
+              "default": null,
+              "nullable": true,
+              "position": 33,
+              "max_length": null,
+              "numeric_precision": 15
+            },
+            {
+              "name": "dp_file_key",
+              "type": "text",
+              "default": null,
+              "nullable": true,
+              "position": 34,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "dp_file_name",
+              "type": "text",
+              "default": null,
+              "nullable": true,
+              "position": 35,
+              "max_length": null,
+              "numeric_precision": null
             }
           ]
         },
@@ -3106,7 +3151,7 @@
           "references_columns": null
         }
       ],
-      "generated_at": "2026-03-06T11:50:59.35045+00:00",
+      "generated_at": "2026-03-06T15:37:37.981073+00:00",
       "primary_keys": [
         {
           "columns": [

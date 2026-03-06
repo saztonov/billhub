@@ -1,12 +1,12 @@
-import { Typography, Button, Tabs } from 'antd'
+import { useEffect } from 'react'
+import { Button, Tabs } from 'antd'
 import { PlusOutlined, FilterOutlined } from '@ant-design/icons'
+import { useHeaderStore } from '@/store/headerStore'
 import RequestsTable from './RequestsTable'
 import RequestFilters from './RequestFilters'
 import type { FilterValues } from './RequestFilters'
 import type { PaymentRequest, ConstructionSite, Status, Supplier } from '@/types'
 import type { UploadTask } from '@/store/uploadQueueStore'
-
-const { Title } = Typography
 
 interface CounterpartyRequestsViewProps {
   filteredAll: PaymentRequest[]
@@ -56,6 +56,18 @@ const CounterpartyRequestsView = ({
   uploadTasks,
   totalStages,
 }: CounterpartyRequestsViewProps) => {
+  const setHeader = useHeaderStore((s) => s.setHeader)
+
+  useEffect(() => {
+    setHeader(
+      'Заявки на оплату',
+      null,
+      <Button type="primary" icon={<PlusOutlined />} onClick={onCreateOpen}>
+        Добавить
+      </Button>
+    )
+  }, [setHeader, onCreateOpen])
+
   const tabItems = [
     {
       key: 'all',
@@ -135,19 +147,6 @@ const CounterpartyRequestsView = ({
       className="flex-tabs"
       renderTabBar={(props, DefaultTabBar) => (
         <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <Title level={2} style={{ margin: 0 }}>Заявки на оплату</Title>
-              <Button
-                icon={<FilterOutlined />}
-                onClick={onFiltersToggle}
-                type={filtersOpen ? 'primary' : 'default'}
-              />
-            </div>
-            <Button type="primary" icon={<PlusOutlined />} onClick={onCreateOpen}>
-              Добавить
-            </Button>
-          </div>
           {filtersOpen && (
             <RequestFilters
               sites={sites}
@@ -161,7 +160,16 @@ const CounterpartyRequestsView = ({
               onReset={() => onFiltersChange({})}
             />
           )}
-          <DefaultTabBar {...props} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <DefaultTabBar {...props} style={{ ...props.style, flex: 1, marginBottom: 0 }} />
+            <Button
+              icon={<FilterOutlined />}
+              onClick={onFiltersToggle}
+              type={filtersOpen ? 'primary' : 'default'}
+              size="small"
+              style={{ flexShrink: 0 }}
+            />
+          </div>
         </div>
       )}
     />

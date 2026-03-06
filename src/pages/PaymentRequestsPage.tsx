@@ -1,10 +1,11 @@
-import { useState, useCallback } from 'react'
-import { Typography, Button, Tabs, App, Radio, Switch } from 'antd'
+import { useState, useCallback, useEffect } from 'react'
+import { Button, Tabs, App, Radio, Switch } from 'antd'
 import { PlusOutlined, FilterOutlined } from '@ant-design/icons'
 import { usePaymentRequestsData } from '@/hooks/usePaymentRequestsData'
 import { useRequestFiltering } from '@/hooks/useRequestFiltering'
 import { useCounterpartyStore } from '@/store/counterpartyStore'
 import { useUploadQueueStore } from '@/store/uploadQueueStore'
+import { useHeaderStore } from '@/store/headerStore'
 import type { EditRequestData } from '@/store/paymentRequestStore'
 import CreateRequestModal from '@/components/paymentRequests/CreateRequestModal'
 import ViewRequestModal from '@/components/paymentRequests/ViewRequestModal'
@@ -14,8 +15,6 @@ import CounterpartyRequestsView from '@/components/paymentRequests/CounterpartyR
 import type { FilterValues } from '@/components/paymentRequests/RequestFilters'
 import type { FileItem } from '@/components/paymentRequests/FileUploadList'
 import type { PaymentRequest, Department } from '@/types'
-
-const { Title } = Typography
 
 const PaymentRequestsPage = () => {
   const { message } = App.useApp()
@@ -83,6 +82,109 @@ const PaymentRequestsPage = () => {
     requests, pendingRequests, approvedRequests, rejectedRequests, omtsRpPendingRequests,
     filters, userId: user?.id, isAdmin: !!isAdmin,
   })
+
+  // Заголовок и элементы в шапке
+  const setHeader = useHeaderStore((s) => s.setHeader)
+  const clearHeader = useHeaderStore((s) => s.clearHeader)
+
+  useEffect(() => {
+    const extra = (
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        {activeTab === 'all' && (
+          <div
+            style={{
+              padding: '4px 12px',
+              border: '1px solid #d9d9d9',
+              borderRadius: '6px',
+              backgroundColor: '#fafafa',
+              whiteSpace: 'nowrap',
+              fontSize: 13,
+            }}
+          >
+            <span style={{ color: '#8c8c8c', marginRight: 6 }}>РП на сумму:</span>
+            <span style={{ fontWeight: 500 }}>
+              {totalInvoiceAmountAll.toLocaleString('ru-RU', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+              })} ₽
+            </span>
+            <span style={{ color: '#d9d9d9', margin: '0 8px' }}>|</span>
+            <span style={{ color: '#8c8c8c', marginRight: 6 }}>Оплачено РП:</span>
+            <span style={{ fontWeight: 500 }}>
+              {totalPaidAll.toLocaleString('ru-RU', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+              })} ₽
+            </span>
+          </div>
+        )}
+        {activeTab === 'pending' && userDeptInChain && (
+          <>
+            <div
+              style={{
+                padding: '4px 12px',
+                border: '1px solid #d9d9d9',
+                borderRadius: '6px',
+                backgroundColor: '#fafafa',
+                whiteSpace: 'nowrap',
+                fontSize: 13,
+              }}
+            >
+              <span style={{ color: '#8c8c8c', marginRight: 6 }}>Сумма счетов:</span>
+              <span style={{ fontWeight: 500 }}>
+                {totalInvoiceAmount.toLocaleString('ru-RU', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2
+                })} ₽
+              </span>
+            </div>
+            {isAdmin && (
+              <div
+                style={{
+                  padding: '4px 12px',
+                  border: '1px solid #d9d9d9',
+                  borderRadius: '6px',
+                  backgroundColor: '#fafafa',
+                  whiteSpace: 'nowrap',
+                  fontSize: 13,
+                }}
+              >
+                <span style={{ color: '#8c8c8c', marginRight: 6 }}>Не назначено:</span>
+                <span
+                  style={{
+                    fontWeight: 500,
+                    color: unassignedOmtsCount > 0 ? '#faad14' : 'inherit'
+                  }}
+                >
+                  {unassignedOmtsCount}
+                </span>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    )
+
+    const actions = (
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+        {isAdmin && (
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Switch size="small" checked={showDeleted} onChange={setShowDeleted} />
+            <span style={{ fontSize: 13, color: '#8c8c8c', whiteSpace: 'nowrap' }}>Удаленные</span>
+          </span>
+        )}
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsCreateOpen(true)}>
+          Добавить
+        </Button>
+      </div>
+    )
+
+    setHeader('Заявки на оплату', extra, actions)
+  }, [activeTab, totalInvoiceAmountAll, totalPaidAll, totalInvoiceAmount, unassignedOmtsCount, isAdmin, userDeptInChain, showDeleted, setHeader])
+
+  useEffect(() => {
+    return () => clearHeader()
+  }, [clearHeader])
 
   // --- Обработчики ---
 
@@ -215,7 +317,7 @@ const PaymentRequestsPage = () => {
   // --- Counterparty UI ---
   if (isCounterpartyUser) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px - 1px - 48px)', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px - 1px - 32px)', overflow: 'hidden' }}>
         <CounterpartyRequestsView
           filteredAll={filteredCounterpartyAll}
           filteredPending={filteredCounterpartyPending}
@@ -291,7 +393,7 @@ const PaymentRequestsPage = () => {
       children: (
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
           {isAdmin && (
-            <div style={{ marginBottom: 16, flexShrink: 0 }}>
+            <div style={{ marginBottom: 8, flexShrink: 0 }}>
               <Radio.Group
                 value={adminSelectedStage}
                 onChange={(e) => setAdminSelectedStage(e.target.value)}
@@ -380,7 +482,7 @@ const PaymentRequestsPage = () => {
   )
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px - 1px - 48px)', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px - 1px - 32px)', overflow: 'hidden' }}>
       <Tabs
         activeKey={activeTab}
         onChange={setActiveTab}
@@ -389,97 +491,6 @@ const PaymentRequestsPage = () => {
         className="flex-tabs"
         renderTabBar={(props, DefaultTabBar) => (
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <Title level={2} style={{ margin: 0 }}>Заявки на оплату</Title>
-                <Button
-                  icon={<FilterOutlined />}
-                  onClick={() => setFiltersOpen(!filtersOpen)}
-                  type={filtersOpen ? 'primary' : 'default'}
-                />
-                {activeTab === 'all' && (
-                  <div
-                    style={{
-                      padding: '8px 16px',
-                      border: '1px solid #d9d9d9',
-                      borderRadius: '6px',
-                      backgroundColor: '#fafafa',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    <span style={{ color: '#8c8c8c', marginRight: 8 }}>РП на сумму:</span>
-                    <span style={{ fontWeight: 500, fontSize: '16px' }}>
-                      {totalInvoiceAmountAll.toLocaleString('ru-RU', {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2
-                      })} ₽
-                    </span>
-                    <span style={{ color: '#d9d9d9', margin: '0 12px' }}>|</span>
-                    <span style={{ color: '#8c8c8c', marginRight: 8 }}>Оплачено РП:</span>
-                    <span style={{ fontWeight: 500, fontSize: '16px' }}>
-                      {totalPaidAll.toLocaleString('ru-RU', {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2
-                      })} ₽
-                    </span>
-                  </div>
-                )}
-                {activeTab === 'pending' && userDeptInChain && (
-                  <>
-                    <div
-                      style={{
-                        padding: '8px 16px',
-                        border: '1px solid #d9d9d9',
-                        borderRadius: '6px',
-                        backgroundColor: '#fafafa',
-                        whiteSpace: 'nowrap'
-                      }}
-                    >
-                      <span style={{ color: '#8c8c8c', marginRight: 8 }}>Сумма счетов:</span>
-                      <span style={{ fontWeight: 500, fontSize: '16px' }}>
-                        {totalInvoiceAmount.toLocaleString('ru-RU', {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2
-                        })} ₽
-                      </span>
-                    </div>
-                    {isAdmin && (
-                      <div
-                        style={{
-                          padding: '8px 16px',
-                          border: '1px solid #d9d9d9',
-                          borderRadius: '6px',
-                          backgroundColor: '#fafafa',
-                          whiteSpace: 'nowrap'
-                        }}
-                      >
-                        <span style={{ color: '#8c8c8c', marginRight: 8 }}>Не назначено:</span>
-                        <span
-                          style={{
-                            fontWeight: 500,
-                            fontSize: '16px',
-                            color: unassignedOmtsCount > 0 ? '#faad14' : 'inherit'
-                          }}
-                        >
-                          {unassignedOmtsCount}
-                        </span>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                {isAdmin && (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Switch size="small" checked={showDeleted} onChange={setShowDeleted} />
-                    <span style={{ fontSize: 13, color: '#8c8c8c', whiteSpace: 'nowrap' }}>Удаленные</span>
-                  </span>
-                )}
-                <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsCreateOpen(true)}>
-                  Добавить
-                </Button>
-              </div>
-            </div>
             {filtersOpen && (
               <RequestFilters
                 counterparties={counterparties}
@@ -495,7 +506,16 @@ const PaymentRequestsPage = () => {
                 onReset={() => setFilters({})}
               />
             )}
-            <DefaultTabBar {...props} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <DefaultTabBar {...props} style={{ ...props.style, flex: 1, marginBottom: 0 }} />
+              <Button
+                icon={<FilterOutlined />}
+                onClick={() => setFiltersOpen(!filtersOpen)}
+                type={filtersOpen ? 'primary' : 'default'}
+                size="small"
+                style={{ flexShrink: 0 }}
+              />
+            </div>
           </div>
         )}
       />
