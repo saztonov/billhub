@@ -146,7 +146,7 @@ const CounterpartyRequestsView = ({
           statuses={statuses}
           suppliers={suppliers}
           hideCounterpartyFilter={true}
-          hideStatusFilter={false}
+          hideStatusFilter={activeTab !== 'all'}
           showResponsibleFilter={false}
           values={filters}
           onChange={onFiltersChange}

@@ -314,7 +314,6 @@ const PaymentRequestsPage = () => {
             omtsUsers={omtsUsers}
             onAssignResponsible={handleAssignResponsible}
             responsibleFilter={filters.responsibleFilter}
-            statusFilters={statusFilters}
           />
         </div>
       ),
@@ -338,7 +337,6 @@ const PaymentRequestsPage = () => {
           omtsUsers={omtsUsers}
           onAssignResponsible={handleAssignResponsible}
           responsibleFilter={filters.responsibleFilter}
-          statusFilters={statusFilters}
         />
       ),
     })
@@ -359,7 +357,6 @@ const PaymentRequestsPage = () => {
           omtsUsers={omtsUsers}
           onAssignResponsible={handleAssignResponsible}
           responsibleFilter={filters.responsibleFilter}
-          statusFilters={statusFilters}
         />
       ),
     },
@@ -377,7 +374,6 @@ const PaymentRequestsPage = () => {
           omtsUsers={omtsUsers}
           onAssignResponsible={handleAssignResponsible}
           responsibleFilter={filters.responsibleFilter}
-          statusFilters={statusFilters}
         />
       ),
     },
