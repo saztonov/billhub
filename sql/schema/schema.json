@@ -1415,6 +1415,15 @@
               "position": 11,
               "max_length": null,
               "numeric_precision": null
+            },
+            {
+              "name": "is_additional",
+              "type": "boolean",
+              "default": "false",
+              "nullable": false,
+              "position": 12,
+              "max_length": null,
+              "numeric_precision": null
             }
           ]
         },
@@ -3059,7 +3068,7 @@
           ]
         }
       ],
-      "generated_at": "2026-03-05T17:26:00.414959+00:00",
+      "generated_at": "2026-03-06T11:43:22.853329+00:00",
       "primary_keys": [
         {
           "columns": [
@@ -3806,6 +3815,21 @@
         },
         {
           "table_name": "payment_request_field_options",
+          "check_clause": "display_order IS NOT NULL",
+          "constraint_name": "2200_18952_5_not_null"
+        },
+        {
+          "table_name": "payment_request_field_options",
+          "check_clause": "is_active IS NOT NULL",
+          "constraint_name": "2200_18952_4_not_null"
+        },
+        {
+          "table_name": "payment_request_field_options",
+          "check_clause": "value IS NOT NULL",
+          "constraint_name": "2200_18952_3_not_null"
+        },
+        {
+          "table_name": "payment_request_field_options",
           "check_clause": "id IS NOT NULL",
           "constraint_name": "2200_18952_1_not_null"
         },
@@ -3815,29 +3839,19 @@
           "constraint_name": "2200_18952_2_not_null"
         },
         {
-          "table_name": "payment_request_field_options",
-          "check_clause": "value IS NOT NULL",
-          "constraint_name": "2200_18952_3_not_null"
-        },
-        {
-          "table_name": "payment_request_field_options",
-          "check_clause": "is_active IS NOT NULL",
-          "constraint_name": "2200_18952_4_not_null"
-        },
-        {
-          "table_name": "payment_request_field_options",
-          "check_clause": "display_order IS NOT NULL",
-          "constraint_name": "2200_18952_5_not_null"
-        },
-        {
-          "table_name": "payment_request_files",
-          "check_clause": "created_by IS NOT NULL",
-          "constraint_name": "2200_19001_8_not_null"
-        },
-        {
           "table_name": "payment_request_files",
           "check_clause": "created_at IS NOT NULL",
           "constraint_name": "2200_19001_9_not_null"
+        },
+        {
+          "table_name": "payment_request_files",
+          "check_clause": "is_additional IS NOT NULL",
+          "constraint_name": "2200_19001_12_not_null"
+        },
+        {
+          "table_name": "payment_request_files",
+          "check_clause": "id IS NOT NULL",
+          "constraint_name": "2200_19001_1_not_null"
         },
         {
           "table_name": "payment_request_files",
@@ -3861,18 +3875,13 @@
         },
         {
           "table_name": "payment_request_files",
+          "check_clause": "created_by IS NOT NULL",
+          "constraint_name": "2200_19001_8_not_null"
+        },
+        {
+          "table_name": "payment_request_logs",
           "check_clause": "id IS NOT NULL",
-          "constraint_name": "2200_19001_1_not_null"
-        },
-        {
-          "table_name": "payment_request_logs",
-          "check_clause": "action IS NOT NULL",
-          "constraint_name": "2200_20486_4_not_null"
-        },
-        {
-          "table_name": "payment_request_logs",
-          "check_clause": "user_id IS NOT NULL",
-          "constraint_name": "2200_20486_3_not_null"
+          "constraint_name": "2200_20486_1_not_null"
         },
         {
           "table_name": "payment_request_logs",
@@ -3881,8 +3890,13 @@
         },
         {
           "table_name": "payment_request_logs",
-          "check_clause": "id IS NOT NULL",
-          "constraint_name": "2200_20486_1_not_null"
+          "check_clause": "user_id IS NOT NULL",
+          "constraint_name": "2200_20486_3_not_null"
+        },
+        {
+          "table_name": "payment_request_logs",
+          "check_clause": "action IS NOT NULL",
+          "constraint_name": "2200_20486_4_not_null"
         },
         {
           "table_name": "payment_requests",

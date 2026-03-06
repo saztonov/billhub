@@ -315,7 +315,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   // Колонки таблицы файлов
   const fileColumns: Record<string, unknown>[] = [
     { title: '№', key: 'index', width: 50, render: (_: unknown, __: PaymentRequestFile, index: number) => index + 1 },
-    { title: 'Файл', dataIndex: 'fileName', key: 'fileName', width: hasResubmitFiles ? '40%' : '50%', ellipsis: true },
+    { title: 'Файл', dataIndex: 'fileName', key: 'fileName', width: hasAdditionalFiles ? '40%' : '50%', ellipsis: true },
     {
       title: 'Размер', key: 'fileSize', width: 100,
       render: (_: unknown, file: PaymentRequestFile) => (
