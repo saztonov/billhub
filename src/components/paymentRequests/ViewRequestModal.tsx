@@ -282,9 +282,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
     })
   }, [currentRequestFiles])
 
-  const hasResubmitFiles = (request?.resubmitCount ?? 0) > 0
-  const hasStaffFiles = sortedFiles.some((f) => f.uploaderRole === 'user' || f.uploaderRole === 'admin')
-  const hasCounterpartyFiles = sortedFiles.some((f) => f.uploaderRole === 'counterparty_user' && !f.isResubmit)
+  const hasAdditionalFiles = sortedFiles.some((f) => f.isAdditional || f.isResubmit)
 
   const handleResubmitSubmit = async () => {
     let formValues: { deliveryDays: number; deliveryDaysType: string; shippingConditionId: string; invoiceAmount: number }
@@ -333,14 +331,11 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
     },
   ]
 
-  if (hasResubmitFiles || hasStaffFiles || hasCounterpartyFiles) {
+  if (hasAdditionalFiles) {
     fileColumns.push({
       title: 'Догружен', key: 'resubmit', width: 180,
       render: (_: unknown, file: PaymentRequestFile) => {
-        if (file.isResubmit) {
-          const cpName = file.uploaderCounterpartyName
-          return <Tag color="blue">{cpName ? `Подрядчик (${cpName})` : 'Подрядчик'}</Tag>
-        }
+        if (!file.isAdditional && !file.isResubmit) return null
         if (file.uploaderRole === 'counterparty_user') {
           const cpName = file.uploaderCounterpartyName
           return <Tag color="blue">{cpName ? `Подрядчик (${cpName})` : 'Подрядчик'}</Tag>

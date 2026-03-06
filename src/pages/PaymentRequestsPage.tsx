@@ -84,6 +84,7 @@ const PaymentRequestsPage = () => {
                 file: f.file,
                 documentTypeId: f.documentTypeId!,
                 pageCount: f.pageCount,
+                isAdditional: true,
               })),
               userId: user.id,
             })

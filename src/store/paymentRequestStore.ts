@@ -348,6 +348,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
             createdBy: row.created_by as string,
             createdAt: row.created_at as string,
             isResubmit: (row.is_resubmit as boolean) ?? false,
+            isAdditional: (row.is_additional as boolean) ?? false,
             documentTypeName: dt?.name as string | undefined,
             uploaderRole: uploader?.role as string | undefined,
             uploaderDepartment: uploader?.department_id as string | null | undefined,

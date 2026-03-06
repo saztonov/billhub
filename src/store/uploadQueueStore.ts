@@ -9,6 +9,7 @@ interface FileToUpload {
   documentTypeId?: string
   pageCount?: number | null
   isResubmit?: boolean
+  isAdditional?: boolean
 }
 
 export interface UploadTask {
@@ -146,6 +147,7 @@ async function processQueue(
                 page_count: fileData.pageCount ?? null,
                 created_by: task.userId,
                 is_resubmit: fileData.isResubmit ?? false,
+                is_additional: fileData.isAdditional ?? false,
               })
             if (fileError) throw fileError
 

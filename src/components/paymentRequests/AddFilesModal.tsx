@@ -51,6 +51,7 @@ const AddFilesModal = ({ open, onClose, requestId, requestNumber, counterpartyNa
         documentTypeId: f.documentTypeId!,
         pageCount: f.pageCount,
         isResubmit: false,
+        isAdditional: true,
       })),
       userId: user.id,
     })

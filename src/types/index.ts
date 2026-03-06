@@ -209,6 +209,7 @@ export interface PaymentRequestFile {
   createdBy: string
   createdAt: string
   isResubmit: boolean
+  isAdditional: boolean
   // Joined
   documentTypeName?: string
   uploaderRole?: string
