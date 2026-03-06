@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Modal, Form, Input, DatePicker, Upload, Button, App } from 'antd'
 import { UploadOutlined } from '@ant-design/icons'
 import type { UploadFile } from 'antd/es/upload'
@@ -7,20 +7,41 @@ import { uploadRequestFile } from '@/services/s3'
 import { usePaymentRequestStore } from '@/store/paymentRequestStore'
 import { logError } from '@/services/errorLogger'
 
+interface DpInitialData {
+  dpNumber: string
+  dpDate: string
+  dpAmount: number
+  dpFileKey: string
+  dpFileName: string
+}
+
 interface DpFillModalProps {
   open: boolean
   onClose: () => void
   requestId: string
   requestNumber: string
   counterpartyName: string
+  initialData?: DpInitialData | null
 }
 
-const DpFillModal = ({ open, onClose, requestId, requestNumber, counterpartyName }: DpFillModalProps) => {
+const DpFillModal = ({ open, onClose, requestId, requestNumber, counterpartyName, initialData }: DpFillModalProps) => {
   const { message } = App.useApp()
   const updateDpData = usePaymentRequestStore((s) => s.updateDpData)
   const [form] = Form.useForm()
   const [fileList, setFileList] = useState<UploadFile[]>([])
   const [submitting, setSubmitting] = useState(false)
+  const isEditMode = !!initialData
+
+  // Предзаполнение формы при редактировании
+  useEffect(() => {
+    if (open && initialData) {
+      form.setFieldsValue({
+        dpNumber: initialData.dpNumber,
+        dpDate: dayjs(initialData.dpDate),
+        dpAmount: initialData.dpAmount.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 }),
+      })
+    }
+  }, [open, initialData, form])
 
   const handleOk = async () => {
     let values: { dpNumber: string; dpDate: dayjs.Dayjs; dpAmount: string }
@@ -30,15 +51,22 @@ const DpFillModal = ({ open, onClose, requestId, requestNumber, counterpartyName
       return
     }
 
-    if (fileList.length === 0) {
+    if (fileList.length === 0 && !isEditMode) {
       message.error('Прикрепите файл РП')
       return
     }
 
     setSubmitting(true)
     try {
-      const file = fileList[0].originFileObj as File
-      const { key } = await uploadRequestFile(counterpartyName, requestNumber, file)
+      let fileKey = initialData?.dpFileKey ?? ''
+      let fileName = initialData?.dpFileName ?? ''
+
+      if (fileList.length > 0 && fileList[0].originFileObj) {
+        const file = fileList[0].originFileObj as File
+        const result = await uploadRequestFile(counterpartyName, requestNumber, file)
+        fileKey = result.key
+        fileName = file.name
+      }
 
       const amount = Number(String(values.dpAmount).replace(/\s/g, '').replace(',', '.'))
 
@@ -46,8 +74,8 @@ const DpFillModal = ({ open, onClose, requestId, requestNumber, counterpartyName
         dpNumber: values.dpNumber,
         dpDate: values.dpDate.format('YYYY-MM-DD'),
         dpAmount: amount,
-        dpFileKey: key,
-        dpFileName: file.name,
+        dpFileKey: fileKey,
+        dpFileName: fileName,
       })
 
       message.success('Данные РП сохранены')
@@ -88,7 +116,7 @@ const DpFillModal = ({ open, onClose, requestId, requestNumber, counterpartyName
 
   return (
     <Modal
-      title="Заполнить данные РП"
+      title={isEditMode ? 'Редактировать данные РП' : 'Заполнить данные РП'}
       open={open}
       onOk={handleOk}
       onCancel={handleCancel}

@@ -81,7 +81,7 @@ interface ViewRequestModalProps {
 
 const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, canEdit, onEdit, canApprove, onApprove, onReject }: ViewRequestModalProps) => {
   const { message } = App.useApp()
-  const { currentRequestFiles, fetchRequestFiles, fetchRequests, isLoading, isSubmitting, toggleFileRejection } = usePaymentRequestStore()
+  const { requests, currentRequestFiles, fetchRequestFiles, fetchRequests, isLoading, isSubmitting, toggleFileRejection } = usePaymentRequestStore()
   const { payments, fetchPayments } = usePaymentPaymentStore()
   const { currentDecisions, currentLogs, fetchDecisions, fetchLogs, clearCurrentData, sendToRevision } = useApprovalStore()
   const omtsRpResponsibleUserId = useOmtsRpStore((s) => s.responsibleUserId)
@@ -168,6 +168,12 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   // Сумма оплат и права на управление оплатами
   const paymentsTotalPaid = useMemo(() => payments.filter(p => p.isExecuted).reduce((sum, p) => sum + p.amount, 0), [payments])
   const canManagePayments = user?.role === 'admin' || user?.department === 'shtab' || user?.department === 'omts'
+
+  // Актуальные данные заявки из store (для обновления после сохранения РП)
+  const actualRequest = useMemo(() => {
+    if (!request) return null
+    return requests.find((r) => r.id === request.id) ?? request
+  }, [request, requests])
 
   const shippingOptions = getOptionsByField('shipping_conditions')
   const siteOptions = sites.filter((s) => s.isActive).map((s) => ({ label: s.name, value: s.id }))
@@ -581,15 +587,25 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
             </Descriptions.Item>
             <Descriptions.Item label="Дата создания">{formatDate(request.createdAt, !isCounterpartyUser)}</Descriptions.Item>
             <Descriptions.Item label="РП">
-              {request.dpNumber ? (
+              {actualRequest?.dpNumber ? (
                 <Space size={4}>
                   <span>
-                    №{request.dpNumber} от {request.dpDate ? new Date(request.dpDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }) : '—'}
-                    {request.dpAmount != null && `, ${request.dpAmount.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`}
+                    №{actualRequest.dpNumber} от {actualRequest.dpDate ? new Date(actualRequest.dpDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }) : '—'}
+                    {actualRequest.dpAmount != null && `, ${actualRequest.dpAmount.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`}
                   </span>
-                  {request.dpFileKey && (
-                    <Tooltip title="Скачать файл РП">
-                      <Button icon={<DownloadOutlined />} size="small" loading={downloading === request.dpFileKey} onClick={() => handleDownload(request.dpFileKey!, request.dpFileName ?? 'rp-file')} />
+                  {actualRequest.dpFileKey && (
+                    <>
+                      <Tooltip title="Просмотр файла РП">
+                        <Button icon={<EyeOutlined />} size="small" onClick={() => setPreviewFile({ fileKey: actualRequest.dpFileKey!, fileName: actualRequest.dpFileName ?? 'rp-file', mimeType: null })} />
+                      </Tooltip>
+                      <Tooltip title="Скачать файл РП">
+                        <Button icon={<DownloadOutlined />} size="small" loading={downloading === actualRequest.dpFileKey} onClick={() => handleDownload(actualRequest.dpFileKey!, actualRequest.dpFileName ?? 'rp-file')} />
+                      </Tooltip>
+                    </>
+                  )}
+                  {!isCounterpartyUser && (
+                    <Tooltip title="Редактировать РП">
+                      <Button icon={<EditOutlined />} size="small" onClick={() => setDpModalOpen(true)} />
                     </Tooltip>
                   )}
                 </Space>
@@ -736,6 +752,13 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
         requestId={request.id}
         requestNumber={request.requestNumber}
         counterpartyName={request.counterpartyName ?? ''}
+        initialData={actualRequest?.dpNumber ? {
+          dpNumber: actualRequest.dpNumber,
+          dpDate: actualRequest.dpDate!,
+          dpAmount: actualRequest.dpAmount!,
+          dpFileKey: actualRequest.dpFileKey!,
+          dpFileName: actualRequest.dpFileName!,
+        } : null}
       />
 
       <RejectModal
