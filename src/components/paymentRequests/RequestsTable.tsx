@@ -386,7 +386,7 @@ const RequestsTable = (props: RequestsTableProps) => {
         }}
         onCancel={() => setWithdrawModalId(null)}
       />
-    </>
+    </div>
   )
 }
 
