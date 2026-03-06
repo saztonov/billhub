@@ -18,3 +18,8 @@ body {
 .deactivated-row {
   opacity: 0.5;
 }
+
+/* Отклонённые файлы */
+.file-rejected-row td {
+  background-color: #f5f5f5 !important;
+}

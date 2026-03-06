@@ -27,6 +27,8 @@ import {
   CheckOutlined,
   StopOutlined,
   PlusOutlined,
+  CloseCircleOutlined,
+  CheckCircleOutlined,
 } from '@ant-design/icons'
 import { usePaymentRequestStore } from '@/store/paymentRequestStore'
 import { usePaymentPaymentStore } from '@/store/paymentPaymentStore'
@@ -78,7 +80,7 @@ interface ViewRequestModalProps {
 
 const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, canEdit, onEdit, canApprove, onApprove, onReject }: ViewRequestModalProps) => {
   const { message } = App.useApp()
-  const { currentRequestFiles, fetchRequestFiles, fetchRequests, isLoading, isSubmitting } = usePaymentRequestStore()
+  const { currentRequestFiles, fetchRequestFiles, fetchRequests, isLoading, isSubmitting, toggleFileRejection } = usePaymentRequestStore()
   const { payments, fetchPayments } = usePaymentPaymentStore()
   const { currentDecisions, currentLogs, fetchDecisions, fetchLogs, clearCurrentData, sendToRevision } = useApprovalStore()
   const omtsRpResponsibleUserId = useOmtsRpStore((s) => s.responsibleUserId)
@@ -315,7 +317,12 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   // Колонки таблицы файлов
   const fileColumns: Record<string, unknown>[] = [
     { title: '№', key: 'index', width: 50, render: (_: unknown, __: PaymentRequestFile, index: number) => index + 1 },
-    { title: 'Файл', dataIndex: 'fileName', key: 'fileName', width: hasAdditionalFiles ? '40%' : '50%', ellipsis: true },
+    {
+      title: 'Файл', dataIndex: 'fileName', key: 'fileName', width: hasAdditionalFiles ? '40%' : '50%', ellipsis: true,
+      render: (_: unknown, file: PaymentRequestFile) => (
+        <span style={file.isRejected ? { textDecoration: 'line-through', color: '#999' } : undefined}>{file.fileName}</span>
+      ),
+    },
     {
       title: 'Размер', key: 'fileSize', width: 100,
       render: (_: unknown, file: PaymentRequestFile) => (
@@ -351,9 +358,19 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   }
 
   fileColumns.push({
-    title: '', key: 'actions', width: 80,
+    title: '', key: 'actions', width: canApprove ? 120 : 80,
     render: (_: unknown, file: PaymentRequestFile) => (
       <Space size={4}>
+        {canApprove && (
+          <Tooltip title={file.isRejected ? 'Подтвердить' : 'Отклонить'}>
+            <Button
+              icon={file.isRejected ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
+              size="small"
+              style={file.isRejected ? { color: '#52c41a', borderColor: '#52c41a' } : { color: '#ff4d4f', borderColor: '#ff4d4f' }}
+              onClick={() => user && toggleFileRejection(file.id, user.id)}
+            />
+          </Tooltip>
+        )}
         <Tooltip title="Просмотр">
           <Button icon={<EyeOutlined />} size="small" onClick={() => setPreviewFile(file)} />
         </Tooltip>
@@ -423,7 +440,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       <Space>
         {canEdit && !isCounterpartyUser && <Button icon={<EditOutlined />} onClick={startEditing}>Редактировать</Button>}
         {canApprove && (
-          <Popconfirm title="Согласование заявки" description="Подтвердите согласование заявки" onConfirm={() => onApprove?.(request.id, '')} okText="Согласовать" cancelText="Отмена">
+          <Popconfirm title="Согласование заявки" description="Подтвердите корректность всех файлов и условий" onConfirm={() => onApprove?.(request.id, '')} okText="Согласовать" cancelText="Отмена">
             <Button type="primary" icon={<CheckOutlined />}>Согласовать</Button>
           </Popconfirm>
         )}
@@ -630,7 +647,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
               </Space>
             ),
             children: (
-              <Table size="small" columns={fileColumns as any} dataSource={sortedFiles} rowKey="id" loading={isLoading} pagination={false} locale={{ emptyText: 'Нет файлов' }} />
+              <Table size="small" columns={fileColumns as any} dataSource={sortedFiles} rowKey="id" loading={isLoading} pagination={false} locale={{ emptyText: 'Нет файлов' }} rowClassName={(record: PaymentRequestFile) => record.isRejected ? 'file-rejected-row' : ''} />
             ),
           }]}
         />

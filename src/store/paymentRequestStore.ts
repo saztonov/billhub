@@ -60,6 +60,7 @@ interface PaymentRequestStoreState {
     userId: string,
     newFilesCount?: number,
   ) => Promise<void>
+  toggleFileRejection: (fileId: string, userId: string) => Promise<void>
 }
 
 export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get) => ({
@@ -349,6 +350,9 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
             createdAt: row.created_at as string,
             isResubmit: (row.is_resubmit as boolean) ?? false,
             isAdditional: (row.is_additional as boolean) ?? false,
+            isRejected: (row.is_rejected as boolean) ?? false,
+            rejectedBy: row.rejected_by as string | null,
+            rejectedAt: row.rejected_at as string | null,
             documentTypeName: dt?.name as string | undefined,
             uploaderRole: uploader?.role as string | undefined,
             uploaderDepartment: uploader?.department_id as string | null | undefined,
@@ -555,5 +559,34 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
       set({ error: message, isSubmitting: false })
       throw err
     }
+  },
+
+  toggleFileRejection: async (fileId, userId) => {
+    const files = get().currentRequestFiles
+    const file = files.find((f) => f.id === fileId)
+    if (!file) return
+
+    const newRejected = !file.isRejected
+    const updateData = newRejected
+      ? { is_rejected: true, rejected_by: userId, rejected_at: new Date().toISOString() }
+      : { is_rejected: false, rejected_by: null, rejected_at: null }
+
+    const { error } = await supabase
+      .from('payment_request_files')
+      .update(updateData)
+      .eq('id', fileId)
+
+    if (error) {
+      logError({ errorType: 'api_error', errorMessage: error.message, errorStack: null, metadata: { action: 'toggleFileRejection', fileId } })
+      return
+    }
+
+    set({
+      currentRequestFiles: files.map((f) =>
+        f.id === fileId
+          ? { ...f, isRejected: newRejected, rejectedBy: newRejected ? userId : null, rejectedAt: newRejected ? updateData.rejected_at as string : null }
+          : f,
+      ),
+    })
   },
 }))

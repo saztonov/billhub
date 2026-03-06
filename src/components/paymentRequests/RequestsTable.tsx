@@ -256,7 +256,7 @@ const RequestsTable = (props: RequestsTableProps) => {
         {showApprovalActions && (
           <>
             <Tooltip title="Согласовать">
-              <Popconfirm title="Согласование заявки" description="Подтвердите согласование заявки" onConfirm={() => onApprove?.(record.id, '')} okText="Согласовать" cancelText="Отмена">
+              <Popconfirm title="Согласование заявки" description="Подтвердите корректность всех файлов и условий" onConfirm={() => onApprove?.(record.id, '')} okText="Согласовать" cancelText="Отмена">
                 <Button type="primary" icon={<CheckOutlined />} size="small" />
               </Popconfirm>
             </Tooltip>
