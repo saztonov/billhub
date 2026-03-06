@@ -25,7 +25,29 @@ const PaymentRequestsPage = () => {
   const [viewRecord, setViewRecord] = useState<PaymentRequest | null>(null)
   const [resubmitRecord, setResubmitRecord] = useState<PaymentRequest | null>(null)
   const [activeTab, setActiveTab] = useState('all')
-  const [filters, setFilters] = useState<FilterValues>({})
+  const [filters, setFiltersState] = useState<FilterValues>(() => {
+    const initial: FilterValues = {}
+    try {
+      const savedMyRequests = localStorage.getItem('billhub_my_requests_filter')
+      if (savedMyRequests) initial.myRequestsFilter = savedMyRequests as FilterValues['myRequestsFilter']
+      const savedResponsible = localStorage.getItem('billhub_responsible_filter')
+      if (savedResponsible) initial.responsibleFilter = savedResponsible as FilterValues['responsibleFilter']
+    } catch { /* ignore */ }
+    return initial
+  })
+
+  const setFilters = useCallback((val: FilterValues | ((prev: FilterValues) => FilterValues)) => {
+    setFiltersState((prev) => {
+      const next = typeof val === 'function' ? val(prev) : val
+      try {
+        if (next.myRequestsFilter) localStorage.setItem('billhub_my_requests_filter', next.myRequestsFilter)
+        else localStorage.removeItem('billhub_my_requests_filter')
+        if (next.responsibleFilter) localStorage.setItem('billhub_responsible_filter', next.responsibleFilter)
+        else localStorage.removeItem('billhub_responsible_filter')
+      } catch { /* ignore */ }
+      return next
+    })
+  }, [])
   const [filtersOpen, setFiltersOpen] = useState(true)
   const [adminSelectedStage, setAdminSelectedStage] = useState<Department>('omts')
   const [refreshTrigger, setRefreshTrigger] = useState(0)

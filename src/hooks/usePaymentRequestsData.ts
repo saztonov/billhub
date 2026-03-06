@@ -35,7 +35,7 @@ interface UsePaymentRequestsDataParams {
   refreshTrigger: number
   adminSelectedStage: Department
   showDeleted: boolean
-  setFilters: (filters: FilterValues) => void
+  setFilters: (filters: FilterValues | ((prev: FilterValues) => FilterValues)) => void
 }
 
 /**
@@ -109,12 +109,12 @@ export function usePaymentRequestsData({
     return [userSiteIds, userAllSites]
   }, [isUser, userSiteIds, userAllSites])
 
-  // Устанавливаем фильтры по умолчанию в зависимости от роли
+  // Устанавливаем фильтры по умолчанию в зависимости от роли (если не восстановлены из localStorage)
   useEffect(() => {
     if (isAdmin) {
-      setFilters({ responsibleFilter: 'unassigned' })
+      setFilters((prev: FilterValues) => prev.responsibleFilter ? prev : { ...prev, responsibleFilter: 'unassigned' })
     } else if (isOmtsUser) {
-      setFilters({ myRequestsFilter: 'assigned_to_me' })
+      setFilters((prev: FilterValues) => prev.myRequestsFilter ? prev : { ...prev, myRequestsFilter: 'assigned_to_me' })
     }
   }, [isAdmin, isOmtsUser, setFilters])
 
