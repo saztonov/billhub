@@ -59,7 +59,7 @@ const PaymentRequestsPage = () => {
     userDeptInChain, totalStages,
     requests, pendingRequests, approvedRequests, rejectedRequests, omtsRpPendingRequests,
     isLoading, approvalLoading,
-    counterparties, sites, omtsUsers, uploadTasks,
+    counterparties, sites, statuses, suppliers, omtsUsers, uploadTasks,
     siteFilterParams, canEditRequest,
     fetchRequests, fetchCounterparties, fetchPendingRequests, fetchOmtsRpPendingRequests,
     approveRequest, rejectRequest,
@@ -223,6 +223,8 @@ const PaymentRequestsPage = () => {
           filteredRejected={filteredCounterpartyRejected}
           isLoading={isLoading}
           sites={sites}
+          statuses={statuses}
+          suppliers={suppliers}
           filters={filters}
           onFiltersChange={setFilters}
           filtersOpen={filtersOpen}
@@ -257,6 +259,8 @@ const PaymentRequestsPage = () => {
   }
 
   // --- Admin/User UI ---
+  const statusFilters = statuses.map((s) => ({ text: s.name, value: s.id }))
+
   const tabItems = [
     {
       key: 'all',
@@ -274,6 +278,7 @@ const PaymentRequestsPage = () => {
           omtsUsers={omtsUsers}
           onAssignResponsible={handleAssignResponsible}
           responsibleFilter={filters.responsibleFilter}
+          statusFilters={statusFilters}
         />
       ),
     },
@@ -309,6 +314,7 @@ const PaymentRequestsPage = () => {
             omtsUsers={omtsUsers}
             onAssignResponsible={handleAssignResponsible}
             responsibleFilter={filters.responsibleFilter}
+            statusFilters={statusFilters}
           />
         </div>
       ),
@@ -332,6 +338,7 @@ const PaymentRequestsPage = () => {
           omtsUsers={omtsUsers}
           onAssignResponsible={handleAssignResponsible}
           responsibleFilter={filters.responsibleFilter}
+          statusFilters={statusFilters}
         />
       ),
     })
@@ -352,6 +359,7 @@ const PaymentRequestsPage = () => {
           omtsUsers={omtsUsers}
           onAssignResponsible={handleAssignResponsible}
           responsibleFilter={filters.responsibleFilter}
+          statusFilters={statusFilters}
         />
       ),
     },
@@ -369,6 +377,7 @@ const PaymentRequestsPage = () => {
           omtsUsers={omtsUsers}
           onAssignResponsible={handleAssignResponsible}
           responsibleFilter={filters.responsibleFilter}
+          statusFilters={statusFilters}
         />
       ),
     },
@@ -471,6 +480,7 @@ const PaymentRequestsPage = () => {
         <RequestFilters
           counterparties={counterparties}
           sites={sites}
+          suppliers={suppliers}
           hideCounterpartyFilter={false}
           hideStatusFilter={true}
           showResponsibleFilter={isAdmin}

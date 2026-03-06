@@ -7,6 +7,7 @@ import { useConstructionSiteStore } from '@/store/constructionSiteStore'
 import { useStatusStore } from '@/store/statusStore'
 import { useAssignmentStore } from '@/store/assignmentStore'
 import { useOmtsRpStore } from '@/store/omtsRpStore'
+import { useSupplierStore } from '@/store/supplierStore'
 import { useUploadQueueStore } from '@/store/uploadQueueStore'
 import { supabase } from '@/services/supabase'
 import type { PaymentRequest, Department } from '@/types'
@@ -72,7 +73,8 @@ export function usePaymentRequestsData({
 
   const { counterparties, fetchCounterparties } = useCounterpartyStore()
   const { sites, fetchSites } = useConstructionSiteStore()
-  const { fetchStatuses } = useStatusStore()
+  const { statuses, fetchStatuses } = useStatusStore()
+  const { suppliers, fetchSuppliers } = useSupplierStore()
   const { omtsUsers, fetchOmtsUsers, assignResponsible } = useAssignmentStore()
   const { fetchSites: fetchOmtsRpSites, fetchConfig: fetchOmtsRpConfig, responsibleUserId: omtsRpResponsibleUserId } = useOmtsRpStore()
   const isOmtsRpUser = !!user?.id && user.id === omtsRpResponsibleUserId
@@ -193,14 +195,13 @@ export function usePaymentRequestsData({
 
   // Загружаем справочники для фильтров
   useEffect(() => {
+    fetchSites()
+    fetchSuppliers()
+    fetchStatuses('payment_request')
     if (!isCounterpartyUser) {
       fetchCounterparties()
-      fetchSites()
-      fetchStatuses('payment_request')
-    } else {
-      fetchSites()
     }
-  }, [isCounterpartyUser, fetchCounterparties, fetchSites, fetchStatuses])
+  }, [isCounterpartyUser, fetchCounterparties, fetchSites, fetchStatuses, fetchSuppliers])
 
   // Загружаем список ОМТС для назначения + данные ОМТС РП
   useEffect(() => {
@@ -242,6 +243,8 @@ export function usePaymentRequestsData({
     approvalLoading,
     counterparties,
     sites,
+    statuses,
+    suppliers,
     omtsUsers,
     uploadTasks,
     // Функции

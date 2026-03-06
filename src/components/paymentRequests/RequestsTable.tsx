@@ -52,6 +52,7 @@ export interface RequestsTableProps {
   omtsUsers?: { id: string; fullName: string }[]
   onAssignResponsible?: (requestId: string, userId: string) => void
   responsibleFilter?: 'assigned' | 'unassigned' | null
+  statusFilters?: { text: string; value: string }[]
 }
 
 const RequestsTable = (props: RequestsTableProps) => {
@@ -62,6 +63,7 @@ const RequestsTable = (props: RequestsTableProps) => {
     showApprovalActions, onApprove, onReject, showApprovedDate, showRejectedDate,
     totalStages, showDepartmentFilter, rejectionDepartments, onResubmit,
     showResponsibleColumn, canAssignResponsible, omtsUsers, onAssignResponsible, responsibleFilter,
+    statusFilters,
   } = props
 
   const [rejectModalId, setRejectModalId] = useState<string | null>(null)
@@ -102,6 +104,8 @@ const RequestsTable = (props: RequestsTableProps) => {
     {
       title: 'Статус', key: 'status', width: 150,
       sorter: (a: PaymentRequest, b: PaymentRequest) => (a.statusName || '').localeCompare(b.statusName || '', 'ru'),
+      filters: statusFilters,
+      onFilter: (value: unknown, record: PaymentRequest) => record.statusId === value,
       render: (_: unknown, record: PaymentRequest) => <Tag color={record.statusColor ?? 'default'}>{record.statusName}</Tag>,
     },
     {

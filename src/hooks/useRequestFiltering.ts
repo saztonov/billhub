@@ -40,6 +40,9 @@ export function useRequestFiltering({
     if (filters.statusId) {
       filtered = filtered.filter(r => r.statusId === filters.statusId)
     }
+    if (filters.supplierId) {
+      filtered = filtered.filter(r => r.supplierId === filters.supplierId)
+    }
     if (filters.requestNumber) {
       filtered = filtered.filter(r =>
         r.requestNumber.toLowerCase().includes(filters.requestNumber!.toLowerCase())
@@ -86,6 +89,12 @@ export function useRequestFiltering({
     let filtered = items
     if (filters.siteId) {
       filtered = filtered.filter(r => r.siteId === filters.siteId)
+    }
+    if (filters.supplierId) {
+      filtered = filtered.filter(r => r.supplierId === filters.supplierId)
+    }
+    if (filters.statusId) {
+      filtered = filtered.filter(r => r.statusId === filters.statusId)
     }
     if (filters.requestNumber) {
       filtered = filtered.filter(r =>

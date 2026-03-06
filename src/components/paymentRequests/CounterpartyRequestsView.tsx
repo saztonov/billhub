@@ -3,7 +3,7 @@ import { PlusOutlined, FilterOutlined } from '@ant-design/icons'
 import RequestsTable from './RequestsTable'
 import RequestFilters from './RequestFilters'
 import type { FilterValues } from './RequestFilters'
-import type { PaymentRequest, ConstructionSite } from '@/types'
+import type { PaymentRequest, ConstructionSite, Status, Supplier } from '@/types'
 import type { UploadTask } from '@/store/uploadQueueStore'
 
 const { Title } = Typography
@@ -15,6 +15,8 @@ interface CounterpartyRequestsViewProps {
   filteredRejected: PaymentRequest[]
   isLoading: boolean
   sites: ConstructionSite[]
+  statuses: Status[]
+  suppliers: Supplier[]
   filters: FilterValues
   onFiltersChange: (filters: FilterValues) => void
   filtersOpen: boolean
@@ -38,6 +40,8 @@ const CounterpartyRequestsView = ({
   filteredRejected,
   isLoading,
   sites,
+  statuses,
+  suppliers,
   filters,
   onFiltersChange,
   filtersOpen,
@@ -139,8 +143,10 @@ const CounterpartyRequestsView = ({
       {filtersOpen && (
         <RequestFilters
           sites={sites}
+          statuses={statuses}
+          suppliers={suppliers}
           hideCounterpartyFilter={true}
-          hideStatusFilter={true}
+          hideStatusFilter={false}
           showResponsibleFilter={false}
           values={filters}
           onChange={onFiltersChange}

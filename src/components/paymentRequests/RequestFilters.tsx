@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { Form, Select, Input, InputNumber, Space, Button, DatePicker } from 'antd'
-import type { Counterparty, ConstructionSite, Status } from '@/types'
+import type { Counterparty, ConstructionSite, Status, Supplier } from '@/types'
 import type { OmtsUser } from '@/store/assignmentStore'
 import dayjs from 'dayjs'
 
@@ -16,6 +16,7 @@ export interface FilterValues {
   responsibleFilter?: 'assigned' | 'unassigned' | null
   responsibleUserId?: string
   myRequestsFilter?: 'all' | 'assigned_to_me'
+  supplierId?: string
   amountOperator?: '>=' | '<=' | '='
   amountValue?: number
 }
@@ -24,6 +25,7 @@ interface RequestFiltersProps {
   counterparties?: Counterparty[]
   sites?: ConstructionSite[]
   statuses?: Status[]
+  suppliers?: Supplier[]
   hideCounterpartyFilter?: boolean
   hideStatusFilter?: boolean
   showResponsibleFilter?: boolean
@@ -39,6 +41,7 @@ const RequestFilters = (props: RequestFiltersProps) => {
     counterparties,
     sites,
     statuses,
+    suppliers,
     hideCounterpartyFilter,
     hideStatusFilter,
     showResponsibleFilter,
@@ -127,6 +130,19 @@ const RequestFilters = (props: RequestFiltersProps) => {
               showSearch
               optionFilterProp="label"
               options={sites?.map((s) => ({
+                label: s.name,
+                value: s.id,
+              }))}
+            />
+          </Form.Item>
+
+          <Form.Item label="Поставщик" name="supplierId" style={{ marginBottom: 0, width: 170 }}>
+            <Select
+              placeholder="Все"
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              options={suppliers?.map((s) => ({
                 label: s.name,
                 value: s.id,
               }))}
