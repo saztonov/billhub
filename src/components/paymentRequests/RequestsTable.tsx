@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useRef, useEffect, useCallback } from 'react'
 import {
   Table,
   Tag,
@@ -8,6 +8,7 @@ import {
   Popconfirm,
   Select,
   Progress,
+  Pagination,
   App,
 } from 'antd'
 import {
@@ -23,7 +24,6 @@ import {
 import RejectModal from './RejectModal'
 import WithdrawModal from './WithdrawModal'
 import { formatDateShort, extractRequestNumber, calculateDays } from '@/utils/requestFormatters'
-import { useStickyOffset, getScrollContainer } from '@/hooks/useStickyOffset'
 import type { PaymentRequest } from '@/types'
 
 export interface RequestsTableProps {
@@ -286,18 +286,66 @@ const RequestsTable = (props: RequestsTableProps) => {
     ),
   })
 
-  const stickyOffset = useStickyOffset()
+  const containerRef = useRef<HTMLDivElement>(null)
+  const paginationRef = useRef<HTMLDivElement>(null)
+  const [scrollY, setScrollY] = useState<number | undefined>(undefined)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+
+  const calculateScrollY = useCallback(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const containerHeight = container.clientHeight
+    // Измеряем высоту заголовка таблицы
+    const thead = container.querySelector('.ant-table-thead')
+    const theadHeight = thead ? thead.getBoundingClientRect().height : 55
+    // Измеряем высоту пагинации
+    const paginationEl = paginationRef.current
+    const paginationHeight = paginationEl ? paginationEl.offsetHeight : 0
+    // Учитываем border таблицы (1px top + 1px bottom) и wrapper padding
+    const borders = 2
+    const newScrollY = containerHeight - theadHeight - paginationHeight - borders
+    setScrollY(newScrollY > 100 ? newScrollY : 100)
+  }, [])
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    const observer = new ResizeObserver(() => {
+      calculateScrollY()
+    })
+    observer.observe(container)
+    calculateScrollY()
+    return () => observer.disconnect()
+  }, [calculateScrollY])
+
+  // Пересчёт при изменении данных (появляется/скрывается thead)
+  useEffect(() => {
+    // Даём время отрисоваться таблице
+    const timer = setTimeout(calculateScrollY, 50)
+    return () => clearTimeout(timer)
+  }, [filteredRequests.length, calculateScrollY])
+
+  // Сброс страницы при смене данных
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [filteredRequests.length])
+
+  const paginatedData = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return filteredRequests.slice(start, start + pageSize)
+  }, [filteredRequests, currentPage, pageSize])
 
   return (
-    <>
+    <div ref={containerRef} style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <Table
         columns={columns as any}
-        dataSource={filteredRequests}
+        dataSource={paginatedData}
         rowKey="id"
         loading={isLoading}
-        scroll={{ x: 1200 }}
-        sticky={{ offsetHeader: stickyOffset, getContainer: getScrollContainer }}
-        pagination={{ showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100], defaultPageSize: 20 }}
+        scroll={{ x: 1200, y: scrollY }}
+        pagination={false}
         rowClassName={(record: PaymentRequest) => {
           const classes: string[] = []
           if (uploadTasks?.[record.id]?.status === 'error') classes.push('row-upload-error')
@@ -305,6 +353,20 @@ const RequestsTable = (props: RequestsTableProps) => {
           return classes.join(' ')
         }}
       />
+      <div ref={paginationRef} style={{ display: 'flex', justifyContent: 'flex-end', padding: '12px 0', flexShrink: 0 }}>
+        <Pagination
+          current={currentPage}
+          pageSize={pageSize}
+          total={filteredRequests.length}
+          showSizeChanger
+          pageSizeOptions={[10, 20, 50, 100]}
+          onChange={(page, size) => {
+            setCurrentPage(page)
+            setPageSize(size)
+          }}
+          showTotal={(total) => `${total} / стр.`}
+        />
+      </div>
       <style>{`.row-upload-error td { background-color: #fff1f0 !important; } .row-deleted td { opacity: 0.45; }`}</style>
 
       <RejectModal

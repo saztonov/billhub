@@ -1,6 +1,5 @@
 import { Typography, Button, Tabs } from 'antd'
 import { PlusOutlined, FilterOutlined } from '@ant-design/icons'
-import { StickyOffsetContext, useStickyHeaderRef } from '@/hooks/useStickyOffset'
 import RequestsTable from './RequestsTable'
 import RequestFilters from './RequestFilters'
 import type { FilterValues } from './RequestFilters'
@@ -57,8 +56,6 @@ const CounterpartyRequestsView = ({
   uploadTasks,
   totalStages,
 }: CounterpartyRequestsViewProps) => {
-  const { stickyRef, stickyOffset } = useStickyHeaderRef()
-
   const tabItems = [
     {
       key: 'all',
@@ -129,14 +126,15 @@ const CounterpartyRequestsView = ({
   ]
 
   return (
-    <StickyOffsetContext.Provider value={stickyOffset}>
-    <Tabs
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+      <Tabs
       activeKey={activeTab}
       onChange={onTabChange}
       onTabClick={onTabClick}
       items={tabItems}
+      className="flex-tabs"
       renderTabBar={(props, DefaultTabBar) => (
-        <div ref={stickyRef} className="sticky-page-header">
+        <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <Title level={2} style={{ margin: 0 }}>Заявки на оплату</Title>
@@ -167,7 +165,7 @@ const CounterpartyRequestsView = ({
         </div>
       )}
     />
-    </StickyOffsetContext.Provider>
+    </div>
   )
 }
 

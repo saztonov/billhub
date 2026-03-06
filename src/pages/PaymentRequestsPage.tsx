@@ -3,7 +3,6 @@ import { Typography, Button, Tabs, App, Radio, Switch } from 'antd'
 import { PlusOutlined, FilterOutlined } from '@ant-design/icons'
 import { usePaymentRequestsData } from '@/hooks/usePaymentRequestsData'
 import { useRequestFiltering } from '@/hooks/useRequestFiltering'
-import { StickyOffsetContext, useStickyHeaderRef } from '@/hooks/useStickyOffset'
 import { useCounterpartyStore } from '@/store/counterpartyStore'
 import { useUploadQueueStore } from '@/store/uploadQueueStore'
 import type { EditRequestData } from '@/store/paymentRequestStore'
@@ -20,7 +19,6 @@ const { Title } = Typography
 
 const PaymentRequestsPage = () => {
   const { message } = App.useApp()
-  const { stickyRef, stickyOffset } = useStickyHeaderRef()
 
   // UI state
   const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -217,7 +215,7 @@ const PaymentRequestsPage = () => {
   // --- Counterparty UI ---
   if (isCounterpartyUser) {
     return (
-      <div>
+      <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px - 1px - 48px)', overflow: 'hidden' }}>
         <CounterpartyRequestsView
           filteredAll={filteredCounterpartyAll}
           filteredPending={filteredCounterpartyPending}
@@ -291,9 +289,9 @@ const PaymentRequestsPage = () => {
       key: 'pending',
       label: `На согласование (${filteredPendingRequests.length})`,
       children: (
-        <div>
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
           {isAdmin && (
-            <div style={{ marginBottom: 16 }}>
+            <div style={{ marginBottom: 16, flexShrink: 0 }}>
               <Radio.Group
                 value={adminSelectedStage}
                 onChange={(e) => setAdminSelectedStage(e.target.value)}
@@ -382,15 +380,15 @@ const PaymentRequestsPage = () => {
   )
 
   return (
-    <div>
-      <StickyOffsetContext.Provider value={stickyOffset}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px - 1px - 48px)', overflow: 'hidden' }}>
       <Tabs
         activeKey={activeTab}
         onChange={setActiveTab}
         onTabClick={(key) => { if (key === activeTab) setRefreshTrigger((n) => n + 1) }}
         items={tabItems}
+        className="flex-tabs"
         renderTabBar={(props, DefaultTabBar) => (
-          <div ref={stickyRef} className="sticky-page-header">
+          <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <Title level={2} style={{ margin: 0 }}>Заявки на оплату</Title>
@@ -526,7 +524,6 @@ const PaymentRequestsPage = () => {
           setViewRecord(null)
         }}
       />
-      </StickyOffsetContext.Provider>
     </div>
   )
 }
