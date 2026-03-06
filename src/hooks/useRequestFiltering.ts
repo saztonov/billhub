@@ -112,7 +112,30 @@ export function useRequestFiltering({
   const filteredPendingRequests = useMemo(() => applyFilters(pendingRequests), [pendingRequests, applyFilters])
   const filteredApprovedRequests = useMemo(() => applyFilters(approvedRequests), [approvedRequests, applyFilters])
   const filteredRejectedRequests = useMemo(() => applyFilters(rejectedRequests), [rejectedRequests, applyFilters])
-  const filteredOmtsRpPendingRequests = useMemo(() => applyFilters(omtsRpPendingRequests), [omtsRpPendingRequests, applyFilters])
+  // Для ОМТС РП не применяем фильтры по ответственному (заявки на этапе ОМТС РП не привязаны к assignedUserId)
+  const applyFiltersWithoutResponsible = useCallback((items: PaymentRequest[]) => {
+    let filtered = items
+    if (filters.counterpartyId) filtered = filtered.filter(r => r.counterpartyId === filters.counterpartyId)
+    if (filters.siteId) filtered = filtered.filter(r => r.siteId === filters.siteId)
+    if (filters.requestNumber) filtered = filtered.filter(r => r.requestNumber.toLowerCase().includes(filters.requestNumber!.toLowerCase()))
+    if (filters.dateFrom) filtered = filtered.filter(r => new Date(r.createdAt) >= new Date(filters.dateFrom!))
+    if (filters.dateTo) {
+      const nextDay = new Date(filters.dateTo!)
+      nextDay.setDate(nextDay.getDate() + 1)
+      filtered = filtered.filter(r => new Date(r.createdAt) < nextDay)
+    }
+    if (filters.amountOperator && filters.amountValue != null) {
+      const val = filters.amountValue
+      filtered = filtered.filter(r => {
+        const amount = r.invoiceAmount ?? 0
+        if (filters.amountOperator === '>=') return amount >= val
+        if (filters.amountOperator === '<=') return amount <= val
+        return amount === val
+      })
+    }
+    return filtered
+  }, [filters])
+  const filteredOmtsRpPendingRequests = useMemo(() => applyFiltersWithoutResponsible(omtsRpPendingRequests), [omtsRpPendingRequests, applyFiltersWithoutResponsible])
 
   // Разделение заявок counterparty_user по статусам
   const counterpartyPendingRequests = useMemo(() =>

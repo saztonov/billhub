@@ -474,7 +474,7 @@ const PaymentRequestsPage = () => {
         onClose={() => setViewRecord(null)}
         canEdit={canEditRequest(viewRecord)}
         onEdit={handleEdit}
-        canApprove={userDeptInChain && !!viewRecord && pendingRequests.some((r) => r.id === viewRecord.id)}
+        canApprove={userDeptInChain && !!viewRecord && (pendingRequests.some((r) => r.id === viewRecord.id) || omtsRpPendingRequests.some((r) => r.id === viewRecord.id))}
         onApprove={(requestId, comment) => {
           handleApprove(requestId, comment)
           setViewRecord(null)

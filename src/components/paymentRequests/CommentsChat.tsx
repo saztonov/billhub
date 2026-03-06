@@ -75,7 +75,10 @@ const CommentsChat = ({ paymentRequestId }: CommentsChatProps) => {
 
   const getAuthorDisplayName = (comment: PaymentRequestComment): string => {
     if (comment.authorRole === 'counterparty_user') {
-      return comment.authorCounterpartyName ?? comment.authorEmail ?? '—'
+      const name = comment.authorCounterpartyName
+      const email = comment.authorEmail
+      if (name && email) return `${name} ${email}`
+      return name ?? email ?? '—'
     }
     const parts: string[] = []
     if (comment.authorDepartment) {
