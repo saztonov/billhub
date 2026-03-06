@@ -61,6 +61,7 @@ interface PaymentRequestStoreState {
     newFilesCount?: number,
   ) => Promise<void>
   toggleFileRejection: (fileId: string, userId: string) => Promise<void>
+  updateDpData: (id: string, data: { dpNumber: string; dpDate: string; dpAmount: number; dpFileKey: string; dpFileName: string }) => Promise<void>
 }
 
 export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get) => ({
@@ -155,6 +156,11 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
           isDeleted: (row.is_deleted as boolean) ?? false,
           deletedAt: (row.deleted_at as string) ?? null,
           supplierId: (row.supplier_id as string) ?? null,
+          dpNumber: (row.dp_number as string) ?? null,
+          dpDate: (row.dp_date as string) ?? null,
+          dpAmount: row.dp_amount != null ? Number(row.dp_amount) : null,
+          dpFileKey: (row.dp_file_key as string) ?? null,
+          dpFileName: (row.dp_file_name as string) ?? null,
           counterpartyName: counterparties?.name as string | undefined,
           supplierName: supplier?.name as string | undefined,
           siteName: site?.name as string | undefined,
@@ -557,6 +563,38 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
       const message = err instanceof Error ? err.message : 'Ошибка обновления заявки'
       logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'updateRequest' } })
       set({ error: message, isSubmitting: false })
+      throw err
+    }
+  },
+
+  updateDpData: async (id, data) => {
+    set({ isSubmitting: true, error: null })
+    try {
+      const { error } = await supabase
+        .from('payment_requests')
+        .update({
+          dp_number: data.dpNumber,
+          dp_date: data.dpDate,
+          dp_amount: data.dpAmount,
+          dp_file_key: data.dpFileKey,
+          dp_file_name: data.dpFileName,
+        })
+        .eq('id', id)
+      if (error) throw error
+
+      // Обновляем локальное состояние
+      set((state) => ({
+        requests: state.requests.map((r) =>
+          r.id === id
+            ? { ...r, dpNumber: data.dpNumber, dpDate: data.dpDate, dpAmount: data.dpAmount, dpFileKey: data.dpFileKey, dpFileName: data.dpFileName }
+            : r,
+        ),
+        isSubmitting: false,
+      }))
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Ошибка сохранения данных РП'
+      logError({ errorType: 'api_error', errorMessage: msg, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'updateDpData' } })
+      set({ error: msg, isSubmitting: false })
       throw err
     }
   },

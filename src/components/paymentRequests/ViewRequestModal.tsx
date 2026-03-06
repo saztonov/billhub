@@ -53,6 +53,7 @@ import PaymentsTable from './PaymentsTable'
 import CommentsChat from './CommentsChat'
 import RejectModal from './RejectModal'
 import AddFilesModal from './AddFilesModal'
+import DpFillModal from './DpFillModal'
 import { formatSize, formatDate, extractRequestNumber, sanitizeFileName } from '@/utils/requestFormatters'
 import type { PaymentRequest, PaymentRequestFile, Department } from '@/types'
 import { DEPARTMENT_LABELS } from '@/types'
@@ -109,6 +110,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   const [revisionComment, setRevisionComment] = useState('')
   const [revisionModalOpen, setRevisionModalOpen] = useState(false)
   const [addFilesModalOpen, setAddFilesModalOpen] = useState(false)
+  const [dpModalOpen, setDpModalOpen] = useState(false)
 
   // Режим редактирования
   const [isEditing, setIsEditing] = useState(false)
@@ -151,6 +153,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       setRevisionComment('')
       setRevisionModalOpen(false)
       setAddFilesModalOpen(false)
+      setDpModalOpen(false)
     }
   }, [open, resubmitForm])
 
@@ -577,6 +580,28 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
               <Tag color={request.paidStatusColor ?? 'default'}>{request.paidStatusName ?? '—'}</Tag>
             </Descriptions.Item>
             <Descriptions.Item label="Дата создания">{formatDate(request.createdAt, !isCounterpartyUser)}</Descriptions.Item>
+            <Descriptions.Item label="РП">
+              {request.dpNumber ? (
+                <Space size={4}>
+                  <span>
+                    №{request.dpNumber} от {request.dpDate ? new Date(request.dpDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }) : '—'}
+                    {request.dpAmount != null && `, ${request.dpAmount.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`}
+                  </span>
+                  {request.dpFileKey && (
+                    <Tooltip title="Скачать файл РП">
+                      <Button icon={<DownloadOutlined />} size="small" loading={downloading === request.dpFileKey} onClick={() => handleDownload(request.dpFileKey!, request.dpFileName ?? 'rp-file')} />
+                    </Tooltip>
+                  )}
+                </Space>
+              ) : (
+                <Space size={8}>
+                  <span>—</span>
+                  {request.approvedAt && !isCounterpartyUser && (
+                    <Button size="small" type="link" onClick={() => setDpModalOpen(true)}>Заполнить</Button>
+                  )}
+                </Space>
+              )}
+            </Descriptions.Item>
           </Descriptions>
         )}
 
@@ -700,6 +725,14 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       <AddFilesModal
         open={addFilesModalOpen}
         onClose={() => { setAddFilesModalOpen(false); if (request) fetchRequestFiles(request.id) }}
+        requestId={request.id}
+        requestNumber={request.requestNumber}
+        counterpartyName={request.counterpartyName ?? ''}
+      />
+
+      <DpFillModal
+        open={dpModalOpen}
+        onClose={() => { setDpModalOpen(false); fetchRequests() }}
         requestId={request.id}
         requestNumber={request.requestNumber}
         counterpartyName={request.counterpartyName ?? ''}

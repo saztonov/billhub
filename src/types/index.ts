@@ -155,6 +155,11 @@ export interface PaymentRequest {
   paidStatusId: string | null // Статус оплаты (FK на statuses, entity_type='paid')
   totalPaid: number // Денормализованная сумма оплат
   supplierId: string | null // Поставщик
+  dpNumber: string | null // Номер РП
+  dpDate: string | null // Дата РП
+  dpAmount: number | null // Сумма РП
+  dpFileKey: string | null // Ключ файла РП в S3
+  dpFileName: string | null // Имя файла РП
   // Joined
   counterpartyName?: string
   supplierName?: string
