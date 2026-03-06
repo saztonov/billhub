@@ -12,14 +12,13 @@ import {
   App,
 } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
-import { useStickyOffset, getScrollContainer } from '@/hooks/useStickyOffset'
+import { useTableScrollY } from '@/hooks/useTableScrollY'
 import { useConstructionSiteStore } from '@/store/constructionSiteStore'
 import { useAuthStore } from '@/store/authStore'
 import type { ConstructionSite } from '@/types'
 
 const ConstructionSitesPage = () => {
   const { message } = App.useApp()
-  const stickyOffset = useStickyOffset()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingRecord, setEditingRecord] = useState<ConstructionSite | null>(null)
   const [form] = Form.useForm()
@@ -112,24 +111,28 @@ const ConstructionSitesPage = () => {
       : []),
   ]
 
+  const { containerRef, scrollY } = useTableScrollY([sites.length])
+
   return (
-    <div>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
       {isAdmin && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16, flexShrink: 0 }}>
           <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
             Добавить
           </Button>
         </div>
       )}
 
-      <Table
-        columns={columns}
-        dataSource={sites}
-        rowKey="id"
-        loading={isLoading}
-        scroll={{ x: 800 }}
-        sticky={{ offsetHeader: stickyOffset, getContainer: getScrollContainer }}
-      />
+      <div ref={containerRef} style={{ flex: 1, overflow: 'hidden' }}>
+        <Table
+          columns={columns}
+          dataSource={sites}
+          rowKey="id"
+          loading={isLoading}
+          scroll={{ x: 800, y: scrollY }}
+          pagination={false}
+        />
+      </div>
 
       <Modal
         title={editingRecord ? 'Редактировать объект' : 'Новый объект'}

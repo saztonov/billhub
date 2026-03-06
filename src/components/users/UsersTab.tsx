@@ -15,7 +15,7 @@ import {
   Segmented,
 } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined, KeyOutlined } from '@ant-design/icons'
-import { useStickyOffset, getScrollContainer } from '@/hooks/useStickyOffset'
+import { useTableScrollY } from '@/hooks/useTableScrollY'
 import { useUserStore } from '@/store/userStore'
 import { useAuthStore } from '@/store/authStore'
 import { useCounterpartyStore } from '@/store/counterpartyStore'
@@ -41,7 +41,6 @@ const roleColors: Record<UserRole, string> = {
 
 const UsersTab = () => {
   const { message } = App.useApp()
-  const stickyOffset = useStickyOffset()
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false)
@@ -297,9 +296,11 @@ const UsersTab = () => {
 
   const showSiteFields = selectedRole !== 'counterparty_user'
 
+  const { containerRef, scrollY } = useTableScrollY([filteredUsers.length])
+
   return (
-    <div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16, alignItems: 'center' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16, alignItems: 'center', flexShrink: 0 }}>
         <Input.Search
           placeholder="Поиск по ФИО"
           allowClear
@@ -364,21 +365,22 @@ const UsersTab = () => {
           style={{ marginBottom: 16 }}
         />
       )}
-      <Table
-        columns={columns}
-        dataSource={filteredUsers}
-        rowKey="id"
-        loading={isLoading}
-        scroll={{ x: 900 }}
-        sticky={{ offsetHeader: stickyOffset, getContainer: getScrollContainer }}
-        rowClassName={(record: UserRecord) => !record.isActive ? 'deactivated-row' : ''}
-        pagination={{
-          showSizeChanger: true,
-          pageSizeOptions: ['10', '20', '50', '100'],
-          defaultPageSize: 20,
-          showTotal: (total, range) => `${range[0]}-${range[1]} из ${total}`,
-        }}
-      />
+      <div ref={containerRef} style={{ flex: 1, overflow: 'hidden' }}>
+        <Table
+          columns={columns}
+          dataSource={filteredUsers}
+          rowKey="id"
+          loading={isLoading}
+          scroll={{ x: 900, y: scrollY }}
+          rowClassName={(record: UserRecord) => !record.isActive ? 'deactivated-row' : ''}
+          pagination={{
+            showSizeChanger: true,
+            pageSizeOptions: ['10', '20', '50', '100'],
+            defaultPageSize: 20,
+            showTotal: (total, range) => `${range[0]}-${range[1]} из ${total}`,
+          }}
+        />
+      </div>
       <CreateUserModal
         open={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}

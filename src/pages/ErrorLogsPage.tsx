@@ -12,7 +12,7 @@ import {
   Typography,
 } from 'antd'
 import { ReloadOutlined, DeleteOutlined } from '@ant-design/icons'
-import { useStickyOffset, getScrollContainer } from '@/hooks/useStickyOffset'
+import { useTableScrollY } from '@/hooks/useTableScrollY'
 import { useErrorLogStore } from '@/store/errorLogStore'
 import type { ErrorLog, ErrorLogType } from '@/types'
 import type { ColumnsType } from 'antd/es/table'
@@ -36,7 +36,6 @@ const ERROR_TYPE_OPTIONS = Object.entries(ERROR_TYPE_CONFIG).map(([value, config
 
 const ErrorLogsPage = () => {
   const { message } = App.useApp()
-  const stickyOffset = useStickyOffset()
   const [deleteDays, setDeleteDays] = useState<number>(30)
 
   const {
@@ -130,10 +129,12 @@ const ErrorLogsPage = () => {
     },
   ]
 
+  const { containerRef, scrollY } = useTableScrollY([logs.length])
+
   return (
-    <div>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
       {/* Фильтры */}
-      <Space wrap style={{ marginBottom: 16 }}>
+      <Space wrap style={{ marginBottom: 16, flexShrink: 0 }}>
         <Select
           mode="multiple"
           placeholder="Тип ошибки"
@@ -179,25 +180,25 @@ const ErrorLogsPage = () => {
       </Space>
 
       {/* Таблица */}
-      <Table
-        columns={columns}
-        dataSource={logs}
-        rowKey="id"
-        loading={isLoading}
-        scroll={{ x: 1000 }}
-        sticky={{ offsetHeader: stickyOffset, getContainer: getScrollContainer }}
-        pagination={{
-          current: page,
-          pageSize,
-          total,
-          showSizeChanger: true,
-          pageSizeOptions: ['10', '20', '50'],
-          onChange: (p, ps) => {
-            setPage(p)
-            if (ps !== pageSize) setPageSize(ps)
-          },
-        }}
-        expandable={{
+      <div ref={containerRef} style={{ flex: 1, overflow: 'hidden' }}>
+        <Table
+          columns={columns}
+          dataSource={logs}
+          rowKey="id"
+          loading={isLoading}
+          scroll={{ x: 1000, y: scrollY }}
+          pagination={{
+            current: page,
+            pageSize,
+            total,
+            showSizeChanger: true,
+            pageSizeOptions: ['10', '20', '50'],
+            onChange: (p, ps) => {
+              setPage(p)
+              if (ps !== pageSize) setPageSize(ps)
+            },
+          }}
+          expandable={{
           expandedRowRender: (record) => (
             <div>
               {record.errorStack && (
@@ -242,7 +243,8 @@ const ErrorLogsPage = () => {
           ),
           rowExpandable: (record) => !!(record.errorStack || record.metadata || record.userAgent),
         }}
-      />
+        />
+      </div>
     </div>
   )
 }

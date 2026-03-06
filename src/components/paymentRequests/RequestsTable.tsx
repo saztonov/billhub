@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useEffect, useCallback } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import {
   Table,
   Tag,
@@ -24,6 +24,7 @@ import {
 import RejectModal from './RejectModal'
 import WithdrawModal from './WithdrawModal'
 import { formatDateShort, extractRequestNumber, calculateDays } from '@/utils/requestFormatters'
+import { useTableScrollY } from '@/hooks/useTableScrollY'
 import type { PaymentRequest } from '@/types'
 
 export interface RequestsTableProps {
@@ -286,46 +287,9 @@ const RequestsTable = (props: RequestsTableProps) => {
     ),
   })
 
-  const containerRef = useRef<HTMLDivElement>(null)
-  const paginationRef = useRef<HTMLDivElement>(null)
-  const [scrollY, setScrollY] = useState<number | undefined>(undefined)
+  const { containerRef, paginationRef, scrollY } = useTableScrollY([filteredRequests.length])
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
-
-  const calculateScrollY = useCallback(() => {
-    const container = containerRef.current
-    if (!container) return
-
-    const containerHeight = container.clientHeight
-    // Измеряем высоту заголовка таблицы
-    const thead = container.querySelector('.ant-table-thead')
-    const theadHeight = thead ? thead.getBoundingClientRect().height : 55
-    // Измеряем высоту пагинации
-    const paginationEl = paginationRef.current
-    const paginationHeight = paginationEl ? paginationEl.offsetHeight : 0
-    // Учитываем border таблицы (1px top + 1px bottom) и wrapper padding
-    const borders = 2
-    const newScrollY = containerHeight - theadHeight - paginationHeight - borders
-    setScrollY(newScrollY > 100 ? newScrollY : 100)
-  }, [])
-
-  useEffect(() => {
-    const container = containerRef.current
-    if (!container) return
-    const observer = new ResizeObserver(() => {
-      calculateScrollY()
-    })
-    observer.observe(container)
-    calculateScrollY()
-    return () => observer.disconnect()
-  }, [calculateScrollY])
-
-  // Пересчёт при изменении данных (появляется/скрывается thead)
-  useEffect(() => {
-    // Даём время отрисоваться таблице
-    const timer = setTimeout(calculateScrollY, 50)
-    return () => clearTimeout(timer)
-  }, [filteredRequests.length, calculateScrollY])
 
   // Сброс страницы при смене данных
   useEffect(() => {

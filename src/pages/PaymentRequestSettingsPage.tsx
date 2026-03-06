@@ -15,7 +15,6 @@ import {
   App,
 } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
-import { useStickyOffset, getScrollContainer } from '@/hooks/useStickyOffset'
 import { useStatusStore } from '@/store/statusStore'
 import { usePaymentRequestSettingsStore } from '@/store/paymentRequestSettingsStore'
 import OmtsRpSettingsTab from '@/components/admin/OmtsRpSettingsTab'
@@ -32,7 +31,6 @@ const fieldCodeLabels: Record<string, string> = {
 
 const PaymentRequestSettingsPage = () => {
   const { message } = App.useApp()
-  const stickyOffset = useStickyOffset()
   // Статусы
   const {
     statuses, isLoading: statusLoading,
@@ -247,8 +245,8 @@ const PaymentRequestSettingsPage = () => {
       key: 'statuses',
       label: 'Статусы заявок',
       children: (
-        <>
-          <div style={{ marginBottom: 16, display: 'flex', gap: 12, alignItems: 'center' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+          <div style={{ marginBottom: 16, display: 'flex', gap: 12, alignItems: 'center', flexShrink: 0 }}>
             <Select
               value={statusEntityType}
               onChange={setStatusEntityType}
@@ -259,48 +257,50 @@ const PaymentRequestSettingsPage = () => {
               Добавить статус
             </Button>
           </div>
-          <Table
-            columns={statusColumns}
-            dataSource={statuses}
-            rowKey="id"
-            loading={statusLoading}
-            scroll={{ x: 700 }}
-            sticky={{ offsetHeader: stickyOffset, getContainer: getScrollContainer }}
-            pagination={{
-              showSizeChanger: true,
-              pageSizeOptions: ['10', '20', '50', '100'],
-              defaultPageSize: 20,
-              showTotal: (total, range) => `${range[0]}-${range[1]} из ${total}`,
-            }}
-          />
-        </>
+          <div style={{ flex: 1, overflow: 'auto' }}>
+            <Table
+              columns={statusColumns}
+              dataSource={statuses}
+              rowKey="id"
+              loading={statusLoading}
+              scroll={{ x: 700 }}
+              pagination={{
+                showSizeChanger: true,
+                pageSizeOptions: ['10', '20', '50', '100'],
+                defaultPageSize: 20,
+                showTotal: (total, range) => `${range[0]}-${range[1]} из ${total}`,
+              }}
+            />
+          </div>
+        </div>
       ),
     },
     {
       key: 'options',
       label: 'Условия отгрузки',
       children: (
-        <>
-          <div style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+          <div style={{ marginBottom: 16, flexShrink: 0 }}>
             <Button type="primary" icon={<PlusOutlined />} onClick={handleCreateOption}>
               Добавить условие
             </Button>
           </div>
-          <Table
-            columns={optionColumns}
-            dataSource={fieldOptions}
-            rowKey="id"
-            loading={optionsLoading}
-            scroll={{ x: 600 }}
-            sticky={{ offsetHeader: stickyOffset, getContainer: getScrollContainer }}
-            pagination={{
-              showSizeChanger: true,
-              pageSizeOptions: ['10', '20', '50', '100'],
-              defaultPageSize: 20,
-              showTotal: (total, range) => `${range[0]}-${range[1]} из ${total}`,
-            }}
-          />
-        </>
+          <div style={{ flex: 1, overflow: 'auto' }}>
+            <Table
+              columns={optionColumns}
+              dataSource={fieldOptions}
+              rowKey="id"
+              loading={optionsLoading}
+              scroll={{ x: 600 }}
+              pagination={{
+                showSizeChanger: true,
+                pageSizeOptions: ['10', '20', '50', '100'],
+                defaultPageSize: 20,
+                showTotal: (total, range) => `${range[0]}-${range[1]} из ${total}`,
+              }}
+            />
+          </div>
+        </div>
       ),
     },
     {
@@ -311,8 +311,8 @@ const PaymentRequestSettingsPage = () => {
   ]
 
   return (
-    <div>
-      <Tabs items={tabItems} />
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+      <Tabs items={tabItems} className="flex-tabs" />
 
       {/* Модал статуса */}
       <Modal

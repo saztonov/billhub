@@ -10,13 +10,12 @@ import {
   App,
 } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
-import { useStickyOffset, getScrollContainer } from '@/hooks/useStickyOffset'
+import { useTableScrollY } from '@/hooks/useTableScrollY'
 import { useDocumentTypeStore } from '@/store/documentTypeStore'
 import type { DocumentType } from '@/types'
 
 const DocumentTypesPage = () => {
   const { message } = App.useApp()
-  const stickyOffset = useStickyOffset()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingRecord, setEditingRecord] = useState<DocumentType | null>(null)
   const [form] = Form.useForm()
@@ -79,21 +78,25 @@ const DocumentTypesPage = () => {
     },
   ]
 
+  const { containerRef, scrollY } = useTableScrollY([documentTypes.length])
+
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16, flexShrink: 0 }}>
         <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
           Добавить
         </Button>
       </div>
-      <Table
-        columns={columns}
-        dataSource={documentTypes}
-        rowKey="id"
-        loading={isLoading}
-        scroll={{ x: 800 }}
-        sticky={{ offsetHeader: stickyOffset, getContainer: getScrollContainer }}
-      />
+      <div ref={containerRef} style={{ flex: 1, overflow: 'hidden' }}>
+        <Table
+          columns={columns}
+          dataSource={documentTypes}
+          rowKey="id"
+          loading={isLoading}
+          scroll={{ x: 800, y: scrollY }}
+          pagination={false}
+        />
+      </div>
       <Modal
         title={editingRecord ? 'Редактировать тип документа' : 'Новый тип документа'}
         open={isModalOpen}
