@@ -212,6 +212,7 @@ const MainLayout = () => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
+            lineHeight: 'normal',
             borderBottom: '1px solid #f0f0f0',
             position: 'sticky',
             top: 0,
