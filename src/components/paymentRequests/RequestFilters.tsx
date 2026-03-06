@@ -115,6 +115,7 @@ const RequestFilters = (props: RequestFiltersProps) => {
                 allowClear
                 showSearch
                 optionFilterProp="label"
+                popupMatchSelectWidth={false}
                 options={counterparties?.map((c) => ({
                   label: c.name,
                   value: c.id,
@@ -129,6 +130,7 @@ const RequestFilters = (props: RequestFiltersProps) => {
               allowClear
               showSearch
               optionFilterProp="label"
+              popupMatchSelectWidth={false}
               options={sites?.map((s) => ({
                 label: s.name,
                 value: s.id,
@@ -142,6 +144,7 @@ const RequestFilters = (props: RequestFiltersProps) => {
               allowClear
               showSearch
               optionFilterProp="label"
+              popupMatchSelectWidth={false}
               options={suppliers?.map((s) => ({
                 label: s.name,
                 value: s.id,
@@ -154,7 +157,8 @@ const RequestFilters = (props: RequestFiltersProps) => {
               <Select
                 placeholder="Все"
                 allowClear
-                options={statuses?.map((s) => ({
+                popupMatchSelectWidth={false}
+                options={statuses?.filter((s) => s.isActive).map((s) => ({
                   label: s.name,
                   value: s.id,
                 }))}
@@ -167,6 +171,7 @@ const RequestFilters = (props: RequestFiltersProps) => {
               <Select
                 placeholder="Все"
                 allowClear
+                popupMatchSelectWidth={false}
                 options={[
                   { label: 'Назначен', value: 'assigned' },
                   { label: 'Не назначен', value: 'unassigned' },
@@ -182,6 +187,7 @@ const RequestFilters = (props: RequestFiltersProps) => {
                 allowClear
                 showSearch
                 optionFilterProp="label"
+                popupMatchSelectWidth={false}
                 options={omtsUsers.map((u) => ({
                   label: u.fullName || u.email,
                   value: u.id,
@@ -193,6 +199,7 @@ const RequestFilters = (props: RequestFiltersProps) => {
           {showMyRequestsFilter && (
             <Form.Item label="Заявки" name="myRequestsFilter" style={{ marginBottom: 0, width: 160 }}>
               <Select
+                popupMatchSelectWidth={false}
                 options={[
                   { label: 'Все', value: 'all' },
                   { label: 'Назначенные мне', value: 'assigned_to_me' },

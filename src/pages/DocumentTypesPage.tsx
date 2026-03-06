@@ -10,11 +10,13 @@ import {
   App,
 } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { useStickyOffset, getScrollContainer } from '@/hooks/useStickyOffset'
 import { useDocumentTypeStore } from '@/store/documentTypeStore'
 import type { DocumentType } from '@/types'
 
 const DocumentTypesPage = () => {
   const { message } = App.useApp()
+  const stickyOffset = useStickyOffset()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingRecord, setEditingRecord] = useState<DocumentType | null>(null)
   const [form] = Form.useForm()
@@ -90,6 +92,7 @@ const DocumentTypesPage = () => {
         rowKey="id"
         loading={isLoading}
         scroll={{ x: 800 }}
+        sticky={{ offsetHeader: stickyOffset, getContainer: getScrollContainer }}
       />
       <Modal
         title={editingRecord ? 'Редактировать тип документа' : 'Новый тип документа'}

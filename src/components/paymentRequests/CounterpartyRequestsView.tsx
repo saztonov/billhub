@@ -1,5 +1,6 @@
 import { Typography, Button, Tabs } from 'antd'
 import { PlusOutlined, FilterOutlined } from '@ant-design/icons'
+import { StickyOffsetContext, useStickyHeaderRef } from '@/hooks/useStickyOffset'
 import RequestsTable from './RequestsTable'
 import RequestFilters from './RequestFilters'
 import type { FilterValues } from './RequestFilters'
@@ -56,6 +57,8 @@ const CounterpartyRequestsView = ({
   uploadTasks,
   totalStages,
 }: CounterpartyRequestsViewProps) => {
+  const { stickyRef, stickyOffset } = useStickyHeaderRef()
+
   const tabItems = [
     {
       key: 'all',
@@ -126,35 +129,45 @@ const CounterpartyRequestsView = ({
   ]
 
   return (
-    <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <Title level={2} style={{ margin: 0 }}>Заявки на оплату</Title>
-          <Button
-            icon={<FilterOutlined />}
-            onClick={onFiltersToggle}
-            type={filtersOpen ? 'primary' : 'default'}
-          />
+    <StickyOffsetContext.Provider value={stickyOffset}>
+    <Tabs
+      activeKey={activeTab}
+      onChange={onTabChange}
+      onTabClick={onTabClick}
+      items={tabItems}
+      renderTabBar={(props, DefaultTabBar) => (
+        <div ref={stickyRef} className="sticky-page-header">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <Title level={2} style={{ margin: 0 }}>Заявки на оплату</Title>
+              <Button
+                icon={<FilterOutlined />}
+                onClick={onFiltersToggle}
+                type={filtersOpen ? 'primary' : 'default'}
+              />
+            </div>
+            <Button type="primary" icon={<PlusOutlined />} onClick={onCreateOpen}>
+              Добавить
+            </Button>
+          </div>
+          {filtersOpen && (
+            <RequestFilters
+              sites={sites}
+              statuses={statuses}
+              suppliers={suppliers}
+              hideCounterpartyFilter={true}
+              hideStatusFilter={activeTab !== 'all'}
+              showResponsibleFilter={false}
+              values={filters}
+              onChange={onFiltersChange}
+              onReset={() => onFiltersChange({})}
+            />
+          )}
+          <DefaultTabBar {...props} />
         </div>
-        <Button type="primary" icon={<PlusOutlined />} onClick={onCreateOpen}>
-          Добавить
-        </Button>
-      </div>
-      {filtersOpen && (
-        <RequestFilters
-          sites={sites}
-          statuses={statuses}
-          suppliers={suppliers}
-          hideCounterpartyFilter={true}
-          hideStatusFilter={activeTab !== 'all'}
-          showResponsibleFilter={false}
-          values={filters}
-          onChange={onFiltersChange}
-          onReset={() => onFiltersChange({})}
-        />
       )}
-      <Tabs activeKey={activeTab} onChange={onTabChange} onTabClick={onTabClick} items={tabItems} />
-    </>
+    />
+    </StickyOffsetContext.Provider>
   )
 }
 

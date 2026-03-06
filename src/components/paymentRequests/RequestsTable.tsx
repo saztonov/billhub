@@ -23,6 +23,7 @@ import {
 import RejectModal from './RejectModal'
 import WithdrawModal from './WithdrawModal'
 import { formatDateShort, extractRequestNumber, calculateDays } from '@/utils/requestFormatters'
+import { useStickyOffset, getScrollContainer } from '@/hooks/useStickyOffset'
 import type { PaymentRequest } from '@/types'
 
 export interface RequestsTableProps {
@@ -285,6 +286,8 @@ const RequestsTable = (props: RequestsTableProps) => {
     ),
   })
 
+  const stickyOffset = useStickyOffset()
+
   return (
     <>
       <Table
@@ -293,6 +296,7 @@ const RequestsTable = (props: RequestsTableProps) => {
         rowKey="id"
         loading={isLoading}
         scroll={{ x: 1200 }}
+        sticky={{ offsetHeader: stickyOffset, getContainer: getScrollContainer }}
         pagination={{ showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100], defaultPageSize: 20 }}
         rowClassName={(record: PaymentRequest) => {
           const classes: string[] = []

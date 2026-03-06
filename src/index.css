@@ -23,3 +23,13 @@ body {
 .file-rejected-row td {
   background-color: #f5f5f5 !important;
 }
+
+/* Закреплённая шапка страницы (заголовок, фильтры, вкладки) */
+.sticky-page-header {
+  position: sticky;
+  top: 0;
+  z-index: 9;
+  background: #f5f5f5;
+  margin: -24px -24px 0;
+  padding: 24px 24px 0;
+}

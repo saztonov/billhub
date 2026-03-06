@@ -15,6 +15,7 @@ import {
   App,
 } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { useStickyOffset, getScrollContainer } from '@/hooks/useStickyOffset'
 import { useStatusStore } from '@/store/statusStore'
 import { usePaymentRequestSettingsStore } from '@/store/paymentRequestSettingsStore'
 import OmtsRpSettingsTab from '@/components/admin/OmtsRpSettingsTab'
@@ -31,6 +32,7 @@ const fieldCodeLabels: Record<string, string> = {
 
 const PaymentRequestSettingsPage = () => {
   const { message } = App.useApp()
+  const stickyOffset = useStickyOffset()
   // Статусы
   const {
     statuses, isLoading: statusLoading,
@@ -263,6 +265,7 @@ const PaymentRequestSettingsPage = () => {
             rowKey="id"
             loading={statusLoading}
             scroll={{ x: 700 }}
+            sticky={{ offsetHeader: stickyOffset, getContainer: getScrollContainer }}
             pagination={{
               showSizeChanger: true,
               pageSizeOptions: ['10', '20', '50', '100'],
@@ -289,6 +292,7 @@ const PaymentRequestSettingsPage = () => {
             rowKey="id"
             loading={optionsLoading}
             scroll={{ x: 600 }}
+            sticky={{ offsetHeader: stickyOffset, getContainer: getScrollContainer }}
             pagination={{
               showSizeChanger: true,
               pageSizeOptions: ['10', '20', '50', '100'],

@@ -10,6 +10,7 @@ import {
   App,
 } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined, MinusCircleOutlined, UploadOutlined, SearchOutlined } from '@ant-design/icons'
+import { useStickyOffset, getScrollContainer } from '@/hooks/useStickyOffset'
 import { useCounterpartyStore } from '@/store/counterpartyStore'
 import { useAuthStore } from '@/store/authStore'
 import ImportCounterpartiesModal from '@/components/counterparties/ImportCounterpartiesModal'
@@ -17,6 +18,7 @@ import type { Counterparty } from '@/types'
 
 const CounterpartiesPage = () => {
   const { message } = App.useApp()
+  const stickyOffset = useStickyOffset()
   const user = useAuthStore((s) => s.user)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isImportModalOpen, setIsImportModalOpen] = useState(false)
@@ -125,6 +127,7 @@ const CounterpartiesPage = () => {
         rowKey="id"
         loading={isLoading}
         scroll={{ x: 800 }}
+        sticky={{ offsetHeader: stickyOffset, getContainer: getScrollContainer }}
       />
       <Modal
         title={editingRecord ? 'Редактировать подрядчика' : 'Новый подрядчик'}

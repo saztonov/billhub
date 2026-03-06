@@ -12,6 +12,7 @@ import {
   Typography,
 } from 'antd'
 import { ReloadOutlined, DeleteOutlined } from '@ant-design/icons'
+import { useStickyOffset, getScrollContainer } from '@/hooks/useStickyOffset'
 import { useErrorLogStore } from '@/store/errorLogStore'
 import type { ErrorLog, ErrorLogType } from '@/types'
 import type { ColumnsType } from 'antd/es/table'
@@ -35,6 +36,7 @@ const ERROR_TYPE_OPTIONS = Object.entries(ERROR_TYPE_CONFIG).map(([value, config
 
 const ErrorLogsPage = () => {
   const { message } = App.useApp()
+  const stickyOffset = useStickyOffset()
   const [deleteDays, setDeleteDays] = useState<number>(30)
 
   const {
@@ -183,6 +185,7 @@ const ErrorLogsPage = () => {
         rowKey="id"
         loading={isLoading}
         scroll={{ x: 1000 }}
+        sticky={{ offsetHeader: stickyOffset, getContainer: getScrollContainer }}
         pagination={{
           current: page,
           pageSize,

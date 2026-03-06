@@ -199,7 +199,7 @@ const MainLayout = () => {
         />
       </Sider>
 
-      <Layout>
+      <Layout style={{ height: '100vh' }}>
         <Header
           style={{
             padding: '0 24px',
@@ -209,6 +209,9 @@ const MainLayout = () => {
             justifyContent: 'flex-end',
             gap: 16,
             borderBottom: '1px solid #f0f0f0',
+            position: 'sticky',
+            top: 0,
+            zIndex: 10,
           }}
         >
           {showNotifications && (
@@ -259,7 +262,7 @@ const MainLayout = () => {
           </Dropdown>
         </Header>
 
-        <Content style={{ margin: 24 }}>
+        <Content id="main-content" style={{ padding: 24, overflow: 'auto' }}>
           <Outlet />
         </Content>
       </Layout>

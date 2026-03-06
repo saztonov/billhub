@@ -15,6 +15,7 @@ import {
   Segmented,
 } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined, KeyOutlined } from '@ant-design/icons'
+import { useStickyOffset, getScrollContainer } from '@/hooks/useStickyOffset'
 import { useUserStore } from '@/store/userStore'
 import { useAuthStore } from '@/store/authStore'
 import { useCounterpartyStore } from '@/store/counterpartyStore'
@@ -40,6 +41,7 @@ const roleColors: Record<UserRole, string> = {
 
 const UsersTab = () => {
   const { message } = App.useApp()
+  const stickyOffset = useStickyOffset()
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false)
@@ -368,6 +370,7 @@ const UsersTab = () => {
         rowKey="id"
         loading={isLoading}
         scroll={{ x: 900 }}
+        sticky={{ offsetHeader: stickyOffset, getContainer: getScrollContainer }}
         rowClassName={(record: UserRecord) => !record.isActive ? 'deactivated-row' : ''}
         pagination={{
           showSizeChanger: true,

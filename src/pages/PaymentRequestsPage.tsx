@@ -3,6 +3,7 @@ import { Typography, Button, Tabs, App, Radio, Switch } from 'antd'
 import { PlusOutlined, FilterOutlined } from '@ant-design/icons'
 import { usePaymentRequestsData } from '@/hooks/usePaymentRequestsData'
 import { useRequestFiltering } from '@/hooks/useRequestFiltering'
+import { StickyOffsetContext, useStickyHeaderRef } from '@/hooks/useStickyOffset'
 import { useCounterpartyStore } from '@/store/counterpartyStore'
 import { useUploadQueueStore } from '@/store/uploadQueueStore'
 import type { EditRequestData } from '@/store/paymentRequestStore'
@@ -19,6 +20,7 @@ const { Title } = Typography
 
 const PaymentRequestsPage = () => {
   const { message } = App.useApp()
+  const { stickyRef, stickyOffset } = useStickyHeaderRef()
 
   // UI state
   const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -259,7 +261,7 @@ const PaymentRequestsPage = () => {
   }
 
   // --- Admin/User UI ---
-  const statusFilters = statuses.map((s) => ({ text: s.name, value: s.id }))
+  const statusFilters = statuses.filter((s) => s.isActive).map((s) => ({ text: s.name, value: s.id }))
 
   const tabItems = [
     {
@@ -381,113 +383,124 @@ const PaymentRequestsPage = () => {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <Title level={2} style={{ margin: 0 }}>Заявки на оплату</Title>
-          <Button
-            icon={<FilterOutlined />}
-            onClick={() => setFiltersOpen(!filtersOpen)}
-            type={filtersOpen ? 'primary' : 'default'}
-          />
-          {activeTab === 'all' && (
-            <div
-              style={{
-                padding: '8px 16px',
-                border: '1px solid #d9d9d9',
-                borderRadius: '6px',
-                backgroundColor: '#fafafa',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              <span style={{ color: '#8c8c8c', marginRight: 8 }}>РП на сумму:</span>
-              <span style={{ fontWeight: 500, fontSize: '16px' }}>
-                {totalInvoiceAmountAll.toLocaleString('ru-RU', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2
-                })} ₽
-              </span>
-              <span style={{ color: '#d9d9d9', margin: '0 12px' }}>|</span>
-              <span style={{ color: '#8c8c8c', marginRight: 8 }}>Оплачено РП:</span>
-              <span style={{ fontWeight: 500, fontSize: '16px' }}>
-                {totalPaidAll.toLocaleString('ru-RU', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2
-                })} ₽
-              </span>
-            </div>
-          )}
-          {activeTab === 'pending' && userDeptInChain && (
-            <>
-              <div
-                style={{
-                  padding: '8px 16px',
-                  border: '1px solid #d9d9d9',
-                  borderRadius: '6px',
-                  backgroundColor: '#fafafa',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                <span style={{ color: '#8c8c8c', marginRight: 8 }}>Сумма счетов:</span>
-                <span style={{ fontWeight: 500, fontSize: '16px' }}>
-                  {totalInvoiceAmount.toLocaleString('ru-RU', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
-                  })} ₽
-                </span>
-              </div>
-              {isAdmin && (
-                <div
-                  style={{
-                    padding: '8px 16px',
-                    border: '1px solid #d9d9d9',
-                    borderRadius: '6px',
-                    backgroundColor: '#fafafa',
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  <span style={{ color: '#8c8c8c', marginRight: 8 }}>Не назначено:</span>
-                  <span
+      <StickyOffsetContext.Provider value={stickyOffset}>
+      <Tabs
+        activeKey={activeTab}
+        onChange={setActiveTab}
+        onTabClick={(key) => { if (key === activeTab) setRefreshTrigger((n) => n + 1) }}
+        items={tabItems}
+        renderTabBar={(props, DefaultTabBar) => (
+          <div ref={stickyRef} className="sticky-page-header">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <Title level={2} style={{ margin: 0 }}>Заявки на оплату</Title>
+                <Button
+                  icon={<FilterOutlined />}
+                  onClick={() => setFiltersOpen(!filtersOpen)}
+                  type={filtersOpen ? 'primary' : 'default'}
+                />
+                {activeTab === 'all' && (
+                  <div
                     style={{
-                      fontWeight: 500,
-                      fontSize: '16px',
-                      color: unassignedOmtsCount > 0 ? '#faad14' : 'inherit'
+                      padding: '8px 16px',
+                      border: '1px solid #d9d9d9',
+                      borderRadius: '6px',
+                      backgroundColor: '#fafafa',
+                      whiteSpace: 'nowrap'
                     }}
                   >
-                    {unassignedOmtsCount}
+                    <span style={{ color: '#8c8c8c', marginRight: 8 }}>РП на сумму:</span>
+                    <span style={{ fontWeight: 500, fontSize: '16px' }}>
+                      {totalInvoiceAmountAll.toLocaleString('ru-RU', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                      })} ₽
+                    </span>
+                    <span style={{ color: '#d9d9d9', margin: '0 12px' }}>|</span>
+                    <span style={{ color: '#8c8c8c', marginRight: 8 }}>Оплачено РП:</span>
+                    <span style={{ fontWeight: 500, fontSize: '16px' }}>
+                      {totalPaidAll.toLocaleString('ru-RU', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                      })} ₽
+                    </span>
+                  </div>
+                )}
+                {activeTab === 'pending' && userDeptInChain && (
+                  <>
+                    <div
+                      style={{
+                        padding: '8px 16px',
+                        border: '1px solid #d9d9d9',
+                        borderRadius: '6px',
+                        backgroundColor: '#fafafa',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      <span style={{ color: '#8c8c8c', marginRight: 8 }}>Сумма счетов:</span>
+                      <span style={{ fontWeight: 500, fontSize: '16px' }}>
+                        {totalInvoiceAmount.toLocaleString('ru-RU', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2
+                        })} ₽
+                      </span>
+                    </div>
+                    {isAdmin && (
+                      <div
+                        style={{
+                          padding: '8px 16px',
+                          border: '1px solid #d9d9d9',
+                          borderRadius: '6px',
+                          backgroundColor: '#fafafa',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        <span style={{ color: '#8c8c8c', marginRight: 8 }}>Не назначено:</span>
+                        <span
+                          style={{
+                            fontWeight: 500,
+                            fontSize: '16px',
+                            color: unassignedOmtsCount > 0 ? '#faad14' : 'inherit'
+                          }}
+                        >
+                          {unassignedOmtsCount}
+                        </span>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                {isAdmin && (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Switch size="small" checked={showDeleted} onChange={setShowDeleted} />
+                    <span style={{ fontSize: 13, color: '#8c8c8c', whiteSpace: 'nowrap' }}>Удаленные</span>
                   </span>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          {isAdmin && (
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Switch size="small" checked={showDeleted} onChange={setShowDeleted} />
-              <span style={{ fontSize: 13, color: '#8c8c8c', whiteSpace: 'nowrap' }}>Удаленные</span>
-            </span>
-          )}
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsCreateOpen(true)}>
-            Добавить
-          </Button>
-        </div>
-      </div>
-      {filtersOpen && (
-        <RequestFilters
-          counterparties={counterparties}
-          sites={sites}
-          suppliers={suppliers}
-          hideCounterpartyFilter={false}
-          hideStatusFilter={true}
-          showResponsibleFilter={isAdmin}
-          showMyRequestsFilter={isOmtsUser && !isAdmin}
-          omtsUsers={omtsUsers}
-          values={filters}
-          onChange={setFilters}
-          onReset={() => setFilters({})}
-        />
-      )}
-      <Tabs activeKey={activeTab} onChange={setActiveTab} onTabClick={(key) => { if (key === activeTab) setRefreshTrigger((n) => n + 1) }} items={tabItems} />
+                )}
+                <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsCreateOpen(true)}>
+                  Добавить
+                </Button>
+              </div>
+            </div>
+            {filtersOpen && (
+              <RequestFilters
+                counterparties={counterparties}
+                sites={sites}
+                suppliers={suppliers}
+                hideCounterpartyFilter={false}
+                hideStatusFilter={true}
+                showResponsibleFilter={isAdmin}
+                showMyRequestsFilter={isOmtsUser && !isAdmin}
+                omtsUsers={omtsUsers}
+                values={filters}
+                onChange={setFilters}
+                onReset={() => setFilters({})}
+              />
+            )}
+            <DefaultTabBar {...props} />
+          </div>
+        )}
+      />
       <CreateRequestModal
         open={isCreateOpen}
         onClose={() => {
@@ -513,6 +526,7 @@ const PaymentRequestsPage = () => {
           setViewRecord(null)
         }}
       />
+      </StickyOffsetContext.Provider>
     </div>
   )
 }

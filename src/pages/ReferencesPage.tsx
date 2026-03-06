@@ -1,5 +1,6 @@
 import { Typography, Tabs } from 'antd'
 import { useSearchParams } from 'react-router-dom'
+import { StickyOffsetContext, useStickyHeaderRef } from '@/hooks/useStickyOffset'
 import CounterpartiesPage from './CounterpartiesPage'
 import SuppliersPage from './SuppliersPage'
 import ConstructionSitesPage from './ConstructionSitesPage'
@@ -12,6 +13,7 @@ const DEFAULT_TAB = 'counterparties'
 const ReferencesPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const activeTab = searchParams.get('tab') ?? DEFAULT_TAB
+  const { stickyRef, stickyOffset } = useStickyHeaderRef()
 
   const handleTabChange = (key: string) => {
     setSearchParams({ tab: key }, { replace: true })
@@ -26,8 +28,19 @@ const ReferencesPage = () => {
 
   return (
     <div>
-      <Title level={2} style={{ marginBottom: 16 }}>Справочники</Title>
-      <Tabs activeKey={activeTab} onChange={handleTabChange} items={items} />
+      <StickyOffsetContext.Provider value={stickyOffset}>
+        <Tabs
+          activeKey={activeTab}
+          onChange={handleTabChange}
+          items={items}
+          renderTabBar={(props, DefaultTabBar) => (
+            <div ref={stickyRef} className="sticky-page-header">
+              <Title level={2} style={{ marginBottom: 16 }}>Справочники</Title>
+              <DefaultTabBar {...props} />
+            </div>
+          )}
+        />
+      </StickyOffsetContext.Provider>
     </div>
   )
 }

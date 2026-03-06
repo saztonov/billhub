@@ -12,12 +12,14 @@ import {
   App,
 } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { useStickyOffset, getScrollContainer } from '@/hooks/useStickyOffset'
 import { useConstructionSiteStore } from '@/store/constructionSiteStore'
 import { useAuthStore } from '@/store/authStore'
 import type { ConstructionSite } from '@/types'
 
 const ConstructionSitesPage = () => {
   const { message } = App.useApp()
+  const stickyOffset = useStickyOffset()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingRecord, setEditingRecord] = useState<ConstructionSite | null>(null)
   const [form] = Form.useForm()
@@ -126,6 +128,7 @@ const ConstructionSitesPage = () => {
         rowKey="id"
         loading={isLoading}
         scroll={{ x: 800 }}
+        sticky={{ offsetHeader: stickyOffset, getContainer: getScrollContainer }}
       />
 
       <Modal

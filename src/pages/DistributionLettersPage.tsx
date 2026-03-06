@@ -5,7 +5,9 @@ const { Title } = Typography
 const DistributionLettersPage = () => {
   return (
     <div>
-      <Title level={2}>Распределительные письма</Title>
+      <div className="sticky-page-header">
+        <Title level={2}>Распределительные письма</Title>
+      </div>
     </div>
   )
 }

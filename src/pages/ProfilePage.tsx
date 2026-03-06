@@ -37,7 +37,9 @@ const ProfilePage = () => {
 
   return (
     <div>
-      <Title level={2} style={{ marginBottom: 24 }}>Личный кабинет</Title>
+      <div className="sticky-page-header">
+        <Title level={2} style={{ marginBottom: 24 }}>Личный кабинет</Title>
+      </div>
       <Space direction="vertical" size="large" style={{ width: '100%', maxWidth: 600 }}>
         <Card title="Информация о пользователе">
           <Descriptions column={1} bordered size="small">
