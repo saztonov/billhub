@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { supabase } from '@/services/supabase'
 import { logError } from '@/services/errorLogger'
+import { notifyNewComment } from '@/utils/notificationService'
 import type { PaymentRequestComment } from '@/types'
 
 interface CommentStoreState {
@@ -66,6 +67,9 @@ export const useCommentStore = create<CommentStoreState>((set, get) => ({
           text,
         })
       if (error) throw error
+
+      // Уведомляем о новом комментарии
+      notifyNewComment(paymentRequestId, userId).catch(() => {})
 
       await get().fetchComments(paymentRequestId)
       set({ isSubmitting: false })

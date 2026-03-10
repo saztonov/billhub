@@ -78,15 +78,13 @@ const MainLayout = () => {
     markAllAsRead,
   } = useNotificationStore()
 
-  const showNotifications = user?.role !== 'counterparty_user'
-
   // Polling счётчика непрочитанных уведомлений
   useEffect(() => {
-    if (!user?.id || !showNotifications) return
+    if (!user?.id) return
     fetchUnreadCount(user.id)
     const interval = setInterval(() => fetchUnreadCount(user.id), 30000)
     return () => clearInterval(interval)
-  }, [user?.id, showNotifications, fetchUnreadCount])
+  }, [user?.id, fetchUnreadCount])
 
   const handleNotifOpen = useCallback((open: boolean) => {
     setNotifOpen(open)
@@ -229,7 +227,6 @@ const MainLayout = () => {
           </Flex>
           <Flex align="center" gap={12} style={{ flexShrink: 0 }}>
             {headerActions}
-          {showNotifications && (
             <Popover
               content={notificationContent}
               trigger="click"
@@ -241,7 +238,6 @@ const MainLayout = () => {
                 <BellOutlined style={{ fontSize: 20, cursor: 'pointer' }} />
               </Badge>
             </Popover>
-          )}
           <Dropdown
             menu={{
               items: [

@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { supabase } from '@/services/supabase'
 import { logError } from '@/services/errorLogger'
 import { uploadRequestFile, uploadDecisionFile } from '@/services/s3'
+import { notifyNewFile } from '@/utils/notificationService'
 import { usePaymentRequestStore } from '@/store/paymentRequestStore'
 
 interface FileToUpload {
@@ -234,6 +235,11 @@ async function processQueue(
             [taskId]: { ...state.tasks[taskId], status: 'success' },
           },
         }))
+
+        // Уведомляем о новых файлах (только для файлов заявки, не для файлов решений)
+        if (task.type === 'request_files') {
+          notifyNewFile(task.requestId, task.userId).catch(() => {})
+        }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Ошибка загрузки файла'
         logError({ errorType: 'api_error', errorMessage, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'uploadFile', taskId } })

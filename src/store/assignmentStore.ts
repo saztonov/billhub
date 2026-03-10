@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { supabase } from '@/services/supabase'
+import { notifyRequestAssigned } from '@/utils/notificationService'
 import type { PaymentRequestAssignment } from '@/types'
 
 export interface OmtsUser {
@@ -171,6 +172,9 @@ export const useAssignmentStore = create<AssignmentStoreState>((set, get) => ({
         })
 
       if (error) throw error
+
+      // Уведомляем назначенного ОМТС-сотрудника
+      notifyRequestAssigned(paymentRequestId, assignedUserId, assignedByUserId).catch(() => {})
 
       // 3. Синхронизировать с БД и обновить историю
       await get().fetchCurrentAssignment(paymentRequestId)

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { supabase } from '@/services/supabase'
 import { logError } from '@/services/errorLogger'
-import { checkAndNotifyMissingSpecialists } from '@/utils/approvalNotifications'
+import { checkAndNotifyMissingSpecialists, notifyStatusChanged } from '@/utils/notificationService'
 import { useUploadQueueStore } from '@/store/uploadQueueStore'
 import { useOmtsRpStore } from '@/store/omtsRpStore'
 import type { Department, ApprovalDecision, ApprovalDecisionFile, PaymentRequest, PaymentRequestLog } from '@/types'
@@ -178,6 +178,9 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
           action: 'revision',
           details: comment ? { comment } : null,
         })
+
+        // Уведомляем контрагента об отправке на доработку
+        notifyStatusChanged(paymentRequestId, 'На доработке', user.id).catch(() => {})
       }
 
       set({ isLoading: false })
@@ -374,6 +377,9 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
               approved_at: new Date().toISOString(),
             })
             .eq('id', paymentRequestId)
+
+          // Уведомляем контрагента о финальном согласовании
+          notifyStatusChanged(paymentRequestId, 'Согласована', userId).catch(() => {})
         }
       }
 
@@ -444,6 +450,9 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
           rejected_at: new Date().toISOString(),
         })
         .eq('id', paymentRequestId)
+
+      // Уведомляем контрагента об отклонении
+      notifyStatusChanged(paymentRequestId, 'Отклонена', userId).catch(() => {})
 
       set({ isLoading: false })
     } catch (err) {

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { supabase } from '@/services/supabase'
 import { logError } from '@/services/errorLogger'
-import { checkAndNotifyMissingSpecialists } from '@/utils/approvalNotifications'
+import { checkAndNotifyMissingSpecialists, notifyNewRequestPending } from '@/utils/notificationService'
 import type { PaymentRequest, PaymentRequestFile } from '@/types'
 
 interface CreateRequestData {
@@ -238,6 +238,9 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
       // Проверяем наличие специалистов Штаба для объекта
       await checkAndNotifyMissingSpecialists(requestData.id, data.siteId, 'shtab')
 
+      // Уведомляем Штаб о новой заявке
+      notifyNewRequestPending(requestData.id, data.siteId, userId, requestNumber as string).catch(() => {})
+
       // Файлы загружаются отдельно через uploadQueueStore
       await get().fetchRequests(counterpartyId)
       set({ isSubmitting: false })
@@ -456,6 +459,9 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
 
       // Проверяем и уведомляем о недостающих специалистах
       await checkAndNotifyMissingSpecialists(id, siteId, 'shtab')
+
+      // Уведомляем Штаб о повторной отправке заявки
+      notifyNewRequestPending(id, siteId, userId).catch(() => {})
 
       // Логируем повторную отправку
       await supabase.from('payment_request_logs').insert({

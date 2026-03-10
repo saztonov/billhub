@@ -369,7 +369,7 @@ export interface User {
 }
 
 /** Тип уведомления */
-export type NotificationType = 'missing_specialist' | 'info' | 'error'
+export type NotificationType = 'missing_specialist' | 'info' | 'error' | 'status_changed' | 'new_request_pending' | 'request_assigned' | 'new_comment' | 'new_file'
 
 /** Уведомление */
 export interface AppNotification {
