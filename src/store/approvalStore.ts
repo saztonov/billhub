@@ -98,6 +98,11 @@ function mapRequest(row: Record<string, unknown>): PaymentRequest {
     assignedUserId: (currentAssignment?.assigned_user_id as string) ?? null,
     assignedUserEmail: (assignedUser?.email as string) ?? null,
     assignedUserFullName: (assignedUser?.full_name as string) ?? null,
+    dpNumber: (row.dp_number as string) ?? null,
+    dpDate: (row.dp_date as string) ?? null,
+    dpAmount: (row.dp_amount as number) ?? null,
+    dpFileKey: (row.dp_file_key as string) ?? null,
+    dpFileName: (row.dp_file_name as string) ?? null,
   }
 }
 
