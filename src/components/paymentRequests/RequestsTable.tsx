@@ -144,6 +144,11 @@ const RequestsTable = (props: RequestsTableProps) => {
         )
       },
     },
+    {
+      title: 'РП', dataIndex: 'dpNumber', key: 'dpNumber', width: 120,
+      sorter: (a: PaymentRequest, b: PaymentRequest) => (a.dpNumber || '').localeCompare(b.dpNumber || '', 'ru'),
+      render: (value: string | null) => value ?? '—',
+    },
   )
 
   if (showResponsibleColumn) {
