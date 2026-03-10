@@ -31,6 +31,8 @@ const PaymentRequestsPage = () => {
       if (savedMyRequests) initial.myRequestsFilter = savedMyRequests as FilterValues['myRequestsFilter']
       const savedResponsible = localStorage.getItem('billhub_responsible_filter')
       if (savedResponsible) initial.responsibleFilter = savedResponsible as FilterValues['responsibleFilter']
+      const savedResponsibleUserId = localStorage.getItem('billhub_responsible_user_id')
+      if (savedResponsibleUserId) initial.responsibleUserId = savedResponsibleUserId
     } catch { /* ignore */ }
     return initial
   })
@@ -43,6 +45,8 @@ const PaymentRequestsPage = () => {
         else localStorage.removeItem('billhub_my_requests_filter')
         if (next.responsibleFilter) localStorage.setItem('billhub_responsible_filter', next.responsibleFilter)
         else localStorage.removeItem('billhub_responsible_filter')
+        if (next.responsibleUserId) localStorage.setItem('billhub_responsible_user_id', next.responsibleUserId)
+        else localStorage.removeItem('billhub_responsible_user_id')
       } catch { /* ignore */ }
       return next
     })

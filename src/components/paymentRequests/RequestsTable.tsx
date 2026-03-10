@@ -145,7 +145,7 @@ const RequestsTable = (props: RequestsTableProps) => {
       },
     },
     {
-      title: 'РП', dataIndex: 'dpNumber', key: 'dpNumber', width: 120,
+      title: 'РП', dataIndex: 'dpNumber', key: 'dpNumber', width: 60,
       sorter: (a: PaymentRequest, b: PaymentRequest) => (a.dpNumber || '').localeCompare(b.dpNumber || '', 'ru'),
       render: (value: string | null) => value ?? '—',
     },
@@ -215,7 +215,7 @@ const RequestsTable = (props: RequestsTableProps) => {
   }
 
   columns.push({
-    title: 'Файлы', key: 'files', width: 100,
+    title: 'Файлы', key: 'files', width: 70,
     render: (_: unknown, record: PaymentRequest) => {
       if (record.totalFiles === 0) return <span style={{ color: '#bfbfbf' }}>—</span>
       if (record.uploadedFiles >= record.totalFiles) {
@@ -260,7 +260,7 @@ const RequestsTable = (props: RequestsTableProps) => {
   }
 
   columns.push({
-    title: 'Действия', key: 'actions', width: showApprovalActions ? 200 : 180,
+    title: 'Действия', key: 'actions', width: showApprovalActions ? 140 : 126,
     render: (_: unknown, record: PaymentRequest) => (
       <Space>
         <Tooltip title="Просмотр"><Button icon={<EyeOutlined />} size="small" onClick={() => onView(record)} /></Tooltip>
