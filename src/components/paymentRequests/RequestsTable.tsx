@@ -94,12 +94,12 @@ const RequestsTable = (props: RequestsTableProps) => {
 
   columns.push(
     {
-      title: 'Объект', dataIndex: 'siteName', key: 'siteName', width: 160, ellipsis: true,
+      title: 'Объект', dataIndex: 'siteName', key: 'siteName', width: 160,
       sorter: (a: PaymentRequest, b: PaymentRequest) => (a.siteName || '').localeCompare(b.siteName || '', 'ru'),
       render: (name: string | undefined) => name ?? '—',
     },
     {
-      title: 'Поставщик', dataIndex: 'supplierName', key: 'supplierName', width: 160, ellipsis: true,
+      title: 'Поставщик', dataIndex: 'supplierName', key: 'supplierName', width: 160,
       sorter: (a: PaymentRequest, b: PaymentRequest) => (a.supplierName || '').localeCompare(b.supplierName || '', 'ru'),
       render: (name: string | undefined) => name ?? '—',
     },
