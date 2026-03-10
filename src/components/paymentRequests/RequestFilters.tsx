@@ -91,7 +91,7 @@ const RequestFilters = (props: RequestFiltersProps) => {
           ? [null, dayjs(values.dateTo)]
           : undefined,
     })
-  }, [values, form])
+  }, [values, form, showResponsibleFilter, showMyRequestsFilter])
 
   const handleReset = () => {
     form.resetFields()
