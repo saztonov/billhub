@@ -39,7 +39,7 @@ const PaymentRequestsPage = () => {
 
   const setFilters = useCallback((val: FilterValues | ((prev: FilterValues) => FilterValues)) => {
     setFiltersState((prev) => {
-      const next = typeof val === 'function' ? val(prev) : val
+      const next = typeof val === 'function' ? val(prev) : { ...prev, ...val }
       try {
         if (next.myRequestsFilter) localStorage.setItem('billhub_my_requests_filter', next.myRequestsFilter)
         else localStorage.removeItem('billhub_my_requests_filter')
@@ -507,7 +507,7 @@ const PaymentRequestsPage = () => {
                 omtsUsers={omtsUsers}
                 values={filters}
                 onChange={setFilters}
-                onReset={() => setFilters({})}
+                onReset={() => setFilters(() => ({}))}
               />
             )}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

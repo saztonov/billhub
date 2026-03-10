@@ -87,19 +87,19 @@ const RequestsTable = (props: RequestsTableProps) => {
 
   if (!hideCounterpartyColumn) {
     columns.push({
-      title: 'Подрядчик', dataIndex: 'counterpartyName', key: 'counterpartyName',
+      title: 'Подрядчик', dataIndex: 'counterpartyName', key: 'counterpartyName', width: 180, ellipsis: true,
       sorter: (a: PaymentRequest, b: PaymentRequest) => (a.counterpartyName || '').localeCompare(b.counterpartyName || '', 'ru'),
     })
   }
 
   columns.push(
     {
-      title: 'Объект', dataIndex: 'siteName', key: 'siteName',
+      title: 'Объект', dataIndex: 'siteName', key: 'siteName', width: 160, ellipsis: true,
       sorter: (a: PaymentRequest, b: PaymentRequest) => (a.siteName || '').localeCompare(b.siteName || '', 'ru'),
       render: (name: string | undefined) => name ?? '—',
     },
     {
-      title: 'Поставщик', dataIndex: 'supplierName', key: 'supplierName',
+      title: 'Поставщик', dataIndex: 'supplierName', key: 'supplierName', width: 160, ellipsis: true,
       sorter: (a: PaymentRequest, b: PaymentRequest) => (a.supplierName || '').localeCompare(b.supplierName || '', 'ru'),
       render: (name: string | undefined) => name ?? '—',
     },
@@ -313,7 +313,7 @@ const RequestsTable = (props: RequestsTableProps) => {
         dataSource={paginatedData}
         rowKey="id"
         loading={isLoading}
-        scroll={{ x: 1200, y: scrollY }}
+        scroll={{ x: 1700, y: scrollY }}
         pagination={false}
         rowClassName={(record: PaymentRequest) => {
           const classes: string[] = []
