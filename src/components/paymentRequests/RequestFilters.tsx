@@ -67,15 +67,15 @@ const RequestFilters = (props: RequestFiltersProps) => {
         : undefined,
   }
 
-  const handleValuesChange = (_: any, allValues: any) => {
-    // Преобразуем dateRange в dateFrom/dateTo для родительского компонента
-    const { dateRange, ...rest } = allValues
-    const transformed = {
-      ...rest,
-      dateFrom: dateRange?.[0] ? dateRange[0].format('YYYY-MM-DD') : undefined,
-      dateTo: dateRange?.[1] ? dateRange[1].format('YYYY-MM-DD') : undefined,
+  const handleValuesChange = (changedValues: any) => {
+    // Передаём только изменённые поля — мерж с предыдущими в setFilters
+    const { dateRange, ...rest } = changedValues
+    const transformed: Record<string, any> = { ...rest }
+    if ('dateRange' in changedValues) {
+      transformed.dateFrom = dateRange?.[0] ? dateRange[0].format('YYYY-MM-DD') : undefined
+      transformed.dateTo = dateRange?.[1] ? dateRange[1].format('YYYY-MM-DD') : undefined
     }
-    onChange(transformed)
+    onChange(transformed as FilterValues)
   }
 
   // Синхронизация формы при внешнем изменении values (сброс к дефолтным)
