@@ -162,8 +162,10 @@ const UsersTab = () => {
   // Фильтрация данных по поисковым полям и фильтрам
   const filteredUsers = useMemo(() => {
     return users.filter(user => {
+      const searchLower = searchFullName.toLowerCase()
       const matchFullName = !searchFullName ||
-        (user.fullName?.toLowerCase() || '').includes(searchFullName.toLowerCase())
+        (user.fullName?.toLowerCase() || '').includes(searchLower) ||
+        (user.email?.toLowerCase() || '').includes(searchLower)
       const matchCounterparty = !searchCounterparty ||
         (user.counterpartyName?.toLowerCase() || '').includes(searchCounterparty.toLowerCase())
       const matchDepartment = !filterDepartment || user.department === filterDepartment
@@ -318,7 +320,7 @@ const UsersTab = () => {
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16, alignItems: 'center', flexShrink: 0 }}>
         <Input.Search
-          placeholder="Поиск по ФИО"
+          placeholder="Поиск по ФИО или email"
           allowClear
           style={{ width: 200 }}
           value={searchFullName}
