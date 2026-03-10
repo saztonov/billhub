@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Документ -->
+  <path d="M16 4 L44 4 L52 14 L52 58 C52 60.2 50.2 62 48 62 L16 62 C13.8 62 12 60.2 12 58 L12 8 C12 5.8 13.8 4 16 4 Z" fill="#4096ff" stroke="#1677ff" stroke-width="1.5"/>
+  <!-- Загнутый уголок -->
+  <path d="M44 4 L44 14 L52 14 Z" fill="#91caff" stroke="#1677ff" stroke-width="1"/>
+  <!-- Строки текста -->
+  <rect x="20" y="22" width="20" height="2.5" rx="1" fill="#ffffff" opacity="0.7"/>
+  <rect x="20" y="28" width="16" height="2.5" rx="1" fill="#ffffff" opacity="0.7"/>
+  <rect x="20" y="34" width="18" height="2.5" rx="1" fill="#ffffff" opacity="0.5"/>
+  <!-- Галочка в круге -->
+  <circle cx="44" cy="48" r="12" fill="#52c41a" stroke="#ffffff" stroke-width="2"/>
+  <path d="M38 48 L42 52 L50 44" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
