@@ -47,6 +47,7 @@ interface UserStoreState {
   createUser: (data: CreateUserData) => Promise<void>
   updateUser: (id: string, data: UpdateUserData) => Promise<void>
   deactivateUser: (id: string) => Promise<void>
+  activateUser: (id: string) => Promise<void>
   changePassword: (userId: string, newPassword: string) => Promise<void>
 }
 
@@ -118,7 +119,18 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
         email: data.email,
         password: data.password,
       })
-      if (authError) throw authError
+      if (authError) {
+        // Проверяем, есть ли деактивированный пользователь с таким email
+        const { data: existing } = await supabase
+          .from('users')
+          .select('id, is_active')
+          .eq('email', data.email)
+          .single()
+        if (existing && !existing.is_active) {
+          throw new Error('Пользователь с таким email уже существует и деактивирован. Активируйте его вместо создания нового.')
+        }
+        throw authError
+      }
       if (!authData.user) throw new Error('Не удалось создать пользователя')
 
       // Создаем запись в таблице users
@@ -235,6 +247,21 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
       await get().fetchUsers()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка деактивации пользователя'
+      set({ error: message, isLoading: false })
+    }
+  },
+
+  activateUser: async (id) => {
+    set({ isLoading: true, error: null })
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({ is_active: true })
+        .eq('id', id)
+      if (error) throw error
+      await get().fetchUsers()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Ошибка активации пользователя'
       set({ error: message, isLoading: false })
     }
   },

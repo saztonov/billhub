@@ -14,7 +14,7 @@ import {
   Popconfirm,
   Segmented,
 } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined, KeyOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DeleteOutlined, KeyOutlined, CheckCircleOutlined } from '@ant-design/icons'
 import { useTableScrollY } from '@/hooks/useTableScrollY'
 import { useUserStore } from '@/store/userStore'
 import { useAuthStore } from '@/store/authStore'
@@ -56,7 +56,7 @@ const UsersTab = () => {
   const [form] = Form.useForm()
   const [passwordForm] = Form.useForm()
 
-  const { users, isLoading, error, fetchUsers, updateUser, deactivateUser, changePassword } = useUserStore()
+  const { users, isLoading, error, fetchUsers, updateUser, deactivateUser, activateUser, changePassword } = useUserStore()
   const currentUser = useAuthStore((s) => s.user)
   const { counterparties, fetchCounterparties } = useCounterpartyStore()
   const { sites, fetchSites } = useConstructionSiteStore()
@@ -101,6 +101,11 @@ const UsersTab = () => {
   const handleDeactivate = async (id: string) => {
     await deactivateUser(id)
     message.success('Пользователь деактивирован')
+  }
+
+  const handleActivate = async (id: string) => {
+    await activateUser(id)
+    message.success('Пользователь активирован')
   }
 
   const handleCancel = () => {
@@ -284,6 +289,17 @@ const UsersTab = () => {
               cancelText="Нет"
             >
               <Button icon={<DeleteOutlined />} danger size="small" />
+            </Popconfirm>
+          )}
+          {!record.isActive && (
+            <Popconfirm
+              title="Активировать пользователя?"
+              description="Пользователь снова сможет войти в систему"
+              onConfirm={() => handleActivate(record.id)}
+              okText="Да"
+              cancelText="Нет"
+            >
+              <Button icon={<CheckCircleOutlined />} size="small" title="Активировать" style={{ color: '#52c41a' }} />
             </Popconfirm>
           )}
         </Space>

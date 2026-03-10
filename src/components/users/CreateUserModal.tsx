@@ -52,8 +52,9 @@ const CreateUserModal = ({ open, onClose, onSuccess }: CreateUserModalProps) => 
       setSelectedRole('user')
       setAllSitesChecked(false)
       onSuccess()
-    } catch {
-      message.error('Ошибка создания пользователя')
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Ошибка создания пользователя'
+      message.error(errorMsg)
     } finally {
       setIsSubmitting(false)
     }
