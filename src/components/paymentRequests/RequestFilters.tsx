@@ -28,6 +28,7 @@ interface RequestFiltersProps {
   suppliers?: Supplier[]
   hideCounterpartyFilter?: boolean
   hideStatusFilter?: boolean
+  hideSiteFilter?: boolean
   showResponsibleFilter?: boolean
   showMyRequestsFilter?: boolean
   omtsUsers?: OmtsUser[]
@@ -44,6 +45,7 @@ const RequestFilters = (props: RequestFiltersProps) => {
     suppliers,
     hideCounterpartyFilter,
     hideStatusFilter,
+    hideSiteFilter,
     showResponsibleFilter,
     showMyRequestsFilter,
     omtsUsers,
@@ -124,19 +126,21 @@ const RequestFilters = (props: RequestFiltersProps) => {
             </Form.Item>
           )}
 
-          <Form.Item label="Объект" name="siteId" style={{ marginBottom: 0, width: 170 }}>
-            <Select
-              placeholder="Все"
-              allowClear
-              showSearch
-              optionFilterProp="label"
-              popupMatchSelectWidth={false}
-              options={sites?.map((s) => ({
-                label: s.name,
-                value: s.id,
-              }))}
-            />
-          </Form.Item>
+          {!hideSiteFilter && (
+            <Form.Item label="Объект" name="siteId" style={{ marginBottom: 0, width: 170 }}>
+              <Select
+                placeholder="Все"
+                allowClear
+                showSearch
+                optionFilterProp="label"
+                popupMatchSelectWidth={false}
+                options={sites?.map((s) => ({
+                  label: s.name,
+                  value: s.id,
+                }))}
+              />
+            </Form.Item>
+          )}
 
           <Form.Item label="Поставщик" name="supplierId" style={{ marginBottom: 0, width: 170 }}>
             <Select

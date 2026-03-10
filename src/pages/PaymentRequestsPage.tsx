@@ -58,7 +58,7 @@ const PaymentRequestsPage = () => {
 
   // Данные
   const {
-    user, isCounterpartyUser, isAdmin, isUser, isOmtsUser, isOmtsRpUser,
+    user, isCounterpartyUser, isAdmin, isUser, isOmtsUser, isShtabUser, isOmtsRpUser,
     userDeptInChain, totalStages,
     requests, pendingRequests, approvedRequests, rejectedRequests, omtsRpPendingRequests,
     isLoading, approvalLoading,
@@ -502,6 +502,7 @@ const PaymentRequestsPage = () => {
                 suppliers={suppliers}
                 hideCounterpartyFilter={false}
                 hideStatusFilter={true}
+                hideSiteFilter={isShtabUser && !isAdmin}
                 showResponsibleFilter={isAdmin}
                 showMyRequestsFilter={isOmtsUser && !isAdmin}
                 omtsUsers={omtsUsers}

@@ -56,6 +56,7 @@ export function usePaymentRequestsData({
   const isAdmin = user?.role === 'admin'
   const isUser = user?.role === 'user'
   const isOmtsUser = user?.department === 'omts'
+  const isShtabUser = user?.department === 'shtab'
 
   const [userSiteIds, setUserSiteIds] = useState<string[]>([])
   const [userAllSites, setUserAllSites] = useState(true)
@@ -230,6 +231,7 @@ export function usePaymentRequestsData({
     isAdmin,
     isUser,
     isOmtsUser,
+    isShtabUser,
     isOmtsRpUser,
     userDeptInChain,
     totalStages,
