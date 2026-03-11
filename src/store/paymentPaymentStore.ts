@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { supabase } from '@/services/supabase'
 import { logError } from '@/services/errorLogger'
 import { deleteFile } from '@/services/s3'
+import { usePaymentRequestStore } from '@/store/paymentRequestStore'
 import type { PaymentPayment } from '@/types'
 
 interface CreatePaymentData {
@@ -196,9 +197,12 @@ export const usePaymentPaymentStore = create<PaymentPaymentStoreState>((set, get
         .update({ is_executed: true })
         .eq('id', paymentId)
 
-      // Перезагружаем оплаты для обновления списка файлов
+      // Пересчитываем total_paid в заявке и перезагружаем оплаты
       const payment = get().payments.find((p) => p.id === paymentId)
-      if (payment) await get().fetchPayments(payment.paymentRequestId)
+      if (payment) {
+        await get().recalcPaidStatus(payment.paymentRequestId)
+        await get().fetchPayments(payment.paymentRequestId)
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка добавления файла оплаты'
       logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'addPaymentFile' } })
@@ -229,6 +233,10 @@ export const usePaymentPaymentStore = create<PaymentPaymentStoreState>((set, get
           .from('payment_payments')
           .update({ is_executed: hasFiles })
           .eq('id', paymentId)
+
+        // Пересчитываем total_paid в заявке
+        const payment = get().payments.find((p) => p.id === paymentId)
+        if (payment) await get().recalcPaidStatus(payment.paymentRequestId)
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка удаления файла оплаты'
@@ -285,6 +293,15 @@ export const usePaymentPaymentStore = create<PaymentPaymentStoreState>((set, get
         })
         .eq('id', paymentRequestId)
       if (updError) throw updError
+
+      // Обновляем totalPaid в store заявок для мгновенного отображения на списке
+      const reqStore = usePaymentRequestStore.getState()
+      const updatedRequests = reqStore.requests.map((r) =>
+        r.id === paymentRequestId
+          ? { ...r, totalPaid, paidStatusId: statusData.id }
+          : r
+      )
+      usePaymentRequestStore.setState({ requests: updatedRequests })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка пересчёта статуса оплаты'
       logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'recalcPaidStatus' } })
