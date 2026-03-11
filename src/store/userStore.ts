@@ -39,6 +39,19 @@ interface UpdateUserData {
   site_ids: string[]
 }
 
+export interface BatchImportUserRow {
+  counterpartyId: string
+  email: string
+  password: string
+  fullName: string
+}
+
+export interface BatchImportUserResult {
+  email: string
+  status: 'success' | 'error'
+  errorMessage?: string
+}
+
 interface UserStoreState {
   users: UserRecord[]
   isLoading: boolean
@@ -49,6 +62,10 @@ interface UserStoreState {
   deactivateUser: (id: string) => Promise<void>
   activateUser: (id: string) => Promise<void>
   changePassword: (userId: string, newPassword: string) => Promise<void>
+  batchCreateCounterpartyUsers: (
+    rows: BatchImportUserRow[],
+    onProgress: (done: number, total: number) => void
+  ) => Promise<BatchImportUserResult[]>
 }
 
 export const useUserStore = create<UserStoreState>((set, get) => ({
@@ -272,5 +289,51 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
       new_password: newPassword,
     })
     if (error) throw error
+  },
+
+  batchCreateCounterpartyUsers: async (rows, onProgress) => {
+    const results: BatchImportUserResult[] = []
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i]
+      try {
+        // Создаём пользователя в Auth через клиент без сессии
+        const { data: authData, error: authError } = await supabaseNoSession.auth.signUp({
+          email: row.email,
+          password: row.password,
+        })
+        if (authError) throw authError
+        if (!authData.user) throw new Error('Не удалось создать пользователя в Auth')
+
+        // Вставляем запись в таблицу users
+        const { error: insertError } = await supabase.from('users').insert({
+          id: authData.user.id,
+          email: row.email,
+          full_name: row.fullName,
+          role: 'counterparty_user',
+          counterparty_id: row.counterpartyId,
+          all_sites: false,
+        })
+        if (insertError) throw insertError
+
+        results.push({ email: row.email, status: 'success' })
+      } catch (err) {
+        results.push({
+          email: row.email,
+          status: 'error',
+          errorMessage: err instanceof Error ? err.message : 'Неизвестная ошибка',
+        })
+      }
+
+      onProgress(i + 1, rows.length)
+
+      // Пауза между запросами для снижения нагрузки на Auth
+      if (i < rows.length - 1) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 100))
+      }
+    }
+
+    await get().fetchUsers()
+    return results
   },
 }))

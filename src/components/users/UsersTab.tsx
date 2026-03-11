@@ -14,13 +14,14 @@ import {
   Popconfirm,
   Segmented,
 } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined, KeyOutlined, CheckCircleOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DeleteOutlined, KeyOutlined, CheckCircleOutlined, UploadOutlined } from '@ant-design/icons'
 import { useTableScrollY } from '@/hooks/useTableScrollY'
 import { useUserStore } from '@/store/userStore'
 import { useAuthStore } from '@/store/authStore'
 import { useCounterpartyStore } from '@/store/counterpartyStore'
 import { useConstructionSiteStore } from '@/store/constructionSiteStore'
 import CreateUserModal from '@/components/users/CreateUserModal'
+import ImportCounterpartyUsersModal from '@/components/users/ImportCounterpartyUsersModal'
 import type { UserRole, Department } from '@/types'
 import { DEPARTMENT_LABELS } from '@/types'
 import type { UserRecord } from '@/store/userStore'
@@ -43,6 +44,7 @@ const UsersTab = () => {
   const { message } = App.useApp()
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false)
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false)
   const [passwordTarget, setPasswordTarget] = useState<UserRecord | null>(null)
   const [editingRecord, setEditingRecord] = useState<UserRecord | null>(null)
@@ -369,9 +371,14 @@ const UsersTab = () => {
           onChange={(val) => setFilterActive(val as string)}
         />
         <div style={{ marginLeft: 'auto' }}>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsCreateModalOpen(true)}>
-            Добавить
-          </Button>
+          <Space>
+            <Button icon={<UploadOutlined />} onClick={() => setIsImportModalOpen(true)}>
+              Импорт из Excel
+            </Button>
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsCreateModalOpen(true)}>
+              Добавить
+            </Button>
+          </Space>
         </div>
       </div>
       {error && (
@@ -406,6 +413,10 @@ const UsersTab = () => {
           setIsCreateModalOpen(false)
           fetchUsers()
         }}
+      />
+      <ImportCounterpartyUsersModal
+        open={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
       />
       <Modal
         title="Редактировать пользователя"

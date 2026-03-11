@@ -23,6 +23,7 @@ interface CounterpartyStoreState {
   deleteCounterparty: (id: string) => Promise<void>
   batchInsertCounterparties: (rows: ImportCounterpartyRow[], onProgress?: (done: number, total: number) => void) => Promise<number>
   updateCounterpartyForImport: (id: string, name: string, alternativeNames: string[]) => Promise<void>
+  createCounterpartiesForImport: (rows: ImportCounterpartyRow[]) => Promise<{ inn: string; id: string }[]>
 }
 
 export const useCounterpartyStore = create<CounterpartyStoreState>((set, get) => ({
@@ -133,5 +134,17 @@ export const useCounterpartyStore = create<CounterpartyStoreState>((set, get) =>
       .update({ name, alternative_names: alternativeNames })
       .eq('id', id)
     if (error) throw error
+  },
+
+  createCounterpartiesForImport: async (rows) => {
+    const { data, error } = await supabase
+      .from('counterparties')
+      .insert(rows.map((r) => ({ name: r.name, inn: r.inn, address: '', alternative_names: [] })))
+      .select('id, inn')
+    if (error) throw error
+    return (data ?? []).map((row: Record<string, unknown>) => ({
+      inn: row.inn as string,
+      id: row.id as string,
+    }))
   },
 }))
