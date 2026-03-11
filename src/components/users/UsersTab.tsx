@@ -524,7 +524,7 @@ const UsersTab = () => {
             label="Новый пароль"
             rules={[
               { required: true, message: 'Введите пароль' },
-              { min: 8, message: 'Минимум 8 символов' },
+              { min: 6, message: 'Минимум 6 символов' },
             ]}
           >
             <Input.Password />

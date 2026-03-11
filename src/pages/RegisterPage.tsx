@@ -139,7 +139,7 @@ const RegisterPage = () => {
           name="password"
           rules={[
             { required: true, message: 'Введите пароль' },
-            { min: 8, message: 'Минимум 8 символов' },
+            { min: 6, message: 'Минимум 6 символов' },
           ]}
         >
           <Input.Password prefix={<LockOutlined />} placeholder="Пароль" />
