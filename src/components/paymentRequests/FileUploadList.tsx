@@ -35,9 +35,10 @@ const ACCEPTED_TYPES = [
   'image/tiff',
   'image/bmp',
   'application/pdf',
+  'image/vnd.dwg',
 ]
 
-const ACCEPT_EXTENSIONS = '.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.tiff,.tif,.bmp,.pdf'
+const ACCEPT_EXTENSIONS = '.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.tiff,.tif,.bmp,.pdf,.dwg'
 
 /** Максимальный размер файла */
 const MAX_FILE_SIZE_MB = Number(import.meta.env.VITE_MAX_FILE_SIZE_MB) || 100
@@ -60,7 +61,7 @@ const FileUploadList = ({ fileList, onChange, showValidation }: FileUploadListPr
     // Обрабатываем всю пачку только на первом файле, чтобы избежать stale closure
     if (file !== batch[0]) return false
 
-    const validExts = ['doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png', 'tiff', 'tif', 'bmp', 'pdf']
+    const validExts = ['doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png', 'tiff', 'tif', 'bmp', 'pdf', 'dwg']
     const validFiles: File[] = []
 
     for (const f of batch) {
@@ -139,7 +140,7 @@ const FileUploadList = ({ fileList, onChange, showValidation }: FileUploadListPr
           Перетащите файлы или нажмите для выбора
         </p>
         <p className="ant-upload-hint">
-          doc, docx, xls, xlsx, jpg, png, tiff, bmp, pdf
+          doc, docx, xls, xlsx, jpg, png, tiff, bmp, pdf, dwg
         </p>
       </Dragger>
 

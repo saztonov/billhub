@@ -2638,7 +2638,7 @@
       "functions": [
         {
           "name": "change_user_password",
-          "source": "\r\nDECLARE\r\n  v_caller_role text;\r\nBEGIN\r\n  -- Проверяем роль вызывающего пользователя\r\n  SELECT role INTO v_caller_role\r\n    FROM public.users\r\n   WHERE id = auth.uid();\r\n\r\n  IF v_caller_role IS NULL OR v_caller_role != 'admin' THEN\r\n    RAISE EXCEPTION 'Доступ запрещён: только администратор может менять пароли';\r\n  END IF;\r\n\r\n  -- Проверяем минимальную длину пароля\r\n  IF length(new_password) < 6 THEN\r\n    RAISE EXCEPTION 'Пароль должен содержать минимум 6 символов';\r\n  END IF;\r\n\r\n  -- Проверяем что целевой пользователь существует\r\n  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE id = target_user_id) THEN\r\n    RAISE EXCEPTION 'Пользователь не найден';\r\n  END IF;\r\n\r\n  -- Обновляем пароль\r\n  UPDATE auth.users\r\n     SET encrypted_password = crypt(new_password, gen_salt('bf'))\r\n   WHERE id = target_user_id;\r\nEND;\r\n",
+          "source": "\r\nDECLARE\r\n  v_caller_role text;\r\nBEGIN\r\n  -- Проверяем роль вызывающего пользователя\r\n  SELECT role INTO v_caller_role\r\n    FROM public.users\r\n   WHERE id = auth.uid();\r\n\r\n  IF v_caller_role IS NULL OR v_caller_role != 'admin' THEN\r\n    RAISE EXCEPTION 'Доступ запрещён: только администратор может менять пароли';\r\n  END IF;\r\n\r\n  -- Проверяем минимальную длину пароля\r\n  IF length(new_password) < 8 THEN\r\n    RAISE EXCEPTION 'Пароль должен содержать минимум 8 символов';\r\n  END IF;\r\n\r\n  -- Проверяем что целевой пользователь существует\r\n  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE id = target_user_id) THEN\r\n    RAISE EXCEPTION 'Пользователь не найден';\r\n  END IF;\r\n\r\n  -- Обновляем пароль\r\n  UPDATE auth.users\r\n     SET encrypted_password = crypt(new_password, gen_salt('bf'))\r\n   WHERE id = target_user_id;\r\nEND;\r\n",
           "language": "plpgsql",
           "security": "DEFINER",
           "arguments": "target_user_id uuid, new_password text",
@@ -3151,7 +3151,7 @@
           "references_columns": null
         }
       ],
-      "generated_at": "2026-03-06T15:37:37.981073+00:00",
+      "generated_at": "2026-03-11T07:53:15.428246+00:00",
       "primary_keys": [
         {
           "columns": [

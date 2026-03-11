@@ -5,7 +5,7 @@ import { InboxOutlined, CloseOutlined } from '@ant-design/icons'
 const { TextArea } = Input
 const { Dragger } = Upload
 
-const ACCEPT_EXTENSIONS = '.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.tiff,.tif,.bmp,.pdf'
+const ACCEPT_EXTENSIONS = '.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.tiff,.tif,.bmp,.pdf,.dwg'
 
 interface RejectModalProps {
   open: boolean
