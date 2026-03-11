@@ -86,7 +86,9 @@ const PaymentRequestsPage = () => {
     filteredRequests, filteredPendingRequests, filteredApprovedRequests, filteredRejectedRequests,
     filteredOmtsRpPendingRequests,
     filteredCounterpartyAll, filteredCounterpartyPending, filteredCounterpartyApproved, filteredCounterpartyRejected,
-    totalInvoiceAmount, totalInvoiceAmountAll, totalPaidAll, unassignedOmtsCount,
+    totalInvoiceAmount, totalInvoiceAmountAll, totalPaidAll,
+    totalCounterpartyInvoiceAmountAll, totalCounterpartyPaidAll,
+    unassignedOmtsCount,
   } = useRequestFiltering({
     requests, pendingRequests, approvedRequests, rejectedRequests, omtsRpPendingRequests,
     filters, userId: user?.id, isAdmin: !!isAdmin,
@@ -428,6 +430,8 @@ const PaymentRequestsPage = () => {
           activeTab={activeTab}
           onTabChange={setActiveTab}
           onTabClick={(key) => { if (key === activeTab) setRefreshTrigger((n) => n + 1) }}
+          totalInvoiceAmountAll={totalCounterpartyInvoiceAmountAll}
+          totalPaidAll={totalCounterpartyPaidAll}
           onView={setViewRecord}
           onWithdraw={handleWithdraw}
           onResubmit={setResubmitRecord}

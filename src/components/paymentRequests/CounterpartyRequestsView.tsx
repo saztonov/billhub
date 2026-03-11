@@ -30,6 +30,8 @@ interface CounterpartyRequestsViewProps {
   onCreateOpen: () => void
   uploadTasks: Record<string, UploadTask>
   totalStages: number
+  totalInvoiceAmountAll: number
+  totalPaidAll: number
 }
 
 /** UI заявок для роли counterparty_user */
@@ -55,18 +57,49 @@ const CounterpartyRequestsView = ({
   onCreateOpen,
   uploadTasks,
   totalStages,
+  totalInvoiceAmountAll,
+  totalPaidAll,
 }: CounterpartyRequestsViewProps) => {
   const setHeader = useHeaderStore((s) => s.setHeader)
 
   useEffect(() => {
+    const extra = activeTab === 'all' ? (
+      <div
+        style={{
+          padding: '4px 12px',
+          border: '1px solid #d9d9d9',
+          borderRadius: '6px',
+          backgroundColor: '#fafafa',
+          whiteSpace: 'nowrap',
+          fontSize: 13,
+        }}
+      >
+        <span style={{ color: '#8c8c8c', marginRight: 6 }}>РП на сумму:</span>
+        <span style={{ fontWeight: 500 }}>
+          {totalInvoiceAmountAll.toLocaleString('ru-RU', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+          })} ₽
+        </span>
+        <span style={{ color: '#d9d9d9', margin: '0 8px' }}>|</span>
+        <span style={{ color: '#8c8c8c', marginRight: 6 }}>Оплачено РП:</span>
+        <span style={{ fontWeight: 500 }}>
+          {totalPaidAll.toLocaleString('ru-RU', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+          })} ₽
+        </span>
+      </div>
+    ) : null
+
     setHeader(
       'Заявки на оплату',
-      null,
+      extra,
       <Button type="primary" icon={<PlusOutlined />} onClick={onCreateOpen}>
         Добавить
       </Button>
     )
-  }, [setHeader, onCreateOpen])
+  }, [setHeader, onCreateOpen, activeTab, totalInvoiceAmountAll, totalPaidAll])
 
   const tabItems = [
     {

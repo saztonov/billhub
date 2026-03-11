@@ -185,6 +185,15 @@ export function useRequestFiltering({
     return filteredRequests.reduce((sum, req) => sum + (req.totalPaid ?? 0), 0)
   }, [filteredRequests])
 
+  // Статистика для counterparty_user (вкладка "Все")
+  const totalCounterpartyInvoiceAmountAll = useMemo(() => {
+    return filteredCounterpartyAll.reduce((sum, req) => sum + (req.invoiceAmount ?? 0), 0)
+  }, [filteredCounterpartyAll])
+
+  const totalCounterpartyPaidAll = useMemo(() => {
+    return filteredCounterpartyAll.reduce((sum, req) => sum + (req.totalPaid ?? 0), 0)
+  }, [filteredCounterpartyAll])
+
   const unassignedOmtsCount = useMemo(() => {
     if (!isAdmin) return 0
     return filteredPendingRequests.filter(req =>
@@ -208,6 +217,8 @@ export function useRequestFiltering({
     totalInvoiceAmount,
     totalInvoiceAmountAll,
     totalPaidAll,
+    totalCounterpartyInvoiceAmountAll,
+    totalCounterpartyPaidAll,
     unassignedOmtsCount,
   }
 }
