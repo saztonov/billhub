@@ -1,6 +1,9 @@
 import { useState, useCallback, useEffect } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Button, Tabs, App, Radio, Switch } from 'antd'
 import { PlusOutlined, FilterOutlined } from '@ant-design/icons'
+import { supabase } from '@/services/supabase'
+import { logError } from '@/services/errorLogger'
 import { usePaymentRequestsData } from '@/hooks/usePaymentRequestsData'
 import { useRequestFiltering } from '@/hooks/useRequestFiltering'
 import { useCounterpartyStore } from '@/store/counterpartyStore'
@@ -18,6 +21,8 @@ import type { PaymentRequest, Department } from '@/types'
 
 const PaymentRequestsPage = () => {
   const { message } = App.useApp()
+  const location = useLocation()
+  const nav = useNavigate()
 
   // UI state
   const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -86,6 +91,91 @@ const PaymentRequestsPage = () => {
     requests, pendingRequests, approvedRequests, rejectedRequests, omtsRpPendingRequests,
     filters, userId: user?.id, isAdmin: !!isAdmin,
   })
+
+  // Открытие заявки по клику на уведомление
+  useEffect(() => {
+    const state = location.state as { openRequestId?: string } | null
+    if (!state?.openRequestId) return
+    // Очищаем state, чтобы не переоткрывать при навигации
+    nav(location.pathname, { replace: true, state: null })
+
+    const loadRequest = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('payment_requests')
+          .select(`
+            id, request_number, counterparty_id, site_id, status_id,
+            delivery_days, delivery_days_type, shipping_condition_id, comment,
+            created_by, created_at, total_files, uploaded_files,
+            withdrawn_at, withdrawal_comment, current_stage,
+            approved_at, rejected_at, rejected_stage,
+            resubmit_comment, resubmit_count,
+            invoice_amount, invoice_amount_history,
+            paid_status_id, total_paid, is_deleted, deleted_at,
+            supplier_id, dp_number, dp_date, dp_amount, dp_file_key, dp_file_name,
+            counterparties(name),
+            suppliers(name),
+            construction_sites(name),
+            statuses!payment_requests_status_id_fkey(name, color),
+            shipping:payment_request_field_options!payment_requests_shipping_condition_id_fkey(value)
+          `)
+          .eq('id', state.openRequestId)
+          .single()
+        if (error || !data) return
+
+        const ct = data.counterparties as unknown as Record<string, unknown> | null
+        const sup = data.suppliers as unknown as Record<string, unknown> | null
+        const site = data.construction_sites as unknown as Record<string, unknown> | null
+        const st = data.statuses as unknown as Record<string, unknown> | null
+        const ship = data.shipping as unknown as Record<string, unknown> | null
+
+        setViewRecord({
+          id: data.id,
+          requestNumber: data.request_number,
+          counterpartyId: data.counterparty_id,
+          siteId: data.site_id,
+          statusId: data.status_id,
+          deliveryDays: data.delivery_days,
+          deliveryDaysType: data.delivery_days_type ?? 'working',
+          shippingConditionId: data.shipping_condition_id,
+          comment: data.comment,
+          createdBy: data.created_by,
+          createdAt: data.created_at,
+          totalFiles: data.total_files ?? 0,
+          uploadedFiles: data.uploaded_files ?? 0,
+          withdrawnAt: data.withdrawn_at,
+          withdrawalComment: data.withdrawal_comment,
+          currentStage: data.current_stage ?? null,
+          approvedAt: data.approved_at,
+          rejectedAt: data.rejected_at,
+          rejectedStage: data.rejected_stage ?? null,
+          resubmitComment: data.resubmit_comment ?? null,
+          resubmitCount: data.resubmit_count ?? 0,
+          invoiceAmount: data.invoice_amount ?? null,
+          invoiceAmountHistory: data.invoice_amount_history ?? [],
+          paidStatusId: data.paid_status_id ?? null,
+          totalPaid: Number(data.total_paid ?? 0),
+          isDeleted: data.is_deleted ?? false,
+          deletedAt: data.deleted_at ?? null,
+          supplierId: data.supplier_id ?? null,
+          dpNumber: data.dp_number ?? null,
+          dpDate: data.dp_date ?? null,
+          dpAmount: data.dp_amount != null ? Number(data.dp_amount) : null,
+          dpFileKey: data.dp_file_key ?? null,
+          dpFileName: data.dp_file_name ?? null,
+          counterpartyName: ct?.name as string | undefined,
+          supplierName: sup?.name as string | undefined,
+          siteName: site?.name as string | undefined,
+          statusName: st?.name as string | undefined,
+          statusColor: (st?.color as string) ?? null,
+          shippingConditionValue: ship?.value as string | undefined,
+        } as PaymentRequest)
+      } catch (err) {
+        logError({ errorType: 'api_error', errorMessage: err instanceof Error ? err.message : 'Ошибка загрузки заявки', errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'openRequestFromNotification' } })
+      }
+    }
+    loadRequest()
+  }, [location.state]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Заголовок и элементы в шапке
   const setHeader = useHeaderStore((s) => s.setHeader)

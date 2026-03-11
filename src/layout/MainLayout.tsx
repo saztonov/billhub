@@ -98,7 +98,9 @@ const MainLayout = () => {
       markAsRead(notif.id)
     }
     setNotifOpen(false)
-    navigate('/payment-requests')
+    navigate('/payment-requests', {
+      state: notif.paymentRequestId ? { openRequestId: notif.paymentRequestId } : undefined,
+    })
   }, [markAsRead, navigate])
 
   const handleMarkAllRead = useCallback(() => {
