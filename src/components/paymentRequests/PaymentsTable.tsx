@@ -25,9 +25,9 @@ import {
 import dayjs from 'dayjs'
 import { usePaymentPaymentStore } from '@/store/paymentPaymentStore'
 import { useAuthStore } from '@/store/authStore'
-import { uploadPaymentFile } from '@/services/s3'
-import { downloadFileBlob } from '@/services/s3'
+import { uploadPaymentFile, downloadFileBlob } from '@/services/s3'
 import { checkFileMagicBytes } from '@/utils/fileValidation'
+import FilePreviewModal from '@/components/paymentRequests/FilePreviewModal'
 import type { PaymentPayment, PaymentPaymentFile } from '@/types'
 
 const { Text } = Typography
@@ -71,7 +71,7 @@ const PaymentsTable = ({ paymentRequestId, counterpartyName, canManage, onTotalC
   const [form] = Form.useForm()
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([])
   const [downloading, setDownloading] = useState<string | null>(null)
-  const [previewFile, setPreviewFile] = useState<{ fileKey: string; fileName: string } | null>(null)
+  const [previewFile, setPreviewFile] = useState<{ fileKey: string; fileName: string; mimeType: string | null } | null>(null)
 
   const totalPaid = useMemo(() => payments.filter(p => p.isExecuted).reduce((sum, p) => sum + p.amount, 0), [payments])
 
@@ -224,7 +224,7 @@ const PaymentsTable = ({ paymentRequestId, counterpartyName, canManage, onTotalC
                   size="small"
                   type="link"
                   style={{ padding: 0, maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                  onClick={() => setPreviewFile({ fileKey: f.fileKey, fileName: f.fileName })}
+                  onClick={() => setPreviewFile({ fileKey: f.fileKey, fileName: f.fileName, mimeType: f.mimeType })}
                 >
                   {f.fileName}
                 </Button>
@@ -325,7 +325,7 @@ const PaymentsTable = ({ paymentRequestId, counterpartyName, canManage, onTotalC
             {editingPayment.files.map((f) => (
               <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                 <Text style={{ flex: 1 }} ellipsis>{f.fileName}</Text>
-                <Button icon={<EyeOutlined />} size="small" type="text" onClick={() => setPreviewFile({ fileKey: f.fileKey, fileName: f.fileName })} />
+                <Button icon={<EyeOutlined />} size="small" type="text" onClick={() => setPreviewFile({ fileKey: f.fileKey, fileName: f.fileName, mimeType: f.mimeType })} />
                 <Popconfirm title="Удалить файл?" onConfirm={() => handleRemoveFile(f.id, f.fileKey, editingPayment.id)}>
                   <Button icon={<DeleteOutlined />} size="small" type="text" danger />
                 </Popconfirm>
@@ -359,14 +359,13 @@ const PaymentsTable = ({ paymentRequestId, counterpartyName, canManage, onTotalC
         </div>
       </Modal>
 
-      {/* Превью файла — используем FilePreviewModal из проекта */}
-      {previewFile && (
-        <Modal open title={previewFile.fileName} footer={null} onCancel={() => setPreviewFile(null)} width="80%">
-          <div style={{ textAlign: 'center', padding: 16 }}>
-            <Button icon={<DownloadOutlined />} onClick={() => handleDownload(previewFile.fileKey, previewFile.fileName)}>Скачать</Button>
-          </div>
-        </Modal>
-      )}
+      <FilePreviewModal
+        open={!!previewFile}
+        onClose={() => setPreviewFile(null)}
+        fileKey={previewFile?.fileKey ?? null}
+        fileName={previewFile?.fileName ?? ''}
+        mimeType={previewFile?.mimeType ?? null}
+      />
     </div>
   )
 }
