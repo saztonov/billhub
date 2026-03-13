@@ -43,6 +43,8 @@ const OmtsAssignmentBlock = ({
             placeholder="Выберите ответственного"
             style={{ width: '100%' }}
             allowClear
+            showSearch
+            optionFilterProp="label"
             onChange={async (value) => {
               if (!userId) return
               try {
