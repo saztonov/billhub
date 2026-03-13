@@ -55,6 +55,7 @@ export interface RequestsTableProps {
   onAssignResponsible?: (requestId: string, userId: string) => void
   responsibleFilter?: 'assigned' | 'unassigned' | null
   statusFilters?: { text: string; value: string }[]
+  showOmtsDays?: boolean
 }
 
 const RequestsTable = (props: RequestsTableProps) => {
@@ -65,7 +66,7 @@ const RequestsTable = (props: RequestsTableProps) => {
     showApprovalActions, onApprove, onReject, showApprovedDate, showRejectedDate,
     totalStages, showDepartmentFilter, rejectionDepartments, onResubmit,
     showResponsibleColumn, canAssignResponsible, omtsUsers, onAssignResponsible, responsibleFilter,
-    statusFilters,
+    statusFilters, showOmtsDays,
   } = props
 
   const [rejectModalId, setRejectModalId] = useState<string | null>(null)
@@ -108,7 +109,7 @@ const RequestsTable = (props: RequestsTableProps) => {
       sorter: (a: PaymentRequest, b: PaymentRequest) => (a.statusName || '').localeCompare(b.statusName || '', 'ru'),
       filters: statusFilters,
       onFilter: (value: unknown, record: PaymentRequest) => record.statusId === value,
-      render: (_: unknown, record: PaymentRequest) => <Tag color={record.statusColor ?? 'default'}>{record.statusName}</Tag>,
+      render: (_: unknown, record: PaymentRequest) => <Tag color={record.statusColor ?? 'default'} style={{ whiteSpace: 'pre-line', lineHeight: 1.3 }}>{record.statusName}</Tag>,
     },
     {
       title: 'Оплата', key: 'paidStatus', width: 110,
@@ -193,6 +194,22 @@ const RequestsTable = (props: RequestsTableProps) => {
       render: (_: unknown, record: PaymentRequest) => <span>{calculateDays(record.createdAt, record.approvedAt)}</span>,
     },
   )
+
+  if (showOmtsDays) {
+    columns.push({
+      title: 'Срок ОМТС', key: 'omtsDays', width: 80,
+      sorter: (a: PaymentRequest, b: PaymentRequest) => {
+        if (!a.omtsEnteredAt && !b.omtsEnteredAt) return 0
+        if (!a.omtsEnteredAt) return 1
+        if (!b.omtsEnteredAt) return -1
+        return calculateDays(a.omtsEnteredAt, a.omtsApprovedAt) - calculateDays(b.omtsEnteredAt, b.omtsApprovedAt)
+      },
+      render: (_: unknown, record: PaymentRequest) => {
+        if (!record.omtsEnteredAt) return <span style={{ color: '#bfbfbf' }}>—</span>
+        return <span>{calculateDays(record.omtsEnteredAt, record.omtsApprovedAt)}</span>
+      },
+    })
+  }
 
   if (showApprovedDate) {
     columns.push({

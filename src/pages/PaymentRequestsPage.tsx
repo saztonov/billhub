@@ -114,7 +114,7 @@ const PaymentRequestsPage = () => {
             resubmit_comment, resubmit_count,
             invoice_amount, invoice_amount_history,
             paid_status_id, total_paid, is_deleted, deleted_at,
-            supplier_id, dp_number, dp_date, dp_amount, dp_file_key, dp_file_name,
+            supplier_id, dp_number, dp_date, dp_amount, dp_file_key, dp_file_name, omts_entered_at, omts_approved_at,
             counterparties(name),
             suppliers(name),
             construction_sites(name),
@@ -165,6 +165,8 @@ const PaymentRequestsPage = () => {
           dpAmount: data.dp_amount != null ? Number(data.dp_amount) : null,
           dpFileKey: data.dp_file_key ?? null,
           dpFileName: data.dp_file_name ?? null,
+          omtsEnteredAt: data.omts_entered_at ?? null,
+          omtsApprovedAt: data.omts_approved_at ?? null,
           counterpartyName: ct?.name as string | undefined,
           supplierName: sup?.name as string | undefined,
           siteName: site?.name as string | undefined,
@@ -479,6 +481,7 @@ const PaymentRequestsPage = () => {
           onAssignResponsible={handleAssignResponsible}
           responsibleFilter={filters.responsibleFilter}
           statusFilters={statusFilters}
+          showOmtsDays
         />
       ),
     },
@@ -514,6 +517,7 @@ const PaymentRequestsPage = () => {
             omtsUsers={omtsUsers}
             onAssignResponsible={handleAssignResponsible}
             responsibleFilter={filters.responsibleFilter}
+            showOmtsDays
           />
         </div>
       ),
@@ -537,6 +541,7 @@ const PaymentRequestsPage = () => {
           omtsUsers={omtsUsers}
           onAssignResponsible={handleAssignResponsible}
           responsibleFilter={filters.responsibleFilter}
+          showOmtsDays
         />
       ),
     })
@@ -557,6 +562,7 @@ const PaymentRequestsPage = () => {
           omtsUsers={omtsUsers}
           onAssignResponsible={handleAssignResponsible}
           responsibleFilter={filters.responsibleFilter}
+          showOmtsDays
         />
       ),
     },
@@ -574,6 +580,7 @@ const PaymentRequestsPage = () => {
           omtsUsers={omtsUsers}
           onAssignResponsible={handleAssignResponsible}
           responsibleFilter={filters.responsibleFilter}
+          showOmtsDays
         />
       ),
     },

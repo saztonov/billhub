@@ -103,6 +103,8 @@ function mapRequest(row: Record<string, unknown>): PaymentRequest {
     dpAmount: (row.dp_amount as number) ?? null,
     dpFileKey: (row.dp_file_key as string) ?? null,
     dpFileName: (row.dp_file_name as string) ?? null,
+    omtsEnteredAt: (row.omts_entered_at as string) ?? null,
+    omtsApprovedAt: (row.omts_approved_at as string) ?? null,
   }
 }
 
@@ -336,7 +338,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
 
         await supabase
           .from('payment_requests')
-          .update({ current_stage: 2, status_id: omtsStatusData.id })
+          .update({ current_stage: 2, status_id: omtsStatusData.id, omts_entered_at: new Date().toISOString() })
           .eq('id', paymentRequestId)
 
         // Проверяем специалистов ОМТС для объекта
@@ -358,7 +360,20 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
             status: 'pending',
             is_omts_rp: true,
           })
-          // current_stage и статус НЕ меняем — остаётся этап 2 / approv_omts
+
+          // Меняем статус на "Согласование ОМТС РП"
+          const { data: omtsRpStatusData, error: omtsRpStError } = await supabase
+            .from('statuses')
+            .select('id')
+            .eq('entity_type', 'payment_request')
+            .eq('code', 'approv_omts_rp')
+            .single()
+          if (omtsRpStError) throw omtsRpStError
+
+          await supabase
+            .from('payment_requests')
+            .update({ status_id: omtsRpStatusData.id, omts_approved_at: new Date().toISOString() })
+            .eq('id', paymentRequestId)
         } else {
           // Стандартная логика: ОМТС РП согласовано (или объект не требует ОМТС РП) → Согласована
           const { data: statusData, error: stError } = await supabase
@@ -375,6 +390,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
               status_id: statusData.id,
               current_stage: null,
               approved_at: new Date().toISOString(),
+              omts_approved_at: new Date().toISOString(),
             })
             .eq('id', paymentRequestId)
 

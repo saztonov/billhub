@@ -161,6 +161,8 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
           dpAmount: row.dp_amount != null ? Number(row.dp_amount) : null,
           dpFileKey: (row.dp_file_key as string) ?? null,
           dpFileName: (row.dp_file_name as string) ?? null,
+          omtsEnteredAt: (row.omts_entered_at as string) ?? null,
+          omtsApprovedAt: (row.omts_approved_at as string) ?? null,
           counterpartyName: counterparties?.name as string | undefined,
           supplierName: supplier?.name as string | undefined,
           siteName: site?.name as string | undefined,

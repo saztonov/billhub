@@ -160,6 +160,8 @@ export interface PaymentRequest {
   dpAmount: number | null // Сумма РП
   dpFileKey: string | null // Ключ файла РП в S3
   dpFileName: string | null // Имя файла РП
+  omtsEnteredAt: string | null // Дата попадания на этап ОМТС
+  omtsApprovedAt: string | null // Дата согласования обычным ОМТС
   // Joined
   counterpartyName?: string
   supplierName?: string
