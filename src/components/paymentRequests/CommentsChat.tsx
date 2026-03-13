@@ -44,6 +44,11 @@ const CommentsChat = ({ paymentRequestId }: CommentsChatProps) => {
     } else if (user?.department === 'omts') {
       options.push({ value: 'shtab', label: 'Штаб' })
       options.push({ value: 'counterparty', label: 'Подрядчик' })
+    } else if (user?.role === 'admin' || user?.role === 'user') {
+      // Админ или пользователь без привязки к отделу — все варианты
+      options.push({ value: 'omts', label: 'ОМТС' })
+      options.push({ value: 'shtab', label: 'Штаб' })
+      options.push({ value: 'counterparty', label: 'Подрядчик' })
     }
     return options
   }, [user?.role, user?.department])
