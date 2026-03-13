@@ -32,6 +32,7 @@ interface CounterpartyRequestsViewProps {
   totalStages: number
   totalInvoiceAmountAll: number
   totalPaidAll: number
+  unreadCounts?: Record<string, number>
 }
 
 /** UI заявок для роли counterparty_user */
@@ -59,6 +60,7 @@ const CounterpartyRequestsView = ({
   totalStages,
   totalInvoiceAmountAll,
   totalPaidAll,
+  unreadCounts,
 }: CounterpartyRequestsViewProps) => {
   const setHeader = useHeaderStore((s) => s.setHeader)
 
@@ -116,6 +118,7 @@ const CounterpartyRequestsView = ({
           onResubmit={onResubmit}
           uploadTasks={uploadTasks}
           totalStages={totalStages}
+          unreadCounts={unreadCounts}
         />
       ),
     },
@@ -132,6 +135,7 @@ const CounterpartyRequestsView = ({
           onWithdraw={onWithdraw}
           uploadTasks={uploadTasks}
           totalStages={totalStages}
+          unreadCounts={unreadCounts}
         />
       ),
     },
@@ -148,6 +152,7 @@ const CounterpartyRequestsView = ({
           showApprovedDate
           uploadTasks={uploadTasks}
           totalStages={totalStages}
+          unreadCounts={unreadCounts}
         />
       ),
     },
@@ -165,6 +170,7 @@ const CounterpartyRequestsView = ({
           onResubmit={onResubmit}
           uploadTasks={uploadTasks}
           totalStages={totalStages}
+          unreadCounts={unreadCounts}
         />
       ),
     },

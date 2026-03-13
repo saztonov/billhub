@@ -8,6 +8,7 @@ import { usePaymentRequestsData } from '@/hooks/usePaymentRequestsData'
 import { useRequestFiltering } from '@/hooks/useRequestFiltering'
 import { useCounterpartyStore } from '@/store/counterpartyStore'
 import { useUploadQueueStore } from '@/store/uploadQueueStore'
+import { useCommentStore } from '@/store/commentStore'
 import { useHeaderStore } from '@/store/headerStore'
 import type { EditRequestData } from '@/store/paymentRequestStore'
 import CreateRequestModal from '@/components/paymentRequests/CreateRequestModal'
@@ -80,6 +81,14 @@ const PaymentRequestsPage = () => {
     showDeleted,
     setFilters,
   })
+
+  // Непрочитанные комментарии
+  const unreadCounts = useCommentStore((s) => s.unreadCounts)
+  const fetchUnreadCounts = useCommentStore((s) => s.fetchUnreadCounts)
+
+  useEffect(() => {
+    if (user?.id) fetchUnreadCounts(user.id)
+  }, [user?.id, fetchUnreadCounts])
 
   // Фильтрация
   const {
@@ -434,6 +443,7 @@ const PaymentRequestsPage = () => {
           onTabClick={(key) => { if (key === activeTab) setRefreshTrigger((n) => n + 1) }}
           totalInvoiceAmountAll={totalCounterpartyInvoiceAmountAll}
           totalPaidAll={totalCounterpartyPaidAll}
+          unreadCounts={unreadCounts}
           onView={setViewRecord}
           onWithdraw={handleWithdraw}
           onResubmit={setResubmitRecord}
@@ -482,6 +492,7 @@ const PaymentRequestsPage = () => {
           responsibleFilter={filters.responsibleFilter}
           statusFilters={statusFilters}
           showOmtsDays
+          unreadCounts={unreadCounts}
         />
       ),
     },
@@ -518,6 +529,7 @@ const PaymentRequestsPage = () => {
             onAssignResponsible={handleAssignResponsible}
             responsibleFilter={filters.responsibleFilter}
             showOmtsDays
+            unreadCounts={unreadCounts}
           />
         </div>
       ),
@@ -542,6 +554,7 @@ const PaymentRequestsPage = () => {
           onAssignResponsible={handleAssignResponsible}
           responsibleFilter={filters.responsibleFilter}
           showOmtsDays
+          unreadCounts={unreadCounts}
         />
       ),
     })
@@ -563,6 +576,7 @@ const PaymentRequestsPage = () => {
           onAssignResponsible={handleAssignResponsible}
           responsibleFilter={filters.responsibleFilter}
           showOmtsDays
+          unreadCounts={unreadCounts}
         />
       ),
     },
@@ -581,6 +595,7 @@ const PaymentRequestsPage = () => {
           onAssignResponsible={handleAssignResponsible}
           responsibleFilter={filters.responsibleFilter}
           showOmtsDays
+          unreadCounts={unreadCounts}
         />
       ),
     },

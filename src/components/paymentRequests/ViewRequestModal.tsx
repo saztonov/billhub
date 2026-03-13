@@ -51,6 +51,7 @@ import ApprovalLog from './ApprovalLog'
 import OmtsAssignmentBlock from './OmtsAssignmentBlock'
 import PaymentsTable from './PaymentsTable'
 import CommentsChat from './CommentsChat'
+import { useCommentStore } from '@/store/commentStore'
 import RejectModal from './RejectModal'
 import AddFilesModal from './AddFilesModal'
 import DpFillModal from './DpFillModal'
@@ -123,6 +124,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   const { sites, fetchSites } = useConstructionSiteStore()
   const { suppliers, fetchSuppliers } = useSupplierStore()
   const { fetchDocumentTypes } = useDocumentTypeStore()
+  const markAsRead = useCommentStore((s) => s.markAsRead)
 
   useEffect(() => {
     if (open && request) {
@@ -137,8 +139,10 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       if (user?.role === 'admin') fetchOmtsUsers()
       fetchOmtsRpConfig()
       fetchOmtsRpSites()
+      // Отмечаем комментарии как прочитанные
+      if (user?.id) markAsRead(user.id, request.id)
     }
-  }, [open, request, fetchRequestFiles, fetchPayments, fetchDecisions, fetchLogs, clearCurrentData, fetchCurrentAssignment, fetchAssignmentHistory, fetchDocumentTypes, fetchOmtsUsers, user?.role, fetchOmtsRpConfig, fetchOmtsRpSites])
+  }, [open, request, fetchRequestFiles, fetchPayments, fetchDecisions, fetchLogs, clearCurrentData, fetchCurrentAssignment, fetchAssignmentHistory, fetchDocumentTypes, fetchOmtsUsers, user?.role, fetchOmtsRpConfig, fetchOmtsRpSites, markAsRead, user?.id])
 
   useEffect(() => {
     if (!open) {

@@ -9,6 +9,7 @@ import {
   Select,
   Progress,
   Pagination,
+  Badge,
   App,
 } from 'antd'
 import {
@@ -20,6 +21,7 @@ import {
   CheckOutlined,
   StopOutlined,
   RedoOutlined,
+  MessageOutlined,
 } from '@ant-design/icons'
 import RejectModal from './RejectModal'
 import WithdrawModal from './WithdrawModal'
@@ -56,6 +58,7 @@ export interface RequestsTableProps {
   responsibleFilter?: 'assigned' | 'unassigned' | null
   statusFilters?: { text: string; value: string }[]
   showOmtsDays?: boolean
+  unreadCounts?: Record<string, number>
 }
 
 const RequestsTable = (props: RequestsTableProps) => {
@@ -66,7 +69,7 @@ const RequestsTable = (props: RequestsTableProps) => {
     showApprovalActions, onApprove, onReject, showApprovedDate, showRejectedDate,
     totalStages, showDepartmentFilter, rejectionDepartments, onResubmit,
     showResponsibleColumn, canAssignResponsible, omtsUsers, onAssignResponsible, responsibleFilter,
-    statusFilters, showOmtsDays,
+    statusFilters, showOmtsDays, unreadCounts,
   } = props
 
   const [rejectModalId, setRejectModalId] = useState<string | null>(null)
@@ -151,6 +154,26 @@ const RequestsTable = (props: RequestsTableProps) => {
       render: (value: string | null) => value ?? '—',
     },
   )
+
+  if (unreadCounts) {
+    columns.push({
+      title: (
+        <div style={{ textAlign: 'center', lineHeight: 1.3 }}>
+          <div>Новые</div>
+          <MessageOutlined style={{ fontSize: 14 }} />
+        </div>
+      ),
+      key: 'unreadComments',
+      width: 65,
+      align: 'center' as const,
+      sorter: (a: PaymentRequest, b: PaymentRequest) => (unreadCounts[a.id] || 0) - (unreadCounts[b.id] || 0),
+      render: (_: unknown, record: PaymentRequest) => {
+        const count = unreadCounts[record.id] || 0
+        if (count === 0) return null
+        return <Badge count={count} style={{ backgroundColor: '#1677ff' }} />
+      },
+    })
+  }
 
   if (showResponsibleColumn) {
     columns.push({
@@ -332,8 +355,16 @@ const RequestsTable = (props: RequestsTableProps) => {
         loading={isLoading}
         scroll={{ x: 1700, y: scrollY }}
         pagination={false}
+        onRow={(record: PaymentRequest) => ({
+          onClick: (e: React.MouseEvent) => {
+            const target = e.target as HTMLElement
+            if (target.closest('button, a, .ant-btn, .ant-select, .ant-popconfirm, .ant-popover')) return
+            onView(record)
+          },
+          style: { cursor: 'pointer' },
+        })}
         rowClassName={(record: PaymentRequest) => {
-          const classes: string[] = []
+          const classes: string[] = ['clickable-row']
           if (uploadTasks?.[record.id]?.status === 'error') classes.push('row-upload-error')
           if (record.isDeleted) classes.push('row-deleted')
           return classes.join(' ')
@@ -353,7 +384,12 @@ const RequestsTable = (props: RequestsTableProps) => {
           showTotal={(total) => `${total} / стр.`}
         />
       </div>
-      <style>{`.row-upload-error td { background-color: #fff1f0 !important; } .row-deleted td { opacity: 0.45; }`}</style>
+      <style>{`
+        .clickable-row:hover td { background-color: #e6f4ff !important; }
+        .row-upload-error td { background-color: #fff1f0 !important; }
+        .row-upload-error:hover td { background-color: #ffccc7 !important; }
+        .row-deleted td { opacity: 0.45; }
+      `}</style>
 
       <RejectModal
         open={!!rejectModalId}
