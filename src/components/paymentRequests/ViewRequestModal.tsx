@@ -532,7 +532,14 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
               <Descriptions.Item label="Номер">{extractRequestNumber(request.requestNumber)}</Descriptions.Item>
               <Descriptions.Item label="Подрядчик">{request.counterpartyName}</Descriptions.Item>
               <Descriptions.Item label="Объект">{request.siteName ?? '—'}</Descriptions.Item>
-              <Descriptions.Item label="Статус"><Tag color={request.statusColor ?? 'default'}>{request.statusName}</Tag></Descriptions.Item>
+              <Descriptions.Item label="Статус">
+                <Tag color={request.statusColor ?? 'default'} style={{ whiteSpace: 'pre-line', lineHeight: 1.3 }}>
+                  {request.statusName}
+                  {request.statusName?.startsWith('Согласование ОМТС') && (currentAssignment?.assignedUserFullName || request.assignedUserFullName)
+                    ? `\n${currentAssignment?.assignedUserFullName || request.assignedUserFullName}`
+                    : ''}
+                </Tag>
+              </Descriptions.Item>
               <Descriptions.Item label="Дата создания">{formatDate(request.createdAt, !isCounterpartyUser)}</Descriptions.Item>
             </Descriptions>
             <Form form={resubmitForm} layout="vertical" style={{ marginBottom: 16 }}>
@@ -573,7 +580,14 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
             <Descriptions.Item label="Подрядчик">{request.counterpartyName}</Descriptions.Item>
             <Descriptions.Item label="Объект">{request.siteName ?? '—'}</Descriptions.Item>
             <Descriptions.Item label="Поставщик">{request.supplierName ?? '—'}</Descriptions.Item>
-            <Descriptions.Item label="Статус"><Tag color={request.statusColor ?? 'default'}>{request.statusName}</Tag></Descriptions.Item>
+            <Descriptions.Item label="Статус">
+              <Tag color={request.statusColor ?? 'default'} style={{ whiteSpace: 'pre-line', lineHeight: 1.3 }}>
+                {request.statusName}
+                {request.statusName?.startsWith('Согласование ОМТС') && (currentAssignment?.assignedUserFullName || request.assignedUserFullName)
+                  ? `\n${currentAssignment?.assignedUserFullName || request.assignedUserFullName}`
+                  : ''}
+              </Tag>
+            </Descriptions.Item>
             <Descriptions.Item label="Срок поставки">{request.deliveryDays} {request.deliveryDaysType === 'calendar' ? 'кал.' : 'раб.'} дн.</Descriptions.Item>
             <Descriptions.Item label="Условия отгрузки">{request.shippingConditionValue}</Descriptions.Item>
             <Descriptions.Item label="Сумма счета">

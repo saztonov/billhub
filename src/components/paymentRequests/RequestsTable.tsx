@@ -112,7 +112,14 @@ const RequestsTable = (props: RequestsTableProps) => {
       sorter: (a: PaymentRequest, b: PaymentRequest) => (a.statusName || '').localeCompare(b.statusName || '', 'ru'),
       filters: statusFilters,
       onFilter: (value: unknown, record: PaymentRequest) => record.statusId === value,
-      render: (_: unknown, record: PaymentRequest) => <Tag color={record.statusColor ?? 'default'} style={{ whiteSpace: 'pre-line', lineHeight: 1.3 }}>{record.statusName}</Tag>,
+      render: (_: unknown, record: PaymentRequest) => {
+        const showAssigned = record.statusName?.startsWith('Согласование ОМТС') && record.assignedUserFullName
+        return (
+          <Tag color={record.statusColor ?? 'default'} style={{ whiteSpace: 'pre-line', lineHeight: 1.3 }}>
+            {record.statusName}{showAssigned ? `\n${record.assignedUserFullName}` : ''}
+          </Tag>
+        )
+      },
     },
     {
       title: 'Оплата', key: 'paidStatus', width: 110,
