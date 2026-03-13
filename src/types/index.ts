@@ -268,6 +268,7 @@ export interface PaymentRequestComment {
   authorRole?: string
   authorDepartment?: string | null
   authorCounterpartyName?: string
+  recipient?: string | null
 }
 
 /** Прикреплённый документ контрагента/поставки */

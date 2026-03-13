@@ -9,7 +9,7 @@ interface CommentStoreState {
   isLoading: boolean
   isSubmitting: boolean
   fetchComments: (paymentRequestId: string) => Promise<void>
-  addComment: (paymentRequestId: string, text: string, userId: string) => Promise<void>
+  addComment: (paymentRequestId: string, text: string, userId: string, recipient?: string | null) => Promise<void>
   updateComment: (commentId: string, text: string) => Promise<void>
   deleteComment: (commentId: string) => Promise<void>
 }
@@ -24,7 +24,7 @@ export const useCommentStore = create<CommentStoreState>((set, get) => ({
     try {
       const { data, error } = await supabase
         .from('payment_request_comments')
-        .select('id, payment_request_id, author_id, text, created_at, updated_at, author:users!payment_request_comments_author_id_fkey(full_name, email, role, department_id, counterparty:counterparties!users_counterparty_id_fkey(name))')
+        .select('id, payment_request_id, author_id, text, created_at, updated_at, recipient, author:users!payment_request_comments_author_id_fkey(full_name, email, role, department_id, counterparty:counterparties!users_counterparty_id_fkey(name))')
         .eq('payment_request_id', paymentRequestId)
         .order('created_at', { ascending: false })
 
@@ -45,6 +45,7 @@ export const useCommentStore = create<CommentStoreState>((set, get) => ({
           authorRole: (author?.role as string) ?? undefined,
           authorDepartment: (author?.department_id as string) ?? null,
           authorCounterpartyName: (counterparty?.name as string) ?? undefined,
+          recipient: (row.recipient as string) ?? null,
         }
       })
 
@@ -56,7 +57,7 @@ export const useCommentStore = create<CommentStoreState>((set, get) => ({
     }
   },
 
-  addComment: async (paymentRequestId, text, userId) => {
+  addComment: async (paymentRequestId, text, userId, recipient) => {
     set({ isSubmitting: true })
     try {
       const { error } = await supabase
@@ -65,11 +66,12 @@ export const useCommentStore = create<CommentStoreState>((set, get) => ({
           payment_request_id: paymentRequestId,
           author_id: userId,
           text,
+          recipient: recipient || null,
         })
       if (error) throw error
 
       // Уведомляем о новом комментарии
-      notifyNewComment(paymentRequestId, userId).catch(() => {})
+      notifyNewComment(paymentRequestId, userId, recipient || null).catch(() => {})
 
       await get().fetchComments(paymentRequestId)
       set({ isSubmitting: false })

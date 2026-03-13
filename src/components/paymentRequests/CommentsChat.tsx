@@ -1,11 +1,18 @@
-import { useState, useEffect } from 'react'
-import { Typography, Input, Button, Space, Popconfirm, App } from 'antd'
+import { useState, useEffect, useMemo } from 'react'
+import { Typography, Input, Button, Space, Popconfirm, App, Select, Tag } from 'antd'
 import { SendOutlined, EditOutlined, DeleteOutlined, CloseOutlined, CheckOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { useCommentStore } from '@/store/commentStore'
 import { useAuthStore } from '@/store/authStore'
 import type { PaymentRequestComment, Department } from '@/types'
 import { DEPARTMENT_LABELS } from '@/types'
+
+/** Метки адресатов для отображения */
+const RECIPIENT_LABELS: Record<string, string> = {
+  omts: 'ОМТС',
+  shtab: 'Штаб',
+  counterparty: 'Подрядчик',
+}
 
 const { Text } = Typography
 const { TextArea } = Input
@@ -21,8 +28,25 @@ const CommentsChat = ({ paymentRequestId }: CommentsChatProps) => {
   const isAdmin = user?.role === 'admin'
 
   const [newText, setNewText] = useState('')
+  const [recipient, setRecipient] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editText, setEditText] = useState('')
+
+  // Варианты адресатов зависят от роли пользователя
+  const recipientOptions = useMemo(() => {
+    const options = [{ value: '', label: 'Всем' }]
+    if (user?.role === 'counterparty_user') {
+      options.push({ value: 'omts', label: 'ОМТС' })
+      options.push({ value: 'shtab', label: 'Штаб' })
+    } else if (user?.department === 'shtab') {
+      options.push({ value: 'omts', label: 'ОМТС' })
+      options.push({ value: 'counterparty', label: 'Подрядчик' })
+    } else if (user?.department === 'omts') {
+      options.push({ value: 'shtab', label: 'Штаб' })
+      options.push({ value: 'counterparty', label: 'Подрядчик' })
+    }
+    return options
+  }, [user?.role, user?.department])
 
 
   useEffect(() => {
@@ -34,8 +58,9 @@ const CommentsChat = ({ paymentRequestId }: CommentsChatProps) => {
   const handleSend = async () => {
     if (!newText.trim() || !user) return
     try {
-      await addComment(paymentRequestId, newText.trim(), user.id)
+      await addComment(paymentRequestId, newText.trim(), user.id, recipient)
       setNewText('')
+      setRecipient(null)
     } catch {
       message.error('Не удалось отправить комментарий')
     }
@@ -140,6 +165,11 @@ const CommentsChat = ({ paymentRequestId }: CommentsChatProps) => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
               <div>
                 <Text strong style={{ fontSize: 13 }}>{getAuthorDisplayName(comment)}</Text>
+                {comment.recipient && (
+                  <Tag color="blue" style={{ marginLeft: 6, fontSize: 11 }}>
+                    {RECIPIENT_LABELS[comment.recipient] ?? comment.recipient}
+                  </Tag>
+                )}
                 <Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>
                   {dayjs(comment.createdAt).format('DD.MM.YYYY HH:mm')}
                   {comment.updatedAt && ' (ред.)'}
@@ -178,7 +208,16 @@ const CommentsChat = ({ paymentRequestId }: CommentsChatProps) => {
         ))}
       </div>
 
-      <div style={{ display: 'flex', gap: 8 }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+        {recipientOptions.length > 1 && (
+          <Select
+            value={recipient ?? ''}
+            onChange={(val) => setRecipient(val || null)}
+            options={recipientOptions}
+            style={{ width: 130, flexShrink: 0 }}
+            size="middle"
+          />
+        )}
         <TextArea
           value={newText}
           onChange={(e) => setNewText(e.target.value)}

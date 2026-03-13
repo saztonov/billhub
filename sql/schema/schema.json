@@ -1252,6 +1252,15 @@
               "position": 6,
               "max_length": null,
               "numeric_precision": null
+            },
+            {
+              "name": "recipient",
+              "type": "text",
+              "default": null,
+              "nullable": true,
+              "position": 7,
+              "max_length": null,
+              "numeric_precision": null
             }
           ]
         },
@@ -1810,6 +1819,24 @@
               "default": null,
               "nullable": true,
               "position": 35,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "omts_entered_at",
+              "type": "timestamp with time zone",
+              "default": null,
+              "nullable": true,
+              "position": 36,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "omts_approved_at",
+              "type": "timestamp with time zone",
+              "default": null,
+              "nullable": true,
+              "position": 37,
               "max_length": null,
               "numeric_precision": null
             }
@@ -3151,7 +3178,7 @@
           "references_columns": null
         }
       ],
-      "generated_at": "2026-03-11T07:53:15.428246+00:00",
+      "generated_at": "2026-03-13T13:52:57.789019+00:00",
       "primary_keys": [
         {
           "columns": [

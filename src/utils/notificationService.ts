@@ -74,6 +74,20 @@ async function getShtabRecipientsForSite(siteId: string, excludeUserId?: string)
   return recipients
 }
 
+/** Получает id админов ОМТС (role='admin', department_id='omts', is_active=true, кроме excludeUserId) */
+async function getOmtsAdminRecipients(excludeUserId?: string): Promise<string[]> {
+  const { data } = await supabase
+    .from('users')
+    .select('id')
+    .eq('role', 'admin')
+    .eq('department_id', 'omts')
+    .eq('is_active', true)
+  if (!data) return []
+  return (data as { id: string }[])
+    .map((u) => u.id)
+    .filter((id) => id !== excludeUserId)
+}
+
 /** Получает id назначенного ОМТС-ответственного на заявку (кроме excludeUserId) */
 async function getOmtsAssignedUser(paymentRequestId: string, excludeUserId?: string): Promise<string | null> {
   const { data } = await supabase
@@ -205,6 +219,7 @@ export async function notifyRequestAssigned(
 export async function notifyNewComment(
   paymentRequestId: string,
   actorUserId: string,
+  recipient?: string | null,
 ): Promise<void> {
   try {
     const ctx = await getRequestContext(paymentRequestId)
@@ -212,20 +227,32 @@ export async function notifyNewComment(
 
     const allRecipients = new Set<string>()
 
-    // Контрагент — всегда получает уведомление
+    // Подрядчик — всегда получает уведомление
     const counterpartyUsers = await getCounterpartyRecipients(ctx.counterpartyId, actorUserId)
     counterpartyUsers.forEach((id) => allRecipients.add(id))
 
-    // Штаб — только на этапе 1
-    if (ctx.currentStage === 1) {
+    if (recipient === 'shtab') {
+      // Адресат Штаб — уведомляем Штаб на любом этапе
       const shtabUsers = await getShtabRecipientsForSite(ctx.siteId, actorUserId)
       shtabUsers.forEach((id) => allRecipients.add(id))
-    }
-
-    // ОМТС — только на этапе 2, только назначенный
-    if (ctx.currentStage === 2) {
+    } else if (recipient === 'omts') {
+      // Адресат ОМТС — уведомляем назначенного ответственного + админов ОМТС на любом этапе
       const omtsUser = await getOmtsAssignedUser(paymentRequestId, actorUserId)
       if (omtsUser) allRecipients.add(omtsUser)
+      const omtsAdmins = await getOmtsAdminRecipients(actorUserId)
+      omtsAdmins.forEach((id) => allRecipients.add(id))
+    } else if (recipient === 'counterparty') {
+      // Адресат Подрядчик — только подрядчик (уже добавлен выше)
+    } else {
+      // Всем — текущая логика по этапу
+      if (ctx.currentStage === 1) {
+        const shtabUsers = await getShtabRecipientsForSite(ctx.siteId, actorUserId)
+        shtabUsers.forEach((id) => allRecipients.add(id))
+      }
+      if (ctx.currentStage === 2) {
+        const omtsUser = await getOmtsAssignedUser(paymentRequestId, actorUserId)
+        if (omtsUser) allRecipients.add(omtsUser)
+      }
     }
 
     await insertNotifications([...allRecipients], {
