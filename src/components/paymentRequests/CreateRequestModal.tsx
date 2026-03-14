@@ -15,6 +15,7 @@ import FileUploadList from './FileUploadList'
 import type { FileItem } from './FileUploadList'
 import DeliveryCalculation from './DeliveryCalculation'
 import { usePaymentRequestStore } from '@/store/paymentRequestStore'
+import useIsMobile from '@/hooks/useIsMobile'
 import { usePaymentRequestSettingsStore } from '@/store/paymentRequestSettingsStore'
 import { useDocumentTypeStore } from '@/store/documentTypeStore'
 import { useAuthStore } from '@/store/authStore'
@@ -41,6 +42,7 @@ function fieldLabel(label: string, isFilled: boolean) {
 
 const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
   const { message } = App.useApp()
+  const isMobile = useIsMobile()
   const [form] = Form.useForm()
   const [fileList, setFileList] = useState<FileItem[]>([])
   const [formValues, setFormValues] = useState<Record<string, unknown>>({})
@@ -190,9 +192,14 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
       okText="Создать"
       cancelText="Отмена"
       confirmLoading={isSubmitting}
-      width="80%"
-      style={{ maxHeight: '90vh' }}
-      styles={{ body: { maxHeight: 'calc(90vh - 110px)', overflowY: 'auto', overflowX: 'hidden' } }}
+      width={isMobile ? '100%' : '80%'}
+      centered={!isMobile}
+      style={isMobile ? { top: 0, maxWidth: '100vw', margin: 0, padding: 0 } : { maxHeight: '90vh' }}
+      styles={{
+        body: isMobile
+          ? { height: 'calc(100vh - 110px)', overflowY: 'auto', overflowX: 'hidden', padding: '12px 8px' }
+          : { maxHeight: 'calc(90vh - 110px)', overflowY: 'auto', overflowX: 'hidden' },
+      }}
     >
       <Spin spinning={fieldOptions.length === 0 && open}>
         {/* Поля формы */}
@@ -201,10 +208,10 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
           layout="vertical"
           onValuesChange={handleValuesChange}
         >
-          <Row gutter={4}>
+          <Row gutter={[isMobile ? 0 : 4, 0]}>
             {/* Поле выбора контрагента - только для user и admin */}
             {!isCounterpartyUser && (
-              <Col span={6}>
+              <Col xs={24} sm={12} md={6}>
                 <Form.Item
                   name="counterpartyId"
                   label={fieldLabel('Контрагент', !!formValues.counterpartyId)}
@@ -220,7 +227,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
               </Col>
             )}
 
-            <Col span={isCounterpartyUser ? 6 : 5}>
+            <Col xs={24} sm={12} md={isCounterpartyUser ? 6 : 5}>
               <Form.Item
                 name="siteId"
                 label={fieldLabel('Объект', !!formValues.siteId)}
@@ -235,7 +242,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
               </Form.Item>
             </Col>
 
-            <Col span={isCounterpartyUser ? 5 : 4}>
+            <Col xs={24} sm={12} md={isCounterpartyUser ? 5 : 4}>
               <Form.Item
                 name="supplierId"
                 label={fieldLabel('Поставщик', !!formValues.supplierId)}
@@ -250,7 +257,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
               </Form.Item>
             </Col>
 
-            <Col span={isCounterpartyUser ? 5 : 4}>
+            <Col xs={24} sm={12} md={isCounterpartyUser ? 5 : 4}>
               <Form.Item
                 label={fieldLabel('Срок поставки', !!formValues.deliveryDays)}
                 required
@@ -270,7 +277,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
                     initialValue="working"
                   >
                     <Select
-                      style={{ width: 100 }}
+                      style={{ flex: 1, minWidth: 100 }}
                       options={[
                         { label: 'раб.', value: 'working' },
                         { label: 'кал.', value: 'calendar' },
@@ -281,7 +288,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
               </Form.Item>
             </Col>
 
-            <Col span={isCounterpartyUser ? 6 : 5}>
+            <Col xs={24} sm={12} md={isCounterpartyUser ? 6 : 5}>
               <Form.Item
                 name="shippingConditionId"
                 label={fieldLabel('Условия отгрузки', !!formValues.shippingConditionId)}
@@ -294,7 +301,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
               </Form.Item>
             </Col>
 
-            <Col span={isCounterpartyUser ? 7 : 4}>
+            <Col xs={24} sm={12} md={isCounterpartyUser ? 7 : 4}>
               <Form.Item
                 name="invoiceAmount"
                 label={fieldLabel('Сумма счета', !!formValues.invoiceAmount)}
@@ -312,15 +319,12 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
                 ]}
                 getValueFromEvent={(e) => {
                   const raw = e.target.value.replace(/[^\d.,]/g, '').replace(',', '.')
-                  // Не допускаем больше одной точки
                   const dotIdx = raw.indexOf('.')
                   const clean = dotIdx >= 0
                     ? raw.slice(0, dotIdx + 1) + raw.slice(dotIdx + 1).replace(/\./g, '')
                     : raw
-                  // Ограничиваем 2 знака после точки
                   const parts = clean.split('.')
                   if (parts[1] && parts[1].length > 2) parts[1] = parts[1].slice(0, 2)
-                  // Форматируем целую часть пробелами
                   parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
                   return parts.join('.')
                 }}
