@@ -35,28 +35,42 @@ const PaymentRequestsPage = () => {
   const [resubmitRecord, setResubmitRecord] = useState<PaymentRequest | null>(null)
   const [activeTab, setActiveTab] = useState('all')
   const [filters, setFiltersState] = useState<FilterValues>(() => {
-    const initial: FilterValues = {}
     try {
-      const savedMyRequests = localStorage.getItem('billhub_my_requests_filter')
-      if (savedMyRequests) initial.myRequestsFilter = savedMyRequests as FilterValues['myRequestsFilter']
-      const savedResponsible = localStorage.getItem('billhub_responsible_filter')
-      if (savedResponsible) initial.responsibleFilter = savedResponsible as FilterValues['responsibleFilter']
-      const savedResponsibleUserId = localStorage.getItem('billhub_responsible_user_id')
-      if (savedResponsibleUserId) initial.responsibleUserId = savedResponsibleUserId
+      // Миграция старых ключей
+      const oldMyRequests = localStorage.getItem('billhub_my_requests_filter')
+      const oldResponsible = localStorage.getItem('billhub_responsible_filter')
+      const oldResponsibleUserId = localStorage.getItem('billhub_responsible_user_id')
+      if (oldMyRequests || oldResponsible || oldResponsibleUserId) {
+        const migrated: FilterValues = {}
+        if (oldMyRequests) migrated.myRequestsFilter = oldMyRequests as FilterValues['myRequestsFilter']
+        if (oldResponsible) migrated.responsibleFilter = oldResponsible as FilterValues['responsibleFilter']
+        if (oldResponsibleUserId) migrated.responsibleUserId = oldResponsibleUserId
+        localStorage.setItem('billhub_filters', JSON.stringify(migrated))
+        localStorage.removeItem('billhub_my_requests_filter')
+        localStorage.removeItem('billhub_responsible_filter')
+        localStorage.removeItem('billhub_responsible_user_id')
+        return migrated
+      }
+      const saved = localStorage.getItem('billhub_filters')
+      if (saved) return JSON.parse(saved) as FilterValues
     } catch { /* ignore */ }
-    return initial
+    return {}
   })
 
   const setFilters = useCallback((val: FilterValues | ((prev: FilterValues) => FilterValues)) => {
     setFiltersState((prev) => {
       const next = typeof val === 'function' ? val(prev) : { ...prev, ...val }
       try {
-        if (next.myRequestsFilter) localStorage.setItem('billhub_my_requests_filter', next.myRequestsFilter)
-        else localStorage.removeItem('billhub_my_requests_filter')
-        if (next.responsibleFilter) localStorage.setItem('billhub_responsible_filter', next.responsibleFilter)
-        else localStorage.removeItem('billhub_responsible_filter')
-        if (next.responsibleUserId) localStorage.setItem('billhub_responsible_user_id', next.responsibleUserId)
-        else localStorage.removeItem('billhub_responsible_user_id')
+        // Сохраняем только непустые значения
+        const toSave: Record<string, unknown> = {}
+        for (const [k, v] of Object.entries(next)) {
+          if (v !== undefined && v !== null && v !== '') toSave[k] = v
+        }
+        if (Object.keys(toSave).length > 0) {
+          localStorage.setItem('billhub_filters', JSON.stringify(toSave))
+        } else {
+          localStorage.removeItem('billhub_filters')
+        }
       } catch { /* ignore */ }
       return next
     })

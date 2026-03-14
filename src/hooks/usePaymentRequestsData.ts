@@ -112,11 +112,9 @@ export function usePaymentRequestsData({
     return [userSiteIds, userAllSites]
   }, [isUser, userSiteIds, userAllSites])
 
-  // Устанавливаем фильтры по умолчанию в зависимости от роли (если не восстановлены из localStorage)
+  // Устанавливаем фильтры по умолчанию для ОМТС (если не восстановлены из localStorage)
   useEffect(() => {
-    if (isAdmin) {
-      setFilters((prev: FilterValues) => prev.responsibleFilter ? prev : { ...prev, responsibleFilter: 'unassigned' })
-    } else if (isOmtsUser) {
+    if (isOmtsUser && !isAdmin) {
       setFilters((prev: FilterValues) => prev.myRequestsFilter ? prev : { ...prev, myRequestsFilter: 'assigned_to_me' })
     }
   }, [isAdmin, isOmtsUser, setFilters])
