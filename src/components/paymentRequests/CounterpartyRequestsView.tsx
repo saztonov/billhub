@@ -33,6 +33,7 @@ interface CounterpartyRequestsViewProps {
   totalInvoiceAmountAll: number
   totalPaidAll: number
   unreadCounts?: Record<string, number>
+  isMobile?: boolean
 }
 
 /** UI заявок для роли counterparty_user */
@@ -61,10 +62,17 @@ const CounterpartyRequestsView = ({
   totalInvoiceAmountAll,
   totalPaidAll,
   unreadCounts,
+  isMobile,
 }: CounterpartyRequestsViewProps) => {
   const setHeader = useHeaderStore((s) => s.setHeader)
 
   useEffect(() => {
+    // На мобильном не показываем extra и actions в Header
+    if (isMobile) {
+      setHeader('Заявки на оплату', null, null)
+      return
+    }
+
     const extra = activeTab === 'all' ? (
       <div
         style={{
@@ -101,7 +109,7 @@ const CounterpartyRequestsView = ({
         Добавить
       </Button>
     )
-  }, [setHeader, onCreateOpen, activeTab, totalInvoiceAmountAll, totalPaidAll])
+  }, [setHeader, onCreateOpen, activeTab, totalInvoiceAmountAll, totalPaidAll, isMobile])
 
   const tabItems = [
     {
@@ -119,12 +127,13 @@ const CounterpartyRequestsView = ({
           uploadTasks={uploadTasks}
           totalStages={totalStages}
           unreadCounts={unreadCounts}
+          isMobile={isMobile}
         />
       ),
     },
     {
       key: 'pending',
-      label: 'На согласовании',
+      label: isMobile ? 'Согл.' : 'На согласовании',
       children: (
         <RequestsTable
           requests={filteredPending}
@@ -136,12 +145,13 @@ const CounterpartyRequestsView = ({
           uploadTasks={uploadTasks}
           totalStages={totalStages}
           unreadCounts={unreadCounts}
+          isMobile={isMobile}
         />
       ),
     },
     {
       key: 'approved',
-      label: 'Согласовано',
+      label: isMobile ? 'Согл.' : 'Согласовано',
       children: (
         <RequestsTable
           requests={filteredApproved}
@@ -149,16 +159,17 @@ const CounterpartyRequestsView = ({
           onView={onView}
           isCounterpartyUser
           hideCounterpartyColumn
-          showApprovedDate
+          showApprovedDate={!isMobile}
           uploadTasks={uploadTasks}
           totalStages={totalStages}
           unreadCounts={unreadCounts}
+          isMobile={isMobile}
         />
       ),
     },
     {
       key: 'rejected',
-      label: 'Отклонено',
+      label: isMobile ? 'Откл.' : 'Отклонено',
       children: (
         <RequestsTable
           requests={filteredRejected}
@@ -166,11 +177,12 @@ const CounterpartyRequestsView = ({
           onView={onView}
           isCounterpartyUser
           hideCounterpartyColumn
-          showRejectedDate
+          showRejectedDate={!isMobile}
           onResubmit={onResubmit}
           uploadTasks={uploadTasks}
           totalStages={totalStages}
           unreadCounts={unreadCounts}
+          isMobile={isMobile}
         />
       ),
     },
@@ -184,7 +196,8 @@ const CounterpartyRequestsView = ({
       onTabClick={onTabClick}
       items={tabItems}
       className="flex-tabs"
-      renderTabBar={(props, DefaultTabBar) => (
+      size={isMobile ? 'small' : undefined}
+      renderTabBar={(tabBarProps, DefaultTabBar) => (
         <div>
           {filtersOpen && (
             <RequestFilters
@@ -200,14 +213,16 @@ const CounterpartyRequestsView = ({
             />
           )}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <DefaultTabBar {...props} style={{ ...props.style, flex: 1, marginBottom: 0 }} />
-            <Button
-              icon={<FilterOutlined />}
-              onClick={onFiltersToggle}
-              type={filtersOpen ? 'primary' : 'default'}
-              size="small"
-              style={{ flexShrink: 0 }}
-            />
+            <DefaultTabBar {...tabBarProps} style={{ ...tabBarProps.style, flex: 1, marginBottom: 0 }} />
+            {!isMobile && (
+              <Button
+                icon={<FilterOutlined />}
+                onClick={onFiltersToggle}
+                type={filtersOpen ? 'primary' : 'default'}
+                size="small"
+                style={{ flexShrink: 0 }}
+              />
+            )}
           </div>
         </div>
       )}

@@ -10,12 +10,15 @@ import { useCounterpartyStore } from '@/store/counterpartyStore'
 import { useUploadQueueStore } from '@/store/uploadQueueStore'
 import { useCommentStore } from '@/store/commentStore'
 import { useHeaderStore } from '@/store/headerStore'
+import useIsMobile from '@/hooks/useIsMobile'
 import type { EditRequestData } from '@/store/paymentRequestStore'
 import CreateRequestModal from '@/components/paymentRequests/CreateRequestModal'
 import ViewRequestModal from '@/components/paymentRequests/ViewRequestModal'
 import RequestsTable from '@/components/paymentRequests/RequestsTable'
 import RequestFilters from '@/components/paymentRequests/RequestFilters'
 import CounterpartyRequestsView from '@/components/paymentRequests/CounterpartyRequestsView'
+import MobileFiltersDrawer from '@/components/paymentRequests/MobileFiltersDrawer'
+import MobileActionBar from '@/components/paymentRequests/MobileActionBar'
 import type { FilterValues } from '@/components/paymentRequests/RequestFilters'
 import type { FileItem } from '@/components/paymentRequests/FileUploadList'
 import type { PaymentRequest, Department } from '@/types'
@@ -24,6 +27,7 @@ const PaymentRequestsPage = () => {
   const { message } = App.useApp()
   const location = useLocation()
   const nav = useNavigate()
+  const isMobile = useIsMobile()
 
   // UI state
   const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -58,6 +62,7 @@ const PaymentRequestsPage = () => {
     })
   }, [])
   const [filtersOpen, setFiltersOpen] = useState(true)
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
   const [adminSelectedStage, setAdminSelectedStage] = useState<Department>('omts')
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [showDeleted, setShowDeleted] = useState(false)
@@ -107,7 +112,6 @@ const PaymentRequestsPage = () => {
   useEffect(() => {
     const state = location.state as { openRequestId?: string } | null
     if (!state?.openRequestId) return
-    // Очищаем state, чтобы не переоткрывать при навигации
     nav(location.pathname, { replace: true, state: null })
 
     const loadRequest = async () => {
@@ -195,6 +199,12 @@ const PaymentRequestsPage = () => {
   const clearHeader = useHeaderStore((s) => s.clearHeader)
 
   useEffect(() => {
+    // На мобильном не показываем extra и actions в Header
+    if (isMobile) {
+      setHeader('Заявки на оплату', null, null)
+      return
+    }
+
     const extra = (
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         {activeTab === 'all' && (
@@ -287,7 +297,7 @@ const PaymentRequestsPage = () => {
     )
 
     setHeader('Заявки на оплату', extra, actions)
-  }, [activeTab, totalInvoiceAmountAll, totalPaidAll, totalInvoiceAmount, unassignedOmtsCount, isAdmin, userDeptInChain, showDeleted, setHeader])
+  }, [activeTab, totalInvoiceAmountAll, totalPaidAll, totalInvoiceAmount, unassignedOmtsCount, isAdmin, userDeptInChain, showDeleted, setHeader, isMobile])
 
   useEffect(() => {
     return () => clearHeader()
@@ -421,10 +431,23 @@ const PaymentRequestsPage = () => {
     }
   }
 
+  // Общие пропсы фильтров
+  const filterProps = {
+    counterparties,
+    sites,
+    suppliers,
+    hideCounterpartyFilter: false,
+    hideStatusFilter: true,
+    hideSiteFilter: isShtabUser && !isAdmin,
+    showResponsibleFilter: isAdmin,
+    showMyRequestsFilter: isOmtsUser && !isAdmin,
+    omtsUsers,
+  }
+
   // --- Counterparty UI ---
   if (isCounterpartyUser) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px - 1px - 32px)', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', height: isMobile ? 'calc(100vh - 48px - 8px)' : 'calc(100vh - 64px - 1px - 32px)', overflow: 'hidden' }}>
         <CounterpartyRequestsView
           filteredAll={filteredCounterpartyAll}
           filteredPending={filteredCounterpartyPending}
@@ -436,8 +459,8 @@ const PaymentRequestsPage = () => {
           suppliers={suppliers}
           filters={filters}
           onFiltersChange={setFilters}
-          filtersOpen={filtersOpen}
-          onFiltersToggle={() => setFiltersOpen(!filtersOpen)}
+          filtersOpen={isMobile ? false : filtersOpen}
+          onFiltersToggle={() => isMobile ? setMobileFiltersOpen(true) : setFiltersOpen(!filtersOpen)}
           activeTab={activeTab}
           onTabChange={setActiveTab}
           onTabClick={(key) => { if (key === activeTab) setRefreshTrigger((n) => n + 1) }}
@@ -450,7 +473,29 @@ const PaymentRequestsPage = () => {
           onCreateOpen={() => setIsCreateOpen(true)}
           uploadTasks={uploadTasks}
           totalStages={totalStages}
+          isMobile={isMobile}
         />
+        {isMobile && (
+          <>
+            <MobileActionBar
+              onAdd={() => setIsCreateOpen(true)}
+              onFilterToggle={() => setMobileFiltersOpen(true)}
+              filters={filters}
+            />
+            <MobileFiltersDrawer
+              open={mobileFiltersOpen}
+              onClose={() => setMobileFiltersOpen(false)}
+              sites={sites}
+              statuses={statuses}
+              suppliers={suppliers}
+              hideCounterpartyFilter
+              hideStatusFilter
+              values={filters}
+              onChange={setFilters}
+              onReset={() => setFilters(() => ({}))}
+            />
+          </>
+        )}
         <CreateRequestModal
           open={isCreateOpen}
           onClose={() => {
@@ -485,14 +530,15 @@ const PaymentRequestsPage = () => {
           isAdmin={isAdmin}
           onDelete={handleDelete}
           uploadTasks={uploadTasks}
-          showResponsibleColumn={isOmtsUser || isAdmin}
+          showResponsibleColumn={!isMobile && (isOmtsUser || isAdmin)}
           canAssignResponsible={false}
           omtsUsers={omtsUsers}
           onAssignResponsible={handleAssignResponsible}
           responsibleFilter={filters.responsibleFilter}
           statusFilters={statusFilters}
-          showOmtsDays
+          showOmtsDays={!isMobile}
           unreadCounts={unreadCounts}
+          isMobile={isMobile}
         />
       ),
     },
@@ -501,7 +547,7 @@ const PaymentRequestsPage = () => {
   if (userDeptInChain) {
     tabItems.push({
       key: 'pending',
-      label: `На согласование (${filteredPendingRequests.length})`,
+      label: isMobile ? `Согл. (${filteredPendingRequests.length})` : `На согласование (${filteredPendingRequests.length})`,
       children: (
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
           {isAdmin && (
@@ -510,6 +556,7 @@ const PaymentRequestsPage = () => {
                 value={adminSelectedStage}
                 onChange={(e) => setAdminSelectedStage(e.target.value)}
                 buttonStyle="solid"
+                size={isMobile ? 'small' : undefined}
               >
                 <Radio.Button value="shtab">Объекты</Radio.Button>
                 <Radio.Button value="omts">ОМТС</Radio.Button>
@@ -523,13 +570,14 @@ const PaymentRequestsPage = () => {
             showApprovalActions
             onApprove={handleApprove}
             onReject={handleReject}
-            showResponsibleColumn={isOmtsUser || (isAdmin && adminSelectedStage === 'omts')}
+            showResponsibleColumn={!isMobile && (isOmtsUser || (isAdmin && adminSelectedStage === 'omts'))}
             canAssignResponsible={isAdmin}
             omtsUsers={omtsUsers}
             onAssignResponsible={handleAssignResponsible}
             responsibleFilter={filters.responsibleFilter}
-            showOmtsDays
+            showOmtsDays={!isMobile}
             unreadCounts={unreadCounts}
+            isMobile={isMobile}
           />
         </div>
       ),
@@ -539,7 +587,7 @@ const PaymentRequestsPage = () => {
   if (isOmtsRpUser || isAdmin) {
     tabItems.push({
       key: 'omts_rp',
-      label: `ОМТС РП (${filteredOmtsRpPendingRequests.length})`,
+      label: isMobile ? `ОМТС (${filteredOmtsRpPendingRequests.length})` : `ОМТС РП (${filteredOmtsRpPendingRequests.length})`,
       children: (
         <RequestsTable
           requests={filteredOmtsRpPendingRequests}
@@ -548,13 +596,14 @@ const PaymentRequestsPage = () => {
           showApprovalActions
           onApprove={handleApprove}
           onReject={handleReject}
-          showResponsibleColumn
+          showResponsibleColumn={!isMobile}
           canAssignResponsible={false}
           omtsUsers={omtsUsers}
           onAssignResponsible={handleAssignResponsible}
           responsibleFilter={filters.responsibleFilter}
-          showOmtsDays
+          showOmtsDays={!isMobile}
           unreadCounts={unreadCounts}
+          isMobile={isMobile}
         />
       ),
     })
@@ -563,83 +612,101 @@ const PaymentRequestsPage = () => {
   tabItems.push(
     {
       key: 'approved',
-      label: 'Согласовано',
+      label: isMobile ? 'Согл.' : 'Согласовано',
       children: (
         <RequestsTable
           requests={filteredApprovedRequests}
           isLoading={approvalLoading}
           onView={setViewRecord}
-          showApprovedDate
-          showResponsibleColumn={isOmtsUser || isAdmin}
+          showApprovedDate={!isMobile}
+          showResponsibleColumn={!isMobile && (isOmtsUser || isAdmin)}
           canAssignResponsible={false}
           omtsUsers={omtsUsers}
           onAssignResponsible={handleAssignResponsible}
           responsibleFilter={filters.responsibleFilter}
-          showOmtsDays
+          showOmtsDays={!isMobile}
           unreadCounts={unreadCounts}
+          isMobile={isMobile}
         />
       ),
     },
     {
       key: 'rejected',
-      label: 'Отклонено',
+      label: isMobile ? 'Откл.' : 'Отклонено',
       children: (
         <RequestsTable
           requests={filteredRejectedRequests}
           isLoading={approvalLoading}
           onView={setViewRecord}
-          showRejectedDate
-          showResponsibleColumn={isOmtsUser || isAdmin}
+          showRejectedDate={!isMobile}
+          showResponsibleColumn={!isMobile && (isOmtsUser || isAdmin)}
           canAssignResponsible={false}
           omtsUsers={omtsUsers}
           onAssignResponsible={handleAssignResponsible}
           responsibleFilter={filters.responsibleFilter}
-          showOmtsDays
+          showOmtsDays={!isMobile}
           unreadCounts={unreadCounts}
+          isMobile={isMobile}
         />
       ),
     },
   )
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px - 1px - 32px)', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: isMobile ? 'calc(100vh - 48px - 8px)' : 'calc(100vh - 64px - 1px - 32px)', overflow: 'hidden' }}>
       <Tabs
         activeKey={activeTab}
         onChange={setActiveTab}
         onTabClick={(key) => { if (key === activeTab) setRefreshTrigger((n) => n + 1) }}
         items={tabItems}
         className="flex-tabs"
-        renderTabBar={(props, DefaultTabBar) => (
+        size={isMobile ? 'small' : undefined}
+        renderTabBar={(tabBarProps, DefaultTabBar) => (
           <div>
-            {filtersOpen && (
+            {!isMobile && filtersOpen && (
               <RequestFilters
-                counterparties={counterparties}
-                sites={sites}
-                suppliers={suppliers}
-                hideCounterpartyFilter={false}
-                hideStatusFilter={true}
-                hideSiteFilter={isShtabUser && !isAdmin}
-                showResponsibleFilter={isAdmin}
-                showMyRequestsFilter={isOmtsUser && !isAdmin}
-                omtsUsers={omtsUsers}
+                {...filterProps}
+                statuses={statuses}
                 values={filters}
                 onChange={setFilters}
                 onReset={() => setFilters(() => ({}))}
               />
             )}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <DefaultTabBar {...props} style={{ ...props.style, flex: 1, marginBottom: 0 }} />
-              <Button
-                icon={<FilterOutlined />}
-                onClick={() => setFiltersOpen(!filtersOpen)}
-                type={filtersOpen ? 'primary' : 'default'}
-                size="small"
-                style={{ flexShrink: 0 }}
-              />
+              <DefaultTabBar {...tabBarProps} style={{ ...tabBarProps.style, flex: 1, marginBottom: 0 }} />
+              {!isMobile && (
+                <Button
+                  icon={<FilterOutlined />}
+                  onClick={() => setFiltersOpen(!filtersOpen)}
+                  type={filtersOpen ? 'primary' : 'default'}
+                  size="small"
+                  style={{ flexShrink: 0 }}
+                />
+              )}
             </div>
           </div>
         )}
       />
+
+      {isMobile && (
+        <>
+          <MobileActionBar
+            onAdd={() => setIsCreateOpen(true)}
+            onFilterToggle={() => setMobileFiltersOpen(true)}
+            filters={filters}
+          />
+          <MobileFiltersDrawer
+            open={mobileFiltersOpen}
+            onClose={() => setMobileFiltersOpen(false)}
+            {...filterProps}
+            statuses={statuses}
+            values={filters}
+            onChange={setFilters}
+            onReset={() => setFilters(() => ({}))}
+          />
+        </>
+      )}
+
       <CreateRequestModal
         open={isCreateOpen}
         onClose={() => {

@@ -1,19 +1,21 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
-import { Layout, Menu, Typography, Avatar, Flex, Dropdown, Badge, Popover, List, Button } from 'antd'
+import { Layout, Menu, Typography, Avatar, Flex, Dropdown, Badge, Popover, List, Button, Drawer } from 'antd'
 import type { MenuProps } from 'antd'
 import {
   FileTextOutlined,
-
   UserOutlined,
   FolderOutlined,
   SettingOutlined,
   LogoutOutlined,
   BellOutlined,
+  MenuOutlined,
 } from '@ant-design/icons'
 import { useAuthStore } from '@/store/authStore'
 import { useNotificationStore } from '@/store/notificationStore'
 import { useHeaderStore } from '@/store/headerStore'
+import useIsMobile from '@/hooks/useIsMobile'
+import MobileDrawerMenu from '@/components/layout/MobileDrawerMenu'
 import type { UserRole, AppNotification } from '@/types'
 
 const { Header, Sider, Content } = Layout
@@ -63,7 +65,10 @@ function getRoleLabel(role: UserRole): string {
 
 const MainLayout = () => {
   const [collapsed, setCollapsed] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
+  const [mobileNotifOpen, setMobileNotifOpen] = useState(false)
+  const isMobile = useIsMobile()
   const navigate = useNavigate()
   const location = useLocation()
   const user = useAuthStore((s) => s.user)
@@ -93,11 +98,19 @@ const MainLayout = () => {
     }
   }, [user?.id, fetchNotifications])
 
+  const handleMobileNotifOpen = useCallback((open: boolean) => {
+    setMobileNotifOpen(open)
+    if (open && user?.id) {
+      fetchNotifications(user.id)
+    }
+  }, [user?.id, fetchNotifications])
+
   const handleNotifClick = useCallback((notif: AppNotification) => {
     if (!notif.isRead) {
       markAsRead(notif.id)
     }
     setNotifOpen(false)
+    setMobileNotifOpen(false)
     navigate('/payment-requests', {
       state: notif.paymentRequestId ? { openRequestId: notif.paymentRequestId } : undefined,
     })
@@ -122,8 +135,14 @@ const MainLayout = () => {
     navigate(key)
   }
 
-  const notificationContent = (
-    <div style={{ width: 380, maxHeight: 420, overflow: 'auto' }}>
+  const handleLogout = useCallback(async () => {
+    await logout()
+    navigate('/login')
+  }, [logout, navigate])
+
+  // Контент уведомлений (переиспользуется в Popover и Drawer)
+  const notificationList = (
+    <>
       <Flex justify="space-between" align="center" style={{ padding: '8px 12px', borderBottom: '1px solid #f0f0f0' }}>
         <Text strong>Уведомления</Text>
         {unreadCount > 0 && (
@@ -154,9 +173,81 @@ const MainLayout = () => {
         )}
         locale={{ emptyText: 'Нет уведомлений' }}
       />
-    </div>
+    </>
   )
 
+  // --- Мобильная версия ---
+  if (isMobile) {
+    return (
+      <Layout style={{ minHeight: '100vh' }}>
+        <Header
+          style={{
+            padding: '0 12px',
+            background: '#fff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            lineHeight: 'normal',
+            borderBottom: '1px solid #f0f0f0',
+            position: 'sticky',
+            top: 0,
+            zIndex: 10,
+            height: 48,
+          }}
+        >
+          <Flex align="center" gap={8}>
+            <Button
+              type="text"
+              icon={<MenuOutlined />}
+              onClick={() => setMobileMenuOpen(true)}
+              style={{ fontSize: 18 }}
+            />
+            {headerTitle && (
+              <Typography.Title level={5} style={{ margin: 0, whiteSpace: 'nowrap', fontSize: 15 }}>
+                {headerTitle}
+              </Typography.Title>
+            )}
+          </Flex>
+
+          <Badge count={unreadCount} size="small">
+            <BellOutlined
+              style={{ fontSize: 20, cursor: 'pointer' }}
+              onClick={() => handleMobileNotifOpen(true)}
+            />
+          </Badge>
+        </Header>
+
+        <Content id="main-content" style={{ padding: 8, overflow: 'auto', flex: 1 }}>
+          <Outlet />
+        </Content>
+
+        <MobileDrawerMenu
+          open={mobileMenuOpen}
+          onClose={() => setMobileMenuOpen(false)}
+          menuItems={menuItems}
+          selectedKeys={[location.pathname]}
+          onMenuClick={handleMenuClick}
+          userEmail={user?.email}
+          userRole={user?.role}
+          onLogout={handleLogout}
+        />
+
+        {/* Уведомления в Drawer на мобильном */}
+        <Drawer
+          title="Уведомления"
+          placement="right"
+          open={mobileNotifOpen}
+          onClose={() => setMobileNotifOpen(false)}
+          width="100%"
+          styles={{ body: { padding: 0 } }}
+        >
+          {notificationList}
+        </Drawer>
+      </Layout>
+    )
+  }
+
+  // --- Десктопная версия (без изменений) ---
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Sider
@@ -230,7 +321,11 @@ const MainLayout = () => {
           <Flex align="center" gap={12} style={{ flexShrink: 0 }}>
             {headerActions}
             <Popover
-              content={notificationContent}
+              content={
+                <div style={{ width: 380, maxHeight: 420, overflow: 'auto' }}>
+                  {notificationList}
+                </div>
+              }
               trigger="click"
               placement="bottomRight"
               open={notifOpen}
@@ -254,10 +349,7 @@ const MainLayout = () => {
                   key: 'logout',
                   icon: <LogoutOutlined />,
                   label: 'Выход',
-                  onClick: async () => {
-                    await logout()
-                    navigate('/login')
-                  },
+                  onClick: handleLogout,
                 },
               ],
             }}
