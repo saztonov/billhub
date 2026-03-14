@@ -4,6 +4,7 @@ import { SendOutlined, EditOutlined, DeleteOutlined, CloseOutlined, CheckOutline
 import dayjs from 'dayjs'
 import { useCommentStore } from '@/store/commentStore'
 import { useAuthStore } from '@/store/authStore'
+import useIsMobile from '@/hooks/useIsMobile'
 import type { PaymentRequestComment, Department } from '@/types'
 import { DEPARTMENT_LABELS } from '@/types'
 
@@ -25,6 +26,7 @@ const CommentsChat = ({ paymentRequestId }: CommentsChatProps) => {
   const { message } = App.useApp()
   const { comments, isLoading, isSubmitting, fetchComments, addComment, updateComment, deleteComment } = useCommentStore()
   const user = useAuthStore((s) => s.user)
+  const isMobile = useIsMobile()
   const isAdmin = user?.role === 'admin'
 
   const [newText, setNewText] = useState('')
@@ -213,31 +215,33 @@ const CommentsChat = ({ paymentRequestId }: CommentsChatProps) => {
         ))}
       </div>
 
-      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 8, alignItems: isMobile ? 'stretch' : 'flex-end' }}>
         {recipientOptions.length > 1 && (
           <Select
             value={recipient ?? ''}
             onChange={(val) => setRecipient(val || null)}
             options={recipientOptions}
-            style={{ width: 130, flexShrink: 0 }}
+            style={{ width: isMobile ? '100%' : 130, flexShrink: 0 }}
             size="middle"
           />
         )}
-        <TextArea
-          value={newText}
-          onChange={(e) => setNewText(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Написать комментарий... (Enter для отправки)"
-          autoSize={{ minRows: 1, maxRows: 3 }}
-          style={{ flex: 1 }}
-        />
-        <Button
-          type="primary"
-          icon={<SendOutlined />}
-          loading={isSubmitting}
-          disabled={!newText.trim()}
-          onClick={handleSend}
-        />
+        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flex: 1 }}>
+          <TextArea
+            value={newText}
+            onChange={(e) => setNewText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Написать комментарий... (Enter для отправки)"
+            autoSize={{ minRows: 1, maxRows: 3 }}
+            style={{ flex: 1 }}
+          />
+          <Button
+            type="primary"
+            icon={<SendOutlined />}
+            loading={isSubmitting}
+            disabled={!newText.trim()}
+            onClick={handleSend}
+          />
+        </div>
       </div>
     </div>
   )
