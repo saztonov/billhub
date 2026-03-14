@@ -56,6 +56,7 @@ import RejectModal from './RejectModal'
 import AddFilesModal from './AddFilesModal'
 import DpFillModal from './DpFillModal'
 import { formatSize, formatDate, extractRequestNumber, sanitizeFileName } from '@/utils/requestFormatters'
+import useIsMobile from '@/hooks/useIsMobile'
 import type { PaymentRequest, PaymentRequestFile, Department } from '@/types'
 import { DEPARTMENT_LABELS } from '@/types'
 
@@ -82,6 +83,7 @@ interface ViewRequestModalProps {
 
 const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, canEdit, onEdit, canApprove, onApprove, onReject }: ViewRequestModalProps) => {
   const { message } = App.useApp()
+  const isMobile = useIsMobile()
   const { requests, currentRequestFiles, fetchRequestFiles, fetchRequests, isLoading, isSubmitting, toggleFileRejection } = usePaymentRequestStore()
   const { payments, fetchPayments } = usePaymentPaymentStore()
   const { currentDecisions, currentLogs, fetchDecisions, fetchLogs, clearCurrentData, sendToRevision } = useApprovalStore()
@@ -328,71 +330,101 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   if (!request) return null
 
   // Колонки таблицы файлов
-  const fileColumns: Record<string, unknown>[] = [
-    { title: '№', key: 'index', width: 50, render: (_: unknown, __: PaymentRequestFile, index: number) => index + 1 },
-    {
-      title: 'Файл', dataIndex: 'fileName', key: 'fileName', width: hasAdditionalFiles ? '40%' : '50%', ellipsis: true,
-      render: (_: unknown, file: PaymentRequestFile) => (
-        <span style={file.isRejected ? { textDecoration: 'line-through', color: '#999' } : undefined}>{file.fileName}</span>
-      ),
-    },
-    {
-      title: 'Размер', key: 'fileSize', width: 100,
-      render: (_: unknown, file: PaymentRequestFile) => (
-        <Text type="secondary">
-          {formatSize(file.fileSize)}
-          {file.pageCount != null && ` · ${file.pageCount} стр.`}
-        </Text>
-      ),
-    },
-    {
-      title: 'Тип документа', key: 'documentType',
-      render: (_: unknown, file: PaymentRequestFile) => file.documentTypeName ? <Tag>{file.documentTypeName}</Tag> : null,
-    },
-  ]
+  const fileColumns: Record<string, unknown>[] = isMobile
+    ? [
+        {
+          title: 'Файл', dataIndex: 'fileName', key: 'fileName', ellipsis: true,
+          render: (_: unknown, file: PaymentRequestFile) => (
+            <span style={{ fontSize: 12, ...(file.isRejected ? { textDecoration: 'line-through', color: '#999' } : {}) }}>{file.fileName}</span>
+          ),
+        },
+        {
+          title: '', key: 'actions', width: canApprove ? 100 : 64,
+          render: (_: unknown, file: PaymentRequestFile) => (
+            <Space size={4}>
+              {canApprove && (
+                <Button
+                  icon={file.isRejected ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
+                  size="small"
+                  style={file.isRejected ? { color: '#52c41a', borderColor: '#52c41a' } : { color: '#ff4d4f', borderColor: '#ff4d4f' }}
+                  onClick={() => user && toggleFileRejection(file.id, user.id)}
+                />
+              )}
+              <Button icon={<EyeOutlined />} size="small" onClick={() => setPreviewFile(file)} />
+              <Button icon={<DownloadOutlined />} size="small" loading={downloading === file.fileKey} onClick={() => handleDownload(file.fileKey, file.fileName)} />
+            </Space>
+          ),
+        },
+      ]
+    : (() => {
+        const cols: Record<string, unknown>[] = [
+          { title: '№', key: 'index', width: 50, render: (_: unknown, __: PaymentRequestFile, index: number) => index + 1 },
+          {
+            title: 'Файл', dataIndex: 'fileName', key: 'fileName', width: hasAdditionalFiles ? '40%' : '50%', ellipsis: true,
+            render: (_: unknown, file: PaymentRequestFile) => (
+              <span style={file.isRejected ? { textDecoration: 'line-through', color: '#999' } : undefined}>{file.fileName}</span>
+            ),
+          },
+          {
+            title: 'Размер', key: 'fileSize', width: 100,
+            render: (_: unknown, file: PaymentRequestFile) => (
+              <Text type="secondary">
+                {formatSize(file.fileSize)}
+                {file.pageCount != null && ` · ${file.pageCount} стр.`}
+              </Text>
+            ),
+          },
+          {
+            title: 'Тип документа', key: 'documentType',
+            render: (_: unknown, file: PaymentRequestFile) => file.documentTypeName ? <Tag>{file.documentTypeName}</Tag> : null,
+          },
+        ]
 
-  if (hasAdditionalFiles) {
-    fileColumns.push({
-      title: 'Догружен', key: 'resubmit', width: 180,
-      render: (_: unknown, file: PaymentRequestFile) => {
-        if (!file.isAdditional && !file.isResubmit) return null
-        if (file.uploaderRole === 'counterparty_user') {
-          const cpName = file.uploaderCounterpartyName
-          return <Tag color="blue">{cpName ? `Подрядчик (${cpName})` : 'Подрядчик'}</Tag>
+        if (hasAdditionalFiles) {
+          cols.push({
+            title: 'Догружен', key: 'resubmit', width: 180,
+            render: (_: unknown, file: PaymentRequestFile) => {
+              if (!file.isAdditional && !file.isResubmit) return null
+              if (file.uploaderRole === 'counterparty_user') {
+                const cpName = file.uploaderCounterpartyName
+                return <Tag color="blue">{cpName ? `Подрядчик (${cpName})` : 'Подрядчик'}</Tag>
+              }
+              if (file.uploaderRole === 'user' || file.uploaderRole === 'admin') {
+                const dept = file.uploaderDepartment as Department | null
+                const label = dept ? DEPARTMENT_LABELS[dept] : '—'
+                return <Tag color="green">{label}</Tag>
+              }
+              return null
+            },
+          })
         }
-        if (file.uploaderRole === 'user' || file.uploaderRole === 'admin') {
-          const dept = file.uploaderDepartment as Department | null
-          const label = dept ? DEPARTMENT_LABELS[dept] : '—'
-          return <Tag color="green">{label}</Tag>
-        }
-        return null
-      },
-    })
-  }
 
-  fileColumns.push({
-    title: '', key: 'actions', width: canApprove ? 120 : 80,
-    render: (_: unknown, file: PaymentRequestFile) => (
-      <Space size={4}>
-        {canApprove && (
-          <Tooltip title={file.isRejected ? 'Подтвердить' : 'Отклонить'}>
-            <Button
-              icon={file.isRejected ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
-              size="small"
-              style={file.isRejected ? { color: '#52c41a', borderColor: '#52c41a' } : { color: '#ff4d4f', borderColor: '#ff4d4f' }}
-              onClick={() => user && toggleFileRejection(file.id, user.id)}
-            />
-          </Tooltip>
-        )}
-        <Tooltip title="Просмотр">
-          <Button icon={<EyeOutlined />} size="small" onClick={() => setPreviewFile(file)} />
-        </Tooltip>
-        <Tooltip title="Скачать">
-          <Button icon={<DownloadOutlined />} size="small" loading={downloading === file.fileKey} onClick={() => handleDownload(file.fileKey, file.fileName)} />
-        </Tooltip>
-      </Space>
-    ),
-  })
+        cols.push({
+          title: '', key: 'actions', width: canApprove ? 120 : 80,
+          render: (_: unknown, file: PaymentRequestFile) => (
+            <Space size={4}>
+              {canApprove && (
+                <Tooltip title={file.isRejected ? 'Подтвердить' : 'Отклонить'}>
+                  <Button
+                    icon={file.isRejected ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
+                    size="small"
+                    style={file.isRejected ? { color: '#52c41a', borderColor: '#52c41a' } : { color: '#ff4d4f', borderColor: '#ff4d4f' }}
+                    onClick={() => user && toggleFileRejection(file.id, user.id)}
+                  />
+                </Tooltip>
+              )}
+              <Tooltip title="Просмотр">
+                <Button icon={<EyeOutlined />} size="small" onClick={() => setPreviewFile(file)} />
+              </Tooltip>
+              <Tooltip title="Скачать">
+                <Button icon={<DownloadOutlined />} size="small" loading={downloading === file.fileKey} onClick={() => handleDownload(file.fileKey, file.fileName)} />
+              </Tooltip>
+            </Space>
+          ),
+        })
+
+        return cols
+      })()
 
   // Маска суммы
   const invoiceAmountMask = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -433,24 +465,25 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   }
 
   // Footer
+  const footerWrap = isMobile ? { display: 'flex', flexWrap: 'wrap' as const, gap: 8 } : undefined
   let modalFooter: React.ReactNode
   if (resubmitMode) {
     modalFooter = (
-      <Space>
+      <Space wrap={isMobile} style={footerWrap}>
         <Button onClick={onClose}>Отмена</Button>
         <Button type="primary" icon={<SendOutlined />} loading={isSubmitting} onClick={handleResubmitSubmit}>Отправить повторно</Button>
       </Space>
     )
   } else if (isEditing) {
     modalFooter = (
-      <Space>
+      <Space wrap={isMobile} style={footerWrap}>
         <Button onClick={() => { setIsEditing(false); setEditFileList([]) }}>Отмена</Button>
         <Button type="primary" loading={isSubmitting} onClick={handleEditSave}>Сохранить</Button>
       </Space>
     )
   } else {
     modalFooter = (
-      <Space>
+      <Space wrap={isMobile} style={footerWrap}>
         {canEdit && !isCounterpartyUser && <Button icon={<EditOutlined />} onClick={startEditing}>Редактировать</Button>}
         {canApprove && (
           <Popconfirm title="Согласование заявки" description="Подтвердите корректность всех файлов и условий" onConfirm={() => onApprove?.(request.id, '')} okText="Согласовать" cancelText="Отмена">
@@ -467,35 +500,41 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   return (
     <>
       <Modal
-        title={resubmitMode ? `Повторная отправка — Заявка ${extractRequestNumber(request.requestNumber)}` : `Заявка ${extractRequestNumber(request.requestNumber)}`}
+        title={resubmitMode
+          ? (isMobile ? `Повторная — ${extractRequestNumber(request.requestNumber)}` : `Повторная отправка — Заявка ${extractRequestNumber(request.requestNumber)}`)
+          : `Заявка ${extractRequestNumber(request.requestNumber)}`}
         open={open}
         onCancel={onClose}
         footer={modalFooter}
-        width="80%"
+        width={isMobile ? '100%' : '80%'}
         mask={{ closable: false }}
-        centered
-        style={{ maxHeight: '85vh' }}
-        styles={{ body: { maxHeight: 'calc(85vh - 120px)', overflowY: 'auto', overflowX: 'hidden' } }}
+        centered={!isMobile}
+        style={isMobile ? { top: 0, maxWidth: '100vw', margin: 0, padding: 0 } : { maxHeight: '85vh' }}
+        styles={{
+          body: isMobile
+            ? { height: 'calc(100vh - 110px)', overflowY: 'auto', overflowX: 'hidden', padding: '12px 8px' }
+            : { maxHeight: 'calc(85vh - 120px)', overflowY: 'auto', overflowX: 'hidden' },
+        }}
       >
         {/* Реквизиты */}
         {isEditing ? (
           <Form form={editForm} layout="vertical" style={{ marginBottom: 16 }}>
-            <Descriptions column={2} size="small" bordered={false} style={{ marginBottom: 4 }}>
+            <Descriptions column={isMobile ? 1 : 2} size="small" bordered={false} style={{ marginBottom: 4 }}>
               <Descriptions.Item label="Номер">{extractRequestNumber(request.requestNumber)}</Descriptions.Item>
               <Descriptions.Item label="Подрядчик">{request.counterpartyName}</Descriptions.Item>
             </Descriptions>
-            <Row gutter={8}>
-              <Col span={6}>
+            <Row gutter={[8, 0]}>
+              <Col xs={24} sm={12} md={6}>
                 <Form.Item name="siteId" label="Объект" rules={[{ required: true, message: 'Выберите объект' }]}>
                   <Select placeholder="Выберите объект" showSearch optionFilterProp="label" options={siteOptions} />
                 </Form.Item>
               </Col>
-              <Col span={5}>
+              <Col xs={24} sm={12} md={5}>
                 <Form.Item name="supplierId" label="Поставщик">
                   <Select placeholder="Выберите поставщика" showSearch allowClear optionFilterProp="label" options={supplierOptions} />
                 </Form.Item>
               </Col>
-              <Col span={5}>
+              <Col xs={24} sm={12} md={5}>
                 <Form.Item label="Срок поставки" required style={{ marginBottom: 0 }}>
                   <div style={{ display: 'flex', gap: 4 }}>
                     <Form.Item name="deliveryDays" noStyle rules={[{ required: true, message: 'Укажите срок' }]}>
@@ -507,12 +546,12 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                   </div>
                 </Form.Item>
               </Col>
-              <Col span={5}>
+              <Col xs={24} sm={12} md={5}>
                 <Form.Item name="shippingConditionId" label="Условия отгрузки" rules={[{ required: true, message: 'Выберите условия' }]}>
                   <Select placeholder="Выберите условия" options={shippingOptions.map((o) => ({ label: o.value, value: o.id }))} />
                 </Form.Item>
               </Col>
-              <Col span={3}>
+              <Col xs={24} sm={12} md={3}>
                 <Form.Item name="invoiceAmount" label="Сумма счета" rules={[{ validator: invoiceAmountValidator }]} getValueFromEvent={invoiceAmountMask}>
                   <Input addonAfter="₽" style={{ width: '100%' }} placeholder="Сумма" />
                 </Form.Item>
@@ -528,7 +567,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
           </Form>
         ) : resubmitMode ? (
           <>
-            <Descriptions column={2} size="small" bordered style={{ marginBottom: 16 }}>
+            <Descriptions column={isMobile ? 1 : 2} size="small" bordered style={{ marginBottom: 16 }}>
               <Descriptions.Item label="Номер">{extractRequestNumber(request.requestNumber)}</Descriptions.Item>
               <Descriptions.Item label="Подрядчик">{request.counterpartyName}</Descriptions.Item>
               <Descriptions.Item label="Объект">{request.siteName ?? '—'}</Descriptions.Item>
@@ -543,25 +582,25 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
               <Descriptions.Item label="Дата создания">{formatDate(request.createdAt, !isCounterpartyUser)}</Descriptions.Item>
             </Descriptions>
             <Form form={resubmitForm} layout="vertical" style={{ marginBottom: 16 }}>
-              <Row gutter={16}>
-                <Col span={8}>
+              <Row gutter={[16, 0]}>
+                <Col xs={24} sm={8}>
                   <Form.Item label="Срок поставки" required style={{ marginBottom: 0 }}>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <Form.Item name="deliveryDays" noStyle rules={[{ required: true, message: 'Укажите срок' }]}>
                         <InputNumber min={1} style={{ width: 80 }} placeholder="Дни" />
                       </Form.Item>
                       <Form.Item name="deliveryDaysType" noStyle initialValue="working">
-                        <Select style={{ width: 120 }} options={[{ label: 'рабочих', value: 'working' }, { label: 'календарных', value: 'calendar' }]} />
+                        <Select style={{ flex: 1, minWidth: 100 }} options={[{ label: 'рабочих', value: 'working' }, { label: 'календарных', value: 'calendar' }]} />
                       </Form.Item>
                     </div>
                   </Form.Item>
                 </Col>
-                <Col span={8}>
+                <Col xs={24} sm={8}>
                   <Form.Item name="shippingConditionId" label="Условия отгрузки" rules={[{ required: true, message: 'Выберите условия' }]}>
                     <Select placeholder="Выберите условия" options={shippingOptions.map((o) => ({ label: o.value, value: o.id }))} />
                   </Form.Item>
                 </Col>
-                <Col span={8}>
+                <Col xs={24} sm={8}>
                   <Form.Item name="invoiceAmount" label="Сумма счета" required rules={[{ validator: invoiceAmountValidator }]} getValueFromEvent={invoiceAmountMask}>
                     <Input addonAfter="₽" style={{ width: '100%' }} placeholder="Сумма" />
                   </Form.Item>
@@ -575,7 +614,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
             </Form>
           </>
         ) : (
-          <Descriptions column={2} size="small" bordered style={{ marginBottom: 16 }}>
+          <Descriptions column={isMobile ? 1 : 2} size="small" bordered style={{ marginBottom: 16 }}>
             <Descriptions.Item label="Номер">{extractRequestNumber(request.requestNumber)}</Descriptions.Item>
             <Descriptions.Item label="Подрядчик">{request.counterpartyName}</Descriptions.Item>
             <Descriptions.Item label="Объект">{request.siteName ?? '—'}</Descriptions.Item>
@@ -698,10 +737,10 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
             extra: (
               <Space size={4} onClick={(e) => e.stopPropagation()}>
                 {!isEditing && !resubmitMode && (
-                  <Button size="small" icon={<PlusOutlined />} onClick={() => setAddFilesModalOpen(true)}>Добавить</Button>
+                  <Button size="small" icon={<PlusOutlined />} onClick={() => setAddFilesModalOpen(true)}>{isMobile ? null : 'Добавить'}</Button>
                 )}
                 {currentRequestFiles.length > 0 && (
-                  <Button size="small" icon={<DownloadOutlined />} loading={downloadingAll} onClick={handleDownloadAll}>Скачать все</Button>
+                  <Button size="small" icon={<DownloadOutlined />} loading={downloadingAll} onClick={handleDownloadAll}>{isMobile ? null : 'Скачать все'}</Button>
                 )}
               </Space>
             ),
