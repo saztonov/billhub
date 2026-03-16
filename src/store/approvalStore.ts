@@ -25,6 +25,10 @@ interface ApprovalStoreState {
   rejectedRequests: PaymentRequest[]
   omtsRpPendingRequests: PaymentRequest[]
 
+  // Счётчики для вкладок (независимые от фильтров)
+  approvedCount: number
+  rejectedCount: number
+
   isLoading: boolean
   error: string | null
 
@@ -45,6 +49,10 @@ interface ApprovalStoreState {
   fetchOmtsRpPendingRequests: () => Promise<void>
   fetchApprovedRequests: (userSiteIds?: string[], allSites?: boolean) => Promise<void>
   fetchRejectedRequests: (userSiteIds?: string[], allSites?: boolean) => Promise<void>
+
+  // Счётчики (только count, без загрузки данных)
+  fetchApprovedCount: (userSiteIds?: string[], allSites?: boolean) => Promise<void>
+  fetchRejectedCount: (userSiteIds?: string[], allSites?: boolean) => Promise<void>
 }
 
 /** Маппинг строки payment_requests из БД в PaymentRequest */
@@ -149,6 +157,8 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
   approvedRequests: [],
   rejectedRequests: [],
   omtsRpPendingRequests: [],
+  approvedCount: 0,
+  rejectedCount: 0,
   isLoading: false,
   error: null,
 
@@ -638,6 +648,54 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка загрузки заявок'
       set({ error: message, isLoading: false })
+    }
+  },
+
+  fetchApprovedCount: async (userSiteIds?, allSites?) => {
+    try {
+      let query = supabase
+        .from('payment_requests')
+        .select('id', { count: 'exact', head: true })
+        .not('approved_at', 'is', null)
+        .eq('is_deleted', false)
+
+      if (allSites === false && userSiteIds && userSiteIds.length > 0) {
+        query = query.in('site_id', userSiteIds)
+      } else if (allSites === false && userSiteIds && userSiteIds.length === 0) {
+        set({ approvedCount: 0 })
+        return
+      }
+
+      const { count, error } = await query
+      if (error) throw error
+
+      set({ approvedCount: count ?? 0 })
+    } catch (err) {
+      logError({ errorType: 'api_error', errorMessage: err instanceof Error ? err.message : 'Ошибка получения счётчика согласованных', errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'fetchApprovedCount' } })
+    }
+  },
+
+  fetchRejectedCount: async (userSiteIds?, allSites?) => {
+    try {
+      let query = supabase
+        .from('payment_requests')
+        .select('id', { count: 'exact', head: true })
+        .not('rejected_at', 'is', null)
+        .eq('is_deleted', false)
+
+      if (allSites === false && userSiteIds && userSiteIds.length > 0) {
+        query = query.in('site_id', userSiteIds)
+      } else if (allSites === false && userSiteIds && userSiteIds.length === 0) {
+        set({ rejectedCount: 0 })
+        return
+      }
+
+      const { count, error } = await query
+      if (error) throw error
+
+      set({ rejectedCount: count ?? 0 })
+    } catch (err) {
+      logError({ errorType: 'api_error', errorMessage: err instanceof Error ? err.message : 'Ошибка получения счётчика отклонённых', errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'fetchRejectedCount' } })
     }
   },
 }))

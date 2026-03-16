@@ -13,6 +13,10 @@ interface CounterpartyRequestsViewProps {
   filteredPending: PaymentRequest[]
   filteredApproved: PaymentRequest[]
   filteredRejected: PaymentRequest[]
+  allCount: number
+  pendingCount: number
+  approvedCount: number
+  rejectedCount: number
   isLoading: boolean
   sites: ConstructionSite[]
   statuses: Status[]
@@ -42,6 +46,10 @@ const CounterpartyRequestsView = ({
   filteredPending,
   filteredApproved,
   filteredRejected,
+  allCount,
+  pendingCount,
+  approvedCount,
+  rejectedCount,
   isLoading,
   sites,
   statuses,
@@ -114,7 +122,7 @@ const CounterpartyRequestsView = ({
   const tabItems = [
     {
       key: 'all',
-      label: 'Все',
+      label: isMobile ? 'Все' : `Все (${allCount})`,
       children: (
         <RequestsTable
           requests={filteredAll}
@@ -133,7 +141,7 @@ const CounterpartyRequestsView = ({
     },
     {
       key: 'pending',
-      label: isMobile ? 'Согл.' : 'На согласовании',
+      label: isMobile ? 'Н.Сог' : `На согласовании (${pendingCount})`,
       children: (
         <RequestsTable
           requests={filteredPending}
@@ -151,7 +159,7 @@ const CounterpartyRequestsView = ({
     },
     {
       key: 'approved',
-      label: isMobile ? 'Согл.' : 'Согласовано',
+      label: isMobile ? 'Согл.' : `Согласовано (${approvedCount})`,
       children: (
         <RequestsTable
           requests={filteredApproved}
@@ -169,7 +177,7 @@ const CounterpartyRequestsView = ({
     },
     {
       key: 'rejected',
-      label: isMobile ? 'Откл.' : 'Отклонено',
+      label: isMobile ? 'Откл.' : `Отклонено (${rejectedCount})`,
       children: (
         <RequestsTable
           requests={filteredRejected}

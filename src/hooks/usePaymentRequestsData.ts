@@ -89,11 +89,15 @@ export function usePaymentRequestsData({
     approvedRequests,
     rejectedRequests,
     omtsRpPendingRequests,
+    approvedCount,
+    rejectedCount,
     isLoading: approvalLoading,
     fetchPendingRequests,
     fetchOmtsRpPendingRequests,
     fetchApprovedRequests,
     fetchRejectedRequests,
+    fetchApprovedCount,
+    fetchRejectedCount,
     approveRequest,
     rejectRequest,
   } = useApprovalStore()
@@ -160,6 +164,14 @@ export function usePaymentRequestsData({
     if (!isOmtsRpUser && !isAdmin) return
     fetchOmtsRpPendingRequests()
   }, [isOmtsRpUser, isAdmin, fetchOmtsRpPendingRequests])
+
+  // Загружаем счётчики согласованных/отклонённых для вкладок (без загрузки данных)
+  useEffect(() => {
+    if (isCounterpartyUser || !sitesLoaded) return
+    const [sIds, allS] = siteFilterParams()
+    fetchApprovedCount(sIds, allS)
+    fetchRejectedCount(sIds, allS)
+  }, [isCounterpartyUser, sitesLoaded, siteFilterParams, fetchApprovedCount, fetchRejectedCount])
 
   // Загружаем данные при переключении вкладок
   useEffect(() => {
@@ -241,6 +253,8 @@ export function usePaymentRequestsData({
     approvedRequests,
     rejectedRequests,
     omtsRpPendingRequests,
+    approvedCount,
+    rejectedCount,
     isLoading,
     approvalLoading,
     counterparties,
@@ -256,6 +270,8 @@ export function usePaymentRequestsData({
     fetchCounterparties,
     fetchPendingRequests,
     fetchOmtsRpPendingRequests,
+    fetchApprovedCount,
+    fetchRejectedCount,
     approveRequest,
     rejectRequest,
     deleteRequest,

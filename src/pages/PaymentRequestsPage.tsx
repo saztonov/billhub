@@ -86,10 +86,12 @@ const PaymentRequestsPage = () => {
     user, isCounterpartyUser, isAdmin, isUser, isOmtsUser, isShtabUser, isOmtsRpUser,
     userDeptInChain, totalStages,
     requests, pendingRequests, approvedRequests, rejectedRequests, omtsRpPendingRequests,
+    approvedCount, rejectedCount,
     isLoading, approvalLoading,
     counterparties, sites, statuses, suppliers, omtsUsers, uploadTasks,
     siteFilterParams, canEditRequest,
     fetchRequests, fetchCounterparties, fetchPendingRequests, fetchOmtsRpPendingRequests,
+    fetchApprovedCount, fetchRejectedCount,
     approveRequest, rejectRequest,
     deleteRequest, withdrawRequest, resubmitRequest, updateRequest,
     assignResponsible,
@@ -115,6 +117,7 @@ const PaymentRequestsPage = () => {
     filteredRequests, filteredPendingRequests, filteredApprovedRequests, filteredRejectedRequests,
     filteredOmtsRpPendingRequests,
     filteredCounterpartyAll, filteredCounterpartyPending, filteredCounterpartyApproved, filteredCounterpartyRejected,
+    counterpartyAllCount, counterpartyPendingCount, counterpartyApprovedCount, counterpartyRejectedCount,
     totalInvoiceAmount, totalInvoiceAmountAll, totalPaidAll,
     totalCounterpartyInvoiceAmountAll, totalCounterpartyPaidAll,
     unassignedOmtsCount,
@@ -380,6 +383,8 @@ const PaymentRequestsPage = () => {
     const [sIds, allS] = siteFilterParams()
     if (isUser) fetchRequests(undefined, sIds, allS)
     else fetchRequests()
+    fetchApprovedCount(sIds, allS)
+    fetchRejectedCount(sIds, allS)
   }
 
   const handleReject = async (requestId: string, comment: string, files?: { id: string; file: File }[]) => {
@@ -393,6 +398,8 @@ const PaymentRequestsPage = () => {
     const [sIds, allS] = siteFilterParams()
     if (isUser) fetchRequests(undefined, sIds, allS)
     else fetchRequests()
+    fetchApprovedCount(sIds, allS)
+    fetchRejectedCount(sIds, allS)
   }
 
   const handleAssignResponsible = useCallback(async (requestId: string, userId: string) => {
@@ -468,6 +475,10 @@ const PaymentRequestsPage = () => {
           filteredPending={filteredCounterpartyPending}
           filteredApproved={filteredCounterpartyApproved}
           filteredRejected={filteredCounterpartyRejected}
+          allCount={counterpartyAllCount}
+          pendingCount={counterpartyPendingCount}
+          approvedCount={counterpartyApprovedCount}
+          rejectedCount={counterpartyRejectedCount}
           isLoading={isLoading}
           sites={sites}
           statuses={statuses}
@@ -536,7 +547,7 @@ const PaymentRequestsPage = () => {
   const tabItems = [
     {
       key: 'all',
-      label: 'Все',
+      label: isMobile ? 'Все' : `Все (${requests.length})`,
       children: (
         <RequestsTable
           requests={filteredRequests}
@@ -562,7 +573,7 @@ const PaymentRequestsPage = () => {
   if (userDeptInChain) {
     tabItems.push({
       key: 'pending',
-      label: isMobile ? `Согл. (${filteredPendingRequests.length})` : `На согласование (${filteredPendingRequests.length})`,
+      label: isMobile ? 'Н.Сог' : `На согласование (${pendingRequests.length})`,
       children: (
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
           {isAdmin && (
@@ -602,7 +613,7 @@ const PaymentRequestsPage = () => {
   if (isOmtsRpUser || isAdmin) {
     tabItems.push({
       key: 'omts_rp',
-      label: isMobile ? `ОМТС (${filteredOmtsRpPendingRequests.length})` : `ОМТС РП (${filteredOmtsRpPendingRequests.length})`,
+      label: isMobile ? 'ОМТС' : `ОМТС РП (${omtsRpPendingRequests.length})`,
       children: (
         <RequestsTable
           requests={filteredOmtsRpPendingRequests}
@@ -627,7 +638,7 @@ const PaymentRequestsPage = () => {
   tabItems.push(
     {
       key: 'approved',
-      label: isMobile ? 'Согл.' : 'Согласовано',
+      label: isMobile ? 'Согл.' : `Согласовано (${approvedCount})`,
       children: (
         <RequestsTable
           requests={filteredApprovedRequests}
@@ -647,7 +658,7 @@ const PaymentRequestsPage = () => {
     },
     {
       key: 'rejected',
-      label: isMobile ? 'Откл.' : 'Отклонено',
+      label: isMobile ? 'Откл.' : `Отклонено (${rejectedCount})`,
       children: (
         <RequestsTable
           requests={filteredRejectedRequests}

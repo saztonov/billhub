@@ -213,6 +213,11 @@ export function useRequestFiltering({
     filteredCounterpartyPending,
     filteredCounterpartyApproved,
     filteredCounterpartyRejected,
+    // Нефильтрованные счётчики counterparty (для вкладок)
+    counterpartyAllCount: requests.length,
+    counterpartyPendingCount: counterpartyPendingRequests.length,
+    counterpartyApprovedCount: counterpartyApprovedRequests.length,
+    counterpartyRejectedCount: counterpartyRejectedRequests.length,
     // Статистика
     totalInvoiceAmount,
     totalInvoiceAmountAll,
