@@ -165,15 +165,7 @@ export function usePaymentRequestsData({
     fetchOmtsRpPendingRequests()
   }, [isOmtsRpUser, isAdmin, fetchOmtsRpPendingRequests])
 
-  // Загружаем счётчики согласованных/отклонённых для вкладок (без загрузки данных)
-  useEffect(() => {
-    if (isCounterpartyUser || !sitesLoaded) return
-    const [sIds, allS] = siteFilterParams()
-    fetchApprovedCount(sIds, allS)
-    fetchRejectedCount(sIds, allS)
-  }, [isCounterpartyUser, sitesLoaded, siteFilterParams, fetchApprovedCount, fetchRejectedCount])
-
-  // Загружаем данные при переключении вкладок
+  // Загружаем данные при переключении вкладок и обновляем все счетчики
   useEffect(() => {
     if (!sitesLoaded) return
 
@@ -184,6 +176,7 @@ export function usePaymentRequestsData({
 
     const [sIds, allS] = siteFilterParams()
 
+    // Загружаем данные активной вкладки
     if (activeTab === 'all') {
       if (isUser) {
         fetchRequests(undefined, sIds, allS)
@@ -204,7 +197,22 @@ export function usePaymentRequestsData({
     } else if (activeTab === 'rejected') {
       fetchRejectedRequests(sIds, allS)
     }
-  }, [activeTab, refreshTrigger, sitesLoaded, isCounterpartyUser, user?.counterpartyId, user?.id, user?.department, isUser, isAdmin, adminSelectedStage, userDeptInChain, userSiteIds, userAllSites, showDeleted, fetchRequests, fetchPendingRequests, fetchOmtsRpPendingRequests, fetchApprovedRequests, fetchRejectedRequests, siteFilterParams])
+
+    // Обновляем счетчики всех вкладок
+    fetchApprovedCount(sIds, allS)
+    fetchRejectedCount(sIds, allS)
+    if (activeTab !== 'all') {
+      if (isUser) fetchRequests(undefined, sIds, allS)
+      else if (isAdmin) fetchRequests(undefined, undefined, undefined, showDeleted)
+    }
+    if (activeTab !== 'pending' && user?.id && userDeptInChain) {
+      const department = isAdmin ? adminSelectedStage : user?.department
+      if (department) fetchPendingRequests(department, user.id, isAdmin)
+    }
+    if (activeTab !== 'omts_rp' && (isOmtsRpUser || isAdmin)) {
+      fetchOmtsRpPendingRequests()
+    }
+  }, [activeTab, refreshTrigger, sitesLoaded, isCounterpartyUser, user?.counterpartyId, user?.id, user?.department, isUser, isAdmin, isOmtsRpUser, adminSelectedStage, userDeptInChain, userSiteIds, userAllSites, showDeleted, fetchRequests, fetchPendingRequests, fetchOmtsRpPendingRequests, fetchApprovedRequests, fetchRejectedRequests, fetchApprovedCount, fetchRejectedCount, siteFilterParams])
 
   // Загружаем справочники для фильтров
   useEffect(() => {
