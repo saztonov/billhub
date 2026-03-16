@@ -37,6 +37,7 @@ interface UsePaymentRequestsDataParams {
   adminSelectedStage: Department
   showDeleted: boolean
   setFilters: (filters: FilterValues | ((prev: FilterValues) => FilterValues)) => void
+  isMobile: boolean
 }
 
 /**
@@ -49,6 +50,7 @@ export function usePaymentRequestsData({
   adminSelectedStage,
   showDeleted,
   setFilters,
+  isMobile,
 }: UsePaymentRequestsDataParams) {
   const user = useAuthStore((s) => s.user)
 
@@ -114,10 +116,10 @@ export function usePaymentRequestsData({
 
   // Устанавливаем фильтры по умолчанию для ОМТС (если не восстановлены из localStorage)
   useEffect(() => {
-    if (isOmtsUser && !isAdmin) {
+    if (isUser && isOmtsUser && !isMobile) {
       setFilters((prev: FilterValues) => prev.myRequestsFilter ? prev : { ...prev, myRequestsFilter: 'assigned_to_me' })
     }
-  }, [isAdmin, isOmtsUser, setFilters])
+  }, [isUser, isOmtsUser, isMobile, setFilters])
 
   // Загружаем объекты пользователя для role=user
   useEffect(() => {

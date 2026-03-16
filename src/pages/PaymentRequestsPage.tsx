@@ -99,6 +99,7 @@ const PaymentRequestsPage = () => {
     adminSelectedStage,
     showDeleted,
     setFilters,
+    isMobile,
   })
 
   // Непрочитанные комментарии
