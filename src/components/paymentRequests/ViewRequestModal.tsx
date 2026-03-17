@@ -562,7 +562,6 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                 <Form.Item
                   name="comment"
                   label="Краткое описание"
-                  rules={[{ required: true, message: 'Введите краткое описание' }]}
                 >
                   <Input.TextArea
                     maxLength={64}
