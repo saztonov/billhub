@@ -110,7 +110,12 @@ const ImportCounterpartiesModal = ({ open, onClose }: ImportCounterpartiesModalP
           if (!row || row.length === 0) continue
 
           const name = (row[nameIdx] ?? '').toString().trim()
-          const inn = (row[innIdx] ?? '').toString().trim()
+          let inn = (row[innIdx] ?? '').toString().trim()
+
+          // Восстановление ведущего нуля ИНН (Excel может хранить ИНН как число)
+          if (/^\d+$/.test(inn) && (inn.length === 9 || inn.length === 11)) {
+            inn = '0' + inn
+          }
 
           if (!name && !inn) continue
 
@@ -335,7 +340,11 @@ const ImportCounterpartiesModal = ({ open, onClose }: ImportCounterpartiesModalP
             <InboxOutlined />
           </p>
           <p className="ant-upload-text">Перетащите файл Excel или нажмите для выбора</p>
-          <p className="ant-upload-hint">Поддерживаются форматы .xlsx и .xls</p>
+          <p className="ant-upload-hint">
+            Обязательные колонки: Наименование, ИНН.
+            <br />
+            Заголовки определяются автоматически. Без заголовков: 1-я колонка — наименование, 2-я — ИНН.
+          </p>
         </Upload.Dragger>
       ) : (
         <>
