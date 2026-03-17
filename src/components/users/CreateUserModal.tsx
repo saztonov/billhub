@@ -10,7 +10,7 @@ import {
 import { useUserStore } from '@/store/userStore'
 import { useCounterpartyStore } from '@/store/counterpartyStore'
 import { useConstructionSiteStore } from '@/store/constructionSiteStore'
-import type { UserRole } from '@/types'
+import type { UserRole, Department } from '@/types'
 import { DEPARTMENT_LABELS } from '@/types'
 
 interface CreateUserModalProps {
@@ -24,6 +24,7 @@ const CreateUserModal = ({ open, onClose, onSuccess }: CreateUserModalProps) => 
   const [form] = Form.useForm()
   const [selectedRole, setSelectedRole] = useState<UserRole>('user')
   const [allSitesChecked, setAllSitesChecked] = useState(false)
+  const [selectedDepartment, setSelectedDepartment] = useState<Department | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const { createUser } = useUserStore()
@@ -32,6 +33,7 @@ const CreateUserModal = ({ open, onClose, onSuccess }: CreateUserModalProps) => 
 
   const activeSites = sites.filter((s) => s.isActive)
   const showSiteFields = selectedRole !== 'counterparty_user'
+  const isShtab = selectedDepartment === 'shtab'
 
   const handleSubmit = async () => {
     const values = await form.validateFields()
@@ -50,6 +52,7 @@ const CreateUserModal = ({ open, onClose, onSuccess }: CreateUserModalProps) => 
       message.success('Пользователь создан')
       form.resetFields()
       setSelectedRole('user')
+      setSelectedDepartment(null)
       setAllSitesChecked(false)
       onSuccess()
     } catch (err) {
@@ -63,6 +66,7 @@ const CreateUserModal = ({ open, onClose, onSuccess }: CreateUserModalProps) => 
   const handleCancel = () => {
     form.resetFields()
     setSelectedRole('user')
+    setSelectedDepartment(null)
     setAllSitesChecked(false)
     onClose()
   }
@@ -132,6 +136,7 @@ const CreateUserModal = ({ open, onClose, onSuccess }: CreateUserModalProps) => 
             setSelectedRole(value)
             if (value === 'counterparty_user') {
               setAllSitesChecked(false)
+              setSelectedDepartment(null)
               form.setFieldsValue({ all_sites: false, site_ids: [], department: undefined })
             }
           }}>
@@ -164,6 +169,15 @@ const CreateUserModal = ({ open, onClose, onSuccess }: CreateUserModalProps) => 
             <Select
               placeholder="Выберите подразделение"
               allowClear
+              onChange={(value: Department | undefined) => {
+                setSelectedDepartment(value || null)
+                if (value === 'shtab') {
+                  // Для Штаба: сбрасываем "Все объекты", перевалидируем site_ids
+                  setAllSitesChecked(false)
+                  form.setFieldsValue({ all_sites: false })
+                  form.validateFields(['site_ids']).catch(() => {})
+                }
+              }}
             >
               <Select.Option value="shtab">{DEPARTMENT_LABELS.shtab}</Select.Option>
               <Select.Option value="omts">{DEPARTMENT_LABELS.omts}</Select.Option>
@@ -173,26 +187,43 @@ const CreateUserModal = ({ open, onClose, onSuccess }: CreateUserModalProps) => 
         )}
         {showSiteFields && (
           <>
-            <Form.Item name="all_sites" valuePropName="checked">
-              <Checkbox
-                onChange={(e) => {
-                  setAllSitesChecked(e.target.checked)
-                  if (e.target.checked) {
-                    form.setFieldsValue({ site_ids: [] })
-                  }
-                }}
-              >
-                Все объекты
-              </Checkbox>
-            </Form.Item>
+            {!isShtab && (
+              <Form.Item name="all_sites" valuePropName="checked">
+                <Checkbox
+                  onChange={(e) => {
+                    setAllSitesChecked(e.target.checked)
+                    if (e.target.checked) {
+                      form.setFieldsValue({ site_ids: [] })
+                    }
+                  }}
+                >
+                  Все объекты
+                </Checkbox>
+              </Form.Item>
+            )}
             {!allSitesChecked && (
-              <Form.Item name="site_ids" label="Объекты строительства">
+              <Form.Item
+                name="site_ids"
+                label="Объекты строительства"
+                rules={isShtab ? [
+                  { required: true, message: 'Для подразделения Штаб выберите объекты (1-2)' },
+                  () => ({
+                    validator(_, value) {
+                      if (value && value.length > 2) {
+                        return Promise.reject(new Error('Для подразделения Штаб максимум 2 объекта'))
+                      }
+                      return Promise.resolve()
+                    },
+                  }),
+                ] : []}
+              >
                 <Select
                   mode="multiple"
                   placeholder="Выберите объекты"
                   showSearch
                   optionFilterProp="children"
                   allowClear
+                  maxCount={isShtab ? 2 : undefined}
                 >
                   {activeSites.map((s) => (
                     <Select.Option key={s.id} value={s.id}>

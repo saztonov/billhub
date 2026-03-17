@@ -131,6 +131,16 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
   createUser: async (data) => {
     set({ isLoading: true, error: null })
     try {
+      // Валидация: для подразделения Штаб обязательно 1-2 объекта
+      if (data.department === 'shtab' && !data.all_sites) {
+        if (data.site_ids.length === 0) {
+          throw new Error('Для подразделения Штаб необходимо выбрать хотя бы один объект')
+        }
+        if (data.site_ids.length > 2) {
+          throw new Error('Для подразделения Штаб можно выбрать не более 2 объектов')
+        }
+      }
+
       // Создаем пользователя в Supabase Auth через клиент без сессии
       const { data: authData, error: authError } = await supabaseNoSession.auth.signUp({
         email: data.email,
@@ -187,6 +197,16 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
   updateUser: async (id, data) => {
     set({ isLoading: true, error: null })
     try {
+      // Валидация: для подразделения Штаб обязательно 1-2 объекта
+      if (data.department === 'shtab' && !data.all_sites) {
+        if (data.site_ids.length === 0) {
+          throw new Error('Для подразделения Штаб необходимо выбрать хотя бы один объект')
+        }
+        if (data.site_ids.length > 2) {
+          throw new Error('Для подразделения Штаб можно выбрать не более 2 объектов')
+        }
+      }
+
       // Обновляем основные поля пользователя
       const { error } = await supabase
         .from('users')

@@ -151,6 +151,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
           resubmitCount: (row.resubmit_count as number) ?? 0,
           invoiceAmount: (row.invoice_amount as number) ?? null,
           invoiceAmountHistory: (row.invoice_amount_history as { amount: number; changedAt: string }[]) ?? [],
+          previousStatusId: (row.previous_status_id as string) ?? null,
           paidStatusId: (row.paid_status_id as string) ?? null,
           totalPaid: Number(row.total_paid ?? 0),
           isDeleted: (row.is_deleted as boolean) ?? false,

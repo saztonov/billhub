@@ -120,6 +120,8 @@ const CounterpartyLog = ({ request, decisions, logs, downloading, onViewFile, on
         const comment = (l.details?.comment as string) ?? ''
         const text = comment ? `На доработку. Комментарий: ${comment}` : 'На доработку'
         items.push({ icon: <EditOutlined style={{ color: '#faad14' }} />, text, date: l.createdAt })
+      } else if (l.action === 'revision_complete') {
+        items.push({ icon: <CheckCircleOutlined style={{ color: '#52c41a' }} />, text: 'Доработано', date: l.createdAt })
       }
     }
 
@@ -290,6 +292,19 @@ const AdminLog = ({ decisions, logs, downloading, onViewFile, onDownloadFile }: 
                   <Space>
                     <EditOutlined style={{ color: '#faad14' }} />
                     <Text>{text}</Text>
+                    {log.userEmail && <Text type="secondary">({log.userEmail})</Text>}
+                    <Text type="secondary">{formatDate(log.createdAt)}</Text>
+                  </Space>
+                </div>
+              )
+            }
+
+            if (log.action === 'revision_complete') {
+              return (
+                <div key={idx} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
+                  <Space>
+                    <CheckCircleOutlined style={{ color: '#52c41a' }} />
+                    <Text>Доработано</Text>
                     {log.userEmail && <Text type="secondary">({log.userEmail})</Text>}
                     <Text type="secondary">{formatDate(log.createdAt)}</Text>
                   </Space>

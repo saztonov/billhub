@@ -147,12 +147,15 @@ export function useRequestFiltering({
   const filteredOmtsRpPendingRequests = useMemo(() => applyFiltersWithoutResponsible(omtsRpPendingRequests), [omtsRpPendingRequests, applyFiltersWithoutResponsible])
 
   // Разделение заявок counterparty_user по статусам
+  const counterpartyRevisionRequests = useMemo(() =>
+    requests.filter(r => !!r.previousStatusId), [requests])
   const counterpartyPendingRequests = useMemo(() =>
     requests.filter(r =>
       r.currentStage !== null &&
       r.approvedAt === null &&
       r.rejectedAt === null &&
-      r.withdrawnAt === null
+      r.withdrawnAt === null &&
+      !r.previousStatusId
     ), [requests])
   const counterpartyApprovedRequests = useMemo(() =>
     requests.filter(r => r.approvedAt !== null), [requests])
@@ -162,6 +165,8 @@ export function useRequestFiltering({
   // Фильтрованные counterparty списки
   const filteredCounterpartyAll = useMemo(() =>
     applyCounterpartyFilters(requests), [requests, applyCounterpartyFilters])
+  const filteredCounterpartyRevision = useMemo(() =>
+    applyCounterpartyFilters(counterpartyRevisionRequests), [counterpartyRevisionRequests, applyCounterpartyFilters])
   const filteredCounterpartyPending = useMemo(() =>
     applyCounterpartyFilters(counterpartyPendingRequests), [counterpartyPendingRequests, applyCounterpartyFilters])
   const filteredCounterpartyApproved = useMemo(() =>
@@ -210,11 +215,13 @@ export function useRequestFiltering({
     filteredOmtsRpPendingRequests,
     // Фильтрованные списки counterparty
     filteredCounterpartyAll,
+    filteredCounterpartyRevision,
     filteredCounterpartyPending,
     filteredCounterpartyApproved,
     filteredCounterpartyRejected,
     // Нефильтрованные счётчики counterparty (для вкладок)
     counterpartyAllCount: requests.length,
+    counterpartyRevisionCount: counterpartyRevisionRequests.length,
     counterpartyPendingCount: counterpartyPendingRequests.length,
     counterpartyApprovedCount: counterpartyApprovedRequests.length,
     counterpartyRejectedCount: counterpartyRejectedRequests.length,

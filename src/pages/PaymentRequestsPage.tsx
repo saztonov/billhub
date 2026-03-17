@@ -118,8 +118,8 @@ const PaymentRequestsPage = () => {
   const {
     filteredRequests, filteredPendingRequests, filteredApprovedRequests, filteredRejectedRequests,
     filteredOmtsRpPendingRequests,
-    filteredCounterpartyAll, filteredCounterpartyPending, filteredCounterpartyApproved, filteredCounterpartyRejected,
-    counterpartyAllCount, counterpartyPendingCount, counterpartyApprovedCount, counterpartyRejectedCount,
+    filteredCounterpartyAll, filteredCounterpartyRevision, filteredCounterpartyPending, filteredCounterpartyApproved, filteredCounterpartyRejected,
+    counterpartyAllCount, counterpartyRevisionCount, counterpartyPendingCount, counterpartyApprovedCount, counterpartyRejectedCount,
     totalInvoiceAmount, totalInvoiceAmountAll, totalPaidAll,
     totalCounterpartyInvoiceAmountAll, totalCounterpartyPaidAll,
     unassignedOmtsCount,
@@ -145,7 +145,7 @@ const PaymentRequestsPage = () => {
             withdrawn_at, withdrawal_comment, current_stage,
             approved_at, rejected_at, rejected_stage,
             resubmit_comment, resubmit_count,
-            invoice_amount, invoice_amount_history,
+            invoice_amount, invoice_amount_history, previous_status_id,
             paid_status_id, total_paid, is_deleted, deleted_at,
             supplier_id, dp_number, dp_date, dp_amount, dp_file_key, dp_file_name, omts_entered_at, omts_approved_at,
             counterparties(name),
@@ -188,6 +188,7 @@ const PaymentRequestsPage = () => {
           resubmitCount: data.resubmit_count ?? 0,
           invoiceAmount: data.invoice_amount ?? null,
           invoiceAmountHistory: data.invoice_amount_history ?? [],
+          previousStatusId: data.previous_status_id ?? null,
           paidStatusId: data.paid_status_id ?? null,
           totalPaid: Number(data.total_paid ?? 0),
           isDeleted: data.is_deleted ?? false,
@@ -483,10 +484,12 @@ const PaymentRequestsPage = () => {
       <div style={{ display: 'flex', flexDirection: 'column', height: isMobile ? 'calc(100vh - 48px - 8px)' : 'calc(100vh - 64px - 1px - 32px)', overflow: 'hidden' }}>
         <CounterpartyRequestsView
           filteredAll={filteredCounterpartyAll}
+          filteredRevision={filteredCounterpartyRevision}
           filteredPending={filteredCounterpartyPending}
           filteredApproved={filteredCounterpartyApproved}
           filteredRejected={filteredCounterpartyRejected}
           allCount={counterpartyAllCount}
+          revisionCount={counterpartyRevisionCount}
           pendingCount={counterpartyPendingCount}
           approvedCount={counterpartyApprovedCount}
           rejectedCount={counterpartyRejectedCount}

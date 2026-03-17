@@ -86,7 +86,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   const isMobile = useIsMobile()
   const { requests, currentRequestFiles, fetchRequestFiles, fetchRequests, isLoading, isSubmitting, toggleFileRejection } = usePaymentRequestStore()
   const { payments, fetchPayments } = usePaymentPaymentStore()
-  const { currentDecisions, currentLogs, fetchDecisions, fetchLogs, clearCurrentData, sendToRevision } = useApprovalStore()
+  const { currentDecisions, currentLogs, fetchDecisions, fetchLogs, clearCurrentData, sendToRevision, completeRevision } = useApprovalStore()
   const omtsRpResponsibleUserId = useOmtsRpStore((s) => s.responsibleUserId)
   const fetchOmtsRpConfig = useOmtsRpStore((s) => s.fetchConfig)
   const fetchOmtsRpSites = useOmtsRpStore((s) => s.fetchSites)
@@ -112,6 +112,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   // Комментарий для "На доработку"
   const [revisionComment, setRevisionComment] = useState('')
   const [revisionModalOpen, setRevisionModalOpen] = useState(false)
+  const [revisionCompleteModalOpen, setRevisionCompleteModalOpen] = useState(false)
   const [addFilesModalOpen, setAddFilesModalOpen] = useState(false)
   const [dpModalOpen, setDpModalOpen] = useState(false)
 
@@ -122,6 +123,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   const [showEditFileValidation, setShowEditFileValidation] = useState(false)
   const [showResubmitFileValidation, setShowResubmitFileValidation] = useState(false)
   const [resubmitForm] = Form.useForm()
+  const [revisionCompleteForm] = Form.useForm()
   const { fieldOptions, fetchFieldOptions, getOptionsByField } = usePaymentRequestSettingsStore()
   const { sites, fetchSites } = useConstructionSiteStore()
   const { suppliers, fetchSuppliers } = useSupplierStore()
@@ -164,12 +166,12 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   }, [open, resubmitForm])
 
   useEffect(() => {
-    if (isEditing || resubmitMode) {
+    if (isEditing || resubmitMode || revisionCompleteModalOpen) {
       if (fieldOptions.length === 0) fetchFieldOptions()
       if (sites.length === 0) fetchSites()
       if (suppliers.length === 0) fetchSuppliers()
     }
-  }, [isEditing, resubmitMode, fieldOptions.length, sites.length, suppliers.length, fetchFieldOptions, fetchSites, fetchSuppliers])
+  }, [isEditing, resubmitMode, revisionCompleteModalOpen, fieldOptions.length, sites.length, suppliers.length, fetchFieldOptions, fetchSites, fetchSuppliers])
 
   // Сумма оплат и права на управление оплатами
   const paymentsTotalPaid = useMemo(() => payments.filter(p => p.isExecuted).reduce((sum, p) => sum + p.amount, 0), [payments])
@@ -443,12 +445,17 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
     return Promise.resolve()
   }
 
-  // Проверяем, может ли текущий пользователь отправить на доработку (ОМТС РП)
-  const hasPendingOmtsRpDecision = currentDecisions.some(
-    (d) => d.status === 'pending' && d.isOmtsRp
-  )
+  // Проверяем, может ли текущий пользователь отправить на доработку (ОМТС, ОМТС РП, admin)
+  const isAdmin = user?.role === 'admin'
+  const isOmtsUser = user?.department === 'omts'
   const isOmtsRpResponsible = user?.id === omtsRpResponsibleUserId
-  const canSendToRevision = canApprove && hasPendingOmtsRpDecision && isOmtsRpResponsible
+  const hasPendingOmtsOrOmtsRpDecision = currentDecisions.some(
+    (d) => d.status === 'pending' && (d.department === 'omts' || d.isOmtsRp)
+  )
+  const canSendToRevision = (isAdmin || isOmtsUser || isOmtsRpResponsible) && hasPendingOmtsOrOmtsRpDecision
+
+  // Заявка в статусе "На доработку" (previous_status_id заполнен)
+  const isRevisionStatus = !!request.previousStatusId
 
   const handleSendToRevision = async () => {
     if (!request) return
@@ -461,6 +468,24 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       fetchLogs(request.id)
     } catch {
       message.error('Ошибка отправки на доработку')
+    }
+  }
+
+  const handleCompleteRevision = async (values: {
+    deliveryDays: number
+    deliveryDaysType: string
+    shippingConditionId: string
+    invoiceAmount: number
+  }) => {
+    if (!request) return
+    try {
+      await completeRevision(request.id, values)
+      message.success('Доработка завершена')
+      setRevisionCompleteModalOpen(false)
+      fetchDecisions(request.id)
+      fetchLogs(request.id)
+    } catch {
+      message.error('Ошибка завершения доработки')
     }
   }
 
@@ -484,14 +509,15 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   } else {
     modalFooter = (
       <Space wrap={isMobile} style={footerWrap}>
+        {canSendToRevision && <Button icon={<EditOutlined />} style={{ borderColor: '#faad14', color: '#faad14' }} onClick={() => setRevisionModalOpen(true)}>На доработку</Button>}
         {canEdit && !isCounterpartyUser && <Button icon={<EditOutlined />} onClick={startEditing}>Редактировать</Button>}
         {canApprove && (
           <Popconfirm title="Согласование заявки" description="Подтвердите корректность всех файлов и условий" onConfirm={() => onApprove?.(request.id, '')} okText="Согласовать" cancelText="Отмена">
             <Button type="primary" icon={<CheckOutlined />}>Согласовать</Button>
           </Popconfirm>
         )}
-        {canSendToRevision && <Button icon={<EditOutlined />} style={{ borderColor: '#faad14', color: '#faad14' }} onClick={() => setRevisionModalOpen(true)}>На доработку</Button>}
         {canApprove && <Button danger icon={<StopOutlined />} onClick={() => setRejectModalOpen(true)}>Отклонить</Button>}
+        {isRevisionStatus && isCounterpartyUser && <Button style={{ borderColor: '#52c41a', color: '#52c41a' }} icon={<CheckOutlined />} onClick={() => setRevisionCompleteModalOpen(true)}>Доработано</Button>}
         <Button onClick={onClose}>Закрыть</Button>
       </Space>
     )
@@ -858,6 +884,64 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
           value={revisionComment}
           onChange={(e) => setRevisionComment(e.target.value)}
         />
+      </Modal>
+
+      <Modal
+        title="Проверьте данные"
+        open={revisionCompleteModalOpen}
+        onOk={() => revisionCompleteForm.submit()}
+        onCancel={() => { setRevisionCompleteModalOpen(false); revisionCompleteForm.resetFields() }}
+        okText="Подтвердить"
+        cancelText="Отмена"
+        afterOpenChange={(open) => {
+          if (open && request) {
+            revisionCompleteForm.setFieldsValue({
+              deliveryDays: request.deliveryDays,
+              deliveryDaysType: request.deliveryDaysType || 'working',
+              shippingConditionId: request.shippingConditionId,
+              invoiceAmount: request.invoiceAmount != null
+                ? request.invoiceAmount.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                : '',
+            })
+          }
+        }}
+      >
+        <Form
+          form={revisionCompleteForm}
+          layout="vertical"
+          onFinish={(values) => {
+            const amount = Number(String(values.invoiceAmount ?? '').replace(/\s/g, '').replace(',', '.'))
+            handleCompleteRevision({
+              deliveryDays: values.deliveryDays,
+              deliveryDaysType: values.deliveryDaysType,
+              shippingConditionId: values.shippingConditionId,
+              invoiceAmount: amount,
+            })
+          }}
+        >
+          <Row gutter={16}>
+            <Col xs={24} sm={12}>
+              <Form.Item label="Срок поставки, дней" required style={{ marginBottom: 12 }}>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <Form.Item name="deliveryDays" noStyle rules={[{ required: true, message: 'Укажите срок' }]}>
+                    <InputNumber min={1} style={{ flex: 1 }} />
+                  </Form.Item>
+                  <Form.Item name="deliveryDaysType" noStyle>
+                    <Select style={{ flex: 1, minWidth: 100 }} options={[{ label: 'рабочих', value: 'working' }, { label: 'календарных', value: 'calendar' }]} />
+                  </Form.Item>
+                </div>
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12}>
+              <Form.Item name="shippingConditionId" label="Условия отгрузки" rules={[{ required: true, message: 'Выберите условия' }]}>
+                <Select placeholder="Выберите условия" options={shippingOptions.map((o) => ({ label: o.value, value: o.id }))} />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item name="invoiceAmount" label="Сумма счета" required rules={[{ validator: invoiceAmountValidator }]} getValueFromEvent={invoiceAmountMask}>
+            <Input addonAfter="₽" style={{ width: '100%' }} placeholder="Сумма" />
+          </Form.Item>
+        </Form>
       </Modal>
     </>
   )

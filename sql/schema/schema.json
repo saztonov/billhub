@@ -1880,6 +1880,15 @@
               "position": 37,
               "max_length": null,
               "numeric_precision": null
+            },
+            {
+              "name": "previous_status_id",
+              "type": "uuid",
+              "default": null,
+              "nullable": true,
+              "position": 38,
+              "max_length": null,
+              "numeric_precision": null
             }
           ]
         },
@@ -3044,17 +3053,6 @@
         },
         {
           "columns": [
-            "payment_request_id"
-          ],
-          "table_name": "payment_request_files",
-          "constraint_name": "payment_request_files_payment_request_id_fkey",
-          "references_table": "payment_requests",
-          "references_columns": [
-            "id"
-          ]
-        },
-        {
-          "columns": [
             "created_by"
           ],
           "table_name": "payment_request_files",
@@ -3071,6 +3069,17 @@
           "table_name": "payment_request_files",
           "constraint_name": "payment_request_files_document_type_id_fkey",
           "references_table": "document_types",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "payment_request_id"
+          ],
+          "table_name": "payment_request_files",
+          "constraint_name": "payment_request_files_payment_request_id_fkey",
+          "references_table": "payment_requests",
           "references_columns": [
             "id"
           ]
@@ -3121,11 +3130,22 @@
         },
         {
           "columns": [
-            "paid_status_id"
+            "previous_status_id"
           ],
           "table_name": "payment_requests",
-          "constraint_name": "payment_requests_paid_status_id_fkey",
+          "constraint_name": "payment_requests_previous_status_id_fkey",
           "references_table": "statuses",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "supplier_id"
+          ],
+          "table_name": "payment_requests",
+          "constraint_name": "payment_requests_supplier_id_fkey",
+          "references_table": "suppliers",
           "references_columns": [
             "id"
           ]
@@ -3143,11 +3163,11 @@
         },
         {
           "columns": [
-            "supplier_id"
+            "paid_status_id"
           ],
           "table_name": "payment_requests",
-          "constraint_name": "payment_requests_supplier_id_fkey",
-          "references_table": "suppliers",
+          "constraint_name": "payment_requests_paid_status_id_fkey",
+          "references_table": "statuses",
           "references_columns": [
             "id"
           ]
@@ -3261,7 +3281,7 @@
           "references_columns": null
         }
       ],
-      "generated_at": "2026-03-13T14:08:11.364943+00:00",
+      "generated_at": "2026-03-17T14:41:31.177871+00:00",
       "primary_keys": [
         {
           "columns": [

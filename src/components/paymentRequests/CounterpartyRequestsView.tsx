@@ -10,10 +10,12 @@ import type { UploadTask } from '@/store/uploadQueueStore'
 
 interface CounterpartyRequestsViewProps {
   filteredAll: PaymentRequest[]
+  filteredRevision: PaymentRequest[]
   filteredPending: PaymentRequest[]
   filteredApproved: PaymentRequest[]
   filteredRejected: PaymentRequest[]
   allCount: number
+  revisionCount: number
   pendingCount: number
   approvedCount: number
   rejectedCount: number
@@ -43,10 +45,12 @@ interface CounterpartyRequestsViewProps {
 /** UI заявок для роли counterparty_user */
 const CounterpartyRequestsView = ({
   filteredAll,
+  filteredRevision,
   filteredPending,
   filteredApproved,
   filteredRejected,
   allCount,
+  revisionCount,
   pendingCount,
   approvedCount,
   rejectedCount,
@@ -132,6 +136,24 @@ const CounterpartyRequestsView = ({
           hideCounterpartyColumn
           onWithdraw={onWithdraw}
           onResubmit={onResubmit}
+          uploadTasks={uploadTasks}
+          totalStages={totalStages}
+          unreadCounts={unreadCounts}
+          isMobile={isMobile}
+        />
+      ),
+    },
+    {
+      key: 'revision',
+      className: revisionCount > 0 ? 'revision-tab-orange' : undefined,
+      label: isMobile ? `Дораб.` : `На доработку (${revisionCount})`,
+      children: (
+        <RequestsTable
+          requests={filteredRevision}
+          isLoading={isLoading}
+          onView={onView}
+          isCounterpartyUser
+          hideCounterpartyColumn
           uploadTasks={uploadTasks}
           totalStages={totalStages}
           unreadCounts={unreadCounts}

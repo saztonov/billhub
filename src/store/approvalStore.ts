@@ -38,8 +38,15 @@ interface ApprovalStoreState {
   approveRequest: (paymentRequestId: string, department: Department, userId: string, comment: string) => Promise<void>
   rejectRequest: (paymentRequestId: string, department: Department, userId: string, comment: string, files?: FileItem[]) => Promise<void>
 
-  // На доработку (ОМТС РП)
+  // На доработку
   sendToRevision: (paymentRequestId: string, comment: string) => Promise<void>
+  // Завершение доработки (контрагент)
+  completeRevision: (paymentRequestId: string, fieldUpdates: {
+    deliveryDays: number
+    deliveryDaysType: string
+    shippingConditionId: string
+    invoiceAmount: number
+  }) => Promise<void>
 
   // Очистка текущих решений/логов
   clearCurrentData: () => void
@@ -93,6 +100,7 @@ function mapRequest(row: Record<string, unknown>): PaymentRequest {
     resubmitCount: (row.resubmit_count as number) ?? 0,
     invoiceAmount: (row.invoice_amount as number) ?? null,
     invoiceAmountHistory: (row.invoice_amount_history as { amount: number; changedAt: string }[]) ?? [],
+    previousStatusId: (row.previous_status_id as string) ?? null,
     isDeleted: (row.is_deleted as boolean) ?? false,
     deletedAt: (row.deleted_at as string) ?? null,
     paidStatusId: (row.paid_status_id as string) ?? null,
@@ -174,10 +182,18 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
         .single()
       if (stError) throw stError
 
-      // Меняем статус заявки (current_stage и pending decision остаются)
+      // Получаем текущий статус заявки для сохранения
+      const { data: currentReq, error: reqError } = await supabase
+        .from('payment_requests')
+        .select('status_id')
+        .eq('id', paymentRequestId)
+        .single()
+      if (reqError) throw reqError
+
+      // Меняем статус заявки и сохраняем предыдущий (current_stage и pending decision остаются)
       const { error: updError } = await supabase
         .from('payment_requests')
-        .update({ status_id: statusData.id })
+        .update({ status_id: statusData.id, previous_status_id: currentReq.status_id })
         .eq('id', paymentRequestId)
       if (updError) throw updError
 
@@ -199,6 +215,67 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка отправки на доработку'
       logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'sendToRevision', paymentRequestId } })
+      set({ error: message, isLoading: false })
+      throw err
+    }
+  },
+
+  completeRevision: async (paymentRequestId, fieldUpdates) => {
+    set({ isLoading: true, error: null })
+    try {
+      // Получаем заявку с предыдущим статусом и текущей суммой
+      const { data: currentReq, error: reqError } = await supabase
+        .from('payment_requests')
+        .select('previous_status_id, invoice_amount, invoice_amount_history')
+        .eq('id', paymentRequestId)
+        .single()
+      if (reqError) throw reqError
+      if (!currentReq.previous_status_id) throw new Error('Нет предыдущего статуса для восстановления')
+
+      // Формируем данные обновления
+      const updateData: Record<string, unknown> = {
+        status_id: currentReq.previous_status_id,
+        previous_status_id: null,
+        delivery_days: fieldUpdates.deliveryDays,
+        delivery_days_type: fieldUpdates.deliveryDaysType,
+        shipping_condition_id: fieldUpdates.shippingConditionId,
+        invoice_amount: fieldUpdates.invoiceAmount,
+      }
+
+      // Если сумма изменилась — записываем старую в историю
+      if (currentReq.invoice_amount != null && currentReq.invoice_amount !== fieldUpdates.invoiceAmount) {
+        const history = (currentReq.invoice_amount_history as { amount: number; changedAt: string }[]) ?? []
+        history.push({
+          amount: currentReq.invoice_amount as number,
+          changedAt: new Date().toISOString(),
+        })
+        updateData.invoice_amount_history = history
+      }
+
+      const { error: updError } = await supabase
+        .from('payment_requests')
+        .update(updateData)
+        .eq('id', paymentRequestId)
+      if (updError) throw updError
+
+      // Логируем действие
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        await supabase.from('payment_request_logs').insert({
+          payment_request_id: paymentRequestId,
+          user_id: user.id,
+          action: 'revision_complete',
+          details: null,
+        })
+
+        // Уведомляем сотрудников о завершении доработки
+        notifyStatusChanged(paymentRequestId, 'Доработано', user.id).catch(() => {})
+      }
+
+      set({ isLoading: false })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Ошибка завершения доработки'
+      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'completeRevision', paymentRequestId } })
       set({ error: message, isLoading: false })
       throw err
     }
@@ -296,10 +373,11 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
       // 1. Получаем текущий этап заявки
       const { data: pr, error: prError } = await supabase
         .from('payment_requests')
-        .select('current_stage, site_id')
+        .select('current_stage, site_id, withdrawn_at')
         .eq('id', paymentRequestId)
         .single()
       if (prError) throw prError
+      if (pr.withdrawn_at) throw new Error('Невозможно согласовать отозванную заявку')
       const currentStage = pr.current_stage as number
       const siteId = pr.site_id as string
 
@@ -423,10 +501,11 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
       // 1. Получаем текущий этап и номер заявки
       const { data: pr, error: prError } = await supabase
         .from('payment_requests')
-        .select('current_stage, request_number')
+        .select('current_stage, request_number, withdrawn_at')
         .eq('id', paymentRequestId)
         .single()
       if (prError) throw prError
+      if (pr.withdrawn_at) throw new Error('Невозможно отклонить отозванную заявку')
 
       // 2. Обновляем решение
       const { data: decisionData, error: updError } = await supabase
@@ -533,6 +612,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
         .select(PR_SELECT)
         .in('id', requestIds)
         .eq('is_deleted', false)
+        .is('withdrawn_at', null)
         .order('created_at', { ascending: false })
 
       // Фильтрация по объектам (работает для Штаба и ОМТС)
@@ -584,6 +664,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
         .select(PR_SELECT)
         .in('id', requestIds)
         .eq('is_deleted', false)
+        .is('withdrawn_at', null)
         .order('created_at', { ascending: false })
       if (error) throw error
 

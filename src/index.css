@@ -88,3 +88,11 @@ body {
 .flex-tabs .ant-tabs-ink-bar {
   display: none;
 }
+
+/* Оранжевая вкладка "На доработку" */
+.flex-tabs .ant-tabs-tab.revision-tab-orange .ant-tabs-tab-btn {
+  color: #faad14 !important;
+}
+.flex-tabs .ant-tabs-tab.revision-tab-orange.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: #faad14 !important;
+}

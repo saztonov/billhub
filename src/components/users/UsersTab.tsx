@@ -50,6 +50,7 @@ const UsersTab = () => {
   const [editingRecord, setEditingRecord] = useState<UserRecord | null>(null)
   const [selectedRole, setSelectedRole] = useState<UserRole>('user')
   const [allSitesChecked, setAllSitesChecked] = useState(false)
+  const [selectedDepartment, setSelectedDepartment] = useState<Department | null>(null)
   const [searchFullName, setSearchFullName] = useState('')
   const [searchCounterparty, setSearchCounterparty] = useState('')
   const [filterDepartment, setFilterDepartment] = useState<Department | undefined>(undefined)
@@ -73,6 +74,7 @@ const UsersTab = () => {
     setEditingRecord(record)
     setSelectedRole(record.role)
     setAllSitesChecked(record.allSites)
+    setSelectedDepartment(record.department || null)
     form.setFieldsValue({
       full_name: record.fullName,
       role: record.role,
@@ -112,6 +114,7 @@ const UsersTab = () => {
 
   const handleCancel = () => {
     setIsEditModalOpen(false)
+    setSelectedDepartment(null)
     form.resetFields()
   }
 
@@ -315,6 +318,7 @@ const UsersTab = () => {
   const activeSites = sites.filter((s) => s.isActive)
 
   const showSiteFields = selectedRole !== 'counterparty_user'
+  const isShtab = selectedDepartment === 'shtab'
 
   const { containerRef, scrollY } = useTableScrollY([filteredUsers.length])
 
@@ -447,6 +451,7 @@ const UsersTab = () => {
               setSelectedRole(value)
               if (value === 'counterparty_user') {
                 setAllSitesChecked(false)
+                setSelectedDepartment(null)
                 form.setFieldsValue({ all_sites: false, site_ids: [], department: undefined })
               }
             }}>
@@ -479,6 +484,14 @@ const UsersTab = () => {
               <Select
                 placeholder="Выберите подразделение"
                 allowClear
+                onChange={(value: Department | undefined) => {
+                  setSelectedDepartment(value || null)
+                  if (value === 'shtab') {
+                    setAllSitesChecked(false)
+                    form.setFieldsValue({ all_sites: false })
+                    form.validateFields(['site_ids']).catch(() => {})
+                  }
+                }}
               >
                 <Select.Option value="shtab">{DEPARTMENT_LABELS.shtab}</Select.Option>
                 <Select.Option value="omts">{DEPARTMENT_LABELS.omts}</Select.Option>
@@ -488,26 +501,43 @@ const UsersTab = () => {
           )}
           {showSiteFields && (
             <>
-              <Form.Item name="all_sites" valuePropName="checked">
-                <Checkbox
-                  onChange={(e) => {
-                    setAllSitesChecked(e.target.checked)
-                    if (e.target.checked) {
-                      form.setFieldsValue({ site_ids: [] })
-                    }
-                  }}
-                >
-                  Все объекты
-                </Checkbox>
-              </Form.Item>
+              {!isShtab && (
+                <Form.Item name="all_sites" valuePropName="checked">
+                  <Checkbox
+                    onChange={(e) => {
+                      setAllSitesChecked(e.target.checked)
+                      if (e.target.checked) {
+                        form.setFieldsValue({ site_ids: [] })
+                      }
+                    }}
+                  >
+                    Все объекты
+                  </Checkbox>
+                </Form.Item>
+              )}
               {!allSitesChecked && (
-                <Form.Item name="site_ids" label="Объекты строительства">
+                <Form.Item
+                  name="site_ids"
+                  label="Объекты строительства"
+                  rules={isShtab ? [
+                    { required: true, message: 'Для подразделения Штаб выберите объекты (1-2)' },
+                    () => ({
+                      validator(_, value) {
+                        if (value && value.length > 2) {
+                          return Promise.reject(new Error('Для подразделения Штаб максимум 2 объекта'))
+                        }
+                        return Promise.resolve()
+                      },
+                    }),
+                  ] : []}
+                >
                   <Select
                     mode="multiple"
                     placeholder="Выберите объекты"
                     showSearch
                     optionFilterProp="children"
                     allowClear
+                    maxCount={isShtab ? 2 : undefined}
                   >
                     {activeSites.map((s) => (
                       <Select.Option key={s.id} value={s.id}>
