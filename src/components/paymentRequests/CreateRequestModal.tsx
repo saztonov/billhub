@@ -336,6 +336,20 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
                 />
               </Form.Item>
             </Col>
+            <Col span={24}>
+              <Form.Item
+                name="comment"
+                label={fieldLabel('Краткое описание', !!(formValues.comment && String(formValues.comment).trim()))}
+                rules={[{ required: true, message: 'Введите краткое описание' }]}
+              >
+                <Input.TextArea
+                  maxLength={64}
+                  showCount={{ formatter: ({ count, maxLength }) => `Осталось: ${(maxLength ?? 64) - count}` }}
+                  autoSize={{ minRows: 1, maxRows: 2 }}
+                  placeholder="Краткое описание заявки"
+                />
+              </Form.Item>
+            </Col>
           </Row>
 
           {/* Расчет ориентировочного срока поставки */}

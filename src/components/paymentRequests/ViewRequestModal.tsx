@@ -557,6 +557,22 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                 </Form.Item>
               </Col>
             </Row>
+            <Row gutter={[8, 0]}>
+              <Col span={24}>
+                <Form.Item
+                  name="comment"
+                  label="Краткое описание"
+                  rules={[{ required: true, message: 'Введите краткое описание' }]}
+                >
+                  <Input.TextArea
+                    maxLength={64}
+                    showCount={{ formatter: ({ count, maxLength }) => `Осталось: ${(maxLength ?? 64) - count}` }}
+                    autoSize={{ minRows: 1, maxRows: 2 }}
+                    placeholder="Краткое описание заявки"
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
             <Form.Item noStyle shouldUpdate={(prev, curr) => prev.deliveryDays !== curr.deliveryDays || prev.deliveryDaysType !== curr.deliveryDaysType || prev.shippingConditionId !== curr.shippingConditionId}>
               {({ getFieldValue }) => (
                 <DeliveryCalculation deliveryDays={getFieldValue('deliveryDays')} deliveryDaysType={getFieldValue('deliveryDaysType') || 'working'} shippingConditionId={getFieldValue('shippingConditionId')} defaultExpanded={false} />
@@ -580,6 +596,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                 </Tag>
               </Descriptions.Item>
               <Descriptions.Item label="Дата создания">{formatDate(request.createdAt, !isCounterpartyUser)}</Descriptions.Item>
+              <Descriptions.Item label="Краткое описание" span={2}>{request.comment ?? '—'}</Descriptions.Item>
             </Descriptions>
             <Form form={resubmitForm} layout="vertical" style={{ marginBottom: 16 }}>
               <Row gutter={[16, 0]}>
@@ -675,6 +692,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                 </Space>
               )}
             </Descriptions.Item>
+            <Descriptions.Item label="Краткое описание" span={2}>{request.comment ?? '—'}</Descriptions.Item>
           </Descriptions>
         )}
 
