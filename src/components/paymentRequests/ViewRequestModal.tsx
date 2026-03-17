@@ -465,8 +465,8 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       message.success('Заявка отправлена на доработку')
       setRevisionModalOpen(false)
       setRevisionComment('')
-      fetchDecisions(request.id)
-      fetchLogs(request.id)
+      onRevisionComplete?.()
+      onClose()
     } catch {
       message.error('Ошибка отправки на доработку')
     }
@@ -874,16 +874,23 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       <Modal
         title="На доработку"
         open={revisionModalOpen}
-        onOk={handleSendToRevision}
+        onOk={() => {
+          if (!revisionComment.trim()) {
+            message.warning('Укажите комментарий')
+            return
+          }
+          handleSendToRevision()
+        }}
         onCancel={() => { setRevisionModalOpen(false); setRevisionComment('') }}
         okText="Отправить"
         cancelText="Отмена"
       >
         <TextArea
           rows={3}
-          placeholder="Комментарий (необязательно)"
+          placeholder="Комментарий"
           value={revisionComment}
           onChange={(e) => setRevisionComment(e.target.value)}
+          status={revisionComment.trim() ? undefined : 'error'}
         />
       </Modal>
 
