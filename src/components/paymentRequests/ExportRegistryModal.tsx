@@ -54,7 +54,7 @@ const ExportRegistryModal = (props: ExportRegistryModalProps) => {
     loadShtabSite()
   }, [open, isShtabUser, userId])
 
-  const handleOk = () => {
+  const handleOk = async () => {
     if (!selectedSiteId) {
       message.warning('Выберите объект')
       return
@@ -71,42 +71,42 @@ const ExportRegistryModal = (props: ExportRegistryModalProps) => {
 
     // Загружаем статусы оплаты для определения not_paid
     setLoading(true)
-    supabase
-      .from('statuses')
-      .select('id, code')
-      .eq('entity_type', 'paid')
-      .then(({ data: paidStatuses }) => {
-        const combinedStatuses = [
-          ...allStatuses,
-          ...(paidStatuses ?? []).map((s: Record<string, unknown>) => ({
-            id: s.id as string,
-            code: s.code as string,
-          })),
-        ]
+    try {
+      const { data: paidStatuses } = await supabase
+        .from('statuses')
+        .select('id, code')
+        .eq('entity_type', 'paid')
 
-        exportRegistryToExcel({
-          requests: siteRequests,
-          suppliers,
-          siteName: site.name,
-          statusApprovedCode: 'approved',
-          statusNotPaidCode: 'not_paid',
-          statuses: combinedStatuses,
-        })
+      const combinedStatuses = [
+        ...allStatuses,
+        ...(paidStatuses ?? []).map((s: Record<string, unknown>) => ({
+          id: s.id as string,
+          code: s.code as string,
+        })),
+      ]
 
-        setLoading(false)
-        message.success('Реестр сохранен')
-        onClose()
+      exportRegistryToExcel({
+        requests: siteRequests,
+        suppliers,
+        siteName: site.name,
+        statusApprovedCode: 'approved',
+        statusNotPaidCode: 'not_paid',
+        statuses: combinedStatuses,
       })
-      .catch(err => {
-        setLoading(false)
-        logError({
-          errorType: 'api_error',
-          errorMessage: err instanceof Error ? err.message : 'Ошибка экспорта реестра',
-          errorStack: err instanceof Error ? err.stack : null,
-          metadata: { action: 'exportRegistry' },
-        })
-        message.error('Ошибка при сохранении реестра')
+
+      setLoading(false)
+      message.success('Реестр сохранен')
+      onClose()
+    } catch (err: unknown) {
+      setLoading(false)
+      logError({
+        errorType: 'api_error',
+        errorMessage: err instanceof Error ? err.message : 'Ошибка экспорта реестра',
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'exportRegistry' },
       })
+      message.error('Ошибка при сохранении реестра')
+    }
   }
 
   return (
