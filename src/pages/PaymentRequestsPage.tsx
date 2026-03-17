@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Button, Tabs, App, Radio, Switch } from 'antd'
-import { PlusOutlined, FilterOutlined } from '@ant-design/icons'
+import { PlusOutlined, FilterOutlined, FileExcelOutlined } from '@ant-design/icons'
 import { supabase } from '@/services/supabase'
 import { logError } from '@/services/errorLogger'
 import { usePaymentRequestsData } from '@/hooks/usePaymentRequestsData'
@@ -19,6 +19,7 @@ import RequestFilters from '@/components/paymentRequests/RequestFilters'
 import CounterpartyRequestsView from '@/components/paymentRequests/CounterpartyRequestsView'
 import MobileFiltersDrawer from '@/components/paymentRequests/MobileFiltersDrawer'
 import MobileActionBar from '@/components/paymentRequests/MobileActionBar'
+import ExportRegistryModal from '@/components/paymentRequests/ExportRegistryModal'
 import type { FilterValues } from '@/components/paymentRequests/RequestFilters'
 import type { FileItem } from '@/components/paymentRequests/FileUploadList'
 import type { PaymentRequest, Department } from '@/types'
@@ -80,6 +81,7 @@ const PaymentRequestsPage = () => {
   const [adminSelectedStage, setAdminSelectedStage] = useState<Department>('omts')
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [showDeleted, setShowDeleted] = useState(false)
+  const [isExportOpen, setIsExportOpen] = useState(false)
 
   // Данные
   const {
@@ -308,6 +310,15 @@ const PaymentRequestsPage = () => {
             <span style={{ fontSize: 13, color: '#8c8c8c', whiteSpace: 'nowrap' }}>Удаленные</span>
           </span>
         )}
+        {!isCounterpartyUser && (
+          <Button
+            icon={<FileExcelOutlined />}
+            onClick={() => setIsExportOpen(true)}
+            style={{ borderColor: '#52c41a', color: '#52c41a' }}
+          >
+            Реестр заявок
+          </Button>
+        )}
         <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsCreateOpen(true)}>
           Добавить
         </Button>
@@ -315,7 +326,7 @@ const PaymentRequestsPage = () => {
     )
 
     setHeader('Заявки на оплату', extra, actions)
-  }, [activeTab, totalInvoiceAmountAll, totalPaidAll, totalInvoiceAmount, unassignedOmtsCount, isAdmin, userDeptInChain, showDeleted, setHeader, isMobile])
+  }, [activeTab, totalInvoiceAmountAll, totalPaidAll, totalInvoiceAmount, unassignedOmtsCount, isAdmin, isCounterpartyUser, userDeptInChain, showDeleted, setHeader, isMobile])
 
   useEffect(() => {
     return () => clearHeader()
@@ -537,6 +548,18 @@ const PaymentRequestsPage = () => {
           resubmitMode
           onResubmit={handleResubmit}
         />
+        {!isCounterpartyUser && user?.id && (
+          <ExportRegistryModal
+            open={isExportOpen}
+            onClose={() => setIsExportOpen(false)}
+            requests={requests}
+            suppliers={suppliers}
+            sites={sites}
+            statuses={statuses}
+            userId={user.id}
+            isShtabUser={!!isShtabUser}
+          />
+        )}
       </div>
     )
   }
@@ -720,6 +743,7 @@ const PaymentRequestsPage = () => {
             onAdd={() => setIsCreateOpen(true)}
             onFilterToggle={() => setMobileFiltersOpen(true)}
             filters={filters}
+            onExport={() => setIsExportOpen(true)}
           />
           <MobileFiltersDrawer
             open={mobileFiltersOpen}
@@ -758,6 +782,18 @@ const PaymentRequestsPage = () => {
           setViewRecord(null)
         }}
       />
+      {user?.id && (
+        <ExportRegistryModal
+          open={isExportOpen}
+          onClose={() => setIsExportOpen(false)}
+          requests={requests}
+          suppliers={suppliers}
+          sites={sites}
+          statuses={statuses}
+          userId={user.id}
+          isShtabUser={!!isShtabUser}
+        />
+      )}
     </div>
   )
 }

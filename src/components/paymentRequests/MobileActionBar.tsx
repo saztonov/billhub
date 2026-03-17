@@ -1,11 +1,12 @@
 import { Button, Badge, Flex } from 'antd'
-import { PlusOutlined, FilterOutlined } from '@ant-design/icons'
+import { PlusOutlined, FilterOutlined, FileExcelOutlined } from '@ant-design/icons'
 import type { FilterValues } from './RequestFilters'
 
 interface MobileActionBarProps {
   onAdd: () => void
   onFilterToggle: () => void
   filters: FilterValues
+  onExport?: () => void
 }
 
 /** Подсчёт активных фильтров */
@@ -25,7 +26,7 @@ function countActiveFilters(filters: FilterValues): number {
 }
 
 const MobileActionBar = (props: MobileActionBarProps) => {
-  const { onAdd, onFilterToggle, filters } = props
+  const { onAdd, onFilterToggle, filters, onExport } = props
   const activeCount = countActiveFilters(filters)
 
   return (
@@ -51,6 +52,15 @@ const MobileActionBar = (props: MobileActionBarProps) => {
       >
         Добавить
       </Button>
+      {onExport && (
+        <Button
+          icon={<FileExcelOutlined />}
+          onClick={onExport}
+          style={{ borderColor: '#52c41a', color: '#52c41a' }}
+        >
+          Реестр
+        </Button>
+      )}
       <Badge count={activeCount} size="small">
         <Button
           icon={<FilterOutlined />}
