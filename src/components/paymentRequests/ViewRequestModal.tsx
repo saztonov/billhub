@@ -79,9 +79,10 @@ interface ViewRequestModalProps {
   canApprove?: boolean
   onApprove?: (requestId: string, comment: string) => void
   onReject?: (requestId: string, comment: string, files?: { id: string; file: File }[]) => void
+  onRevisionComplete?: () => void
 }
 
-const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, canEdit, onEdit, canApprove, onApprove, onReject }: ViewRequestModalProps) => {
+const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, canEdit, onEdit, canApprove, onApprove, onReject, onRevisionComplete }: ViewRequestModalProps) => {
   const { message } = App.useApp()
   const isMobile = useIsMobile()
   const { requests, currentRequestFiles, fetchRequestFiles, fetchRequests, isLoading, isSubmitting, toggleFileRejection } = usePaymentRequestStore()
@@ -482,8 +483,8 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       await completeRevision(request.id, values)
       message.success('Доработка завершена')
       setRevisionCompleteModalOpen(false)
-      fetchDecisions(request.id)
-      fetchLogs(request.id)
+      onRevisionComplete?.()
+      onClose()
     } catch {
       message.error('Ошибка завершения доработки')
     }

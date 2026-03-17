@@ -145,7 +145,7 @@ const PaymentRequestsPage = () => {
             withdrawn_at, withdrawal_comment, current_stage,
             approved_at, rejected_at, rejected_stage,
             resubmit_comment, resubmit_count,
-            invoice_amount, invoice_amount_history, previous_status_id,
+            invoice_amount, invoice_amount_history, previous_status_id, stage_history,
             paid_status_id, total_paid, is_deleted, deleted_at,
             supplier_id, dp_number, dp_date, dp_amount, dp_file_key, dp_file_name, omts_entered_at, omts_approved_at,
             counterparties(name),
@@ -189,6 +189,7 @@ const PaymentRequestsPage = () => {
           invoiceAmount: data.invoice_amount ?? null,
           invoiceAmountHistory: data.invoice_amount_history ?? [],
           previousStatusId: data.previous_status_id ?? null,
+          stageHistory: data.stage_history ?? [],
           paidStatusId: data.paid_status_id ?? null,
           totalPaid: Number(data.total_paid ?? 0),
           isDeleted: data.is_deleted ?? false,
@@ -543,7 +544,14 @@ const PaymentRequestsPage = () => {
             if (user?.counterpartyId) fetchRequests(user.counterpartyId)
           }}
         />
-        <ViewRequestModal open={!!viewRecord} request={viewRecord} onClose={() => setViewRecord(null)} />
+        <ViewRequestModal
+          open={!!viewRecord}
+          request={viewRecord}
+          onClose={() => setViewRecord(null)}
+          onRevisionComplete={() => {
+            if (user?.counterpartyId) fetchRequests(user.counterpartyId)
+          }}
+        />
         <ViewRequestModal
           open={!!resubmitRecord}
           request={resubmitRecord}
@@ -783,6 +791,12 @@ const PaymentRequestsPage = () => {
         onReject={(requestId, comment, files) => {
           handleReject(requestId, comment, files)
           setViewRecord(null)
+        }}
+        onRevisionComplete={() => {
+          const [sIds, allS] = siteFilterParams()
+          if (isCounterpartyUser) fetchRequests(user?.counterpartyId ?? undefined, sIds, allS)
+          else if (isUser) fetchRequests(undefined, sIds, allS)
+          else fetchRequests()
         }}
       />
       {user?.id && (

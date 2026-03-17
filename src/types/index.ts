@@ -125,6 +125,17 @@ export interface PaymentRequestFieldOption {
   createdAt: string
 }
 
+/** Запись в хронологии этапов согласования */
+export interface StageHistoryEntry {
+  stage: number
+  department: string
+  event: 'received' | 'approved' | 'rejected' | 'revision' | 'revision_complete'
+  at: string
+  userEmail?: string
+  comment?: string
+  isOmtsRp?: boolean
+}
+
 /** Заявка на оплату */
 export interface PaymentRequest {
   id: string
@@ -151,6 +162,7 @@ export interface PaymentRequest {
   invoiceAmount: number | null // Сумма счета в рублях
   invoiceAmountHistory: { amount: number; changedAt: string }[] // История изменения сумм при повторных отправках
   previousStatusId: string | null // Статус до перевода на доработку
+  stageHistory: StageHistoryEntry[] // Хронология этапов согласования
   isDeleted: boolean // Мягкое удаление
   deletedAt: string | null // Дата мягкого удаления
   paidStatusId: string | null // Статус оплаты (FK на statuses, entity_type='paid')

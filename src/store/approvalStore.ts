@@ -4,7 +4,26 @@ import { logError } from '@/services/errorLogger'
 import { checkAndNotifyMissingSpecialists, notifyStatusChanged } from '@/utils/notificationService'
 import { useUploadQueueStore } from '@/store/uploadQueueStore'
 import { useOmtsRpStore } from '@/store/omtsRpStore'
-import type { Department, ApprovalDecision, ApprovalDecisionFile, PaymentRequest, PaymentRequestLog } from '@/types'
+import type { Department, ApprovalDecision, ApprovalDecisionFile, PaymentRequest, PaymentRequestLog, StageHistoryEntry } from '@/types'
+
+/** Добавляет запись в stage_history заявки */
+export async function appendStageHistory(paymentRequestId: string, entry: Omit<StageHistoryEntry, 'at'> & { at?: string }) {
+  const { data, error: fetchErr } = await supabase
+    .from('payment_requests')
+    .select('stage_history')
+    .eq('id', paymentRequestId)
+    .single()
+  if (fetchErr) throw fetchErr
+
+  const history = (data.stage_history as StageHistoryEntry[]) ?? []
+  history.push({ ...entry, at: entry.at ?? new Date().toISOString() } as StageHistoryEntry)
+
+  const { error: updErr } = await supabase
+    .from('payment_requests')
+    .update({ stage_history: history })
+    .eq('id', paymentRequestId)
+  if (updErr) throw updErr
+}
 
 /** Элемент списка файлов для загрузки */
 export interface FileItem {
@@ -101,6 +120,7 @@ function mapRequest(row: Record<string, unknown>): PaymentRequest {
     invoiceAmount: (row.invoice_amount as number) ?? null,
     invoiceAmountHistory: (row.invoice_amount_history as { amount: number; changedAt: string }[]) ?? [],
     previousStatusId: (row.previous_status_id as string) ?? null,
+    stageHistory: (row.stage_history as PaymentRequest['stageHistory']) ?? [],
     isDeleted: (row.is_deleted as boolean) ?? false,
     deletedAt: (row.deleted_at as string) ?? null,
     paidStatusId: (row.paid_status_id as string) ?? null,
@@ -182,10 +202,10 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
         .single()
       if (stError) throw stError
 
-      // Получаем текущий статус заявки для сохранения
+      // Получаем текущий статус и этап заявки для сохранения
       const { data: currentReq, error: reqError } = await supabase
         .from('payment_requests')
-        .select('status_id')
+        .select('status_id, current_stage')
         .eq('id', paymentRequestId)
         .single()
       if (reqError) throw reqError
@@ -207,6 +227,15 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
           details: comment ? { comment } : null,
         })
 
+        // Записываем в хронологию
+        await appendStageHistory(paymentRequestId, {
+          stage: (currentReq.current_stage as number) ?? 2,
+          department: 'omts',
+          event: 'revision',
+          userEmail: user.email ?? undefined,
+          comment: comment || undefined,
+        })
+
         // Уведомляем контрагента об отправке на доработку
         notifyStatusChanged(paymentRequestId, 'На доработке', user.id).catch(() => {})
       }
@@ -226,7 +255,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
       // Получаем заявку с предыдущим статусом и текущей суммой
       const { data: currentReq, error: reqError } = await supabase
         .from('payment_requests')
-        .select('previous_status_id, invoice_amount, invoice_amount_history')
+        .select('previous_status_id, current_stage, invoice_amount, invoice_amount_history')
         .eq('id', paymentRequestId)
         .single()
       if (reqError) throw reqError
@@ -266,6 +295,14 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
           user_id: user.id,
           action: 'revision_complete',
           details: null,
+        })
+
+        // Записываем в хронологию
+        await appendStageHistory(paymentRequestId, {
+          stage: (currentReq.current_stage as number) ?? 2,
+          department: 'omts',
+          event: 'revision_complete',
+          userEmail: user.email ?? undefined,
         })
 
         // Уведомляем сотрудников о завершении доработки
@@ -404,6 +441,20 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
         .eq('id', pendingDecision.id)
       if (updError) throw updError
 
+      // Получаем email пользователя для хронологии
+      const { data: { user: authUser } } = await supabase.auth.getUser()
+      const userEmail = authUser?.email ?? undefined
+      const isCurrentOmtsRp = pendingDecision.is_omts_rp as boolean
+
+      // Записываем согласование в хронологию
+      await appendStageHistory(paymentRequestId, {
+        stage: currentStage,
+        department,
+        event: 'approved',
+        userEmail,
+        ...(isCurrentOmtsRp ? { isOmtsRp: true } : {}),
+      })
+
       // 4. ЛОГИКА ПЕРЕХОДА МЕЖДУ ЭТАПАМИ
       if (currentStage === 1) {
         // Этап 1 (Штаб) согласован → переходим на Этап 2 (ОМТС)
@@ -414,6 +465,9 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
           status: 'pending',
           is_omts_rp: false,
         })
+
+        // Записываем получение на этап 2
+        await appendStageHistory(paymentRequestId, { stage: 2, department: 'omts', event: 'received' })
 
         // Получаем статус "Согласование ОМТС"
         const { data: omtsStatusData, error: omtsStError } = await supabase
@@ -448,6 +502,9 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
             status: 'pending',
             is_omts_rp: true,
           })
+
+          // Записываем получение на этап ОМТС РП
+          await appendStageHistory(paymentRequestId, { stage: 2, department: 'omts', event: 'received', isOmtsRp: true })
 
           // Меняем статус на "Согласование ОМТС РП"
           const { data: omtsRpStatusData, error: omtsRpStError } = await supabase
@@ -555,6 +612,16 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
           rejected_at: new Date().toISOString(),
         })
         .eq('id', paymentRequestId)
+
+      // Записываем отклонение в хронологию
+      const { data: { user: rejectUser } } = await supabase.auth.getUser()
+      await appendStageHistory(paymentRequestId, {
+        stage: pr.current_stage as number,
+        department,
+        event: 'rejected',
+        userEmail: rejectUser?.email ?? undefined,
+        comment: comment || undefined,
+      })
 
       // Уведомляем контрагента об отклонении
       notifyStatusChanged(paymentRequestId, 'Отклонена', userId).catch(() => {})

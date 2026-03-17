@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { supabase } from '@/services/supabase'
 import { logError } from '@/services/errorLogger'
 import { checkAndNotifyMissingSpecialists, notifyNewRequestPending } from '@/utils/notificationService'
+import { appendStageHistory } from '@/store/approvalStore'
 import type { PaymentRequest, PaymentRequestFile } from '@/types'
 
 interface CreateRequestData {
@@ -152,6 +153,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
           invoiceAmount: (row.invoice_amount as number) ?? null,
           invoiceAmountHistory: (row.invoice_amount_history as { amount: number; changedAt: string }[]) ?? [],
           previousStatusId: (row.previous_status_id as string) ?? null,
+          stageHistory: (row.stage_history as PaymentRequest['stageHistory']) ?? [],
           paidStatusId: (row.paid_status_id as string) ?? null,
           totalPaid: Number(row.total_paid ?? 0),
           isDeleted: (row.is_deleted as boolean) ?? false,
@@ -231,6 +233,9 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
         department_id: 'shtab',
         status: 'pending',
       })
+
+      // Записываем в хронологию
+      await appendStageHistory(requestData.id, { stage: 1, department: 'shtab', event: 'received' })
 
       // Устанавливаем текущий этап
       await supabase
@@ -459,6 +464,9 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
         department_id: 'shtab',
         status: 'pending',
       })
+
+      // Записываем в хронологию (повторная отправка)
+      await appendStageHistory(id, { stage: 1, department: 'shtab', event: 'received' })
 
       // Проверяем и уведомляем о недостающих специалистах
       await checkAndNotifyMissingSpecialists(id, siteId, 'shtab')

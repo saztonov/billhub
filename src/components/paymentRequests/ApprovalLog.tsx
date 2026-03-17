@@ -11,7 +11,7 @@ import {
   FileAddOutlined,
 } from '@ant-design/icons'
 import { formatDate } from '@/utils/requestFormatters'
-import type { PaymentRequest, ApprovalDecision, ApprovalDecisionFile, PaymentRequestLog } from '@/types'
+import type { PaymentRequest, ApprovalDecision, ApprovalDecisionFile, PaymentRequestLog, StageHistoryEntry } from '@/types'
 import { DEPARTMENT_LABELS } from '@/types'
 
 const { Text } = Typography
@@ -73,37 +73,50 @@ const DecisionFileActions = ({ files, downloading, onViewFile, onDownloadFile }:
   </div>
 )
 
+/** Маппинг событий хронологии */
+const EVENT_CONFIG: Record<string, { icon: React.ReactNode; label: string }> = {
+  received: { icon: <SendOutlined style={{ color: '#1677ff' }} />, label: 'Заявка получена' },
+  approved: { icon: <CheckCircleOutlined style={{ color: '#52c41a' }} />, label: 'Согласовано' },
+  rejected: { icon: <CloseCircleOutlined style={{ color: '#f5222d' }} />, label: 'Отклонено' },
+  revision: { icon: <EditOutlined style={{ color: '#faad14' }} />, label: 'На доработку' },
+  revision_complete: { icon: <CheckCircleOutlined style={{ color: '#52c41a' }} />, label: 'Доработано' },
+}
+
+/** Формирует текст этапа */
+function stageLabel(entry: StageHistoryEntry): string {
+  const dept = entry.isOmtsRp ? 'ОМТС РП' : (DEPARTMENT_LABELS[entry.department as keyof typeof DEPARTMENT_LABELS] ?? entry.department)
+  return `Этап ${entry.stage}. ${dept}`
+}
+
 /** Лог для контрагента */
 const CounterpartyLog = ({ request, decisions, logs, downloading, onViewFile, onDownloadFile }: Omit<ApprovalLogProps, 'isCounterpartyUser'>) => {
   const logItems = useMemo(() => {
-    const items: { icon: React.ReactNode; text: string; date?: string; files?: ApprovalDecisionFile[] }[] = []
+    type LogItem = { icon: React.ReactNode; text: string; date?: string; files?: ApprovalDecisionFile[] }
+    const items: LogItem[] = []
 
-    items.push({
-      icon: <SendOutlined style={{ color: '#1677ff' }} />,
-      text: 'Отправлено на согласование',
-      date: request.createdAt,
-    })
+    // Хронология из stageHistory
+    for (const entry of request.stageHistory ?? []) {
+      const config = EVENT_CONFIG[entry.event]
+      if (!config) continue
+      let text = `${stageLabel(entry)} — ${config.label}`
+      if (entry.comment) text += `. Комментарий: ${entry.comment}`
+      const item: LogItem = { icon: config.icon, text, date: entry.at }
 
-    for (const d of decisions.filter((d) => d.status === 'rejected')) {
-      const deptLabel = DEPARTMENT_LABELS[d.department] ?? ''
-      const prefix = deptLabel ? `Отклонено (${deptLabel})` : 'Отклонено'
-      const reason = d.comment ? `${prefix}. Причина: ${d.comment}` : prefix
-      items.push({
-        icon: <CloseCircleOutlined style={{ color: '#f5222d' }} />,
-        text: reason,
-        date: d.decidedAt ?? undefined,
-        files: d.files && d.files.length > 0 ? d.files : undefined,
-      })
+      // Для отклонений добавляем файлы из decisions
+      if (entry.event === 'rejected') {
+        const rejDecision = decisions.find(d =>
+          d.status === 'rejected' && d.stageOrder === entry.stage &&
+          d.decidedAt && Math.abs(new Date(d.decidedAt).getTime() - new Date(entry.at).getTime()) < 5000
+        )
+        if (rejDecision?.files && rejDecision.files.length > 0) {
+          item.files = rejDecision.files
+        }
+      }
+
+      items.push(item)
     }
 
-    if (request.approvedAt) {
-      items.push({
-        icon: <CheckCircleOutlined style={{ color: '#52c41a' }} />,
-        text: 'Согласовано',
-        date: request.approvedAt,
-      })
-    }
-
+    // Дополнительные логи (edit, file_upload, resubmit)
     for (const l of logs) {
       if (l.action === 'edit') {
         const changes = (l.details?.changes as { field: string; newValue: unknown }[]) ?? []
@@ -116,12 +129,6 @@ const CounterpartyLog = ({ request, decisions, logs, downloading, onViewFile, on
         const comment = (l.details?.comment as string) ?? ''
         const text = comment ? `Повторно отправлено. Комментарий: ${comment}` : 'Повторно отправлено'
         items.push({ icon: <SendOutlined style={{ color: '#1677ff' }} />, text, date: l.createdAt })
-      } else if (l.action === 'revision') {
-        const comment = (l.details?.comment as string) ?? ''
-        const text = comment ? `На доработку. Комментарий: ${comment}` : 'На доработку'
-        items.push({ icon: <EditOutlined style={{ color: '#faad14' }} />, text, date: l.createdAt })
-      } else if (l.action === 'revision_complete') {
-        items.push({ icon: <CheckCircleOutlined style={{ color: '#52c41a' }} />, text: 'Доработано', date: l.createdAt })
       }
     }
 
@@ -163,158 +170,120 @@ const CounterpartyLog = ({ request, decisions, logs, downloading, onViewFile, on
 }
 
 /** Лог для admin/user */
-const AdminLog = ({ decisions, logs, downloading, onViewFile, onDownloadFile }: Omit<ApprovalLogProps, 'isCounterpartyUser' | 'request'>) => {
-  type LogEvent = {
-    type: 'decision' | 'log'
+const AdminLog = ({ request, decisions, logs, downloading, onViewFile, onDownloadFile }: Omit<ApprovalLogProps, 'isCounterpartyUser'>) => {
+  type LogItem = {
+    icon: React.ReactNode
+    text: string
     date: string
-    decision?: ApprovalDecision
-    log?: PaymentRequestLog
+    userEmail?: string
+    comment?: string
+    files?: ApprovalDecisionFile[]
+    isPending?: boolean
+    tag?: string
+    tagColor?: string
   }
 
-  const events = useMemo(() => {
-    const items: LogEvent[] = []
+  const items = useMemo(() => {
+    const result: LogItem[] = []
 
-    for (const d of decisions) {
-      items.push({ type: 'decision', date: d.decidedAt || d.createdAt, decision: d })
+    // Хронология из stageHistory
+    for (const entry of request.stageHistory ?? []) {
+      const config = EVENT_CONFIG[entry.event]
+      if (!config) continue
+      const dept = entry.isOmtsRp ? 'ОМТС РП' : (DEPARTMENT_LABELS[entry.department as keyof typeof DEPARTMENT_LABELS] ?? entry.department)
+      const item: LogItem = {
+        icon: config.icon,
+        text: `${config.label}`,
+        date: entry.at,
+        userEmail: entry.userEmail,
+        comment: entry.comment,
+        tag: `Этап ${entry.stage}. ${dept}`,
+        tagColor: entry.isOmtsRp ? 'purple' : undefined,
+      }
+
+      // Для отклонений добавляем файлы из decisions
+      if (entry.event === 'rejected') {
+        const rejDecision = decisions.find(d =>
+          d.status === 'rejected' && d.stageOrder === entry.stage &&
+          d.decidedAt && Math.abs(new Date(d.decidedAt).getTime() - new Date(entry.at).getTime()) < 5000
+        )
+        if (rejDecision?.files && rejDecision.files.length > 0) {
+          item.files = rejDecision.files
+        }
+      }
+
+      result.push(item)
     }
+
+    // Pending decisions (ожидают решения) — если нет записи в stageHistory
+    for (const d of decisions.filter(dd => dd.status === 'pending')) {
+      const dept = d.isOmtsRp ? 'ОМТС РП' : (DEPARTMENT_LABELS[d.department] ?? d.department)
+      result.push({
+        icon: <ClockCircleOutlined style={{ color: '#faad14' }} />,
+        text: 'Ожидает',
+        date: d.createdAt,
+        tag: `Этап ${d.stageOrder}. ${dept}`,
+        tagColor: d.isOmtsRp ? 'purple' : undefined,
+        isPending: true,
+      })
+    }
+
+    // Дополнительные логи (edit, file_upload, resubmit)
     for (const l of logs) {
-      items.push({ type: 'log', date: l.createdAt, log: l })
+      if (l.action === 'edit') {
+        const changes = (l.details?.changes as { field: string; newValue: unknown }[]) ?? []
+        const changedFields = changes.map((c) => FIELD_LABELS[c.field] ?? c.field).join(', ')
+        result.push({ icon: <EditOutlined style={{ color: '#722ed1' }} />, text: `Изменено: ${changedFields}`, date: l.createdAt, userEmail: l.userEmail })
+      } else if (l.action === 'file_upload') {
+        const count = (l.details?.count as number) ?? 0
+        result.push({ icon: <FileAddOutlined style={{ color: '#1677ff' }} />, text: `Догружено файлов: ${count}`, date: l.createdAt, userEmail: l.userEmail })
+      } else if (l.action === 'resubmit') {
+        const comment = (l.details?.comment as string) ?? ''
+        const text = comment ? `Повторно отправлено. Комментарий: ${comment}` : 'Повторно отправлено'
+        result.push({ icon: <SendOutlined style={{ color: '#1677ff' }} />, text, date: l.createdAt, userEmail: l.userEmail })
+      }
     }
 
-    items.sort((a, b) => {
-      const aPending = a.decision?.status === 'pending'
-      const bPending = b.decision?.status === 'pending'
-      if (aPending && !bPending) return 1
-      if (!aPending && bPending) return -1
+    // Сортировка: pending в конец, остальные хронологически
+    result.sort((a, b) => {
+      if (a.isPending && !b.isPending) return 1
+      if (!a.isPending && b.isPending) return -1
       return new Date(a.date).getTime() - new Date(b.date).getTime()
     })
 
-    return items
-  }, [decisions, logs])
+    return result
+  }, [request, decisions, logs])
 
-  if (events.length === 0) return null
+  if (items.length === 0) return null
 
   return (
     <>
       <Text strong style={{ marginBottom: 8, display: 'block' }}>Согласование</Text>
       <div style={{ marginBottom: 16 }}>
-        {events.map((event, idx) => {
-          if (event.type === 'decision' && event.decision) {
-            const decision = event.decision
-            const icon = decision.status === 'approved'
-              ? <CheckCircleOutlined style={{ color: '#52c41a' }} />
-              : decision.status === 'rejected'
-                ? <CloseCircleOutlined style={{ color: '#f5222d' }} />
-                : <ClockCircleOutlined style={{ color: '#faad14' }} />
-            const statusText = decision.status === 'approved'
-              ? 'Согласовано'
-              : decision.status === 'rejected' ? 'Отклонено' : 'Ожидает'
-            return (
-              <div key={idx} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
-                <div style={{ width: '100%' }}>
-                  <Space>
-                    {icon}
-                    <Text>Этап {decision.stageOrder}</Text>
-                    <Tag>{DEPARTMENT_LABELS[decision.department]}</Tag>
-                    {decision.isOmtsRp && <Tag color="purple">ОМТС РП</Tag>}
-                    <Text type="secondary">{statusText}</Text>
-                    {decision.userEmail && <Text type="secondary">({decision.userEmail})</Text>}
-                    {decision.decidedAt && <Text type="secondary">{formatDate(decision.decidedAt)}</Text>}
-                  </Space>
-                  {decision.comment && (
-                    <Text type="secondary" style={{ display: 'block', marginLeft: 22 }}>{decision.comment}</Text>
-                  )}
-                  {decision.files && decision.files.length > 0 && (
-                    <DecisionFileActions
-                      files={decision.files}
-                      downloading={downloading}
-                      onViewFile={onViewFile}
-                      onDownloadFile={onDownloadFile}
-                    />
-                  )}
-                </div>
-              </div>
-            )
-          }
-
-          if (event.type === 'log' && event.log) {
-            const log = event.log
-
-            if (log.action === 'edit') {
-              const changes = (log.details?.changes as { field: string; newValue: unknown }[]) ?? []
-              const changedFields = changes.map((c) => FIELD_LABELS[c.field] ?? c.field).join(', ')
-              return (
-                <div key={idx} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
-                  <Space>
-                    <EditOutlined style={{ color: '#722ed1' }} />
-                    <Text>Изменено: {changedFields}</Text>
-                    {log.userEmail && <Text type="secondary">({log.userEmail})</Text>}
-                    <Text type="secondary">{formatDate(log.createdAt)}</Text>
-                  </Space>
-                </div>
-              )
-            }
-
-            if (log.action === 'file_upload') {
-              const count = (log.details?.count as number) ?? 0
-              return (
-                <div key={idx} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
-                  <Space>
-                    <FileAddOutlined style={{ color: '#1677ff' }} />
-                    <Text>Догружено файлов: {count}</Text>
-                    {log.userEmail && <Text type="secondary">({log.userEmail})</Text>}
-                    <Text type="secondary">{formatDate(log.createdAt)}</Text>
-                  </Space>
-                </div>
-              )
-            }
-
-            if (log.action === 'resubmit') {
-              const comment = (log.details?.comment as string) ?? ''
-              const text = comment ? `Повторно отправлено. Комментарий: ${comment}` : 'Повторно отправлено'
-              return (
-                <div key={idx} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
-                  <Space>
-                    <SendOutlined style={{ color: '#1677ff' }} />
-                    <Text>{text}</Text>
-                    {log.userEmail && <Text type="secondary">({log.userEmail})</Text>}
-                    <Text type="secondary">{formatDate(log.createdAt)}</Text>
-                  </Space>
-                </div>
-              )
-            }
-
-            if (log.action === 'revision') {
-              const comment = (log.details?.comment as string) ?? ''
-              const text = comment ? `На доработку. Комментарий: ${comment}` : 'На доработку'
-              return (
-                <div key={idx} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
-                  <Space>
-                    <EditOutlined style={{ color: '#faad14' }} />
-                    <Text>{text}</Text>
-                    {log.userEmail && <Text type="secondary">({log.userEmail})</Text>}
-                    <Text type="secondary">{formatDate(log.createdAt)}</Text>
-                  </Space>
-                </div>
-              )
-            }
-
-            if (log.action === 'revision_complete') {
-              return (
-                <div key={idx} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
-                  <Space>
-                    <CheckCircleOutlined style={{ color: '#52c41a' }} />
-                    <Text>Доработано</Text>
-                    {log.userEmail && <Text type="secondary">({log.userEmail})</Text>}
-                    <Text type="secondary">{formatDate(log.createdAt)}</Text>
-                  </Space>
-                </div>
-              )
-            }
-          }
-
-          return null
-        })}
+        {items.map((item, idx) => (
+          <div key={idx} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
+            <div style={{ width: '100%' }}>
+              <Space wrap>
+                {item.icon}
+                {item.tag && <Tag color={item.tagColor}>{item.tag}</Tag>}
+                <Text>{item.text}</Text>
+                {item.userEmail && <Text type="secondary">({item.userEmail})</Text>}
+                <Text type="secondary">{formatDate(item.date)}</Text>
+              </Space>
+              {item.comment && (
+                <Text type="secondary" style={{ display: 'block', marginLeft: 22 }}>Комментарий: {item.comment}</Text>
+              )}
+              {item.files && item.files.length > 0 && (
+                <DecisionFileActions
+                  files={item.files}
+                  downloading={downloading}
+                  onViewFile={onViewFile}
+                  onDownloadFile={onDownloadFile}
+                />
+              )}
+            </div>
+          </div>
+        ))}
       </div>
     </>
   )
@@ -336,6 +305,7 @@ const ApprovalLog = (props: ApprovalLogProps) => {
 
   return (
     <AdminLog
+      request={props.request}
       decisions={props.decisions}
       logs={props.logs}
       downloading={props.downloading}

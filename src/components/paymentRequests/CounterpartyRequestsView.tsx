@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Button, Tabs } from 'antd'
+import { Badge, Button, Tabs } from 'antd'
 import { PlusOutlined, FilterOutlined } from '@ant-design/icons'
 import { useHeaderStore } from '@/store/headerStore'
 import RequestsTable from './RequestsTable'
@@ -145,8 +145,9 @@ const CounterpartyRequestsView = ({
     },
     {
       key: 'revision',
-      className: revisionCount > 0 ? 'revision-tab-orange' : undefined,
-      label: isMobile ? `Дораб.` : `На доработку (${revisionCount})`,
+      label: isMobile
+        ? <Badge count={revisionCount} size="small" color="#faad14" offset={[4, -2]}><span style={revisionCount > 0 ? { color: '#faad14' } : undefined}>Дораб.</span></Badge>
+        : <Badge count={revisionCount} size="small" color="#faad14" offset={[4, -2]}><span style={revisionCount > 0 ? { color: '#faad14' } : undefined}>На доработку</span></Badge>,
       children: (
         <RequestsTable
           requests={filteredRevision}
