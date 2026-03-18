@@ -181,22 +181,22 @@ export function useRequestFiltering({
     }, 0)
   }, [filteredPendingRequests])
 
-  // Статистика для вкладки "Все"
+  // Статистика для вкладки "Все" (только согласованные заявки)
   const totalInvoiceAmountAll = useMemo(() => {
-    return filteredRequests.reduce((sum, req) => sum + (req.invoiceAmount ?? 0), 0)
+    return filteredRequests.filter(r => r.approvedAt !== null).reduce((sum, req) => sum + (req.invoiceAmount ?? 0), 0)
   }, [filteredRequests])
 
   const totalPaidAll = useMemo(() => {
-    return filteredRequests.reduce((sum, req) => sum + (req.totalPaid ?? 0), 0)
+    return filteredRequests.filter(r => r.approvedAt !== null).reduce((sum, req) => sum + (req.totalPaid ?? 0), 0)
   }, [filteredRequests])
 
-  // Статистика для counterparty_user (вкладка "Все")
+  // Статистика для counterparty_user (вкладка "Все", только согласованные)
   const totalCounterpartyInvoiceAmountAll = useMemo(() => {
-    return filteredCounterpartyAll.reduce((sum, req) => sum + (req.invoiceAmount ?? 0), 0)
+    return filteredCounterpartyAll.filter(r => r.approvedAt !== null).reduce((sum, req) => sum + (req.invoiceAmount ?? 0), 0)
   }, [filteredCounterpartyAll])
 
   const totalCounterpartyPaidAll = useMemo(() => {
-    return filteredCounterpartyAll.reduce((sum, req) => sum + (req.totalPaid ?? 0), 0)
+    return filteredCounterpartyAll.filter(r => r.approvedAt !== null).reduce((sum, req) => sum + (req.totalPaid ?? 0), 0)
   }, [filteredCounterpartyAll])
 
   const unassignedOmtsCount = useMemo(() => {

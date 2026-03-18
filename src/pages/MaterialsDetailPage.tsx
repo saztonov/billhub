@@ -1,18 +1,20 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
-import { Typography, Table, Button, InputNumber, Descriptions, Drawer, Space, Spin, Image } from 'antd'
-import { ArrowLeftOutlined, FileSearchOutlined } from '@ant-design/icons'
+import { Typography, Table, Button, InputNumber, Descriptions, Drawer, Space, Splitter } from 'antd'
+import { ArrowLeftOutlined, FileSearchOutlined, EyeInvisibleOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useMaterialsStore } from '@/store/materialsStore'
 import { useAuthStore } from '@/store/authStore'
 import { useTableScrollY } from '@/hooks/useTableScrollY'
+import { useInvoiceSyncViewer } from '@/hooks/useInvoiceSyncViewer'
 import { supabase } from '@/services/supabase'
 import { getDownloadUrl } from '@/services/s3'
 import { formatDate } from '@/utils/requestFormatters'
 import { logError } from '@/services/errorLogger'
+import InvoiceViewer from '@/components/materials/InvoiceViewer'
 import type { RecognizedMaterial } from '@/types'
 
-const { Title, Text } = Typography
+const { Title } = Typography
 
 /** Информация о заявке для шапки */
 interface RequestInfo {
@@ -29,102 +31,8 @@ const fmtAmount = (v: number | null | undefined): string => {
   return v.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-// ───────────────────────── Превью счета ─────────────────────────
-
-interface InvoicePreviewProps {
-  open: boolean
-  onClose: () => void
-  files: { id: string; fileKey: string; fileName: string; mimeType: string | null }[]
-}
-
-const InvoicePreview = ({ open, onClose, files }: InvoicePreviewProps) => {
-  const [urls, setUrls] = useState<Record<string, string>>({})
-  const [loading, setLoading] = useState(false)
-
-  useEffect(() => {
-    if (!open || files.length === 0) return
-
-    let cancelled = false
-    const loadUrls = async () => {
-      setLoading(true)
-      const result: Record<string, string> = {}
-      for (const file of files) {
-        try {
-          result[file.id] = await getDownloadUrl(file.fileKey)
-        } catch (err) {
-          logError({
-            errorType: 'api_error',
-            errorMessage: `Не удалось получить URL для файла ${file.fileName}`,
-            errorStack: err instanceof Error ? err.stack : null,
-            component: 'MaterialsDetailPage/InvoicePreview',
-          })
-        }
-      }
-      if (!cancelled) {
-        setUrls(result)
-        setLoading(false)
-      }
-    }
-    loadUrls()
-    return () => { cancelled = true }
-  }, [open, files])
-
-  return (
-    <Drawer
-      title="Просмотр счета"
-      open={open}
-      onClose={onClose}
-      width={720}
-      destroyOnClose
-    >
-      {loading && (
-        <div style={{ textAlign: 'center', padding: 40 }}>
-          <Spin size="large" />
-        </div>
-      )}
-      {!loading && files.length === 0 && (
-        <Text type="secondary">Файлы счета не найдены</Text>
-      )}
-      {!loading &&
-        files.map((file) => {
-          const url = urls[file.id]
-          if (!url) return null
-
-          const isImage = file.mimeType?.startsWith('image/')
-          const isPdf = file.mimeType === 'application/pdf'
-
-          return (
-            <div key={file.id} style={{ marginBottom: 24 }}>
-              <Text strong style={{ display: 'block', marginBottom: 8 }}>
-                {file.fileName}
-              </Text>
-              {isImage && (
-                <Image
-                  src={url}
-                  alt={file.fileName}
-                  style={{ maxWidth: '100%' }}
-                />
-              )}
-              {isPdf && (
-                <iframe
-                  src={url}
-                  title={file.fileName}
-                  style={{ width: '100%', height: 600, border: '1px solid #d9d9d9', borderRadius: 6 }}
-                />
-              )}
-              {!isImage && !isPdf && (
-                <Button href={url} target="_blank" rel="noopener noreferrer">
-                  Скачать файл
-                </Button>
-              )}
-            </div>
-          )
-        })}
-    </Drawer>
-  )
-}
-
-// ───────────────────────── Страница «Материалы заявки» ─────────────────────────
+/** Breakpoint для переключения на Drawer (мобильные) */
+const MOBILE_BREAKPOINT = 768
 
 const MaterialsDetailPage = () => {
   const { paymentRequestId } = useParams<{ paymentRequestId: string }>()
@@ -142,7 +50,19 @@ const MaterialsDetailPage = () => {
   const user = useAuthStore((s) => s.user)
   const [requestInfo, setRequestInfo] = useState<RequestInfo | null>(null)
   const [isLoadingInfo, setIsLoadingInfo] = useState(false)
-  const [previewOpen, setPreviewOpen] = useState(false)
+  const [splitViewOpen, setSplitViewOpen] = useState(false)
+  const [selectedRowId, setSelectedRowId] = useState<string | null>(null)
+  const [isMobile, setIsMobile] = useState(window.innerWidth < MOBILE_BREAKPOINT)
+
+  // Хук синхронизации скана
+  const {
+    urls,
+    isLoading: isLoadingUrls,
+    currentFileId,
+    currentPage,
+    syncToMaterial,
+    setCurrentFileId,
+  } = useInvoiceSyncViewer(invoiceFiles, splitViewOpen)
 
   /** Открыть файлы счета в новой вкладке (средняя кнопка мыши) */
   const handleOpenInNewTab = useCallback(async () => {
@@ -160,7 +80,14 @@ const MaterialsDetailPage = () => {
     }
   }, [invoiceFiles])
 
-  const { containerRef, scrollY } = useTableScrollY([materials])
+  const { containerRef, scrollY } = useTableScrollY([materials, splitViewOpen])
+
+  // Отслеживание ширины экрана
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   // Проверка прав на редактирование поля «Кол-во смета»
   const canEditEstimate = useMemo(() => {
@@ -227,6 +154,22 @@ const MaterialsDetailPage = () => {
     },
     [updateEstimateQuantity],
   )
+
+  // Обработчик клика по строке таблицы (синхронизация со сканом)
+  const handleRowClick = useCallback(
+    (record: RecognizedMaterial) => {
+      setSelectedRowId(record.id)
+      if (splitViewOpen) {
+        syncToMaterial(record.fileId, record.pageNumber)
+      }
+    },
+    [splitViewOpen, syncToMaterial],
+  )
+
+  // Обработчик открытия/закрытия просмотра
+  const handleTogglePreview = useCallback(() => {
+    setSplitViewOpen((prev) => !prev)
+  }, [])
 
   const columns = useMemo<ColumnsType<RecognizedMaterial>>(
     () => [
@@ -305,6 +248,50 @@ const MaterialsDetailPage = () => {
     [canEditEstimate, handleEstimateChange],
   )
 
+  // Таблица материалов
+  const materialsTable = (
+    <div ref={containerRef} style={{ flex: 1, overflow: 'hidden' }}>
+      <Table<RecognizedMaterial>
+        dataSource={materials}
+        columns={columns}
+        rowKey="id"
+        loading={isLoadingMaterials}
+        pagination={false}
+        scroll={{ y: scrollY }}
+        size="small"
+        onRow={(record) => ({
+          onClick: () => handleRowClick(record),
+          style: { cursor: splitViewOpen ? 'pointer' : undefined },
+        })}
+        rowClassName={(record) =>
+          splitViewOpen && record.id === selectedRowId ? 'invoice-sync-selected' : ''
+        }
+      />
+    </div>
+  )
+
+  // Кнопка просмотра счёта
+  const previewButton = (
+    <Button
+      icon={splitViewOpen ? <EyeInvisibleOutlined /> : <FileSearchOutlined />}
+      onClick={handleTogglePreview}
+      onMouseDown={(e) => {
+        if (e.button === 1) {
+          e.preventDefault()
+          handleOpenInNewTab()
+        }
+      }}
+      type={splitViewOpen ? 'default' : 'primary'}
+      ghost={splitViewOpen}
+      title="Клик — просмотр рядом, колесико — новая вкладка"
+    >
+      {splitViewOpen ? 'Скрыть скан' : 'Просмотр счета'}
+    </Button>
+  )
+
+  // Desktop split-view или мобильный Drawer
+  const useSplitter = splitViewOpen && !isMobile
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px - 1px - 32px)', overflow: 'hidden', gap: 16 }}>
       {/* Шапка */}
@@ -330,42 +317,53 @@ const MaterialsDetailPage = () => {
               <Descriptions.Item label="Объект">{requestInfo.siteName}</Descriptions.Item>
               <Descriptions.Item label="Дата">{formatDate(requestInfo.approvedAt, false)}</Descriptions.Item>
             </Descriptions>
-            <Button
-              icon={<FileSearchOutlined />}
-              onClick={() => setPreviewOpen(true)}
-              onMouseDown={(e) => {
-                if (e.button === 1) {
-                  e.preventDefault()
-                  handleOpenInNewTab()
-                }
-              }}
-              title="Клик — боковая панель, колесико — новая вкладка"
-            >
-              Просмотр счета
-            </Button>
+            {previewButton}
           </div>
         )}
       </div>
 
-      {/* Таблица материалов */}
-      <div ref={containerRef} style={{ flex: 1, overflow: 'hidden' }}>
-        <Table<RecognizedMaterial>
-          dataSource={materials}
-          columns={columns}
-          rowKey="id"
-          loading={isLoadingMaterials}
-          pagination={false}
-          scroll={{ y: scrollY }}
-          size="small"
-        />
-      </div>
+      {/* Контент: Splitter или обычная таблица */}
+      {useSplitter ? (
+        <Splitter style={{ flex: 1, overflow: 'hidden' }}>
+          <Splitter.Panel defaultSize="50%" min="30%" max="70%">
+            {materialsTable}
+          </Splitter.Panel>
+          <Splitter.Panel>
+            <InvoiceViewer
+              files={invoiceFiles}
+              urls={urls}
+              isLoading={isLoadingUrls}
+              currentFileId={currentFileId}
+              currentPage={currentPage}
+              onFileChange={setCurrentFileId}
+              onClose={() => setSplitViewOpen(false)}
+            />
+          </Splitter.Panel>
+        </Splitter>
+      ) : (
+        materialsTable
+      )}
 
-      {/* Превью счета */}
-      <InvoicePreview
-        open={previewOpen}
-        onClose={() => setPreviewOpen(false)}
-        files={invoiceFiles}
-      />
+      {/* Мобильный fallback — Drawer */}
+      {splitViewOpen && isMobile && (
+        <Drawer
+          title="Просмотр счета"
+          open
+          onClose={() => setSplitViewOpen(false)}
+          width={720}
+          destroyOnClose
+        >
+          <InvoiceViewer
+            files={invoiceFiles}
+            urls={urls}
+            isLoading={isLoadingUrls}
+            currentFileId={currentFileId}
+            currentPage={currentPage}
+            onFileChange={setCurrentFileId}
+            onClose={() => setSplitViewOpen(false)}
+          />
+        </Drawer>
+      )}
     </div>
   )
 }

@@ -88,3 +88,30 @@ body {
 .flex-tabs .ant-tabs-ink-bar {
   display: none;
 }
+
+/* Иерархическая сводная — группировочные строки */
+.hierarchy-row-cost-type td {
+  background-color: #e6f4ff !important;
+  font-weight: 700;
+}
+
+.hierarchy-row-site td {
+  background-color: #f0f5ff !important;
+  font-weight: 600;
+}
+
+/* Убираем стрелку раскрытия у группировочных строк */
+.hierarchy-row-cost-type .ant-table-row-expand-icon-cell,
+.hierarchy-row-site .ant-table-row-expand-icon-cell {
+  pointer-events: none;
+}
+
+.hierarchy-row-cost-type .ant-table-row-expand-icon,
+.hierarchy-row-site .ant-table-row-expand-icon {
+  display: none;
+}
+
+/* Split-view: подсветка выбранной строки */
+.invoice-sync-selected td {
+  background-color: #bae0ff !important;
+}

@@ -25,6 +25,62 @@ export interface SummaryRow {
   totalEstimateQuantity: number
 }
 
+/** Сырые данные для иерархической сводной */
+export interface HierarchicalRawRow {
+  materialId: string
+  materialName: string
+  materialUnit: string | null
+  quantity: number
+  price: number
+  amount: number
+  estimateQuantity: number
+  costTypeId: string | null
+  costTypeName: string | null
+  siteId: string
+  siteName: string
+  counterpartyId: string
+  counterpartyName: string
+}
+
+/** Строка материала внутри подрядчика */
+export interface HierarchyMaterialRow {
+  key: string
+  materialId: string
+  materialName: string
+  materialUnit: string | null
+  totalQuantity: number
+  averagePrice: number
+  totalAmount: number
+  totalEstimateQuantity: number
+  deviation: number
+}
+
+/** Строка подрядчика (раскрываемая) */
+export interface HierarchyCounterpartyRow {
+  key: string
+  counterpartyId: string
+  counterpartyName: string
+  totalQuantity: number
+  totalAmount: number
+  totalEstimateQuantity: number
+  deviation: number
+  materials: HierarchyMaterialRow[]
+}
+
+/** Строка группировки (вид затрат или объект) */
+export interface HierarchyGroupRow {
+  key: string
+  level: 'costType' | 'site'
+  label: string
+  totalAmount: number
+  totalQuantity: number
+  totalEstimateQuantity: number
+  deviation: number
+}
+
+/** Элемент плоского списка для таблицы */
+export type HierarchyFlatRow = HierarchyGroupRow | HierarchyCounterpartyRow
+
 interface MaterialsStoreState {
   // Вкладка Счета
   requests: MaterialsRequestRow[]
@@ -41,6 +97,10 @@ interface MaterialsStoreState {
   summary: SummaryRow[]
   isLoadingSummary: boolean
 
+  // Иерархическая сводная
+  hierarchicalRaw: HierarchicalRawRow[]
+  isLoadingHierarchical: boolean
+
   // Действия
   fetchRequests: () => Promise<void>
   fetchMaterials: (paymentRequestId: string) => Promise<void>
@@ -50,6 +110,14 @@ interface MaterialsStoreState {
     counterpartyId?: string
     supplierId?: string
     siteId?: string
+    dateFrom?: string
+    dateTo?: string
+  }) => Promise<void>
+  fetchHierarchicalSummary: (filters?: {
+    counterpartyId?: string
+    supplierId?: string
+    siteId?: string
+    costTypeId?: string
     dateFrom?: string
     dateTo?: string
   }) => Promise<void>
@@ -69,6 +137,9 @@ export const useMaterialsStore = create<MaterialsStoreState>((set) => ({
 
   summary: [],
   isLoadingSummary: false,
+
+  hierarchicalRaw: [],
+  isLoadingHierarchical: false,
 
   fetchRequests: async () => {
     set({ isLoadingRequests: true })
@@ -275,6 +346,65 @@ export const useMaterialsStore = create<MaterialsStoreState>((set) => ({
       set({ summary, isLoadingSummary: false })
     } catch {
       set({ isLoadingSummary: false })
+    }
+  },
+
+  fetchHierarchicalSummary: async (filters) => {
+    set({ isLoadingHierarchical: true })
+    try {
+      let query = supabase
+        .from('recognized_materials')
+        .select('material_id, quantity, price, amount, estimate_quantity, payment_requests!inner(counterparty_id, supplier_id, site_id, cost_type_id, approved_at, counterparties(name), construction_sites(name), cost_types(name)), materials_dictionary!inner(name, unit)')
+
+      if (filters?.counterpartyId) {
+        query = query.eq('payment_requests.counterparty_id', filters.counterpartyId)
+      }
+      if (filters?.supplierId) {
+        query = query.eq('payment_requests.supplier_id', filters.supplierId)
+      }
+      if (filters?.siteId) {
+        query = query.eq('payment_requests.site_id', filters.siteId)
+      }
+      if (filters?.costTypeId) {
+        query = query.eq('payment_requests.cost_type_id', filters.costTypeId)
+      }
+      if (filters?.dateFrom) {
+        query = query.gte('payment_requests.approved_at', filters.dateFrom)
+      }
+      if (filters?.dateTo) {
+        query = query.lte('payment_requests.approved_at', filters.dateTo)
+      }
+
+      const { data, error } = await query
+      if (error) throw error
+
+      const rows: HierarchicalRawRow[] = (data ?? []).map((row: Record<string, unknown>) => {
+        const pr = row.payment_requests as Record<string, unknown>
+        const mat = row.materials_dictionary as Record<string, unknown>
+        const cp = pr.counterparties as Record<string, unknown> | null
+        const site = pr.construction_sites as Record<string, unknown> | null
+        const ct = pr.cost_types as Record<string, unknown> | null
+
+        return {
+          materialId: row.material_id as string,
+          materialName: mat.name as string,
+          materialUnit: mat.unit as string | null,
+          quantity: Number(row.quantity ?? 0),
+          price: Number(row.price ?? 0),
+          amount: Number(row.amount ?? 0),
+          estimateQuantity: Number(row.estimate_quantity ?? 0),
+          costTypeId: pr.cost_type_id as string | null,
+          costTypeName: (ct?.name as string) ?? null,
+          siteId: pr.site_id as string,
+          siteName: (site?.name as string) ?? '',
+          counterpartyId: pr.counterparty_id as string,
+          counterpartyName: (cp?.name as string) ?? '',
+        }
+      })
+
+      set({ hierarchicalRaw: rows, isLoadingHierarchical: false })
+    } catch {
+      set({ isLoadingHierarchical: false })
     }
   },
 }))

@@ -1,18 +1,14 @@
-import { useEffect, useMemo, useState, useCallback } from 'react'
-import { Typography, Tabs, Table, Select, DatePicker } from 'antd'
+import { useEffect, useMemo } from 'react'
+import { Typography, Tabs, Table } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useMaterialsStore } from '@/store/materialsStore'
-import type { MaterialsRequestRow, SummaryRow } from '@/store/materialsStore'
-import { useCounterpartyStore } from '@/store/counterpartyStore'
-import { useSupplierStore } from '@/store/supplierStore'
-import { useConstructionSiteStore } from '@/store/constructionSiteStore'
+import type { MaterialsRequestRow } from '@/store/materialsStore'
 import { useTableScrollY } from '@/hooks/useTableScrollY'
 import { formatDate } from '@/utils/requestFormatters'
-import type { Dayjs } from 'dayjs'
+import SummaryTab from '@/components/materials/SummaryTab'
 
 const { Title } = Typography
-const { RangePicker } = DatePicker
 
 const DEFAULT_TAB = 'invoices'
 
@@ -100,165 +96,6 @@ const InvoicesTab = () => {
           style: { cursor: 'pointer' },
         })}
       />
-    </div>
-  )
-}
-
-// ───────────────────────── Вкладка «Сводная» ─────────────────────────
-
-interface SummaryFilters {
-  counterpartyId?: string
-  supplierId?: string
-  siteId?: string
-  dateFrom?: string
-  dateTo?: string
-}
-
-const SummaryTab = () => {
-  const { summary, isLoadingSummary, fetchSummary } = useMaterialsStore()
-  const { counterparties, fetchCounterparties } = useCounterpartyStore()
-  const { suppliers, fetchSuppliers } = useSupplierStore()
-  const { sites, fetchSites } = useConstructionSiteStore()
-
-  const { containerRef, scrollY } = useTableScrollY([summary])
-  const [filters, setFilters] = useState<SummaryFilters>({})
-
-  // Загрузка справочников для фильтров
-  useEffect(() => {
-    if (counterparties.length === 0) fetchCounterparties()
-    if (suppliers.length === 0) fetchSuppliers()
-    if (sites.length === 0) fetchSites()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  // Загрузка сводной при изменении фильтров
-  useEffect(() => {
-    fetchSummary(filters)
-  }, [filters, fetchSummary])
-
-  const handleFilterChange = useCallback(
-    (field: keyof SummaryFilters, value: string | undefined) => {
-      setFilters((prev) => ({ ...prev, [field]: value }))
-    },
-    [],
-  )
-
-  const handleDateRangeChange = useCallback(
-    (dates: [Dayjs | null, Dayjs | null] | null) => {
-      setFilters((prev) => ({
-        ...prev,
-        dateFrom: dates?.[0]?.format('YYYY-MM-DD') ?? undefined,
-        dateTo: dates?.[1]?.format('YYYY-MM-DD') ?? undefined,
-      }))
-    },
-    [],
-  )
-
-  const columns = useMemo<ColumnsType<SummaryRow>>(
-    () => [
-      {
-        title: 'Наименование',
-        dataIndex: 'materialName',
-        key: 'materialName',
-        ellipsis: true,
-      },
-      {
-        title: 'Ед.изм.',
-        dataIndex: 'materialUnit',
-        key: 'materialUnit',
-        width: 100,
-        render: (v: string | null) => v ?? '—',
-      },
-      {
-        title: 'Количество',
-        dataIndex: 'totalQuantity',
-        key: 'totalQuantity',
-        width: 120,
-        align: 'right',
-        render: (v: number) => fmtAmount(v),
-      },
-      {
-        title: 'Средняя цена',
-        dataIndex: 'averagePrice',
-        key: 'averagePrice',
-        width: 140,
-        align: 'right',
-        render: (v: number) => fmtAmount(v),
-      },
-      {
-        title: 'Сумма',
-        dataIndex: 'totalAmount',
-        key: 'totalAmount',
-        width: 140,
-        align: 'right',
-        render: (v: number) => fmtAmount(v),
-      },
-      {
-        title: 'Кол-во смета',
-        dataIndex: 'totalEstimateQuantity',
-        key: 'totalEstimateQuantity',
-        width: 130,
-        align: 'right',
-        render: (v: number) => fmtAmount(v),
-      },
-    ],
-    [],
-  )
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', gap: 16 }}>
-      {/* Фильтры */}
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        <Select
-          placeholder="Подрядчик"
-          allowClear
-          showSearch
-          optionFilterProp="label"
-          style={{ minWidth: 200, flex: 1 }}
-          value={filters.counterpartyId}
-          onChange={(v) => handleFilterChange('counterpartyId', v)}
-          options={counterparties.map((c) => ({ value: c.id, label: c.name }))}
-        />
-        <Select
-          placeholder="Поставщик"
-          allowClear
-          showSearch
-          optionFilterProp="label"
-          style={{ minWidth: 200, flex: 1 }}
-          value={filters.supplierId}
-          onChange={(v) => handleFilterChange('supplierId', v)}
-          options={suppliers.map((s) => ({ value: s.id, label: s.name }))}
-        />
-        <Select
-          placeholder="Объект"
-          allowClear
-          showSearch
-          optionFilterProp="label"
-          style={{ minWidth: 200, flex: 1 }}
-          value={filters.siteId}
-          onChange={(v) => handleFilterChange('siteId', v)}
-          options={sites.map((s) => ({ value: s.id, label: s.name }))}
-        />
-        <RangePicker
-          style={{ minWidth: 240 }}
-          format="DD.MM.YYYY"
-          onChange={handleDateRangeChange}
-          placeholder={['Дата от', 'Дата до']}
-        />
-      </div>
-
-      {/* Таблица */}
-      <div ref={containerRef} style={{ flex: 1, overflow: 'hidden' }}>
-        <Table<SummaryRow>
-          dataSource={summary}
-          columns={columns}
-          rowKey="materialId"
-          loading={isLoadingSummary}
-          pagination={{ pageSize: 50, showSizeChanger: false }}
-          scroll={{ y: scrollY }}
-          size="small"
-        />
-      </div>
     </div>
   )
 }
