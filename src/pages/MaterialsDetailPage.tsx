@@ -144,6 +144,22 @@ const MaterialsDetailPage = () => {
   const [isLoadingInfo, setIsLoadingInfo] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
 
+  /** Открыть файлы счета в новой вкладке (средняя кнопка мыши) */
+  const handleOpenInNewTab = useCallback(async () => {
+    if (invoiceFiles.length === 0) return
+    try {
+      const url = await getDownloadUrl(invoiceFiles[0].fileKey)
+      window.open(url, '_blank', 'noopener,noreferrer')
+    } catch (err) {
+      logError({
+        errorType: 'api_error',
+        errorMessage: `Не удалось открыть файл в новой вкладке`,
+        errorStack: err instanceof Error ? err.stack : null,
+        component: 'MaterialsDetailPage',
+      })
+    }
+  }, [invoiceFiles])
+
   const { containerRef, scrollY } = useTableScrollY([materials])
 
   // Проверка прав на редактирование поля «Кол-во смета»
@@ -317,6 +333,13 @@ const MaterialsDetailPage = () => {
             <Button
               icon={<FileSearchOutlined />}
               onClick={() => setPreviewOpen(true)}
+              onMouseDown={(e) => {
+                if (e.button === 1) {
+                  e.preventDefault()
+                  handleOpenInNewTab()
+                }
+              }}
+              title="Клик — боковая панель, колесико — новая вкладка"
             >
               Просмотр счета
             </Button>
