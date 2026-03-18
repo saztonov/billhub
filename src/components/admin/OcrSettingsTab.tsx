@@ -14,10 +14,14 @@ import OcrLogSection from '@/components/admin/OcrLogSection'
 
 const { Text } = Typography
 
-/** Опция выбора заявки */
-interface RequestOption {
-  label: string
-  value: string
+/** Согласованная заявка для выбора */
+interface ApprovedRequest {
+  id: string
+  requestNumber: string
+  counterpartyName: string
+  siteName: string
+  invoiceAmount: number | null
+  recognized: boolean
 }
 
 /** Описание этапа для Progress */
@@ -47,52 +51,70 @@ const OcrSettingsTab = () => {
   const [statPeriod, setStatPeriod] = useState<string>('day')
 
   // Ручное распознавание
-  const [requestOptions, setRequestOptions] = useState<RequestOption[]>([])
+  const [approvedRequests, setApprovedRequests] = useState<ApprovedRequest[]>([])
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null)
   const [isRecognizing, setIsRecognizing] = useState(false)
   const [progressPercent, setProgressPercent] = useState(0)
   const [progressText, setProgressText] = useState('')
-  const [searchLoading, setSearchLoading] = useState(false)
+  const [loadingRequests, setLoadingRequests] = useState(false)
+
+  // Загрузка согласованных заявок
+  const loadApprovedRequests = useCallback(async () => {
+    setLoadingRequests(true)
+    try {
+      // Согласованные заявки
+      const { data, error } = await supabase
+        .from('payment_requests')
+        .select('id, request_number, invoice_amount, counterparties(name), construction_sites(name), statuses!payment_requests_status_id_fkey(code)')
+        .not('approved_at', 'is', null)
+        .eq('is_deleted', false)
+        .order('approved_at', { ascending: false })
+        .limit(200)
+      if (error) throw error
+
+      // Получаем id заявок, у которых уже есть распознанные материалы
+      const ids = (data ?? []).map((r: Record<string, unknown>) => r.id as string)
+      const { data: recognizedData } = await supabase
+        .from('recognized_materials')
+        .select('payment_request_id')
+        .in('payment_request_id', ids.length > 0 ? ids : ['__none__'])
+
+      const recognizedSet = new Set(
+        (recognizedData ?? []).map((r: Record<string, unknown>) => r.payment_request_id as string),
+      )
+
+      const requests: ApprovedRequest[] = (data ?? []).map((row: Record<string, unknown>) => {
+        const cp = row.counterparties as Record<string, unknown> | null
+        const site = row.construction_sites as Record<string, unknown> | null
+        return {
+          id: row.id as string,
+          requestNumber: row.request_number as string,
+          counterpartyName: (cp?.name as string) ?? '',
+          siteName: (site?.name as string) ?? '',
+          invoiceAmount: row.invoice_amount as number | null,
+          recognized: recognizedSet.has(row.id as string),
+        }
+      })
+
+      setApprovedRequests(requests)
+    } catch (err) {
+      logError({
+        errorType: 'api_error',
+        errorMessage: `Ошибка загрузки заявок: ${err instanceof Error ? err.message : 'Неизвестная ошибка'}`,
+        component: 'OcrSettingsTab',
+      })
+    } finally {
+      setLoadingRequests(false)
+    }
+  }, [])
 
   // Загрузка данных при монтировании
   useEffect(() => {
     fetchSettings()
     fetchLogs(1, 20)
     fetchTokenStats()
-  }, [fetchSettings, fetchLogs, fetchTokenStats])
-
-  // Поиск согласованных заявок
-  const searchRequests = useCallback(async (search: string) => {
-    if (!search || search.length < 2) {
-      setRequestOptions([])
-      return
-    }
-
-    setSearchLoading(true)
-    try {
-      const { data, error } = await supabase
-        .from('payment_requests')
-        .select('id, request_number, status_id, payment_request_statuses!inner(code)')
-        .eq('payment_request_statuses.code', 'approved')
-        .ilike('request_number', `%${search}%`)
-        .limit(20)
-      if (error) throw error
-
-      const options: RequestOption[] = (data ?? []).map((row: Record<string, unknown>) => ({
-        value: row.id as string,
-        label: row.request_number as string,
-      }))
-      setRequestOptions(options)
-    } catch (err) {
-      logError({
-        errorType: 'api_error',
-        errorMessage: `Ошибка поиска заявок: ${err instanceof Error ? err.message : 'Неизвестная ошибка'}`,
-        component: 'OcrSettingsTab',
-      })
-    } finally {
-      setSearchLoading(false)
-    }
-  }, [])
+    loadApprovedRequests()
+  }, [fetchSettings, fetchLogs, fetchTokenStats, loadApprovedRequests])
 
   // Обработчик прогресса OCR
   const handleProgress = useCallback((progress: OcrProgress) => {
@@ -128,9 +150,10 @@ const OcrSettingsTab = () => {
       setProgressPercent(100)
       setProgressText('Готово')
       message.success('Распознавание завершено')
-      // Обновить логи и статистику
+      // Обновить логи, статистику и список заявок
       fetchLogs(1, 20)
       fetchTokenStats()
+      loadApprovedRequests()
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Неизвестная ошибка'
       message.error(`Ошибка распознавания: ${errorMsg}`)
@@ -233,17 +256,35 @@ const OcrSettingsTab = () => {
           <Space wrap>
             <Select
               showSearch
-              style={{ width: 350, maxWidth: '100%' }}
-              placeholder="Поиск заявки по номеру..."
+              style={{ width: 500, maxWidth: '100%' }}
+              placeholder="Выберите заявку..."
               value={selectedRequestId}
               onChange={setSelectedRequestId}
-              onSearch={searchRequests}
-              filterOption={false}
-              loading={searchLoading}
-              options={requestOptions}
+              filterOption={(input, option) => {
+                const req = approvedRequests.find((r) => r.id === option?.value)
+                if (!req) return false
+                const searchStr = `${req.requestNumber} ${req.counterpartyName} ${req.siteName}`.toLowerCase()
+                return searchStr.includes(input.toLowerCase())
+              }}
+              loading={loadingRequests}
               allowClear
-              notFoundContent={searchLoading ? 'Поиск...' : 'Не найдено'}
-            />
+              notFoundContent={loadingRequests ? 'Загрузка...' : 'Нет согласованных заявок'}
+              optionLabelProp="label"
+            >
+              {approvedRequests.map((req) => (
+                <Select.Option key={req.id} value={req.id} label={`${req.requestNumber} — ${req.counterpartyName}`}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                    <Text strong style={{ flexShrink: 0 }}>{req.requestNumber}</Text>
+                    <Text ellipsis style={{ flex: 1, textAlign: 'left' }}>{req.siteName}</Text>
+                    <Text type="secondary" style={{ flexShrink: 0 }}>
+                      {req.invoiceAmount != null ? `${req.invoiceAmount.toLocaleString('ru-RU')} ₽` : ''}
+                    </Text>
+                    {req.recognized && <Text type="success" style={{ flexShrink: 0 }}>OCR</Text>}
+                  </div>
+                  <Text type="secondary" style={{ fontSize: 12 }}>{req.counterpartyName}</Text>
+                </Select.Option>
+              ))}
+            </Select>
             <Button
               type="primary"
               icon={<PlayCircleOutlined />}
