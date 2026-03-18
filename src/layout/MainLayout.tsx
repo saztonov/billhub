@@ -10,6 +10,7 @@ import {
   LogoutOutlined,
   BellOutlined,
   MenuOutlined,
+  AppstoreOutlined,
 } from '@ant-design/icons'
 import { useAuthStore } from '@/store/authStore'
 import { useNotificationStore } from '@/store/notificationStore'
@@ -21,34 +22,31 @@ import type { UserRole, AppNotification } from '@/types'
 const { Header, Sider, Content } = Layout
 const { Text } = Typography
 
-/** Полное меню (admin видит всё) */
-const allMenuItems: MenuProps['items'] = [
-  { key: '/payment-requests', icon: <FileTextOutlined />, label: 'Заявки на оплату' },
-  { key: '/references', icon: <FolderOutlined />, label: 'Справочники' },
-  { key: '/admin', icon: <SettingOutlined />, label: 'Администрирование' },
-]
-
-/** Меню для роли user (без администрирования) */
-const userMenuItems: MenuProps['items'] = [
-  { key: '/payment-requests', icon: <FileTextOutlined />, label: 'Заявки на оплату' },
-  { key: '/references', icon: <FolderOutlined />, label: 'Справочники' },
-]
-
-/** Меню для роли counterparty_user (только счета) */
+/** Меню для роли counterparty_user (только заявки) */
 const counterpartyMenuItems: MenuProps['items'] = [
   { key: '/payment-requests', icon: <FileTextOutlined />, label: 'Заявки на оплату' },
 ]
 
-/** Возвращает меню для указанной роли */
-function getMenuItems(role: UserRole): MenuProps['items'] {
-  switch (role) {
-    case 'admin':
-      return allMenuItems
-    case 'user':
-      return userMenuItems
-    case 'counterparty_user':
-      return counterpartyMenuItems
+/** Возвращает меню для указанной роли и отдела */
+function getMenuItems(role: UserRole, department?: string | null): MenuProps['items'] {
+  if (role === 'counterparty_user') return counterpartyMenuItems
+
+  const items: MenuProps['items'] = [
+    { key: '/payment-requests', icon: <FileTextOutlined />, label: 'Заявки на оплату' },
+  ]
+
+  // Материалы видны admin и сметному отделу
+  if (role === 'admin' || department === 'smetny') {
+    items.push({ key: '/materials', icon: <AppstoreOutlined />, label: 'Материалы' })
   }
+
+  items.push({ key: '/references', icon: <FolderOutlined />, label: 'Справочники' })
+
+  if (role === 'admin') {
+    items.push({ key: '/admin', icon: <SettingOutlined />, label: 'Администрирование' })
+  }
+
+  return items
 }
 
 /** Название роли для отображения */
@@ -127,8 +125,8 @@ const MainLayout = () => {
   const headerActions = useHeaderStore((s) => s.actions)
 
   const menuItems = useMemo(
-    () => getMenuItems(user?.role ?? 'counterparty_user'),
-    [user?.role],
+    () => getMenuItems(user?.role ?? 'counterparty_user', user?.department),
+    [user?.role, user?.department],
   )
 
   const handleMenuClick: MenuProps['onClick'] = ({ key }) => {

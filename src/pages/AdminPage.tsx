@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import PaymentRequestSettingsPage from './PaymentRequestSettingsPage'
 import UsersPage from './UsersPage'
 import ErrorLogsPage from './ErrorLogsPage'
+import OcrSettingsTab from '@/components/admin/OcrSettingsTab'
 
 const { Title } = Typography
 
@@ -19,6 +20,7 @@ const AdminPage = () => {
   const items = [
     { key: 'payment-requests', label: 'Настройки заявок', children: <PaymentRequestSettingsPage /> },
     { key: 'users', label: 'Пользователи', children: <UsersPage /> },
+    { key: 'ocr', label: 'OCR', children: <OcrSettingsTab /> },
     { key: 'error-logs', label: 'Логи ошибок', children: <ErrorLogsPage /> },
   ]
 

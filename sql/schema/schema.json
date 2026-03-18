@@ -269,6 +269,47 @@
           ]
         },
         {
+          "name": "cost_types",
+          "columns": [
+            {
+              "name": "id",
+              "type": "uuid",
+              "default": "gen_random_uuid()",
+              "nullable": false,
+              "position": 1,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "name",
+              "type": "text",
+              "default": null,
+              "nullable": false,
+              "position": 2,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "is_active",
+              "type": "boolean",
+              "default": "true",
+              "nullable": false,
+              "position": 3,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "created_at",
+              "type": "timestamp with time zone",
+              "default": "now()",
+              "nullable": false,
+              "position": 4,
+              "max_length": null,
+              "numeric_precision": null
+            }
+          ]
+        },
+        {
           "name": "counterparties",
           "columns": [
             {
@@ -835,6 +876,47 @@
           ]
         },
         {
+          "name": "materials_dictionary",
+          "columns": [
+            {
+              "name": "id",
+              "type": "uuid",
+              "default": "gen_random_uuid()",
+              "nullable": false,
+              "position": 1,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "name",
+              "type": "text",
+              "default": null,
+              "nullable": false,
+              "position": 2,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "unit",
+              "type": "text",
+              "default": null,
+              "nullable": true,
+              "position": 3,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "created_at",
+              "type": "timestamp with time zone",
+              "default": "now()",
+              "nullable": false,
+              "position": 4,
+              "max_length": null,
+              "numeric_precision": null
+            }
+          ]
+        },
+        {
           "name": "notifications",
           "columns": [
             {
@@ -992,6 +1074,119 @@
               "default": "now()",
               "nullable": false,
               "position": 5,
+              "max_length": null,
+              "numeric_precision": null
+            }
+          ]
+        },
+        {
+          "name": "ocr_recognition_log",
+          "columns": [
+            {
+              "name": "id",
+              "type": "uuid",
+              "default": "gen_random_uuid()",
+              "nullable": false,
+              "position": 1,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "payment_request_id",
+              "type": "uuid",
+              "default": null,
+              "nullable": false,
+              "position": 2,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "file_id",
+              "type": "uuid",
+              "default": null,
+              "nullable": true,
+              "position": 3,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "model_id",
+              "type": "text",
+              "default": null,
+              "nullable": false,
+              "position": 4,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "status",
+              "type": "text",
+              "default": "'pending'::text",
+              "nullable": false,
+              "position": 5,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "error_message",
+              "type": "text",
+              "default": null,
+              "nullable": true,
+              "position": 6,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "attempt_number",
+              "type": "integer",
+              "default": "1",
+              "nullable": false,
+              "position": 7,
+              "max_length": null,
+              "numeric_precision": 32
+            },
+            {
+              "name": "input_tokens",
+              "type": "integer",
+              "default": null,
+              "nullable": true,
+              "position": 8,
+              "max_length": null,
+              "numeric_precision": 32
+            },
+            {
+              "name": "output_tokens",
+              "type": "integer",
+              "default": null,
+              "nullable": true,
+              "position": 9,
+              "max_length": null,
+              "numeric_precision": 32
+            },
+            {
+              "name": "total_cost",
+              "type": "numeric",
+              "default": null,
+              "nullable": true,
+              "position": 10,
+              "max_length": null,
+              "numeric_precision": 15
+            },
+            {
+              "name": "started_at",
+              "type": "timestamp with time zone",
+              "default": "now()",
+              "nullable": false,
+              "position": 11,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "completed_at",
+              "type": "timestamp with time zone",
+              "default": null,
+              "nullable": true,
+              "position": 12,
               "max_length": null,
               "numeric_precision": null
             }
@@ -1889,6 +2084,137 @@
               "position": 38,
               "max_length": null,
               "numeric_precision": null
+            },
+            {
+              "name": "stage_history",
+              "type": "jsonb",
+              "default": "'[]'::jsonb",
+              "nullable": true,
+              "position": 39,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "cost_type_id",
+              "type": "uuid",
+              "default": null,
+              "nullable": true,
+              "position": 40,
+              "max_length": null,
+              "numeric_precision": null
+            }
+          ]
+        },
+        {
+          "name": "recognized_materials",
+          "columns": [
+            {
+              "name": "id",
+              "type": "uuid",
+              "default": "gen_random_uuid()",
+              "nullable": false,
+              "position": 1,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "payment_request_id",
+              "type": "uuid",
+              "default": null,
+              "nullable": false,
+              "position": 2,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "file_id",
+              "type": "uuid",
+              "default": null,
+              "nullable": true,
+              "position": 3,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "material_id",
+              "type": "uuid",
+              "default": null,
+              "nullable": false,
+              "position": 4,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "page_number",
+              "type": "integer",
+              "default": null,
+              "nullable": true,
+              "position": 5,
+              "max_length": null,
+              "numeric_precision": 32
+            },
+            {
+              "name": "position",
+              "type": "integer",
+              "default": null,
+              "nullable": false,
+              "position": 6,
+              "max_length": null,
+              "numeric_precision": 32
+            },
+            {
+              "name": "article",
+              "type": "text",
+              "default": null,
+              "nullable": true,
+              "position": 7,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "quantity",
+              "type": "numeric",
+              "default": null,
+              "nullable": true,
+              "position": 8,
+              "max_length": null,
+              "numeric_precision": 15
+            },
+            {
+              "name": "price",
+              "type": "numeric",
+              "default": null,
+              "nullable": true,
+              "position": 9,
+              "max_length": null,
+              "numeric_precision": 15
+            },
+            {
+              "name": "amount",
+              "type": "numeric",
+              "default": null,
+              "nullable": true,
+              "position": 10,
+              "max_length": null,
+              "numeric_precision": 15
+            },
+            {
+              "name": "estimate_quantity",
+              "type": "numeric",
+              "default": null,
+              "nullable": true,
+              "position": 11,
+              "max_length": null,
+              "numeric_precision": 15
+            },
+            {
+              "name": "created_at",
+              "type": "timestamp with time zone",
+              "default": "now()",
+              "nullable": false,
+              "position": 12,
+              "max_length": null,
+              "numeric_precision": null
             }
           ]
         },
@@ -2400,6 +2726,11 @@
           "table_name": "construction_sites"
         },
         {
+          "name": "cost_types_pkey",
+          "definition": "CREATE UNIQUE INDEX cost_types_pkey ON public.cost_types USING btree (id)",
+          "table_name": "cost_types"
+        },
+        {
           "name": "counterparties_inn_unique",
           "definition": "CREATE UNIQUE INDEX counterparties_inn_unique ON public.counterparties USING btree (inn)",
           "table_name": "counterparties"
@@ -2500,6 +2831,16 @@
           "table_name": "invoices"
         },
         {
+          "name": "idx_materials_dictionary_name_unit",
+          "definition": "CREATE UNIQUE INDEX idx_materials_dictionary_name_unit ON public.materials_dictionary USING btree (name, COALESCE(unit, ''::text))",
+          "table_name": "materials_dictionary"
+        },
+        {
+          "name": "materials_dictionary_pkey",
+          "definition": "CREATE UNIQUE INDEX materials_dictionary_pkey ON public.materials_dictionary USING btree (id)",
+          "table_name": "materials_dictionary"
+        },
+        {
           "name": "idx_notifications_unread",
           "definition": "CREATE INDEX idx_notifications_unread ON public.notifications USING btree (user_id, is_read) WHERE (is_read = false)",
           "table_name": "notifications"
@@ -2523,6 +2864,21 @@
           "name": "ocr_models_pkey",
           "definition": "CREATE UNIQUE INDEX ocr_models_pkey ON public.ocr_models USING btree (id)",
           "table_name": "ocr_models"
+        },
+        {
+          "name": "idx_ocr_recognition_log_request",
+          "definition": "CREATE INDEX idx_ocr_recognition_log_request ON public.ocr_recognition_log USING btree (payment_request_id)",
+          "table_name": "ocr_recognition_log"
+        },
+        {
+          "name": "idx_ocr_recognition_log_started_at",
+          "definition": "CREATE INDEX idx_ocr_recognition_log_started_at ON public.ocr_recognition_log USING btree (started_at)",
+          "table_name": "ocr_recognition_log"
+        },
+        {
+          "name": "ocr_recognition_log_pkey",
+          "definition": "CREATE UNIQUE INDEX ocr_recognition_log_pkey ON public.ocr_recognition_log USING btree (id)",
+          "table_name": "ocr_recognition_log"
         },
         {
           "name": "idx_payment_payment_files_payment",
@@ -2645,6 +3001,21 @@
           "table_name": "payment_requests"
         },
         {
+          "name": "idx_recognized_materials_material",
+          "definition": "CREATE INDEX idx_recognized_materials_material ON public.recognized_materials USING btree (material_id)",
+          "table_name": "recognized_materials"
+        },
+        {
+          "name": "idx_recognized_materials_request",
+          "definition": "CREATE INDEX idx_recognized_materials_request ON public.recognized_materials USING btree (payment_request_id)",
+          "table_name": "recognized_materials"
+        },
+        {
+          "name": "recognized_materials_pkey",
+          "definition": "CREATE UNIQUE INDEX recognized_materials_pkey ON public.recognized_materials USING btree (id)",
+          "table_name": "recognized_materials"
+        },
+        {
           "name": "request_number_sequence_pkey",
           "definition": "CREATE UNIQUE INDEX request_number_sequence_pkey ON public.request_number_sequence USING btree (year)",
           "table_name": "request_number_sequence"
@@ -2756,22 +3127,22 @@
       "foreign_keys": [
         {
           "columns": [
-            "created_by"
+            "approval_decision_id"
           ],
           "table_name": "approval_decision_files",
-          "constraint_name": "fk_created_by",
-          "references_table": "users",
+          "constraint_name": "fk_approval_decision",
+          "references_table": "approval_decisions",
           "references_columns": [
             "id"
           ]
         },
         {
           "columns": [
-            "approval_decision_id"
+            "created_by"
           ],
           "table_name": "approval_decision_files",
-          "constraint_name": "fk_approval_decision",
-          "references_table": "approval_decisions",
+          "constraint_name": "fk_created_by",
+          "references_table": "users",
           "references_columns": [
             "id"
           ]
@@ -2822,17 +3193,6 @@
         },
         {
           "columns": [
-            "site_id"
-          ],
-          "table_name": "distribution_letters",
-          "constraint_name": "distribution_letters_site_id_fkey",
-          "references_table": "construction_sites",
-          "references_columns": [
-            "id"
-          ]
-        },
-        {
-          "columns": [
             "invoice_id"
           ],
           "table_name": "distribution_letters",
@@ -2849,6 +3209,17 @@
           "table_name": "distribution_letters",
           "constraint_name": "distribution_letters_counterparty_id_fkey",
           "references_table": "counterparties",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "site_id"
+          ],
+          "table_name": "distribution_letters",
+          "constraint_name": "distribution_letters_site_id_fkey",
+          "references_table": "construction_sites",
           "references_columns": [
             "id"
           ]
@@ -2921,6 +3292,17 @@
         },
         {
           "columns": [
+            "user_id"
+          ],
+          "table_name": "notifications",
+          "constraint_name": "notifications_user_id_fkey",
+          "references_table": "users",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
             "site_id"
           ],
           "table_name": "notifications",
@@ -2932,11 +3314,22 @@
         },
         {
           "columns": [
-            "user_id"
+            "payment_request_id"
           ],
-          "table_name": "notifications",
-          "constraint_name": "notifications_user_id_fkey",
-          "references_table": "users",
+          "table_name": "ocr_recognition_log",
+          "constraint_name": "ocr_recognition_log_payment_request_id_fkey",
+          "references_table": "payment_requests",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "file_id"
+          ],
+          "table_name": "ocr_recognition_log",
+          "constraint_name": "ocr_recognition_log_file_id_fkey",
+          "references_table": "payment_request_files",
           "references_columns": [
             "id"
           ]
@@ -2965,6 +3358,17 @@
         },
         {
           "columns": [
+            "payment_request_id"
+          ],
+          "table_name": "payment_payments",
+          "constraint_name": "payment_payments_payment_request_id_fkey",
+          "references_table": "payment_requests",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
             "created_by"
           ],
           "table_name": "payment_payments",
@@ -2987,21 +3391,10 @@
         },
         {
           "columns": [
-            "payment_request_id"
-          ],
-          "table_name": "payment_payments",
-          "constraint_name": "payment_payments_payment_request_id_fkey",
-          "references_table": "payment_requests",
-          "references_columns": [
-            "id"
-          ]
-        },
-        {
-          "columns": [
-            "assigned_by_user_id"
+            "assigned_user_id"
           ],
           "table_name": "payment_request_assignments",
-          "constraint_name": "payment_request_assignments_assigned_by_user_id_fkey",
+          "constraint_name": "payment_request_assignments_assigned_user_id_fkey",
           "references_table": "users",
           "references_columns": [
             "id"
@@ -3020,10 +3413,10 @@
         },
         {
           "columns": [
-            "assigned_user_id"
+            "assigned_by_user_id"
           ],
           "table_name": "payment_request_assignments",
-          "constraint_name": "payment_request_assignments_assigned_user_id_fkey",
+          "constraint_name": "payment_request_assignments_assigned_by_user_id_fkey",
           "references_table": "users",
           "references_columns": [
             "id"
@@ -3064,11 +3457,11 @@
         },
         {
           "columns": [
-            "document_type_id"
+            "rejected_by"
           ],
           "table_name": "payment_request_files",
-          "constraint_name": "payment_request_files_document_type_id_fkey",
-          "references_table": "document_types",
+          "constraint_name": "payment_request_files_rejected_by_fkey",
+          "references_table": "users",
           "references_columns": [
             "id"
           ]
@@ -3086,10 +3479,21 @@
         },
         {
           "columns": [
-            "rejected_by"
+            "document_type_id"
           ],
           "table_name": "payment_request_files",
-          "constraint_name": "payment_request_files_rejected_by_fkey",
+          "constraint_name": "payment_request_files_document_type_id_fkey",
+          "references_table": "document_types",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "user_id"
+          ],
+          "table_name": "payment_request_logs",
+          "constraint_name": "payment_request_logs_user_id_fkey",
           "references_table": "users",
           "references_columns": [
             "id"
@@ -3108,66 +3512,11 @@
         },
         {
           "columns": [
-            "user_id"
-          ],
-          "table_name": "payment_request_logs",
-          "constraint_name": "payment_request_logs_user_id_fkey",
-          "references_table": "users",
-          "references_columns": [
-            "id"
-          ]
-        },
-        {
-          "columns": [
-            "counterparty_id"
-          ],
-          "table_name": "payment_requests",
-          "constraint_name": "payment_requests_counterparty_id_fkey",
-          "references_table": "counterparties",
-          "references_columns": [
-            "id"
-          ]
-        },
-        {
-          "columns": [
-            "previous_status_id"
-          ],
-          "table_name": "payment_requests",
-          "constraint_name": "payment_requests_previous_status_id_fkey",
-          "references_table": "statuses",
-          "references_columns": [
-            "id"
-          ]
-        },
-        {
-          "columns": [
-            "supplier_id"
-          ],
-          "table_name": "payment_requests",
-          "constraint_name": "payment_requests_supplier_id_fkey",
-          "references_table": "suppliers",
-          "references_columns": [
-            "id"
-          ]
-        },
-        {
-          "columns": [
             "site_id"
           ],
           "table_name": "payment_requests",
           "constraint_name": "payment_requests_site_id_fkey",
           "references_table": "construction_sites",
-          "references_columns": [
-            "id"
-          ]
-        },
-        {
-          "columns": [
-            "paid_status_id"
-          ],
-          "table_name": "payment_requests",
-          "constraint_name": "payment_requests_paid_status_id_fkey",
-          "references_table": "statuses",
           "references_columns": [
             "id"
           ]
@@ -3196,6 +3545,17 @@
         },
         {
           "columns": [
+            "cost_type_id"
+          ],
+          "table_name": "payment_requests",
+          "constraint_name": "payment_requests_cost_type_id_fkey",
+          "references_table": "cost_types",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
             "status_id"
           ],
           "table_name": "payment_requests",
@@ -3207,11 +3567,77 @@
         },
         {
           "columns": [
-            "document_type_id"
+            "counterparty_id"
           ],
-          "table_name": "site_required_documents_mapping",
-          "constraint_name": "site_required_documents_mapping_document_type_id_fkey",
-          "references_table": "document_types",
+          "table_name": "payment_requests",
+          "constraint_name": "payment_requests_counterparty_id_fkey",
+          "references_table": "counterparties",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "supplier_id"
+          ],
+          "table_name": "payment_requests",
+          "constraint_name": "payment_requests_supplier_id_fkey",
+          "references_table": "suppliers",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "previous_status_id"
+          ],
+          "table_name": "payment_requests",
+          "constraint_name": "payment_requests_previous_status_id_fkey",
+          "references_table": "statuses",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "paid_status_id"
+          ],
+          "table_name": "payment_requests",
+          "constraint_name": "payment_requests_paid_status_id_fkey",
+          "references_table": "statuses",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "material_id"
+          ],
+          "table_name": "recognized_materials",
+          "constraint_name": "recognized_materials_material_id_fkey",
+          "references_table": "materials_dictionary",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "payment_request_id"
+          ],
+          "table_name": "recognized_materials",
+          "constraint_name": "recognized_materials_payment_request_id_fkey",
+          "references_table": "payment_requests",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "file_id"
+          ],
+          "table_name": "recognized_materials",
+          "constraint_name": "recognized_materials_file_id_fkey",
+          "references_table": "payment_request_files",
           "references_columns": [
             "id"
           ]
@@ -3223,6 +3649,17 @@
           "table_name": "site_required_documents_mapping",
           "constraint_name": "site_required_documents_mapping_site_id_fkey",
           "references_table": "construction_sites",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "document_type_id"
+          ],
+          "table_name": "site_required_documents_mapping",
+          "constraint_name": "site_required_documents_mapping_document_type_id_fkey",
+          "references_table": "document_types",
           "references_columns": [
             "id"
           ]
@@ -3262,6 +3699,15 @@
         },
         {
           "columns": [
+            "id"
+          ],
+          "table_name": "users",
+          "constraint_name": "users_id_fkey",
+          "references_table": null,
+          "references_columns": null
+        },
+        {
+          "columns": [
             "counterparty_id"
           ],
           "table_name": "users",
@@ -3270,18 +3716,9 @@
           "references_columns": [
             "id"
           ]
-        },
-        {
-          "columns": [
-            "id"
-          ],
-          "table_name": "users",
-          "constraint_name": "users_id_fkey",
-          "references_table": null,
-          "references_columns": null
         }
       ],
-      "generated_at": "2026-03-17T14:41:31.177871+00:00",
+      "generated_at": "2026-03-18T12:13:22.461392+00:00",
       "primary_keys": [
         {
           "columns": [
@@ -3310,6 +3747,13 @@
           ],
           "table_name": "construction_sites",
           "constraint_name": "construction_sites_pkey"
+        },
+        {
+          "columns": [
+            "id"
+          ],
+          "table_name": "cost_types",
+          "constraint_name": "cost_types_pkey"
         },
         {
           "columns": [
@@ -3364,6 +3808,13 @@
           "columns": [
             "id"
           ],
+          "table_name": "materials_dictionary",
+          "constraint_name": "materials_dictionary_pkey"
+        },
+        {
+          "columns": [
+            "id"
+          ],
           "table_name": "notifications",
           "constraint_name": "notifications_pkey"
         },
@@ -3373,6 +3824,13 @@
           ],
           "table_name": "ocr_models",
           "constraint_name": "ocr_models_pkey"
+        },
+        {
+          "columns": [
+            "id"
+          ],
+          "table_name": "ocr_recognition_log",
+          "constraint_name": "ocr_recognition_log_pkey"
         },
         {
           "columns": [
@@ -3429,6 +3887,13 @@
           ],
           "table_name": "payment_requests",
           "constraint_name": "payment_requests_pkey"
+        },
+        {
+          "columns": [
+            "id"
+          ],
+          "table_name": "recognized_materials",
+          "constraint_name": "recognized_materials_pkey"
         },
         {
           "columns": [
@@ -3490,8 +3955,8 @@
       "check_constraints": [
         {
           "table_name": "approval_decision_files",
-          "check_clause": "file_name IS NOT NULL",
-          "constraint_name": "2200_22856_3_not_null"
+          "check_clause": "created_at IS NOT NULL",
+          "constraint_name": "2200_22856_8_not_null"
         },
         {
           "table_name": "approval_decision_files",
@@ -3500,18 +3965,18 @@
         },
         {
           "table_name": "approval_decision_files",
-          "check_clause": "approval_decision_id IS NOT NULL",
-          "constraint_name": "2200_22856_2_not_null"
-        },
-        {
-          "table_name": "approval_decision_files",
           "check_clause": "created_by IS NOT NULL",
           "constraint_name": "2200_22856_7_not_null"
         },
         {
           "table_name": "approval_decision_files",
-          "check_clause": "created_at IS NOT NULL",
-          "constraint_name": "2200_22856_8_not_null"
+          "check_clause": "approval_decision_id IS NOT NULL",
+          "constraint_name": "2200_22856_2_not_null"
+        },
+        {
+          "table_name": "approval_decision_files",
+          "check_clause": "file_name IS NOT NULL",
+          "constraint_name": "2200_22856_3_not_null"
         },
         {
           "table_name": "approval_decision_files",
@@ -3520,28 +3985,8 @@
         },
         {
           "table_name": "approval_decisions",
-          "check_clause": "is_omts_rp IS NOT NULL",
-          "constraint_name": "2200_20353_10_not_null"
-        },
-        {
-          "table_name": "approval_decisions",
-          "check_clause": "id IS NOT NULL",
-          "constraint_name": "2200_20353_1_not_null"
-        },
-        {
-          "table_name": "approval_decisions",
-          "check_clause": "(status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text]))",
-          "constraint_name": "approval_decisions_status_check"
-        },
-        {
-          "table_name": "approval_decisions",
-          "check_clause": "payment_request_id IS NOT NULL",
-          "constraint_name": "2200_20353_2_not_null"
-        },
-        {
-          "table_name": "approval_decisions",
-          "check_clause": "stage_order IS NOT NULL",
-          "constraint_name": "2200_20353_3_not_null"
+          "check_clause": "status IS NOT NULL",
+          "constraint_name": "2200_20353_5_not_null"
         },
         {
           "table_name": "approval_decisions",
@@ -3550,18 +3995,38 @@
         },
         {
           "table_name": "approval_decisions",
-          "check_clause": "status IS NOT NULL",
-          "constraint_name": "2200_20353_5_not_null"
+          "check_clause": "stage_order IS NOT NULL",
+          "constraint_name": "2200_20353_3_not_null"
         },
         {
           "table_name": "approval_decisions",
-          "check_clause": "comment IS NOT NULL",
-          "constraint_name": "2200_20353_7_not_null"
+          "check_clause": "id IS NOT NULL",
+          "constraint_name": "2200_20353_1_not_null"
+        },
+        {
+          "table_name": "approval_decisions",
+          "check_clause": "payment_request_id IS NOT NULL",
+          "constraint_name": "2200_20353_2_not_null"
+        },
+        {
+          "table_name": "approval_decisions",
+          "check_clause": "(status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text]))",
+          "constraint_name": "approval_decisions_status_check"
+        },
+        {
+          "table_name": "approval_decisions",
+          "check_clause": "is_omts_rp IS NOT NULL",
+          "constraint_name": "2200_20353_10_not_null"
         },
         {
           "table_name": "approval_decisions",
           "check_clause": "created_at IS NOT NULL",
           "constraint_name": "2200_20353_9_not_null"
+        },
+        {
+          "table_name": "approval_decisions",
+          "check_clause": "comment IS NOT NULL",
+          "constraint_name": "2200_20353_7_not_null"
         },
         {
           "table_name": "comment_read_status",
@@ -3585,8 +4050,8 @@
         },
         {
           "table_name": "construction_sites",
-          "check_clause": "created_at IS NOT NULL",
-          "constraint_name": "2200_17496_6_not_null"
+          "check_clause": "is_active IS NOT NULL",
+          "constraint_name": "2200_17496_5_not_null"
         },
         {
           "table_name": "construction_sites",
@@ -3600,18 +4065,28 @@
         },
         {
           "table_name": "construction_sites",
-          "check_clause": "is_active IS NOT NULL",
-          "constraint_name": "2200_17496_5_not_null"
-        },
-        {
-          "table_name": "counterparties",
           "check_clause": "created_at IS NOT NULL",
-          "constraint_name": "2200_17465_9_not_null"
+          "constraint_name": "2200_17496_6_not_null"
         },
         {
-          "table_name": "counterparties",
-          "check_clause": "inn IS NOT NULL",
-          "constraint_name": "2200_17465_3_not_null"
+          "table_name": "cost_types",
+          "check_clause": "name IS NOT NULL",
+          "constraint_name": "2200_55404_2_not_null"
+        },
+        {
+          "table_name": "cost_types",
+          "check_clause": "id IS NOT NULL",
+          "constraint_name": "2200_55404_1_not_null"
+        },
+        {
+          "table_name": "cost_types",
+          "check_clause": "is_active IS NOT NULL",
+          "constraint_name": "2200_55404_3_not_null"
+        },
+        {
+          "table_name": "cost_types",
+          "check_clause": "created_at IS NOT NULL",
+          "constraint_name": "2200_55404_4_not_null"
         },
         {
           "table_name": "counterparties",
@@ -3630,13 +4105,18 @@
         },
         {
           "table_name": "counterparties",
+          "check_clause": "created_at IS NOT NULL",
+          "constraint_name": "2200_17465_9_not_null"
+        },
+        {
+          "table_name": "counterparties",
           "check_clause": "address IS NOT NULL",
           "constraint_name": "2200_17465_5_not_null"
         },
         {
-          "table_name": "distribution_letters",
-          "check_clause": "status IS NOT NULL",
-          "constraint_name": "2200_17604_8_not_null"
+          "table_name": "counterparties",
+          "check_clause": "inn IS NOT NULL",
+          "constraint_name": "2200_17465_3_not_null"
         },
         {
           "table_name": "distribution_letters",
@@ -3645,28 +4125,8 @@
         },
         {
           "table_name": "distribution_letters",
-          "check_clause": "invoice_id IS NOT NULL",
-          "constraint_name": "2200_17604_2_not_null"
-        },
-        {
-          "table_name": "distribution_letters",
-          "check_clause": "counterparty_id IS NOT NULL",
-          "constraint_name": "2200_17604_3_not_null"
-        },
-        {
-          "table_name": "distribution_letters",
-          "check_clause": "site_id IS NOT NULL",
-          "constraint_name": "2200_17604_4_not_null"
-        },
-        {
-          "table_name": "distribution_letters",
-          "check_clause": "number IS NOT NULL",
-          "constraint_name": "2200_17604_5_not_null"
-        },
-        {
-          "table_name": "distribution_letters",
-          "check_clause": "total_amount IS NOT NULL",
-          "constraint_name": "2200_17604_7_not_null"
+          "check_clause": "(status = ANY (ARRAY['draft'::text, 'pending'::text, 'approved'::text, 'rejected'::text, 'ordered'::text]))",
+          "constraint_name": "distribution_letters_status_check"
         },
         {
           "table_name": "distribution_letters",
@@ -3675,13 +4135,38 @@
         },
         {
           "table_name": "distribution_letters",
-          "check_clause": "(status = ANY (ARRAY['draft'::text, 'pending'::text, 'approved'::text, 'rejected'::text, 'ordered'::text]))",
-          "constraint_name": "distribution_letters_status_check"
+          "check_clause": "status IS NOT NULL",
+          "constraint_name": "2200_17604_8_not_null"
+        },
+        {
+          "table_name": "distribution_letters",
+          "check_clause": "total_amount IS NOT NULL",
+          "constraint_name": "2200_17604_7_not_null"
+        },
+        {
+          "table_name": "distribution_letters",
+          "check_clause": "number IS NOT NULL",
+          "constraint_name": "2200_17604_5_not_null"
+        },
+        {
+          "table_name": "distribution_letters",
+          "check_clause": "site_id IS NOT NULL",
+          "constraint_name": "2200_17604_4_not_null"
+        },
+        {
+          "table_name": "distribution_letters",
+          "check_clause": "counterparty_id IS NOT NULL",
+          "constraint_name": "2200_17604_3_not_null"
+        },
+        {
+          "table_name": "distribution_letters",
+          "check_clause": "invoice_id IS NOT NULL",
+          "constraint_name": "2200_17604_2_not_null"
         },
         {
           "table_name": "document_types",
-          "check_clause": "id IS NOT NULL",
-          "constraint_name": "2200_17508_1_not_null"
+          "check_clause": "name IS NOT NULL",
+          "constraint_name": "2200_17508_2_not_null"
         },
         {
           "table_name": "document_types",
@@ -3690,13 +4175,8 @@
         },
         {
           "table_name": "document_types",
-          "check_clause": "name IS NOT NULL",
-          "constraint_name": "2200_17508_2_not_null"
-        },
-        {
-          "table_name": "documents",
-          "check_clause": "counterparty_id IS NOT NULL",
-          "constraint_name": "2200_17578_2_not_null"
+          "check_clause": "id IS NOT NULL",
+          "constraint_name": "2200_17508_1_not_null"
         },
         {
           "table_name": "documents",
@@ -3705,18 +4185,13 @@
         },
         {
           "table_name": "documents",
-          "check_clause": "site_id IS NOT NULL",
-          "constraint_name": "2200_17578_4_not_null"
-        },
-        {
-          "table_name": "documents",
           "check_clause": "file_name IS NOT NULL",
           "constraint_name": "2200_17578_5_not_null"
         },
         {
           "table_name": "documents",
-          "check_clause": "uploaded_at IS NOT NULL",
-          "constraint_name": "2200_17578_7_not_null"
+          "check_clause": "site_id IS NOT NULL",
+          "constraint_name": "2200_17578_4_not_null"
         },
         {
           "table_name": "documents",
@@ -3730,28 +4205,23 @@
         },
         {
           "table_name": "documents",
+          "check_clause": "uploaded_at IS NOT NULL",
+          "constraint_name": "2200_17578_7_not_null"
+        },
+        {
+          "table_name": "documents",
           "check_clause": "id IS NOT NULL",
           "constraint_name": "2200_17578_1_not_null"
         },
         {
-          "table_name": "employees",
-          "check_clause": "full_name IS NOT NULL",
-          "constraint_name": "2200_17480_2_not_null"
-        },
-        {
-          "table_name": "employees",
-          "check_clause": "id IS NOT NULL",
-          "constraint_name": "2200_17480_1_not_null"
+          "table_name": "documents",
+          "check_clause": "counterparty_id IS NOT NULL",
+          "constraint_name": "2200_17578_2_not_null"
         },
         {
           "table_name": "employees",
           "check_clause": "(role = ANY (ARRAY['admin'::text, 'user'::text]))",
           "constraint_name": "employees_role_check"
-        },
-        {
-          "table_name": "employees",
-          "check_clause": "created_at IS NOT NULL",
-          "constraint_name": "2200_17480_9_not_null"
         },
         {
           "table_name": "employees",
@@ -3784,14 +4254,24 @@
           "constraint_name": "2200_17480_3_not_null"
         },
         {
-          "table_name": "error_logs",
+          "table_name": "employees",
+          "check_clause": "full_name IS NOT NULL",
+          "constraint_name": "2200_17480_2_not_null"
+        },
+        {
+          "table_name": "employees",
           "check_clause": "id IS NOT NULL",
-          "constraint_name": "2200_27355_1_not_null"
+          "constraint_name": "2200_17480_1_not_null"
+        },
+        {
+          "table_name": "employees",
+          "check_clause": "created_at IS NOT NULL",
+          "constraint_name": "2200_17480_9_not_null"
         },
         {
           "table_name": "error_logs",
-          "check_clause": "created_at IS NOT NULL",
-          "constraint_name": "2200_27355_2_not_null"
+          "check_clause": "error_message IS NOT NULL",
+          "constraint_name": "2200_27355_4_not_null"
         },
         {
           "table_name": "error_logs",
@@ -3800,28 +4280,13 @@
         },
         {
           "table_name": "error_logs",
-          "check_clause": "error_message IS NOT NULL",
-          "constraint_name": "2200_27355_4_not_null"
+          "check_clause": "created_at IS NOT NULL",
+          "constraint_name": "2200_27355_2_not_null"
         },
         {
-          "table_name": "invoices",
-          "check_clause": "status IS NOT NULL",
-          "constraint_name": "2200_17538_6_not_null"
-        },
-        {
-          "table_name": "invoices",
-          "check_clause": "counterparty_id IS NOT NULL",
-          "constraint_name": "2200_17538_2_not_null"
-        },
-        {
-          "table_name": "invoices",
+          "table_name": "error_logs",
           "check_clause": "id IS NOT NULL",
-          "constraint_name": "2200_17538_1_not_null"
-        },
-        {
-          "table_name": "invoices",
-          "check_clause": "(status = ANY (ARRAY['new'::text, 'recognized'::text, 'processed'::text, 'error'::text]))",
-          "constraint_name": "invoices_status_check"
+          "constraint_name": "2200_27355_1_not_null"
         },
         {
           "table_name": "invoices",
@@ -3830,8 +4295,28 @@
         },
         {
           "table_name": "invoices",
+          "check_clause": "(status = ANY (ARRAY['new'::text, 'recognized'::text, 'processed'::text, 'error'::text]))",
+          "constraint_name": "invoices_status_check"
+        },
+        {
+          "table_name": "invoices",
+          "check_clause": "id IS NOT NULL",
+          "constraint_name": "2200_17538_1_not_null"
+        },
+        {
+          "table_name": "invoices",
+          "check_clause": "counterparty_id IS NOT NULL",
+          "constraint_name": "2200_17538_2_not_null"
+        },
+        {
+          "table_name": "invoices",
           "check_clause": "number IS NOT NULL",
           "constraint_name": "2200_17538_3_not_null"
+        },
+        {
+          "table_name": "invoices",
+          "check_clause": "status IS NOT NULL",
+          "constraint_name": "2200_17538_6_not_null"
         },
         {
           "table_name": "invoices",
@@ -3854,19 +4339,19 @@
           "constraint_name": "2200_17538_11_not_null"
         },
         {
-          "table_name": "notifications",
+          "table_name": "materials_dictionary",
           "check_clause": "id IS NOT NULL",
-          "constraint_name": "2200_20429_1_not_null"
+          "constraint_name": "2200_55414_1_not_null"
         },
         {
-          "table_name": "notifications",
+          "table_name": "materials_dictionary",
+          "check_clause": "name IS NOT NULL",
+          "constraint_name": "2200_55414_2_not_null"
+        },
+        {
+          "table_name": "materials_dictionary",
           "check_clause": "created_at IS NOT NULL",
-          "constraint_name": "2200_20429_12_not_null"
-        },
-        {
-          "table_name": "notifications",
-          "check_clause": "resolved IS NOT NULL",
-          "constraint_name": "2200_20429_10_not_null"
+          "constraint_name": "2200_55414_4_not_null"
         },
         {
           "table_name": "notifications",
@@ -3880,8 +4365,18 @@
         },
         {
           "table_name": "notifications",
+          "check_clause": "id IS NOT NULL",
+          "constraint_name": "2200_20429_1_not_null"
+        },
+        {
+          "table_name": "notifications",
           "check_clause": "type IS NOT NULL",
           "constraint_name": "2200_20429_2_not_null"
+        },
+        {
+          "table_name": "notifications",
+          "check_clause": "title IS NOT NULL",
+          "constraint_name": "2200_20429_3_not_null"
         },
         {
           "table_name": "notifications",
@@ -3890,8 +4385,13 @@
         },
         {
           "table_name": "notifications",
-          "check_clause": "title IS NOT NULL",
-          "constraint_name": "2200_20429_3_not_null"
+          "check_clause": "created_at IS NOT NULL",
+          "constraint_name": "2200_20429_12_not_null"
+        },
+        {
+          "table_name": "notifications",
+          "check_clause": "resolved IS NOT NULL",
+          "constraint_name": "2200_20429_10_not_null"
         },
         {
           "table_name": "ocr_models",
@@ -3905,13 +4405,13 @@
         },
         {
           "table_name": "ocr_models",
-          "check_clause": "created_at IS NOT NULL",
-          "constraint_name": "2200_17693_5_not_null"
+          "check_clause": "id IS NOT NULL",
+          "constraint_name": "2200_17693_1_not_null"
         },
         {
           "table_name": "ocr_models",
-          "check_clause": "id IS NOT NULL",
-          "constraint_name": "2200_17693_1_not_null"
+          "check_clause": "created_at IS NOT NULL",
+          "constraint_name": "2200_17693_5_not_null"
         },
         {
           "table_name": "ocr_models",
@@ -3919,9 +4419,34 @@
           "constraint_name": "2200_17693_3_not_null"
         },
         {
-          "table_name": "payment_payment_files",
-          "check_clause": "created_by IS NOT NULL",
-          "constraint_name": "2200_42961_7_not_null"
+          "table_name": "ocr_recognition_log",
+          "check_clause": "started_at IS NOT NULL",
+          "constraint_name": "2200_55424_11_not_null"
+        },
+        {
+          "table_name": "ocr_recognition_log",
+          "check_clause": "attempt_number IS NOT NULL",
+          "constraint_name": "2200_55424_7_not_null"
+        },
+        {
+          "table_name": "ocr_recognition_log",
+          "check_clause": "status IS NOT NULL",
+          "constraint_name": "2200_55424_5_not_null"
+        },
+        {
+          "table_name": "ocr_recognition_log",
+          "check_clause": "model_id IS NOT NULL",
+          "constraint_name": "2200_55424_4_not_null"
+        },
+        {
+          "table_name": "ocr_recognition_log",
+          "check_clause": "payment_request_id IS NOT NULL",
+          "constraint_name": "2200_55424_2_not_null"
+        },
+        {
+          "table_name": "ocr_recognition_log",
+          "check_clause": "id IS NOT NULL",
+          "constraint_name": "2200_55424_1_not_null"
         },
         {
           "table_name": "payment_payment_files",
@@ -3930,13 +4455,13 @@
         },
         {
           "table_name": "payment_payment_files",
-          "check_clause": "payment_payment_id IS NOT NULL",
-          "constraint_name": "2200_42961_2_not_null"
+          "check_clause": "created_at IS NOT NULL",
+          "constraint_name": "2200_42961_8_not_null"
         },
         {
           "table_name": "payment_payment_files",
-          "check_clause": "file_name IS NOT NULL",
-          "constraint_name": "2200_42961_3_not_null"
+          "check_clause": "created_by IS NOT NULL",
+          "constraint_name": "2200_42961_7_not_null"
         },
         {
           "table_name": "payment_payment_files",
@@ -3945,23 +4470,13 @@
         },
         {
           "table_name": "payment_payment_files",
-          "check_clause": "created_at IS NOT NULL",
-          "constraint_name": "2200_42961_8_not_null"
+          "check_clause": "file_name IS NOT NULL",
+          "constraint_name": "2200_42961_3_not_null"
         },
         {
-          "table_name": "payment_payments",
-          "check_clause": "is_executed IS NOT NULL",
-          "constraint_name": "2200_42938_10_not_null"
-        },
-        {
-          "table_name": "payment_payments",
-          "check_clause": "id IS NOT NULL",
-          "constraint_name": "2200_42938_1_not_null"
-        },
-        {
-          "table_name": "payment_payments",
-          "check_clause": "payment_request_id IS NOT NULL",
-          "constraint_name": "2200_42938_2_not_null"
+          "table_name": "payment_payment_files",
+          "check_clause": "payment_payment_id IS NOT NULL",
+          "constraint_name": "2200_42961_2_not_null"
         },
         {
           "table_name": "payment_payments",
@@ -3970,13 +4485,18 @@
         },
         {
           "table_name": "payment_payments",
-          "check_clause": "payment_date IS NOT NULL",
-          "constraint_name": "2200_42938_4_not_null"
+          "check_clause": "id IS NOT NULL",
+          "constraint_name": "2200_42938_1_not_null"
         },
         {
           "table_name": "payment_payments",
-          "check_clause": "amount IS NOT NULL",
-          "constraint_name": "2200_42938_5_not_null"
+          "check_clause": "is_executed IS NOT NULL",
+          "constraint_name": "2200_42938_10_not_null"
+        },
+        {
+          "table_name": "payment_payments",
+          "check_clause": "created_at IS NOT NULL",
+          "constraint_name": "2200_42938_8_not_null"
         },
         {
           "table_name": "payment_payments",
@@ -3985,13 +4505,38 @@
         },
         {
           "table_name": "payment_payments",
-          "check_clause": "created_at IS NOT NULL",
-          "constraint_name": "2200_42938_8_not_null"
+          "check_clause": "amount IS NOT NULL",
+          "constraint_name": "2200_42938_5_not_null"
+        },
+        {
+          "table_name": "payment_payments",
+          "check_clause": "payment_date IS NOT NULL",
+          "constraint_name": "2200_42938_4_not_null"
+        },
+        {
+          "table_name": "payment_payments",
+          "check_clause": "payment_request_id IS NOT NULL",
+          "constraint_name": "2200_42938_2_not_null"
+        },
+        {
+          "table_name": "payment_request_assignments",
+          "check_clause": "assigned_user_id IS NOT NULL",
+          "constraint_name": "2200_22815_3_not_null"
         },
         {
           "table_name": "payment_request_assignments",
           "check_clause": "assigned_at IS NOT NULL",
           "constraint_name": "2200_22815_5_not_null"
+        },
+        {
+          "table_name": "payment_request_assignments",
+          "check_clause": "is_current IS NOT NULL",
+          "constraint_name": "2200_22815_6_not_null"
+        },
+        {
+          "table_name": "payment_request_assignments",
+          "check_clause": "created_at IS NOT NULL",
+          "constraint_name": "2200_22815_7_not_null"
         },
         {
           "table_name": "payment_request_assignments",
@@ -4005,28 +4550,13 @@
         },
         {
           "table_name": "payment_request_assignments",
-          "check_clause": "assigned_user_id IS NOT NULL",
-          "constraint_name": "2200_22815_3_not_null"
-        },
-        {
-          "table_name": "payment_request_assignments",
           "check_clause": "assigned_by_user_id IS NOT NULL",
           "constraint_name": "2200_22815_4_not_null"
         },
         {
-          "table_name": "payment_request_assignments",
-          "check_clause": "created_at IS NOT NULL",
-          "constraint_name": "2200_22815_7_not_null"
-        },
-        {
-          "table_name": "payment_request_assignments",
-          "check_clause": "is_current IS NOT NULL",
-          "constraint_name": "2200_22815_6_not_null"
-        },
-        {
           "table_name": "payment_request_comments",
-          "check_clause": "author_id IS NOT NULL",
-          "constraint_name": "2200_43002_3_not_null"
+          "check_clause": "created_at IS NOT NULL",
+          "constraint_name": "2200_43002_5_not_null"
         },
         {
           "table_name": "payment_request_comments",
@@ -4040,33 +4570,13 @@
         },
         {
           "table_name": "payment_request_comments",
-          "check_clause": "created_at IS NOT NULL",
-          "constraint_name": "2200_43002_5_not_null"
+          "check_clause": "author_id IS NOT NULL",
+          "constraint_name": "2200_43002_3_not_null"
         },
         {
           "table_name": "payment_request_comments",
           "check_clause": "text IS NOT NULL",
           "constraint_name": "2200_43002_4_not_null"
-        },
-        {
-          "table_name": "payment_request_field_options",
-          "check_clause": "display_order IS NOT NULL",
-          "constraint_name": "2200_18952_5_not_null"
-        },
-        {
-          "table_name": "payment_request_field_options",
-          "check_clause": "created_at IS NOT NULL",
-          "constraint_name": "2200_18952_6_not_null"
-        },
-        {
-          "table_name": "payment_request_field_options",
-          "check_clause": "value IS NOT NULL",
-          "constraint_name": "2200_18952_3_not_null"
-        },
-        {
-          "table_name": "payment_request_field_options",
-          "check_clause": "field_code IS NOT NULL",
-          "constraint_name": "2200_18952_2_not_null"
         },
         {
           "table_name": "payment_request_field_options",
@@ -4077,6 +4587,26 @@
           "table_name": "payment_request_field_options",
           "check_clause": "is_active IS NOT NULL",
           "constraint_name": "2200_18952_4_not_null"
+        },
+        {
+          "table_name": "payment_request_field_options",
+          "check_clause": "display_order IS NOT NULL",
+          "constraint_name": "2200_18952_5_not_null"
+        },
+        {
+          "table_name": "payment_request_field_options",
+          "check_clause": "field_code IS NOT NULL",
+          "constraint_name": "2200_18952_2_not_null"
+        },
+        {
+          "table_name": "payment_request_field_options",
+          "check_clause": "created_at IS NOT NULL",
+          "constraint_name": "2200_18952_6_not_null"
+        },
+        {
+          "table_name": "payment_request_field_options",
+          "check_clause": "value IS NOT NULL",
+          "constraint_name": "2200_18952_3_not_null"
         },
         {
           "table_name": "payment_request_files",
@@ -4090,13 +4620,8 @@
         },
         {
           "table_name": "payment_request_files",
-          "check_clause": "payment_request_id IS NOT NULL",
-          "constraint_name": "2200_19001_2_not_null"
-        },
-        {
-          "table_name": "payment_request_files",
-          "check_clause": "document_type_id IS NOT NULL",
-          "constraint_name": "2200_19001_3_not_null"
+          "check_clause": "is_rejected IS NOT NULL",
+          "constraint_name": "2200_19001_13_not_null"
         },
         {
           "table_name": "payment_request_files",
@@ -4120,18 +4645,13 @@
         },
         {
           "table_name": "payment_request_files",
-          "check_clause": "is_rejected IS NOT NULL",
-          "constraint_name": "2200_19001_13_not_null"
+          "check_clause": "document_type_id IS NOT NULL",
+          "constraint_name": "2200_19001_3_not_null"
         },
         {
-          "table_name": "payment_request_logs",
-          "check_clause": "action IS NOT NULL",
-          "constraint_name": "2200_20486_4_not_null"
-        },
-        {
-          "table_name": "payment_request_logs",
-          "check_clause": "id IS NOT NULL",
-          "constraint_name": "2200_20486_1_not_null"
+          "table_name": "payment_request_files",
+          "check_clause": "payment_request_id IS NOT NULL",
+          "constraint_name": "2200_19001_2_not_null"
         },
         {
           "table_name": "payment_request_logs",
@@ -4140,43 +4660,18 @@
         },
         {
           "table_name": "payment_request_logs",
+          "check_clause": "id IS NOT NULL",
+          "constraint_name": "2200_20486_1_not_null"
+        },
+        {
+          "table_name": "payment_request_logs",
+          "check_clause": "action IS NOT NULL",
+          "constraint_name": "2200_20486_4_not_null"
+        },
+        {
+          "table_name": "payment_request_logs",
           "check_clause": "user_id IS NOT NULL",
           "constraint_name": "2200_20486_3_not_null"
-        },
-        {
-          "table_name": "payment_requests",
-          "check_clause": "id IS NOT NULL",
-          "constraint_name": "2200_18962_1_not_null"
-        },
-        {
-          "table_name": "payment_requests",
-          "check_clause": "shipping_condition_id IS NOT NULL",
-          "constraint_name": "2200_18962_8_not_null"
-        },
-        {
-          "table_name": "payment_requests",
-          "check_clause": "delivery_days IS NOT NULL",
-          "constraint_name": "2200_18962_7_not_null"
-        },
-        {
-          "table_name": "payment_requests",
-          "check_clause": "status_id IS NOT NULL",
-          "constraint_name": "2200_18962_4_not_null"
-        },
-        {
-          "table_name": "payment_requests",
-          "check_clause": "request_number IS NOT NULL",
-          "constraint_name": "2200_18962_2_not_null"
-        },
-        {
-          "table_name": "payment_requests",
-          "check_clause": "uploaded_files IS NOT NULL",
-          "constraint_name": "2200_18962_15_not_null"
-        },
-        {
-          "table_name": "payment_requests",
-          "check_clause": "total_files IS NOT NULL",
-          "constraint_name": "2200_18962_14_not_null"
         },
         {
           "table_name": "payment_requests",
@@ -4185,23 +4680,13 @@
         },
         {
           "table_name": "payment_requests",
-          "check_clause": "created_at IS NOT NULL",
-          "constraint_name": "2200_18962_11_not_null"
+          "check_clause": "uploaded_files IS NOT NULL",
+          "constraint_name": "2200_18962_15_not_null"
         },
         {
           "table_name": "payment_requests",
-          "check_clause": "created_by IS NOT NULL",
-          "constraint_name": "2200_18962_10_not_null"
-        },
-        {
-          "table_name": "payment_requests",
-          "check_clause": "counterparty_id IS NOT NULL",
-          "constraint_name": "2200_18962_3_not_null"
-        },
-        {
-          "table_name": "payment_requests",
-          "check_clause": "total_paid IS NOT NULL",
-          "constraint_name": "2200_18962_29_not_null"
+          "check_clause": "delivery_days_type IS NOT NULL",
+          "constraint_name": "2200_18962_20_not_null"
         },
         {
           "table_name": "payment_requests",
@@ -4210,8 +4695,78 @@
         },
         {
           "table_name": "payment_requests",
-          "check_clause": "delivery_days_type IS NOT NULL",
-          "constraint_name": "2200_18962_20_not_null"
+          "check_clause": "total_paid IS NOT NULL",
+          "constraint_name": "2200_18962_29_not_null"
+        },
+        {
+          "table_name": "payment_requests",
+          "check_clause": "id IS NOT NULL",
+          "constraint_name": "2200_18962_1_not_null"
+        },
+        {
+          "table_name": "payment_requests",
+          "check_clause": "request_number IS NOT NULL",
+          "constraint_name": "2200_18962_2_not_null"
+        },
+        {
+          "table_name": "payment_requests",
+          "check_clause": "counterparty_id IS NOT NULL",
+          "constraint_name": "2200_18962_3_not_null"
+        },
+        {
+          "table_name": "payment_requests",
+          "check_clause": "status_id IS NOT NULL",
+          "constraint_name": "2200_18962_4_not_null"
+        },
+        {
+          "table_name": "payment_requests",
+          "check_clause": "delivery_days IS NOT NULL",
+          "constraint_name": "2200_18962_7_not_null"
+        },
+        {
+          "table_name": "payment_requests",
+          "check_clause": "shipping_condition_id IS NOT NULL",
+          "constraint_name": "2200_18962_8_not_null"
+        },
+        {
+          "table_name": "payment_requests",
+          "check_clause": "created_by IS NOT NULL",
+          "constraint_name": "2200_18962_10_not_null"
+        },
+        {
+          "table_name": "payment_requests",
+          "check_clause": "created_at IS NOT NULL",
+          "constraint_name": "2200_18962_11_not_null"
+        },
+        {
+          "table_name": "payment_requests",
+          "check_clause": "total_files IS NOT NULL",
+          "constraint_name": "2200_18962_14_not_null"
+        },
+        {
+          "table_name": "recognized_materials",
+          "check_clause": "material_id IS NOT NULL",
+          "constraint_name": "2200_55447_4_not_null"
+        },
+        {
+          "table_name": "recognized_materials",
+          "check_clause": "id IS NOT NULL",
+          "constraint_name": "2200_55447_1_not_null"
+        },
+        {
+          "table_name": "recognized_materials",
+          "check_clause": "payment_request_id IS NOT NULL",
+          "constraint_name": "2200_55447_2_not_null"
+        },
+        {
+          "table_name": "recognized_materials",
+          "check_clause": "position IS NOT NULL",
+          "constraint_name": "2200_55447_6_not_null"
+        },
+        {
+          "table_name": "recognized_materials",
+          "check_clause": "created_at IS NOT NULL",
+          "constraint_name": "2200_55447_12_not_null"
         },
         {
           "table_name": "request_number_sequence",
@@ -4225,11 +4780,6 @@
         },
         {
           "table_name": "settings",
-          "check_clause": "value IS NOT NULL",
-          "constraint_name": "2200_43041_2_not_null"
-        },
-        {
-          "table_name": "settings",
           "check_clause": "updated_at IS NOT NULL",
           "constraint_name": "2200_43041_3_not_null"
         },
@@ -4239,9 +4789,9 @@
           "constraint_name": "2200_43041_1_not_null"
         },
         {
-          "table_name": "site_required_documents_mapping",
-          "check_clause": "id IS NOT NULL",
-          "constraint_name": "2200_17519_1_not_null"
+          "table_name": "settings",
+          "check_clause": "value IS NOT NULL",
+          "constraint_name": "2200_43041_2_not_null"
         },
         {
           "table_name": "site_required_documents_mapping",
@@ -4250,8 +4800,8 @@
         },
         {
           "table_name": "site_required_documents_mapping",
-          "check_clause": "document_type_id IS NOT NULL",
-          "constraint_name": "2200_17519_3_not_null"
+          "check_clause": "id IS NOT NULL",
+          "constraint_name": "2200_17519_1_not_null"
         },
         {
           "table_name": "site_required_documents_mapping",
@@ -4259,29 +4809,14 @@
           "constraint_name": "2200_17519_2_not_null"
         },
         {
+          "table_name": "site_required_documents_mapping",
+          "check_clause": "document_type_id IS NOT NULL",
+          "constraint_name": "2200_17519_3_not_null"
+        },
+        {
           "table_name": "specifications",
           "check_clause": "unit IS NOT NULL",
           "constraint_name": "2200_17558_5_not_null"
-        },
-        {
-          "table_name": "specifications",
-          "check_clause": "name IS NOT NULL",
-          "constraint_name": "2200_17558_4_not_null"
-        },
-        {
-          "table_name": "specifications",
-          "check_clause": "position IS NOT NULL",
-          "constraint_name": "2200_17558_3_not_null"
-        },
-        {
-          "table_name": "specifications",
-          "check_clause": "invoice_id IS NOT NULL",
-          "constraint_name": "2200_17558_2_not_null"
-        },
-        {
-          "table_name": "specifications",
-          "check_clause": "id IS NOT NULL",
-          "constraint_name": "2200_17558_1_not_null"
         },
         {
           "table_name": "specifications",
@@ -4304,14 +4839,24 @@
           "constraint_name": "2200_17558_6_not_null"
         },
         {
-          "table_name": "statuses",
-          "check_clause": "is_active IS NOT NULL",
-          "constraint_name": "2200_18940_6_not_null"
+          "table_name": "specifications",
+          "check_clause": "name IS NOT NULL",
+          "constraint_name": "2200_17558_4_not_null"
         },
         {
-          "table_name": "statuses",
-          "check_clause": "entity_type IS NOT NULL",
-          "constraint_name": "2200_18940_2_not_null"
+          "table_name": "specifications",
+          "check_clause": "position IS NOT NULL",
+          "constraint_name": "2200_17558_3_not_null"
+        },
+        {
+          "table_name": "specifications",
+          "check_clause": "invoice_id IS NOT NULL",
+          "constraint_name": "2200_17558_2_not_null"
+        },
+        {
+          "table_name": "specifications",
+          "check_clause": "id IS NOT NULL",
+          "constraint_name": "2200_17558_1_not_null"
         },
         {
           "table_name": "statuses",
@@ -4320,18 +4865,18 @@
         },
         {
           "table_name": "statuses",
-          "check_clause": "name IS NOT NULL",
-          "constraint_name": "2200_18940_4_not_null"
+          "check_clause": "entity_type IS NOT NULL",
+          "constraint_name": "2200_18940_2_not_null"
         },
         {
           "table_name": "statuses",
-          "check_clause": "visible_roles IS NOT NULL",
-          "constraint_name": "2200_18940_9_not_null"
+          "check_clause": "code IS NOT NULL",
+          "constraint_name": "2200_18940_3_not_null"
         },
         {
           "table_name": "statuses",
-          "check_clause": "created_at IS NOT NULL",
-          "constraint_name": "2200_18940_8_not_null"
+          "check_clause": "is_active IS NOT NULL",
+          "constraint_name": "2200_18940_6_not_null"
         },
         {
           "table_name": "statuses",
@@ -4340,18 +4885,18 @@
         },
         {
           "table_name": "statuses",
-          "check_clause": "code IS NOT NULL",
-          "constraint_name": "2200_18940_3_not_null"
+          "check_clause": "created_at IS NOT NULL",
+          "constraint_name": "2200_18940_8_not_null"
         },
         {
-          "table_name": "suppliers",
+          "table_name": "statuses",
+          "check_clause": "visible_roles IS NOT NULL",
+          "constraint_name": "2200_18940_9_not_null"
+        },
+        {
+          "table_name": "statuses",
           "check_clause": "name IS NOT NULL",
-          "constraint_name": "2200_42985_2_not_null"
-        },
-        {
-          "table_name": "suppliers",
-          "check_clause": "id IS NOT NULL",
-          "constraint_name": "2200_42985_1_not_null"
+          "constraint_name": "2200_18940_4_not_null"
         },
         {
           "table_name": "suppliers",
@@ -4364,14 +4909,24 @@
           "constraint_name": "2200_42985_5_not_null"
         },
         {
-          "table_name": "user_construction_sites_mapping",
-          "check_clause": "user_id IS NOT NULL",
-          "constraint_name": "2200_20408_2_not_null"
+          "table_name": "suppliers",
+          "check_clause": "id IS NOT NULL",
+          "constraint_name": "2200_42985_1_not_null"
+        },
+        {
+          "table_name": "suppliers",
+          "check_clause": "name IS NOT NULL",
+          "constraint_name": "2200_42985_2_not_null"
         },
         {
           "table_name": "user_construction_sites_mapping",
           "check_clause": "id IS NOT NULL",
           "constraint_name": "2200_20408_1_not_null"
+        },
+        {
+          "table_name": "user_construction_sites_mapping",
+          "check_clause": "user_id IS NOT NULL",
+          "constraint_name": "2200_20408_2_not_null"
         },
         {
           "table_name": "user_construction_sites_mapping",
@@ -4385,18 +4940,13 @@
         },
         {
           "table_name": "users",
-          "check_clause": "email IS NOT NULL",
-          "constraint_name": "2200_17450_2_not_null"
+          "check_clause": "role IS NOT NULL",
+          "constraint_name": "2200_17450_3_not_null"
         },
         {
           "table_name": "users",
           "check_clause": "id IS NOT NULL",
           "constraint_name": "2200_17450_1_not_null"
-        },
-        {
-          "table_name": "users",
-          "check_clause": "all_sites IS NOT NULL",
-          "constraint_name": "2200_17450_7_not_null"
         },
         {
           "table_name": "users",
@@ -4415,13 +4965,18 @@
         },
         {
           "table_name": "users",
+          "check_clause": "all_sites IS NOT NULL",
+          "constraint_name": "2200_17450_7_not_null"
+        },
+        {
+          "table_name": "users",
           "check_clause": "created_at IS NOT NULL",
           "constraint_name": "2200_17450_4_not_null"
         },
         {
           "table_name": "users",
-          "check_clause": "role IS NOT NULL",
-          "constraint_name": "2200_17450_3_not_null"
+          "check_clause": "email IS NOT NULL",
+          "constraint_name": "2200_17450_2_not_null"
         }
       ],
       "unique_constraints": [

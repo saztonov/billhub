@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { supabase } from '@/services/supabase'
 import { logError } from '@/services/errorLogger'
 import { checkAndNotifyMissingSpecialists, notifyStatusChanged } from '@/utils/notificationService'
+import { triggerOcrIfEnabled } from '@/services/ocrService'
 import { useUploadQueueStore } from '@/store/uploadQueueStore'
 import { useOmtsRpStore } from '@/store/omtsRpStore'
 import type { Department, ApprovalDecision, ApprovalDecisionFile, PaymentRequest, PaymentRequestLog, StageHistoryEntry } from '@/types'
@@ -153,6 +154,7 @@ function mapRequest(row: Record<string, unknown>): PaymentRequest {
     dpFileName: (row.dp_file_name as string) ?? null,
     omtsEnteredAt: (row.omts_entered_at as string) ?? null,
     omtsApprovedAt: (row.omts_approved_at as string) ?? null,
+    costTypeId: (row.cost_type_id as string) ?? null,
   }
 }
 
@@ -559,6 +561,9 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
 
           // Уведомляем контрагента о финальном согласовании
           notifyStatusChanged(paymentRequestId, 'Согласована', userId).catch(() => {})
+
+          // Запускаем OCR-распознавание (неблокирующий вызов)
+          triggerOcrIfEnabled(paymentRequestId).catch(() => {})
         }
       }
 

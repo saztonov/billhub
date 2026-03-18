@@ -176,6 +176,7 @@ export interface PaymentRequest {
   dpFileName: string | null // Имя файла РП
   omtsEnteredAt: string | null // Дата попадания на этап ОМТС
   omtsApprovedAt: string | null // Дата согласования обычным ОМТС
+  costTypeId: string | null // Вид затрат
   // Joined
   counterpartyName?: string
   supplierName?: string
@@ -188,6 +189,7 @@ export interface PaymentRequest {
   assignedUserId?: string | null
   assignedUserEmail?: string | null
   assignedUserFullName?: string | null
+  costTypeName?: string | null
 }
 
 /** Лог действий по заявке на оплату */
@@ -368,6 +370,84 @@ export interface OcrModel {
   modelId: string
   isActive: boolean
   createdAt: string
+}
+
+/** Модель OCR из настроек (settings) */
+export interface OcrModelSetting {
+  id: string
+  name: string
+  inputPrice: number
+  outputPrice: number
+}
+
+/** Вид затрат */
+export interface CostType {
+  id: string
+  name: string
+  isActive: boolean
+  createdAt: string
+}
+
+/** Материал из справочника */
+export interface MaterialDictionary {
+  id: string
+  name: string
+  unit: string | null
+  createdAt: string
+}
+
+/** Распознанный материал */
+export interface RecognizedMaterial {
+  id: string
+  paymentRequestId: string
+  fileId: string | null
+  materialId: string
+  pageNumber: number | null
+  position: number
+  article: string | null
+  quantity: number | null
+  price: number | null
+  amount: number | null
+  estimateQuantity: number | null
+  createdAt: string
+  // Joined
+  materialName?: string
+  materialUnit?: string | null
+}
+
+/** Лог OCR-распознавания */
+export interface OcrRecognitionLog {
+  id: string
+  paymentRequestId: string
+  fileId: string | null
+  modelId: string
+  status: 'pending' | 'processing' | 'success' | 'error'
+  errorMessage: string | null
+  attemptNumber: number
+  inputTokens: number | null
+  outputTokens: number | null
+  totalCost: number | null
+  startedAt: string
+  completedAt: string | null
+  // Joined
+  requestNumber?: string
+}
+
+/** Статистика токенов OCR */
+export interface OcrTokenStats {
+  inputTokens: number
+  outputTokens: number
+  totalCost: number
+}
+
+/** Строка, распознанная OCR (из ответа LLM) */
+export interface OcrParsedItem {
+  article?: string
+  name: string
+  unit?: string
+  quantity?: number
+  price?: number
+  amount?: number
 }
 
 // Аутентификация

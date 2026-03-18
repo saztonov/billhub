@@ -85,6 +85,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
           statuses!payment_requests_status_id_fkey(name, color),
           paid_statuses:statuses!payment_requests_paid_status_id_fkey(name, color),
           shipping:payment_request_field_options!payment_requests_shipping_condition_id_fkey(value),
+          cost_types(name),
           current_assignment:payment_request_assignments!left(
             assigned_user_id,
             is_current,
@@ -120,6 +121,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
         const statuses = row.statuses as Record<string, unknown> | null
         const paidStatuses = row.paid_statuses as Record<string, unknown> | null
         const shipping = row.shipping as Record<string, unknown> | null
+        const costType = row.cost_types as Record<string, unknown> | null
 
         // Извлекаем текущее назначение (is_current = true)
         const assignments = (row.current_assignment as Record<string, unknown>[]) ?? []
@@ -166,6 +168,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
           dpFileName: (row.dp_file_name as string) ?? null,
           omtsEnteredAt: (row.omts_entered_at as string) ?? null,
           omtsApprovedAt: (row.omts_approved_at as string) ?? null,
+          costTypeId: (row.cost_type_id as string) ?? null,
           counterpartyName: counterparties?.name as string | undefined,
           supplierName: supplier?.name as string | undefined,
           siteName: site?.name as string | undefined,
@@ -177,6 +180,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
           assignedUserId: (currentAssignment?.assigned_user_id as string) ?? null,
           assignedUserEmail: (assignedUser?.email as string) ?? null,
           assignedUserFullName: (assignedUser?.full_name as string) ?? null,
+          costTypeName: (costType?.name as string) ?? null,
         }
       })
 

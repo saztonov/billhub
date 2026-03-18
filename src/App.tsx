@@ -11,6 +11,8 @@ import DistributionLettersPage from '@/pages/DistributionLettersPage'
 import EmployeesPage from '@/pages/EmployeesPage'
 import ReferencesPage from '@/pages/ReferencesPage'
 import AdminPage from '@/pages/AdminPage'
+import MaterialsPage from '@/pages/MaterialsPage'
+import MaterialsDetailPage from '@/pages/MaterialsDetailPage'
 import ProfilePage from '@/pages/ProfilePage'
 import { useAuthStore } from '@/store/authStore'
 
@@ -57,6 +59,8 @@ const App = () => {
               <Route path="/distribution-letters" element={<DistributionLettersPage />} />
               <Route path="/employees" element={<EmployeesPage />} />
               <Route path="/references" element={<ReferencesPage />} />
+              <Route path="/materials" element={<MaterialsPage />} />
+              <Route path="/materials/:paymentRequestId" element={<MaterialsDetailPage />} />
             </Route>
 
             {/* Только admin */}

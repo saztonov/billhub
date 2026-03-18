@@ -41,6 +41,7 @@ import { useSupplierStore } from '@/store/supplierStore'
 import { useAssignmentStore } from '@/store/assignmentStore'
 import { useOmtsRpStore } from '@/store/omtsRpStore'
 import { useDocumentTypeStore } from '@/store/documentTypeStore'
+import { supabase } from '@/services/supabase'
 import { downloadFileBlob } from '@/services/s3'
 import JSZip from 'jszip'
 import FilePreviewModal from './FilePreviewModal'
@@ -52,6 +53,7 @@ import OmtsAssignmentBlock from './OmtsAssignmentBlock'
 import PaymentsTable from './PaymentsTable'
 import CommentsChat from './CommentsChat'
 import { useCommentStore } from '@/store/commentStore'
+import { useCostTypeStore } from '@/store/costTypeStore'
 import RejectModal from './RejectModal'
 import AddFilesModal from './AddFilesModal'
 import DpFillModal from './DpFillModal'
@@ -129,7 +131,9 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   const { sites, fetchSites } = useConstructionSiteStore()
   const { suppliers, fetchSuppliers } = useSupplierStore()
   const { fetchDocumentTypes } = useDocumentTypeStore()
+  const { costTypes, fetchCostTypes } = useCostTypeStore()
   const markAsRead = useCommentStore((s) => s.markAsRead)
+  const canEditCostType = user?.role === 'admin' || user?.department === 'smetny'
 
   useEffect(() => {
     if (open && request) {
@@ -141,6 +145,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       fetchCurrentAssignment(request.id)
       fetchAssignmentHistory(request.id)
       fetchDocumentTypes()
+      fetchCostTypes()
       if (user?.role === 'admin') fetchOmtsUsers()
       fetchOmtsRpConfig()
       fetchOmtsRpSites()
@@ -771,6 +776,33 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
             ),
           }]}
         />
+
+        {/* Вид затрат */}
+        <div style={{ marginBottom: 12 }}>
+          <Text strong style={{ display: 'block', marginBottom: 4 }}>Вид затрат</Text>
+          {canEditCostType ? (
+            <Select
+              style={{ width: '100%', maxWidth: 400 }}
+              placeholder="Выберите вид затрат"
+              value={request.costTypeId ?? undefined}
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              options={costTypes.filter((ct) => ct.isActive).map((ct) => ({ value: ct.id, label: ct.name }))}
+              onChange={async (val: string | undefined) => {
+                try {
+                  await supabase.from('payment_requests').update({ cost_type_id: val ?? null }).eq('id', request.id)
+                  request.costTypeId = val ?? null
+                  message.success('Вид затрат обновлён')
+                } catch {
+                  message.error('Ошибка обновления вида затрат')
+                }
+              }}
+            />
+          ) : (
+            <Text>{request.costTypeName ?? 'Не указан'}</Text>
+          )}
+        </div>
 
         <Collapse
           defaultActiveKey={['files']}
