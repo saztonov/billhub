@@ -4,6 +4,7 @@ import { downloadFileBlob } from '@/services/s3'
 import { recognizeInvoiceStructured } from '@/services/openrouter'
 import { logError } from '@/services/errorLogger'
 import { ensurePdfWorkerReady } from '@/utils/pdfUtils'
+import { promisePool } from '@/utils/promisePool'
 import type { OcrParsedItem, OcrModelSetting } from '@/types'
 
 // ID типа документа "Счет"
@@ -12,8 +13,8 @@ const INVOICE_DOC_TYPE_ID = 'c3c0b242-8a0c-4e20-b9ad-363ebf462a5b'
 // Допуск при проверке суммы (quantity * price vs amount)
 const AMOUNT_TOLERANCE = 0.01
 
-// Задержка между запросами к API (мс)
-const API_DELAY_MS = 500
+// Максимальное количество параллельных запросов к API
+const OCR_CONCURRENCY = 3
 
 /** Прогресс распознавания */
 export interface OcrProgress {
@@ -168,12 +169,13 @@ export async function processPaymentRequestOcr(
 
   const activeModel = settings.models.find((m) => m.id === settings.activeModelId)
 
-  // Получаем файлы-счета заявки
+  // Получаем файлы-счета заявки (исключаем отклонённые)
   const { data: files, error: filesError } = await supabase
     .from('payment_request_files')
     .select('id, file_key, file_name, mime_type')
     .eq('payment_request_id', paymentRequestId)
     .eq('document_type_id', INVOICE_DOC_TYPE_ID)
+    .eq('is_rejected', false)
   if (filesError) throw filesError
 
   const invoiceFiles = (files ?? []).filter((f: Record<string, unknown>) => {
@@ -190,8 +192,6 @@ export async function processPaymentRequestOcr(
     .eq('payment_request_id', paymentRequestId)
 
   let globalPosition = 0
-  let totalInputTokens = 0
-  let totalOutputTokens = 0
 
   for (let fi = 0; fi < invoiceFiles.length; fi++) {
     const file = invoiceFiles[fi] as Record<string, unknown>
@@ -244,62 +244,78 @@ export async function processPaymentRequestOcr(
 
       let fileInputTokens = 0
       let fileOutputTokens = 0
+      let recognizedPages = 0
 
-      for (const { base64, pageNum } of imagesBase64) {
-        onProgress?.({
-          stage: 'recognizing',
-          fileIndex: fi,
-          totalFiles: invoiceFiles.length,
-          pageIndex: pageNum - 1,
-          totalPages: imagesBase64.length,
-        })
+      // Параллельное распознавание страниц с ограничением concurrency
+      const pageResults = await promisePool(
+        imagesBase64.map(({ base64, pageNum }) => async () => {
+          onProgress?.({
+            stage: 'recognizing',
+            fileIndex: fi,
+            totalFiles: invoiceFiles.length,
+            pageIndex: recognizedPages,
+            totalPages: imagesBase64.length,
+          })
 
-        // Первая попытка
-        let result = await recognizeInvoiceStructured(base64, settings.activeModelId)
-        fileInputTokens += result.inputTokens
-        fileOutputTokens += result.outputTokens
+          // Первая попытка
+          let result = await recognizeInvoiceStructured(base64, settings.activeModelId)
 
-        // Валидация
-        const mismatched = validateAmounts(result.items)
-        if (mismatched.length > 0 && result.items.length > 0) {
-          onProgress?.({ stage: 'validating', fileIndex: fi, totalFiles: invoiceFiles.length })
+          // Валидация
+          const mismatched = validateAmounts(result.items)
+          if (mismatched.length > 0 && result.items.length > 0) {
+            // Повторная попытка с подсказкой
+            const hint = buildRetryHint(mismatched)
+            const retryResult = await recognizeInvoiceStructured(base64, settings.activeModelId, hint)
 
-          // Повторная попытка с подсказкой
-          const hint = buildRetryHint(mismatched)
-          const retryResult = await recognizeInvoiceStructured(base64, settings.activeModelId, hint)
-          fileInputTokens += retryResult.inputTokens
-          fileOutputTokens += retryResult.outputTokens
+            // Используем повторный результат если он лучше
+            const retryMismatched = validateAmounts(retryResult.items)
+            if (retryMismatched.length < mismatched.length) {
+              result = retryResult
+            }
 
-          // Используем повторный результат если он лучше
-          const retryMismatched = validateAmounts(retryResult.items)
-          if (retryMismatched.length < mismatched.length) {
-            result = retryResult
+            // Записываем повторную попытку в лог
+            await supabase.from('ocr_recognition_log').insert({
+              payment_request_id: paymentRequestId,
+              file_id: fileId,
+              model_id: settings.activeModelId,
+              status: 'success',
+              attempt_number: 2,
+              input_tokens: retryResult.inputTokens,
+              output_tokens: retryResult.outputTokens,
+              total_cost: activeModel
+                ? retryResult.inputTokens * activeModel.inputPrice + retryResult.outputTokens * activeModel.outputPrice
+                : null,
+              completed_at: new Date().toISOString(),
+            })
+
+            return { pageNum, result, retryTokens: { input: retryResult.inputTokens, output: retryResult.outputTokens } }
           }
 
-          // Записываем повторную попытку в лог
-          await supabase.from('ocr_recognition_log').insert({
-            payment_request_id: paymentRequestId,
-            file_id: fileId,
-            model_id: settings.activeModelId,
-            status: 'success',
-            attempt_number: 2,
-            input_tokens: retryResult.inputTokens,
-            output_tokens: retryResult.outputTokens,
-            total_cost: activeModel
-              ? retryResult.inputTokens * activeModel.inputPrice + retryResult.outputTokens * activeModel.outputPrice
-              : null,
-            completed_at: new Date().toISOString(),
+          recognizedPages++
+          onProgress?.({
+            stage: 'recognizing',
+            fileIndex: fi,
+            totalFiles: invoiceFiles.length,
+            pageIndex: recognizedPages,
+            totalPages: imagesBase64.length,
           })
+
+          return { pageNum, result, retryTokens: null }
+        }),
+        OCR_CONCURRENCY,
+      )
+
+      onProgress?.({ stage: 'saving', fileIndex: fi, totalFiles: invoiceFiles.length })
+
+      // Сохраняем результаты в порядке страниц
+      for (const { pageNum, result, retryTokens } of pageResults) {
+        fileInputTokens += result.inputTokens
+        fileOutputTokens += result.outputTokens
+        if (retryTokens) {
+          fileInputTokens += retryTokens.input
+          fileOutputTokens += retryTokens.output
         }
 
-        // Задержка между запросами
-        if (imagesBase64.length > 1) {
-          await new Promise((r) => setTimeout(r, API_DELAY_MS))
-        }
-
-        onProgress?.({ stage: 'saving', fileIndex: fi, totalFiles: invoiceFiles.length })
-
-        // Сохраняем распознанные материалы
         for (const item of result.items) {
           if (!item.name) continue
           const materialId = await findOrCreateMaterial(item.name, item.unit ?? null)
@@ -318,9 +334,6 @@ export async function processPaymentRequestOcr(
           })
         }
       }
-
-      totalInputTokens += fileInputTokens
-      totalOutputTokens += fileOutputTokens
 
       // Обновляем лог
       const totalCost = activeModel

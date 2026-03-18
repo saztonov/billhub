@@ -63,6 +63,10 @@ export interface OcrStructuredResult {
   outputTokens: number
 }
 
+// Максимальное количество повторных попыток при 429
+const MAX_RETRIES = 3
+const INITIAL_BACKOFF_MS = 2000
+
 /** Заголовки для запросов к OpenRouter API */
 function getHeaders(): Record<string, string> {
   return {
@@ -71,6 +75,21 @@ function getHeaders(): Record<string, string> {
     'HTTP-Referer': window.location.origin,
     'X-Title': 'BillHub',
   }
+}
+
+/** Выполняет fetch с retry при 429 (rate limit) */
+async function fetchWithRetry(url: string, options: RequestInit): Promise<Response> {
+  let lastError: Error | null = null
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const response = await fetch(url, options)
+    if (response.status !== 429 || attempt === MAX_RETRIES) {
+      return response
+    }
+    lastError = new Error(`Rate limit (429) на попытке ${attempt + 1}`)
+    const delay = INITIAL_BACKOFF_MS * Math.pow(2, attempt)
+    await new Promise((r) => setTimeout(r, delay))
+  }
+  throw lastError
 }
 
 /** Распознаёт счёт по изображению через OpenRouter vision API (текстовый формат) */
@@ -96,7 +115,7 @@ export async function recognizeInvoice(
     ],
   }
 
-  const response = await fetch(CHAT_COMPLETIONS_URL, {
+  const response = await fetchWithRetry(CHAT_COMPLETIONS_URL, {
     method: 'POST',
     headers: getHeaders(),
     body: JSON.stringify(body),
@@ -144,7 +163,7 @@ export async function recognizeInvoiceStructured(
     ],
   }
 
-  const response = await fetch(CHAT_COMPLETIONS_URL, {
+  const response = await fetchWithRetry(CHAT_COMPLETIONS_URL, {
     method: 'POST',
     headers: getHeaders(),
     body: JSON.stringify(body),
