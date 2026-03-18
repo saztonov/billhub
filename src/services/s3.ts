@@ -202,14 +202,22 @@ export async function deleteFile(key: string): Promise<void> {
   }
 }
 
-/** Проверяет подключение к S3 хранилищу */
+/** Проверяет подключение к S3 хранилищу через presigned URL (обход CORS) */
 export async function testS3Connection(): Promise<{ ok: true; provider: string }> {
-  const command = new ListObjectsV2Command({
+  const command = new GetObjectCommand({
     Bucket: S3_BUCKET,
-    MaxKeys: 1,
+    Key: '__s3_connection_test__',
   })
-  await s3Client.send(command)
-  return { ok: true, provider: STORAGE_PROVIDER }
+  let url = await getSignedUrl(s3Client, command, { expiresIn: 60 })
+  if (import.meta.env.DEV) {
+    url = url.replace(S3_BASE, '/s3-proxy')
+  }
+  const res = await fetch(url, { method: 'HEAD' })
+  // 404 = хранилище доступно, тестовый объект не найден (ожидаемо)
+  if (res.ok || res.status === 404 || res.status === 403) {
+    return { ok: true, provider: STORAGE_PROVIDER }
+  }
+  throw new Error(`S3 вернул статус: ${res.status}`)
 }
 
 /** Получает список файлов контрагента */

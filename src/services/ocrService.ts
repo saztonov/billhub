@@ -1,8 +1,15 @@
+import * as pdfjsLib from 'pdfjs-dist'
 import { supabase } from '@/services/supabase'
 import { downloadFileBlob } from '@/services/s3'
 import { recognizeInvoiceStructured } from '@/services/openrouter'
 import { logError } from '@/services/errorLogger'
 import type { OcrParsedItem, OcrModelSetting } from '@/types'
+
+// Настройка локального воркера PDF.js (аналогично pdfUtils.ts)
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url,
+).toString()
 
 // ID типа документа "Счет"
 const INVOICE_DOC_TYPE_ID = 'c3c0b242-8a0c-4e20-b9ad-363ebf462a5b'
@@ -60,21 +67,8 @@ async function blobToBase64(blob: Blob): Promise<string> {
   })
 }
 
-/** Настройка локального воркера PDF.js */
-function setupPdfWorker(pdfjsLib: typeof import('pdfjs-dist')): void {
-  if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-      'pdfjs-dist/build/pdf.worker.min.mjs',
-      import.meta.url,
-    ).toString()
-  }
-}
-
 /** Рендерит страницу PDF в base64 изображение */
 async function renderPdfPage(pdfData: ArrayBuffer, pageNum: number): Promise<string> {
-  const pdfjsLib = await import('pdfjs-dist')
-  setupPdfWorker(pdfjsLib)
-
   const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise
   const page = await pdf.getPage(pageNum)
 
@@ -103,8 +97,6 @@ async function renderPdfPage(pdfData: ArrayBuffer, pageNum: number): Promise<str
 
 /** Получает количество страниц PDF */
 async function getPdfPageCount(pdfData: ArrayBuffer): Promise<number> {
-  const pdfjsLib = await import('pdfjs-dist')
-  setupPdfWorker(pdfjsLib)
   const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise
   return pdf.numPages
 }
