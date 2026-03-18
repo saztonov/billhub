@@ -62,10 +62,14 @@ async function blobToBase64(blob: Blob): Promise<string> {
   })
 }
 
-/** Рендерит страницу PDF в base64 изображение */
-async function renderPdfPage(pdfData: ArrayBuffer, pageNum: number): Promise<string> {
+/** Открывает PDF-документ (однократно на файл) */
+async function openPdfDocument(pdfData: ArrayBuffer): Promise<pdfjsLib.PDFDocumentProxy> {
   await ensurePdfWorkerReady()
-  const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise
+  return pdfjsLib.getDocument({ data: pdfData }).promise
+}
+
+/** Рендерит страницу открытого PDF в base64 изображение */
+async function renderPdfPage(pdf: pdfjsLib.PDFDocumentProxy, pageNum: number): Promise<string> {
   const page = await pdf.getPage(pageNum)
 
   // Масштаб для получения изображения ~2048px по большей стороне
@@ -89,13 +93,6 @@ async function renderPdfPage(pdfData: ArrayBuffer, pageNum: number): Promise<str
   canvas.height = 0
 
   return dataUrl
-}
-
-/** Получает количество страниц PDF */
-async function getPdfPageCount(pdfData: ArrayBuffer): Promise<number> {
-  await ensurePdfWorkerReady()
-  const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise
-  return pdf.numPages
 }
 
 /** Проверяет расхождение суммы */
@@ -225,8 +222,8 @@ export async function processPaymentRequestOcr(
 
       if (mimeType === 'application/pdf') {
         const arrayBuf = await blob.arrayBuffer()
-        const pageCount = await getPdfPageCount(arrayBuf)
-        const maxPages = Math.min(pageCount, 20) // Ограничение 20 страниц
+        const pdfDoc = await openPdfDocument(arrayBuf)
+        const maxPages = Math.min(pdfDoc.numPages, 20) // Ограничение 20 страниц
 
         for (let p = 1; p <= maxPages; p++) {
           onProgress?.({
@@ -236,7 +233,7 @@ export async function processPaymentRequestOcr(
             pageIndex: p - 1,
             totalPages: maxPages,
           })
-          const pageBase64 = await renderPdfPage(arrayBuf, p)
+          const pageBase64 = await renderPdfPage(pdfDoc, p)
           imagesBase64.push({ base64: pageBase64, pageNum: p })
         }
       } else {
