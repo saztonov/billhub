@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import {
   Card, Row, Col, Statistic, Switch, Select, Button,
-  Space, Typography, Progress, App,
+  Space, Typography, Progress, App, Segmented,
 } from 'antd'
 import { PlayCircleOutlined } from '@ant-design/icons'
 import { useOcrStore } from '@/store/ocrStore'
@@ -12,7 +12,7 @@ import { logError } from '@/services/errorLogger'
 import OcrModelsSection from '@/components/admin/OcrModelsSection'
 import OcrLogSection from '@/components/admin/OcrLogSection'
 
-const { Text, Title } = Typography
+const { Text } = Typography
 
 /** Опция выбора заявки */
 interface RequestOption {
@@ -42,6 +42,9 @@ const OcrSettingsTab = () => {
     tokenStats, fetchSettings, fetchLogs, fetchTokenStats,
     setAutoEnabled, setActiveModelId,
   } = useOcrStore()
+
+  // Период статистики токенов
+  const [statPeriod, setStatPeriod] = useState<string>('day')
 
   // Ручное распознавание
   const [requestOptions, setRequestOptions] = useState<RequestOption[]>([])
@@ -159,44 +162,36 @@ const OcrSettingsTab = () => {
     }
   }
 
-  // Данные статистики токенов
-  const statPeriods = [
-    { key: 'day', title: 'День' },
-    { key: 'week', title: 'Неделя' },
-    { key: 'month', title: 'Месяц' },
-    { key: 'all', title: 'Все время' },
-  ]
+  const currentStats = tokenStats[statPeriod]
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+    <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16, padding: '0 0 16px' }}>
       {/* Статистика токенов */}
-      <Card size="small" title="Статистика токенов" loading={isLoadingSettings}>
-        <Row gutter={[16, 16]}>
-          {statPeriods.map(({ key, title }) => {
-            const stats = tokenStats[key]
-            return (
-              <Col xs={24} sm={12} md={6} key={key}>
-                <Card size="small" bordered>
-                  <Title level={5} style={{ marginBottom: 12 }}>{title}</Title>
-                  <Statistic
-                    title="Входящие токены"
-                    value={stats ? formatTokens(stats.inputTokens) : '—'}
-                    style={{ marginBottom: 8 }}
-                  />
-                  <Statistic
-                    title="Исходящие токены"
-                    value={stats ? formatTokens(stats.outputTokens) : '—'}
-                    style={{ marginBottom: 8 }}
-                  />
-                  <Statistic
-                    title="Стоимость"
-                    value={stats ? `$${stats.totalCost.toFixed(4)}` : '—'}
-                  />
-                </Card>
-              </Col>
-            )
-          })}
-        </Row>
+      <Card size="small" loading={isLoadingSettings}>
+        <Space direction="vertical" style={{ width: '100%' }} size="small">
+          <Segmented
+            value={statPeriod}
+            onChange={(val) => setStatPeriod(val as string)}
+            options={[
+              { label: 'День', value: 'day' },
+              { label: 'Неделя', value: 'week' },
+              { label: 'Месяц', value: 'month' },
+              { label: 'Все время', value: 'all' },
+            ]}
+          />
+          <Row gutter={24}>
+            <Col>
+              <Statistic title="Вх. токены" value={currentStats ? formatTokens(currentStats.inputTokens) : '—'} />
+            </Col>
+            <Col>
+              <Statistic title="Исх. токены" value={currentStats ? formatTokens(currentStats.outputTokens) : '—'} />
+            </Col>
+            <Col>
+              <Statistic title="Стоимость" value={currentStats ? `$${currentStats.totalCost.toFixed(4)}` : '—'} />
+            </Col>
+          </Row>
+        </Space>
       </Card>
 
       {/* Настройки */}
@@ -273,6 +268,7 @@ const OcrSettingsTab = () => {
       <Card size="small" title="Лог распознавания">
         <OcrLogSection />
       </Card>
+    </div>
     </div>
   )
 }
