@@ -90,12 +90,12 @@ body {
 }
 
 /* Иерархическая сводная — группировочные строки */
-.hierarchy-row-cost-type td {
+.hierarchy-row-site td {
   background-color: #e6f4ff !important;
   font-weight: 700;
 }
 
-.hierarchy-row-site td {
+.hierarchy-row-cost-type td {
   background-color: #f0f5ff !important;
   font-weight: 600;
 }

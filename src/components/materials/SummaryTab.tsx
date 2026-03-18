@@ -150,10 +150,10 @@ const SummaryTab = () => {
         ellipsis: true,
         render: (_: unknown, record: HierarchyFlatRow) => {
           if (isGroupRow(record)) {
-            const prefix = record.level === 'costType' ? '' : '    '
+            const prefix = record.level === 'site' ? '' : '    '
             return (
-              <span style={{ fontWeight: record.level === 'costType' ? 700 : 600 }}>
-                {prefix}{record.level === 'costType' ? 'Вид затрат: ' : 'Объект: '}{record.label}
+              <span style={{ fontWeight: record.level === 'site' ? 700 : 600 }}>
+                {prefix}{record.level === 'site' ? 'Объект: ' : 'Вид затрат: '}{record.label}
               </span>
             )
           }

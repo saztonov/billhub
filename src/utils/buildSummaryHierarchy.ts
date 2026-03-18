@@ -8,92 +8,93 @@ import type {
 
 /** Построение плоского списка с группировочными строками для иерархической сводной */
 export function buildSummaryHierarchy(raw: HierarchicalRawRow[]): HierarchyFlatRow[] {
-  // Группируем: Вид затрат -> Объект -> Подрядчик -> Материалы
+  // Группируем: Объект -> Вид затрат -> Подрядчик -> Материалы
   const tree: Record<string, Record<string, Record<string, HierarchicalRawRow[]>>> = {}
 
   for (const row of raw) {
     const ctKey = row.costTypeId ?? '__none__'
-    if (!tree[ctKey]) tree[ctKey] = {}
-    if (!tree[ctKey][row.siteId]) tree[ctKey][row.siteId] = {}
-    if (!tree[ctKey][row.siteId][row.counterpartyId]) tree[ctKey][row.siteId][row.counterpartyId] = []
-    tree[ctKey][row.siteId][row.counterpartyId].push(row)
+    if (!tree[row.siteId]) tree[row.siteId] = {}
+    if (!tree[row.siteId][ctKey]) tree[row.siteId][ctKey] = {}
+    if (!tree[row.siteId][ctKey][row.counterpartyId]) tree[row.siteId][ctKey][row.counterpartyId] = []
+    tree[row.siteId][ctKey][row.counterpartyId].push(row)
   }
 
   const result: HierarchyFlatRow[] = []
 
-  // Сортируем виды затрат: "Без вида затрат" в конец
-  const costTypeKeys = Object.keys(tree).sort((a, b) => {
-    if (a === '__none__') return 1
-    if (b === '__none__') return -1
-    const nameA = tree[a][Object.keys(tree[a])[0]][Object.keys(tree[a][Object.keys(tree[a])[0]])[0]][0].costTypeName ?? ''
-    const nameB = tree[b][Object.keys(tree[b])[0]][Object.keys(tree[b][Object.keys(tree[b])[0]])[0]][0].costTypeName ?? ''
+  // Сортируем объекты
+  const siteKeys = Object.keys(tree).sort((a, b) => {
+    const nameA = getFirstRow(tree[a]).siteName
+    const nameB = getFirstRow(tree[b]).siteName
     return nameA.localeCompare(nameB, 'ru')
   })
 
-  for (const ctKey of costTypeKeys) {
-    const sites = tree[ctKey]
-    // Агрегация по виду затрат
-    let ctAmount = 0
-    let ctQuantity = 0
-    let ctEstimate = 0
-    const ctName = ctKey === '__none__'
-      ? 'Без вида затрат'
-      : Object.values(sites)[0][Object.keys(Object.values(sites)[0])[0]][0].costTypeName ?? ''
+  for (const siteId of siteKeys) {
+    const costTypes = tree[siteId]
 
-    // Сначала считаем итоги по виду затрат
-    for (const siteId of Object.keys(sites)) {
-      for (const cpId of Object.keys(sites[siteId])) {
-        for (const row of sites[siteId][cpId]) {
-          ctAmount += row.amount
-          ctQuantity += row.quantity
-          ctEstimate += row.estimateQuantity
-        }
-      }
-    }
+    // Агрегация по объекту
+    let siteAmount = 0
+    let siteQuantity = 0
+    let siteEstimate = 0
+    const siteName = getFirstRow(costTypes).siteName
 
-    const costTypeRow: HierarchyGroupRow = {
-      key: `ct_${ctKey}`,
-      level: 'costType',
-      label: ctName,
-      totalAmount: ctAmount,
-      totalQuantity: ctQuantity,
-      totalEstimateQuantity: ctEstimate,
-      deviation: ctQuantity - ctEstimate,
-    }
-    result.push(costTypeRow)
-
-    // Сортируем объекты
-    const siteKeys = Object.keys(sites).sort((a, b) => {
-      const nameA = sites[a][Object.keys(sites[a])[0]][0].siteName
-      const nameB = sites[b][Object.keys(sites[b])[0]][0].siteName
-      return nameA.localeCompare(nameB, 'ru')
-    })
-
-    for (const siteId of siteKeys) {
-      const counterparties = sites[siteId]
-      let siteAmount = 0
-      let siteQuantity = 0
-      let siteEstimate = 0
-      const siteName = counterparties[Object.keys(counterparties)[0]][0].siteName
-
-      for (const cpId of Object.keys(counterparties)) {
-        for (const row of counterparties[cpId]) {
+    for (const ctKey of Object.keys(costTypes)) {
+      for (const cpId of Object.keys(costTypes[ctKey])) {
+        for (const row of costTypes[ctKey][cpId]) {
           siteAmount += row.amount
           siteQuantity += row.quantity
           siteEstimate += row.estimateQuantity
         }
       }
+    }
 
-      const siteRow: HierarchyGroupRow = {
-        key: `site_${ctKey}_${siteId}`,
-        level: 'site',
-        label: siteName,
-        totalAmount: siteAmount,
-        totalQuantity: siteQuantity,
-        totalEstimateQuantity: siteEstimate,
-        deviation: siteQuantity - siteEstimate,
+    const siteRow: HierarchyGroupRow = {
+      key: `site_${siteId}`,
+      level: 'site',
+      label: siteName,
+      totalAmount: siteAmount,
+      totalQuantity: siteQuantity,
+      totalEstimateQuantity: siteEstimate,
+      deviation: siteQuantity - siteEstimate,
+    }
+    result.push(siteRow)
+
+    // Сортируем виды затрат: "Без вида затрат" в конец
+    const ctKeys = Object.keys(costTypes).sort((a, b) => {
+      if (a === '__none__') return 1
+      if (b === '__none__') return -1
+      const nameA = getFirstRow(costTypes[a]).costTypeName ?? ''
+      const nameB = getFirstRow(costTypes[b]).costTypeName ?? ''
+      return nameA.localeCompare(nameB, 'ru')
+    })
+
+    for (const ctKey of ctKeys) {
+      const counterparties = costTypes[ctKey]
+
+      let ctAmount = 0
+      let ctQuantity = 0
+      let ctEstimate = 0
+      const ctName = ctKey === '__none__'
+        ? 'Без вида затрат'
+        : getFirstRow(counterparties).costTypeName ?? ''
+
+      for (const cpId of Object.keys(counterparties)) {
+        for (const row of counterparties[cpId]) {
+          ctAmount += row.amount
+          ctQuantity += row.quantity
+          ctEstimate += row.estimateQuantity
+        }
       }
-      result.push(siteRow)
+
+      const costTypeRow: HierarchyGroupRow = {
+        key: `ct_${siteId}_${ctKey}`,
+        level: 'costType',
+        label: ctName,
+        totalAmount: ctAmount,
+        totalQuantity: ctQuantity,
+        totalEstimateQuantity: ctEstimate,
+        deviation: ctQuantity - ctEstimate,
+      }
+      result.push(costTypeRow)
 
       // Сортируем подрядчиков
       const cpKeys = Object.keys(counterparties).sort((a, b) => {
@@ -111,7 +112,7 @@ export function buildSummaryHierarchy(raw: HierarchicalRawRow[]): HierarchyFlatR
         for (const row of rows) {
           if (!matMap[row.materialId]) {
             matMap[row.materialId] = {
-              key: `mat_${ctKey}_${siteId}_${cpId}_${row.materialId}`,
+              key: `mat_${siteId}_${ctKey}_${cpId}_${row.materialId}`,
               materialId: row.materialId,
               materialName: row.materialName,
               materialUnit: row.materialUnit,
@@ -145,7 +146,7 @@ export function buildSummaryHierarchy(raw: HierarchicalRawRow[]): HierarchyFlatR
         }
 
         const cpRow: HierarchyCounterpartyRow = {
-          key: `cp_${ctKey}_${siteId}_${cpId}`,
+          key: `cp_${siteId}_${ctKey}_${cpId}`,
           counterpartyId: cpId,
           counterpartyName: cpName,
           totalAmount: cpAmount,
@@ -160,6 +161,15 @@ export function buildSummaryHierarchy(raw: HierarchicalRawRow[]): HierarchyFlatR
   }
 
   return result
+}
+
+/** Получить первую строку из вложенной структуры */
+function getFirstRow(obj: Record<string, Record<string, HierarchicalRawRow[]>>): HierarchicalRawRow
+function getFirstRow(obj: Record<string, HierarchicalRawRow[]>): HierarchicalRawRow
+function getFirstRow(obj: Record<string, Record<string, HierarchicalRawRow[]>> | Record<string, HierarchicalRawRow[]>): HierarchicalRawRow {
+  const firstVal = Object.values(obj)[0]
+  if (Array.isArray(firstVal)) return firstVal[0]
+  return getFirstRow(firstVal as Record<string, HierarchicalRawRow[]>)
 }
 
 /** Проверка: является ли строка группировочной */
