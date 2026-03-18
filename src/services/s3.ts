@@ -202,22 +202,41 @@ export async function deleteFile(key: string): Promise<void> {
   }
 }
 
-/** Проверяет подключение к S3 хранилищу через presigned URL (обход CORS) */
+/** Проверяет подключение к S3 хранилищу (PUT + DELETE тестового файла) */
 export async function testS3Connection(): Promise<{ ok: true; provider: string }> {
-  const command = new GetObjectCommand({
+  const testKey = `__connection_test_${Date.now()}`
+
+  // PUT тестового файла (тот же путь, что и рабочие загрузки)
+  const putCmd = new PutObjectCommand({
     Bucket: S3_BUCKET,
-    Key: '__s3_connection_test__',
+    Key: testKey,
+    ContentType: 'text/plain',
   })
-  let url = await getSignedUrl(s3Client, command, { expiresIn: 60 })
+  let putUrl = await getSignedUrl(s3Client, putCmd, { expiresIn: 60 })
   if (import.meta.env.DEV) {
-    url = url.replace(S3_BASE, '/s3-proxy')
+    putUrl = putUrl.replace(S3_BASE, '/s3-proxy')
   }
-  const res = await fetch(url, { method: 'HEAD' })
-  // 404 = хранилище доступно, тестовый объект не найден (ожидаемо)
-  if (res.ok || res.status === 404 || res.status === 403) {
-    return { ok: true, provider: STORAGE_PROVIDER }
+  const putRes = await fetch(putUrl, {
+    method: 'PUT',
+    body: 'test',
+    headers: { 'Content-Type': 'text/plain' },
+  })
+  if (!putRes.ok) {
+    throw new Error(`S3 PUT вернул статус: ${putRes.status}`)
   }
-  throw new Error(`S3 вернул статус: ${res.status}`)
+
+  // Удаляем тестовый файл
+  const delCmd = new DeleteObjectCommand({
+    Bucket: S3_BUCKET,
+    Key: testKey,
+  })
+  let delUrl = await getSignedUrl(s3Client, delCmd, { expiresIn: 60 })
+  if (import.meta.env.DEV) {
+    delUrl = delUrl.replace(S3_BASE, '/s3-proxy')
+  }
+  await fetch(delUrl, { method: 'DELETE' }).catch(() => {})
+
+  return { ok: true, provider: STORAGE_PROVIDER }
 }
 
 /** Получает список файлов контрагента */
