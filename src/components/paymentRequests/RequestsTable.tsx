@@ -29,7 +29,8 @@ import RejectModal from './RejectModal'
 import WithdrawModal from './WithdrawModal'
 import { formatDateShort, extractRequestNumber, calculateDays } from '@/utils/requestFormatters'
 import { useTableScrollY } from '@/hooks/useTableScrollY'
-import type { PaymentRequest } from '@/types'
+import type { PaymentRequest, StageHistoryEntry } from '@/types'
+import { DEPARTMENT_LABELS } from '@/types'
 
 export interface RequestsTableProps {
   requests: PaymentRequest[]
@@ -62,6 +63,60 @@ export interface RequestsTableProps {
   showOmtsDays?: boolean
   unreadCounts?: Record<string, number>
   isMobile?: boolean
+}
+
+/** Возвращает первые 2 слова из ФИО (fallback на email) */
+function getShortName(fullName?: string, email?: string): string | undefined {
+  if (fullName) {
+    const words = fullName.trim().split(/\s+/)
+    return words.slice(0, 2).join(' ')
+  }
+  return email
+}
+
+/** Маппинг событий для тултипа */
+const TOOLTIP_EVENT_LABELS: Record<string, string> = {
+  approved: 'Согласовано',
+  rejected: 'Отклонено',
+  revision: 'Отправлено на доработку',
+  revision_complete: 'Доработано',
+}
+
+/** Формирует содержимое тултипа из stageHistory */
+function buildStatusTooltip(stageHistory: StageHistoryEntry[], isCounterparty: boolean): React.ReactNode | null {
+  const entries = (stageHistory ?? []).filter(e => e.event !== 'received' && TOOLTIP_EVENT_LABELS[e.event])
+  if (entries.length === 0) return null
+
+  return (
+    <div style={{ maxWidth: 360 }}>
+      {entries.map((entry, idx) => {
+        const eventLabel = TOOLTIP_EVENT_LABELS[entry.event]
+        const dept = entry.isOmtsRp ? 'ОМТС РП' : (DEPARTMENT_LABELS[entry.department as keyof typeof DEPARTMENT_LABELS] ?? entry.department)
+        const date = formatDateShort(entry.at)
+        // Для counterparty автор виден только на стадии ОМТС
+        const showAuthor = !isCounterparty || entry.stage === 2
+        const authorName = showAuthor ? getShortName(entry.userFullName, entry.userEmail) : undefined
+        // revision_complete показываем без департамента
+        const isRevisionComplete = entry.event === 'revision_complete'
+
+        return (
+          <div key={idx} style={{ marginBottom: entry.comment ? 0 : 4 }}>
+            <span>
+              {!isRevisionComplete && <>{dept} </>}
+              {eventLabel}
+              {authorName && <> ({authorName})</>}
+              {' '}{date}
+            </span>
+            {entry.comment && (
+              <div style={{ paddingLeft: 16, marginBottom: 4, opacity: 0.85 }}>
+                Комментарий: {entry.comment}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 /** Формирует пункты мобильного меню действий для строки */
@@ -158,11 +213,12 @@ const RequestsTable = (props: RequestsTableProps) => {
       },
       {
         title: 'Статус', key: 'status', width: 100,
-        render: (_: unknown, record: PaymentRequest) => (
-          <Tag color={record.statusColor ?? 'default'} style={{ fontSize: 11, lineHeight: 1.3, whiteSpace: 'pre-line' }}>
-            {record.statusName}
-          </Tag>
-        ),
+        render: (_: unknown, record: PaymentRequest) => {
+          const tooltipContent = buildStatusTooltip(record.stageHistory, !!isCounterpartyUser)
+          const tag = <Tag color={record.statusColor ?? 'default'} style={{ fontSize: 11, lineHeight: 1.3, whiteSpace: 'pre-line' }}>{record.statusName}</Tag>
+          if (!tooltipContent) return tag
+          return <Tooltip title={tooltipContent} mouseEnterDelay={0.5}>{tag}</Tooltip>
+        },
       },
       {
         title: 'Сумма РП', key: 'invoiceAmount', width: 100, align: 'right' as const,
@@ -245,7 +301,12 @@ const RequestsTable = (props: RequestsTableProps) => {
         sorter: (a: PaymentRequest, b: PaymentRequest) => (a.statusName || '').localeCompare(b.statusName || '', 'ru'),
         filters: statusFilters,
         onFilter: (value: unknown, record: PaymentRequest) => record.statusId === value,
-        render: (_: unknown, record: PaymentRequest) => <Tag color={record.statusColor ?? 'default'} style={{ whiteSpace: 'pre-line', lineHeight: 1.3 }}>{record.statusName}</Tag>,
+        render: (_: unknown, record: PaymentRequest) => {
+          const tooltipContent = buildStatusTooltip(record.stageHistory, !!isCounterpartyUser)
+          const tag = <Tag color={record.statusColor ?? 'default'} style={{ whiteSpace: 'pre-line', lineHeight: 1.3 }}>{record.statusName}</Tag>
+          if (!tooltipContent) return tag
+          return <Tooltip title={tooltipContent} mouseEnterDelay={0.5}>{tag}</Tooltip>
+        },
       },
       {
         title: 'Оплата', key: 'paidStatus', width: 110,

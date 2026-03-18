@@ -6,6 +6,18 @@ import { useUploadQueueStore } from '@/store/uploadQueueStore'
 import { useOmtsRpStore } from '@/store/omtsRpStore'
 import type { Department, ApprovalDecision, ApprovalDecisionFile, PaymentRequest, PaymentRequestLog, StageHistoryEntry } from '@/types'
 
+/** Получает email и full_name текущего пользователя */
+async function getCurrentUserInfo(): Promise<{ email?: string; fullName?: string }> {
+  const { data: { user: authUser } } = await supabase.auth.getUser()
+  if (!authUser) return {}
+  const { data } = await supabase
+    .from('users')
+    .select('email, full_name')
+    .eq('id', authUser.id)
+    .single()
+  return { email: data?.email ?? authUser.email ?? undefined, fullName: (data?.full_name as string) ?? undefined }
+}
+
 /** Добавляет запись в stage_history заявки */
 export async function appendStageHistory(paymentRequestId: string, entry: Omit<StageHistoryEntry, 'at'> & { at?: string }) {
   const { data, error: fetchErr } = await supabase
@@ -220,6 +232,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
       // Логируем действие
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
+        const userInfo = await getCurrentUserInfo()
         await supabase.from('payment_request_logs').insert({
           payment_request_id: paymentRequestId,
           user_id: user.id,
@@ -232,7 +245,8 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
           stage: (currentReq.current_stage as number) ?? 2,
           department: 'omts',
           event: 'revision',
-          userEmail: user.email ?? undefined,
+          userEmail: userInfo.email,
+          userFullName: userInfo.fullName,
           comment: comment || undefined,
         })
 
@@ -290,6 +304,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
       // Логируем действие
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
+        const userInfo = await getCurrentUserInfo()
         await supabase.from('payment_request_logs').insert({
           payment_request_id: paymentRequestId,
           user_id: user.id,
@@ -302,7 +317,8 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
           stage: (currentReq.current_stage as number) ?? 2,
           department: 'omts',
           event: 'revision_complete',
-          userEmail: user.email ?? undefined,
+          userEmail: userInfo.email,
+          userFullName: userInfo.fullName,
         })
 
         // Уведомляем сотрудников о завершении доработки
@@ -326,7 +342,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
     try {
       const { data, error } = await supabase
         .from('approval_decisions')
-        .select('*, users(email)')
+        .select('*, users(email, full_name)')
         .eq('payment_request_id', paymentRequestId)
         .order('stage_order', { ascending: true })
       if (error) throw error
@@ -364,6 +380,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
             decidedAt: row.decided_at as string | null,
             createdAt: row.created_at as string,
             userEmail: usr?.email as string | undefined,
+            userFullName: usr?.full_name as string | undefined,
             files: files.length > 0 ? files : undefined,
             isOmtsRp: (row.is_omts_rp as boolean) ?? false,
           }
@@ -380,7 +397,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
     try {
       const { data, error } = await supabase
         .from('payment_request_logs')
-        .select('*, users(email)')
+        .select('*, users(email, full_name)')
         .eq('payment_request_id', paymentRequestId)
         .order('created_at', { ascending: true })
       if (error) throw error
@@ -395,6 +412,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
           details: row.details as Record<string, unknown> | null,
           createdAt: row.created_at as string,
           userEmail: usr?.email as string | undefined,
+          userFullName: usr?.full_name as string | undefined,
         }
       })
       set({ currentLogs: logs })
@@ -441,9 +459,8 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
         .eq('id', pendingDecision.id)
       if (updError) throw updError
 
-      // Получаем email пользователя для хронологии
-      const { data: { user: authUser } } = await supabase.auth.getUser()
-      const userEmail = authUser?.email ?? undefined
+      // Получаем данные пользователя для хронологии
+      const userInfo = await getCurrentUserInfo()
       const isCurrentOmtsRp = pendingDecision.is_omts_rp as boolean
 
       // Записываем согласование в хронологию
@@ -451,7 +468,8 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
         stage: currentStage,
         department,
         event: 'approved',
-        userEmail,
+        userEmail: userInfo.email,
+        userFullName: userInfo.fullName,
         ...(isCurrentOmtsRp ? { isOmtsRp: true } : {}),
       })
 
@@ -614,12 +632,13 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
         .eq('id', paymentRequestId)
 
       // Записываем отклонение в хронологию
-      const { data: { user: rejectUser } } = await supabase.auth.getUser()
+      const rejectUserInfo = await getCurrentUserInfo()
       await appendStageHistory(paymentRequestId, {
         stage: pr.current_stage as number,
         department,
         event: 'rejected',
-        userEmail: rejectUser?.email ?? undefined,
+        userEmail: rejectUserInfo.email,
+        userFullName: rejectUserInfo.fullName,
         comment: comment || undefined,
       })
 

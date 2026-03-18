@@ -82,6 +82,15 @@ const EVENT_CONFIG: Record<string, { icon: React.ReactNode; label: string }> = {
   revision_complete: { icon: <CheckCircleOutlined style={{ color: '#52c41a' }} />, label: 'Доработано' },
 }
 
+/** Возвращает первые 2 слова из ФИО (fallback на email) */
+function getShortName(fullName?: string, email?: string): string | undefined {
+  if (fullName) {
+    const words = fullName.trim().split(/\s+/)
+    return words.slice(0, 2).join(' ')
+  }
+  return email
+}
+
 /** Формирует текст этапа */
 function stageLabel(entry: StageHistoryEntry): string {
   const dept = entry.isOmtsRp ? 'ОМТС РП' : (DEPARTMENT_LABELS[entry.department as keyof typeof DEPARTMENT_LABELS] ?? entry.department)
@@ -98,7 +107,11 @@ const CounterpartyLog = ({ request, decisions, logs, downloading, onViewFile, on
     for (const entry of request.stageHistory ?? []) {
       const config = EVENT_CONFIG[entry.event]
       if (!config) continue
+      // Для событий ОМТС (stage=2) показываем автора
+      const isOmtsStage = entry.stage === 2
+      const authorName = isOmtsStage ? getShortName(entry.userFullName, entry.userEmail) : undefined
       let text = `${stageLabel(entry)} — ${config.label}`
+      if (authorName) text += ` (${authorName})`
       if (entry.comment) text += `. Комментарий: ${entry.comment}`
       const item: LogItem = { icon: config.icon, text, date: entry.at }
 
@@ -176,6 +189,7 @@ const AdminLog = ({ request, decisions, logs, downloading, onViewFile, onDownloa
     text: string
     date: string
     userEmail?: string
+    userFullName?: string
     comment?: string
     files?: ApprovalDecisionFile[]
     isPending?: boolean
@@ -196,6 +210,7 @@ const AdminLog = ({ request, decisions, logs, downloading, onViewFile, onDownloa
         text: `${config.label}`,
         date: entry.at,
         userEmail: entry.userEmail,
+        userFullName: entry.userFullName,
         comment: entry.comment,
         tag: `Этап ${entry.stage}. ${dept}`,
         tagColor: entry.isOmtsRp ? 'purple' : undefined,
@@ -233,14 +248,14 @@ const AdminLog = ({ request, decisions, logs, downloading, onViewFile, onDownloa
       if (l.action === 'edit') {
         const changes = (l.details?.changes as { field: string; newValue: unknown }[]) ?? []
         const changedFields = changes.map((c) => FIELD_LABELS[c.field] ?? c.field).join(', ')
-        result.push({ icon: <EditOutlined style={{ color: '#722ed1' }} />, text: `Изменено: ${changedFields}`, date: l.createdAt, userEmail: l.userEmail })
+        result.push({ icon: <EditOutlined style={{ color: '#722ed1' }} />, text: `Изменено: ${changedFields}`, date: l.createdAt, userEmail: l.userEmail, userFullName: l.userFullName })
       } else if (l.action === 'file_upload') {
         const count = (l.details?.count as number) ?? 0
-        result.push({ icon: <FileAddOutlined style={{ color: '#1677ff' }} />, text: `Догружено файлов: ${count}`, date: l.createdAt, userEmail: l.userEmail })
+        result.push({ icon: <FileAddOutlined style={{ color: '#1677ff' }} />, text: `Догружено файлов: ${count}`, date: l.createdAt, userEmail: l.userEmail, userFullName: l.userFullName })
       } else if (l.action === 'resubmit') {
         const comment = (l.details?.comment as string) ?? ''
         const text = comment ? `Повторно отправлено. Комментарий: ${comment}` : 'Повторно отправлено'
-        result.push({ icon: <SendOutlined style={{ color: '#1677ff' }} />, text, date: l.createdAt, userEmail: l.userEmail })
+        result.push({ icon: <SendOutlined style={{ color: '#1677ff' }} />, text, date: l.createdAt, userEmail: l.userEmail, userFullName: l.userFullName })
       }
     }
 
@@ -267,7 +282,7 @@ const AdminLog = ({ request, decisions, logs, downloading, onViewFile, onDownloa
                 {item.icon}
                 {item.tag && <Tag color={item.tagColor}>{item.tag}</Tag>}
                 <Text>{item.text}</Text>
-                {item.userEmail && <Text type="secondary">({item.userEmail})</Text>}
+                {(item.userFullName || item.userEmail) && <Text type="secondary">({getShortName(item.userFullName, item.userEmail)})</Text>}
                 <Text type="secondary">{formatDate(item.date)}</Text>
               </Space>
               {item.comment && (

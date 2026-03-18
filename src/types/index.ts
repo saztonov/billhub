@@ -132,6 +132,7 @@ export interface StageHistoryEntry {
   event: 'received' | 'approved' | 'rejected' | 'revision' | 'revision_complete'
   at: string
   userEmail?: string
+  userFullName?: string
   comment?: string
   isOmtsRp?: boolean
 }
@@ -199,6 +200,7 @@ export interface PaymentRequestLog {
   createdAt: string
   // Joined
   userEmail?: string
+  userFullName?: string
 }
 
 /** История назначения ответственного за заявку */
@@ -340,6 +342,7 @@ export interface ApprovalDecision {
   decidedAt: string | null
   createdAt: string
   userEmail?: string
+  userFullName?: string
   files?: ApprovalDecisionFile[] // Файлы, прикрепленные к решению (для отклонения)
   isOmtsRp?: boolean
 }
