@@ -202,6 +202,16 @@ export async function deleteFile(key: string): Promise<void> {
   }
 }
 
+/** Проверяет подключение к S3 хранилищу */
+export async function testS3Connection(): Promise<{ ok: true; provider: string }> {
+  const command = new ListObjectsV2Command({
+    Bucket: S3_BUCKET,
+    MaxKeys: 1,
+  })
+  await s3Client.send(command)
+  return { ok: true, provider: STORAGE_PROVIDER }
+}
+
 /** Получает список файлов контрагента */
 export async function listFiles(
   counterpartyName: string,

@@ -1,8 +1,11 @@
 import { useState } from 'react'
-import { Table, Tag, Modal, Button, Space } from 'antd'
+import { Table, Tag, Modal, Button, Space, Typography } from 'antd'
+import { EyeOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { useOcrStore } from '@/store/ocrStore'
 import type { OcrRecognitionLog } from '@/types'
+
+const { Paragraph } = Typography
 
 /** Карта статусов для цветных тегов */
 const STATUS_MAP: Record<string, { color: string; label: string }> = {
@@ -32,7 +35,30 @@ const OcrLogSection = () => {
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null)
   const [selectedRequestNumber, setSelectedRequestNumber] = useState<string>('')
 
+  // Модалка ошибки
+  const [errorModalOpen, setErrorModalOpen] = useState(false)
+  const [selectedErrorMessage, setSelectedErrorMessage] = useState<string>('')
+  const [selectedErrorRequestNumber, setSelectedErrorRequestNumber] = useState<string>('')
+
+  /** Клик по строке: ошибка — модалка ошибки, успех — модалка материалов */
   const handleRowClick = async (record: OcrRecognitionLog) => {
+    if (record.status === 'error' && record.errorMessage) {
+      setSelectedErrorMessage(record.errorMessage)
+      setSelectedErrorRequestNumber(record.requestNumber ?? record.paymentRequestId)
+      setErrorModalOpen(true)
+      return
+    }
+    if (record.status === 'success') {
+      setSelectedRequestId(record.paymentRequestId)
+      setSelectedRequestNumber(record.requestNumber ?? record.paymentRequestId)
+      setMaterialsModalOpen(true)
+      await fetchLogMaterials(record.paymentRequestId)
+    }
+  }
+
+  /** Открыть модалку материалов по кнопке */
+  const handleOpenMaterials = async (record: OcrRecognitionLog, e: React.MouseEvent) => {
+    e.stopPropagation()
     setSelectedRequestId(record.paymentRequestId)
     setSelectedRequestNumber(record.requestNumber ?? record.paymentRequestId)
     setMaterialsModalOpen(true)
@@ -111,6 +137,23 @@ const OcrLogSection = () => {
       ellipsis: true,
       render: (v: string | null) => v ?? '—',
     },
+    {
+      title: '',
+      key: 'actions',
+      width: 50,
+      render: (_: unknown, record: OcrRecognitionLog) => {
+        if (record.status !== 'success') return null
+        return (
+          <Button
+            type="link"
+            size="small"
+            icon={<EyeOutlined />}
+            title="Распознанные материалы"
+            onClick={(e) => handleOpenMaterials(record, e)}
+          />
+        )
+      },
+    },
   ]
 
   const materialColumns = [
@@ -173,7 +216,7 @@ const OcrLogSection = () => {
         size="small"
         onRow={(record) => ({
           onClick: () => handleRowClick(record),
-          style: { cursor: 'pointer' },
+          style: { cursor: record.status === 'error' || record.status === 'success' ? 'pointer' : 'default' },
         })}
         pagination={{
           current: page,
@@ -185,6 +228,27 @@ const OcrLogSection = () => {
         }}
       />
 
+      {/* Модалка с полным текстом ошибки */}
+      <Modal
+        title={`Ошибка распознавания — Заявка ${selectedErrorRequestNumber}`}
+        open={errorModalOpen}
+        onCancel={() => setErrorModalOpen(false)}
+        width={700}
+        footer={
+          <Button onClick={() => setErrorModalOpen(false)}>
+            Закрыть
+          </Button>
+        }
+        destroyOnClose
+      >
+        <div style={{ maxHeight: 400, overflow: 'auto' }}>
+          <Paragraph copyable style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+            {selectedErrorMessage}
+          </Paragraph>
+        </div>
+      </Modal>
+
+      {/* Модалка распознанных материалов */}
       <Modal
         title={`Распознанные материалы — Заявка ${selectedRequestNumber}`}
         open={materialsModalOpen}

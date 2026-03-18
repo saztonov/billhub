@@ -3,11 +3,13 @@ import {
   Card, Row, Col, Statistic, Switch, Select, Button,
   Space, Typography, Progress, App, Segmented,
 } from 'antd'
-import { PlayCircleOutlined } from '@ant-design/icons'
+import { PlayCircleOutlined, ApiOutlined, CloudOutlined } from '@ant-design/icons'
 import { useOcrStore } from '@/store/ocrStore'
 import { supabase } from '@/services/supabase'
 import { processPaymentRequestOcr } from '@/services/ocrService'
 import type { OcrProgress } from '@/services/ocrService'
+import { fetchAvailableModels } from '@/services/openrouter'
+import { testS3Connection } from '@/services/s3'
 import { logError } from '@/services/errorLogger'
 import OcrModelsSection from '@/components/admin/OcrModelsSection'
 import OcrLogSection from '@/components/admin/OcrLogSection'
@@ -46,6 +48,10 @@ const OcrSettingsTab = () => {
     tokenStats, fetchSettings, fetchLogs, fetchTokenStats,
     setAutoEnabled, setActiveModelId,
   } = useOcrStore()
+
+  // Диагностика
+  const [isTestingLlm, setIsTestingLlm] = useState(false)
+  const [isTestingS3, setIsTestingS3] = useState(false)
 
   // Период статистики токенов
   const [statPeriod, setStatPeriod] = useState<string>('day')
@@ -185,6 +191,44 @@ const OcrSettingsTab = () => {
     }
   }
 
+  // Проверка LLM-ключа
+  const handleTestLlm = async () => {
+    setIsTestingLlm(true)
+    try {
+      const models = await fetchAvailableModels()
+      message.success(`OpenRouter API ключ работает. Доступно моделей: ${models.length}`)
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Неизвестная ошибка'
+      message.error(`Ошибка проверки LLM ключа: ${errorMsg}`)
+      logError({
+        errorType: 'api_error',
+        errorMessage: `Ошибка проверки LLM ключа: ${errorMsg}`,
+        component: 'OcrSettingsTab',
+      })
+    } finally {
+      setIsTestingLlm(false)
+    }
+  }
+
+  // Проверка S3 хранилища
+  const handleTestS3 = async () => {
+    setIsTestingS3(true)
+    try {
+      const result = await testS3Connection()
+      message.success(`S3 хранилище доступно. Провайдер: ${result.provider}`)
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Неизвестная ошибка'
+      message.error(`Ошибка подключения к S3: ${errorMsg}`)
+      logError({
+        errorType: 'api_error',
+        errorMessage: `Ошибка проверки S3: ${errorMsg}`,
+        component: 'OcrSettingsTab',
+      })
+    } finally {
+      setIsTestingS3(false)
+    }
+  }
+
   const currentStats = tokenStats[statPeriod]
 
   return (
@@ -242,6 +286,26 @@ const OcrSettingsTab = () => {
               }))}
             />
           </Space>
+        </Space>
+      </Card>
+
+      {/* Диагностика */}
+      <Card size="small" title="Диагностика">
+        <Space wrap>
+          <Button
+            icon={<ApiOutlined />}
+            onClick={handleTestLlm}
+            loading={isTestingLlm}
+          >
+            Проверить LLM-ключ
+          </Button>
+          <Button
+            icon={<CloudOutlined />}
+            onClick={handleTestS3}
+            loading={isTestingS3}
+          >
+            Проверить S3 хранилище
+          </Button>
         </Space>
       </Card>
 

@@ -60,11 +60,20 @@ async function blobToBase64(blob: Blob): Promise<string> {
   })
 }
 
+/** Настройка локального воркера PDF.js */
+function setupPdfWorker(pdfjsLib: typeof import('pdfjs-dist')): void {
+  if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+      'pdfjs-dist/build/pdf.worker.min.mjs',
+      import.meta.url,
+    ).toString()
+  }
+}
+
 /** Рендерит страницу PDF в base64 изображение */
 async function renderPdfPage(pdfData: ArrayBuffer, pageNum: number): Promise<string> {
   const pdfjsLib = await import('pdfjs-dist')
-  // Используем CDN-воркер для совместимости с Vite
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`
+  setupPdfWorker(pdfjsLib)
 
   const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise
   const page = await pdf.getPage(pageNum)
@@ -95,7 +104,7 @@ async function renderPdfPage(pdfData: ArrayBuffer, pageNum: number): Promise<str
 /** Получает количество страниц PDF */
 async function getPdfPageCount(pdfData: ArrayBuffer): Promise<number> {
   const pdfjsLib = await import('pdfjs-dist')
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`
+  setupPdfWorker(pdfjsLib)
   const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise
   return pdf.numPages
 }
