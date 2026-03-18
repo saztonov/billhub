@@ -25,8 +25,8 @@ const OcrModelsSection = () => {
     form.setFieldsValue({
       id: model.id,
       name: model.name,
-      inputPrice: model.inputPrice,
-      outputPrice: model.outputPrice,
+      inputPriceMillion: model.inputPrice * 1_000_000,
+      outputPriceMillion: model.outputPrice * 1_000_000,
     })
     setModalOpen(true)
   }
@@ -36,16 +36,19 @@ const OcrModelsSection = () => {
       const values = await form.validateFields()
       setSaving(true)
 
+      // Конвертация из $/1M токенов в $/токен для хранения
+      const inputPrice = values.inputPriceMillion / 1_000_000
+      const outputPrice = values.outputPriceMillion / 1_000_000
+
       if (editingModel) {
         await updateModel(editingModel.id, {
           id: values.id,
           name: values.name,
-          inputPrice: values.inputPrice,
-          outputPrice: values.outputPrice,
+          inputPrice,
+          outputPrice,
         })
         message.success('Модель обновлена')
       } else {
-        // Проверка на дубликат ID
         if (models.some((m) => m.id === values.id)) {
           message.error('Модель с таким ID уже существует')
           setSaving(false)
@@ -54,8 +57,8 @@ const OcrModelsSection = () => {
         await addModel({
           id: values.id,
           name: values.name,
-          inputPrice: values.inputPrice,
-          outputPrice: values.outputPrice,
+          inputPrice,
+          outputPrice,
         })
         message.success('Модель добавлена')
       }
@@ -91,18 +94,18 @@ const OcrModelsSection = () => {
       key: 'name',
     },
     {
-      title: 'Цена вход ($/токен)',
+      title: 'Вход ($/1M)',
       dataIndex: 'inputPrice',
       key: 'inputPrice',
-      width: 160,
-      render: (v: number) => v?.toFixed(8) ?? '—',
+      width: 130,
+      render: (v: number) => v != null ? `$${(v * 1_000_000).toFixed(2)}` : '—',
     },
     {
-      title: 'Цена выход ($/токен)',
+      title: 'Выход ($/1M)',
       dataIndex: 'outputPrice',
       key: 'outputPrice',
-      width: 160,
-      render: (v: number) => v?.toFixed(8) ?? '—',
+      width: 130,
+      render: (v: number) => v != null ? `$${(v * 1_000_000).toFixed(2)}` : '—',
     },
     {
       title: 'Действия',
@@ -169,27 +172,27 @@ const OcrModelsSection = () => {
             <Input placeholder="Gemini 3 Flash" />
           </Form.Item>
           <Form.Item
-            name="inputPrice"
-            label="Цена за входящий токен ($)"
+            name="inputPriceMillion"
+            label="Цена за 1M входящих токенов ($)"
             rules={[{ required: true, message: 'Введите цену' }]}
           >
             <InputNumber
               min={0}
-              step={0.00000001}
+              step={0.01}
               style={{ width: '100%' }}
-              placeholder="0.00000015"
+              placeholder="0.15"
             />
           </Form.Item>
           <Form.Item
-            name="outputPrice"
-            label="Цена за исходящий токен ($)"
+            name="outputPriceMillion"
+            label="Цена за 1M исходящих токенов ($)"
             rules={[{ required: true, message: 'Введите цену' }]}
           >
             <InputNumber
               min={0}
-              step={0.00000001}
+              step={0.01}
               style={{ width: '100%' }}
-              placeholder="0.0000006"
+              placeholder="0.60"
             />
           </Form.Item>
         </Form>
