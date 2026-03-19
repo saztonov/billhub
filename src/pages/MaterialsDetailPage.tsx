@@ -362,7 +362,7 @@ const MaterialsDetailPage = () => {
               size="small"
               style={{ width: '100%' }}
               controls={false}
-              parser={(val) => val ? val.replace(',', '.') : (null as unknown as string)}
+              parser={(val) => (val ? Number(val.replace(',', '.')) : (null as unknown as number))}
               onChange={(v) => {
                 const rounded = v != null ? Math.round(v * 100000) / 100000 : v
                 handleEstimateChange(record.id, rounded)
