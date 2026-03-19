@@ -17,6 +17,7 @@ import { useNotificationStore } from '@/store/notificationStore'
 import { useHeaderStore } from '@/store/headerStore'
 import useIsMobile from '@/hooks/useIsMobile'
 import MobileDrawerMenu from '@/components/layout/MobileDrawerMenu'
+import OcrQueueWidget from '@/components/admin/OcrQueueWidget'
 import type { UserRole, AppNotification } from '@/types'
 
 const { Header, Sider, Content } = Layout
@@ -318,6 +319,7 @@ const MainLayout = () => {
           </Flex>
           <Flex align="center" gap={12} style={{ flexShrink: 0 }}>
             {headerActions}
+            {user?.role === 'admin' && <OcrQueueWidget />}
             <Popover
               content={
                 <div style={{ width: 380, maxHeight: 420, overflow: 'auto' }}>

@@ -1,13 +1,12 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import {
   Card, Row, Col, Statistic, Switch, Select, Button,
-  Space, Typography, Progress, App, Segmented,
+  Space, Typography, Progress, App, Segmented, Tag, Flex,
 } from 'antd'
-import { PlayCircleOutlined, ApiOutlined, CloudOutlined } from '@ant-design/icons'
+import { PlayCircleOutlined, ApiOutlined, CloudOutlined, ReloadOutlined } from '@ant-design/icons'
 import { useOcrStore } from '@/store/ocrStore'
+import { useOcrQueueStore } from '@/store/ocrQueueStore'
 import { supabase } from '@/services/supabase'
-import { processPaymentRequestOcr } from '@/services/ocrService'
-import type { OcrProgress } from '@/services/ocrService'
 import { fetchAvailableModels } from '@/services/openrouter'
 import { testS3Connection } from '@/services/s3'
 import { logError } from '@/services/errorLogger'
@@ -56,13 +55,30 @@ const OcrSettingsTab = () => {
   // Период статистики токенов
   const [statPeriod, setStatPeriod] = useState<string>('day')
 
+  // Очередь OCR
+  const queueTasks = useOcrQueueStore((s) => s.tasks)
+  const enqueue = useOcrQueueStore((s) => s.enqueue)
+  const retryTask = useOcrQueueStore((s) => s.retry)
+
   // Ручное распознавание
   const [approvedRequests, setApprovedRequests] = useState<ApprovedRequest[]>([])
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null)
-  const [isRecognizing, setIsRecognizing] = useState(false)
-  const [progressPercent, setProgressPercent] = useState(0)
-  const [progressText, setProgressText] = useState('')
   const [loadingRequests, setLoadingRequests] = useState(false)
+
+  // Данные очереди для UI
+  const queueInfo = useMemo(() => {
+    const all = Object.values(queueTasks)
+    const processing = all.find((t) => t.status === 'processing') ?? null
+    const pending = all.filter((t) => t.status === 'pending')
+    const errors = all.filter((t) => t.status === 'error')
+    const isSelectedProcessing = selectedRequestId
+      ? queueTasks[selectedRequestId]?.status === 'processing'
+      : false
+    const isSelectedPending = selectedRequestId
+      ? queueTasks[selectedRequestId]?.status === 'pending'
+      : false
+    return { processing, pending, errors, isSelectedProcessing, isSelectedPending, isQueueBusy: !!processing }
+  }, [queueTasks, selectedRequestId])
 
   // Загрузка согласованных заявок
   const loadApprovedRequests = useCallback(async () => {
@@ -122,56 +138,23 @@ const OcrSettingsTab = () => {
     loadApprovedRequests()
   }, [fetchSettings, fetchLogs, fetchTokenStats, loadApprovedRequests])
 
-  // Обработчик прогресса OCR
-  const handleProgress = useCallback((progress: OcrProgress) => {
-    const { stage, fileIndex, totalFiles, pageIndex, totalPages } = progress
-    const stageLabel = STAGE_LABELS[stage] ?? stage
-
-    let percent = 0
-    if (totalFiles > 0) {
-      const fileProgress = fileIndex / totalFiles
-      const pageProgress = totalPages && pageIndex != null
-        ? (pageIndex / totalPages) / totalFiles
-        : 0
-      percent = Math.round((fileProgress + pageProgress) * 100)
-    }
-
-    setProgressPercent(Math.min(percent, 99))
-    setProgressText(
-      `${stageLabel} Файл ${fileIndex + 1}/${totalFiles}` +
-      (totalPages ? ` | Страница ${(pageIndex ?? 0) + 1}/${totalPages}` : ''),
-    )
-  }, [])
-
-  // Запуск ручного распознавания
-  const handleRecognize = async () => {
+  // Запуск ручного распознавания через очередь
+  const handleRecognize = () => {
     if (!selectedRequestId) return
+    const req = approvedRequests.find((r) => r.id === selectedRequestId)
+    enqueue(selectedRequestId, 'manual', req?.requestNumber)
+    message.info('Заявка добавлена в очередь распознавания')
+  }
 
-    setIsRecognizing(true)
-    setProgressPercent(0)
-    setProgressText('Подготовка...')
-
-    try {
-      await processPaymentRequestOcr(selectedRequestId, handleProgress)
-      setProgressPercent(100)
-      setProgressText('Готово')
-      message.success('Распознавание завершено')
-      // Обновить логи, статистику и список заявок
+  // Обновляем данные при завершении задачи в очереди
+  useEffect(() => {
+    const successCount = Object.values(queueTasks).filter((t) => t.status === 'success').length
+    if (successCount > 0) {
       fetchLogs(1, 20)
       fetchTokenStats()
       loadApprovedRequests()
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Неизвестная ошибка'
-      message.error(`Ошибка распознавания: ${errorMsg}`)
-      logError({
-        errorType: 'api_error',
-        errorMessage: `Ошибка ручного OCR: ${errorMsg}`,
-        component: 'OcrSettingsTab',
-      })
-    } finally {
-      setIsRecognizing(false)
     }
-  }
+  }, [queueTasks, fetchLogs, fetchTokenStats, loadApprovedRequests])
 
   const handleAutoToggle = async (checked: boolean) => {
     try {
@@ -315,7 +298,7 @@ const OcrSettingsTab = () => {
       </Card>
 
       {/* Ручное распознавание */}
-      <Card size="small" title="Ручное распознавание">
+      <Card size="small" title="Распознавание">
         <Space direction="vertical" style={{ width: '100%' }} size="middle">
           <Space wrap>
             <Select
@@ -353,19 +336,70 @@ const OcrSettingsTab = () => {
               type="primary"
               icon={<PlayCircleOutlined />}
               onClick={handleRecognize}
-              disabled={!selectedRequestId || isRecognizing}
-              loading={isRecognizing}
+              disabled={!selectedRequestId || queueInfo.isSelectedProcessing || queueInfo.isSelectedPending}
+              loading={queueInfo.isSelectedProcessing}
             >
               Распознать
             </Button>
           </Space>
 
-          {isRecognizing && (
+          {/* Прогресс текущей задачи */}
+          {queueInfo.processing && (
             <div>
-              <Progress percent={progressPercent} status="active" />
-              <Text type="secondary">{progressText}</Text>
+              <Flex align="center" gap={8}>
+                <Tag color="processing">Обработка</Tag>
+                <Text style={{ fontSize: 13 }}>
+                  {queueInfo.processing.requestNumber || queueInfo.processing.paymentRequestId.slice(0, 8)}
+                </Text>
+              </Flex>
+              {queueInfo.processing.progress && (
+                <>
+                  <Progress
+                    percent={(() => {
+                      const p = queueInfo.processing.progress
+                      if (!p || p.totalFiles <= 0) return 0
+                      const filePart = p.fileIndex / p.totalFiles
+                      const pagePart = p.totalPages && p.pageIndex != null
+                        ? (p.pageIndex / p.totalPages) / p.totalFiles
+                        : 0
+                      return Math.min(Math.round((filePart + pagePart) * 100), 99)
+                    })()}
+                    status="active"
+                  />
+                  <Text type="secondary">
+                    {STAGE_LABELS[queueInfo.processing.progress.stage] ?? ''}{' '}
+                    Файл {queueInfo.processing.progress.fileIndex + 1}/{queueInfo.processing.progress.totalFiles}
+                    {queueInfo.processing.progress.totalPages
+                      ? ` | Страница ${(queueInfo.processing.progress.pageIndex ?? 0) + 1}/${queueInfo.processing.progress.totalPages}`
+                      : ''}
+                  </Text>
+                </>
+              )}
             </div>
           )}
+
+          {/* Очередь ожидания */}
+          {queueInfo.pending.length > 0 && (
+            <Text type="secondary">В очереди: {queueInfo.pending.length}</Text>
+          )}
+
+          {/* Ошибки */}
+          {queueInfo.errors.map((task) => (
+            <Flex key={task.paymentRequestId} align="center" gap={8} style={{ background: '#fff2f0', padding: '4px 8px', borderRadius: 4 }}>
+              <Tag color="error">Ошибка</Tag>
+              <Text style={{ fontSize: 12, flex: 1 }}>
+                {task.requestNumber || task.paymentRequestId.slice(0, 8)}: {task.errorMessage}
+              </Text>
+              <Button
+                type="link"
+                size="small"
+                icon={<ReloadOutlined />}
+                onClick={() => retryTask(task.paymentRequestId)}
+              >
+                Повторить
+              </Button>
+            </Flex>
+          ))}
         </Space>
       </Card>
 

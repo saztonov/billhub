@@ -370,13 +370,15 @@ export async function processPaymentRequestOcr(
   }
 }
 
-/** Проверяет, нужно ли автоматически запустить OCR, и запускает */
+/** Проверяет, нужно ли автоматически запустить OCR, и добавляет в очередь */
 export async function triggerOcrIfEnabled(paymentRequestId: string): Promise<void> {
   try {
     const settings = await loadOcrSettings()
     if (!settings.autoEnabled || !settings.activeModelId) return
 
-    await processPaymentRequestOcr(paymentRequestId)
+    // Динамический импорт чтобы избежать циклической зависимости
+    const { useOcrQueueStore } = await import('@/store/ocrQueueStore')
+    useOcrQueueStore.getState().enqueue(paymentRequestId, 'auto')
   } catch (err) {
     logError({
       errorType: 'api_error',
