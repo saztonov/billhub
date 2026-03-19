@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
-import { Typography, Table, Button, InputNumber, Descriptions, Drawer, Space, Splitter, Select, Tag, Input, Modal, message } from 'antd'
+import { Typography, Table, Button, Descriptions, Drawer, Space, Splitter, Select, Tag, Input, Modal, message } from 'antd'
 import { ArrowLeftOutlined, FileSearchOutlined, EyeInvisibleOutlined, SearchOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useParams, useNavigate } from 'react-router-dom'
@@ -357,15 +357,22 @@ const MaterialsDetailPage = () => {
         render: (value: number | null, record: RecognizedMaterial) => {
           if (!canEditEstimate) return fmtAmount(value)
           return (
-            <InputNumber
-              value={value}
+            <Input
+              defaultValue={value != null ? String(value) : ''}
               size="small"
-              style={{ width: '100%' }}
-              controls={false}
-              parser={(val) => (val ? Number(val.replace(',', '.')) : (null as unknown as number))}
-              onChange={(v) => {
-                const rounded = v != null ? Math.round(v * 100000) / 100000 : v
-                handleEstimateChange(record.id, rounded)
+              style={{ width: '100%', textAlign: 'right' }}
+              onBlur={(e) => {
+                const raw = e.target.value.trim().replace(',', '.')
+                if (!raw) {
+                  handleEstimateChange(record.id, null)
+                  return
+                }
+                const num = parseFloat(raw)
+                if (!isNaN(num)) {
+                  const rounded = Math.round(num * 100000) / 100000
+                  handleEstimateChange(record.id, rounded)
+                  e.target.value = String(rounded)
+                }
               }}
             />
           )
