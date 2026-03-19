@@ -190,6 +190,16 @@ export function useRequestFiltering({
     return filteredRequests.filter(r => r.approvedAt !== null).reduce((sum, req) => sum + (req.totalPaid ?? 0), 0)
   }, [filteredRequests])
 
+  // Сумма РП на согласовании (вкладка "Все")
+  const totalPendingAmountAll = useMemo(() => {
+    return filteredRequests.filter(r =>
+      r.currentStage !== null &&
+      r.approvedAt === null &&
+      r.rejectedAt === null &&
+      r.withdrawnAt === null
+    ).reduce((sum, req) => sum + (req.invoiceAmount ?? 0), 0)
+  }, [filteredRequests])
+
   // Статистика для counterparty_user (вкладка "Все", только согласованные)
   const totalCounterpartyInvoiceAmountAll = useMemo(() => {
     return filteredCounterpartyAll.filter(r => r.approvedAt !== null).reduce((sum, req) => sum + (req.invoiceAmount ?? 0), 0)
@@ -197,6 +207,16 @@ export function useRequestFiltering({
 
   const totalCounterpartyPaidAll = useMemo(() => {
     return filteredCounterpartyAll.filter(r => r.approvedAt !== null).reduce((sum, req) => sum + (req.totalPaid ?? 0), 0)
+  }, [filteredCounterpartyAll])
+
+  // Сумма РП на согласовании для counterparty_user
+  const totalCounterpartyPendingAmountAll = useMemo(() => {
+    return filteredCounterpartyAll.filter(r =>
+      r.currentStage !== null &&
+      r.approvedAt === null &&
+      r.rejectedAt === null &&
+      r.withdrawnAt === null
+    ).reduce((sum, req) => sum + (req.invoiceAmount ?? 0), 0)
   }, [filteredCounterpartyAll])
 
   const unassignedOmtsCount = useMemo(() => {
@@ -229,8 +249,10 @@ export function useRequestFiltering({
     totalInvoiceAmount,
     totalInvoiceAmountAll,
     totalPaidAll,
+    totalPendingAmountAll,
     totalCounterpartyInvoiceAmountAll,
     totalCounterpartyPaidAll,
+    totalCounterpartyPendingAmountAll,
     unassignedOmtsCount,
   }
 }

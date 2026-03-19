@@ -120,8 +120,8 @@ const PaymentRequestsPage = () => {
     filteredOmtsRpPendingRequests,
     filteredCounterpartyAll, filteredCounterpartyRevision, filteredCounterpartyPending, filteredCounterpartyApproved, filteredCounterpartyRejected,
     counterpartyAllCount, counterpartyRevisionCount, counterpartyPendingCount, counterpartyApprovedCount, counterpartyRejectedCount,
-    totalInvoiceAmount, totalInvoiceAmountAll, totalPaidAll,
-    totalCounterpartyInvoiceAmountAll, totalCounterpartyPaidAll,
+    totalInvoiceAmount, totalInvoiceAmountAll, totalPaidAll, totalPendingAmountAll,
+    totalCounterpartyInvoiceAmountAll, totalCounterpartyPaidAll, totalCounterpartyPendingAmountAll,
     unassignedOmtsCount,
   } = useRequestFiltering({
     requests, pendingRequests, approvedRequests, rejectedRequests, omtsRpPendingRequests,
@@ -240,9 +240,17 @@ const PaymentRequestsPage = () => {
               fontSize: 13,
             }}
           >
-            <span style={{ color: '#8c8c8c', marginRight: 6 }}>РП на сумму:</span>
+            <span style={{ color: '#8c8c8c', marginRight: 6 }}>Согласовано РП:</span>
             <span style={{ fontWeight: 500 }}>
               {totalInvoiceAmountAll.toLocaleString('ru-RU', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+              })} ₽
+            </span>
+            <span style={{ color: '#d9d9d9', margin: '0 8px' }}>|</span>
+            <span style={{ color: '#8c8c8c', marginRight: 6 }}>РП на согласовании:</span>
+            <span style={{ fontWeight: 500 }}>
+              {totalPendingAmountAll.toLocaleString('ru-RU', {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2
               })} ₽
@@ -328,7 +336,7 @@ const PaymentRequestsPage = () => {
     )
 
     setHeader('Заявки на оплату', extra, actions)
-  }, [activeTab, totalInvoiceAmountAll, totalPaidAll, totalInvoiceAmount, unassignedOmtsCount, isAdmin, isCounterpartyUser, userDeptInChain, showDeleted, setHeader, isMobile])
+  }, [activeTab, totalInvoiceAmountAll, totalPaidAll, totalPendingAmountAll, totalInvoiceAmount, unassignedOmtsCount, isAdmin, isCounterpartyUser, userDeptInChain, showDeleted, setHeader, isMobile])
 
   useEffect(() => {
     return () => clearHeader()
@@ -506,6 +514,7 @@ const PaymentRequestsPage = () => {
           onTabChange={setActiveTab}
           onTabClick={(key) => { if (key === activeTab) setRefreshTrigger((n) => n + 1) }}
           totalInvoiceAmountAll={totalCounterpartyInvoiceAmountAll}
+          totalPendingAmountAll={totalCounterpartyPendingAmountAll}
           totalPaidAll={totalCounterpartyPaidAll}
           unreadCounts={unreadCounts}
           onView={setViewRecord}

@@ -37,6 +37,7 @@ interface CounterpartyRequestsViewProps {
   uploadTasks: Record<string, UploadTask>
   totalStages: number
   totalInvoiceAmountAll: number
+  totalPendingAmountAll: number
   totalPaidAll: number
   unreadCounts?: Record<string, number>
   isMobile?: boolean
@@ -72,6 +73,7 @@ const CounterpartyRequestsView = ({
   uploadTasks,
   totalStages,
   totalInvoiceAmountAll,
+  totalPendingAmountAll,
   totalPaidAll,
   unreadCounts,
   isMobile,
@@ -96,9 +98,17 @@ const CounterpartyRequestsView = ({
           fontSize: 13,
         }}
       >
-        <span style={{ color: '#8c8c8c', marginRight: 6 }}>РП на сумму:</span>
+        <span style={{ color: '#8c8c8c', marginRight: 6 }}>Согласовано РП:</span>
         <span style={{ fontWeight: 500 }}>
           {totalInvoiceAmountAll.toLocaleString('ru-RU', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+          })} ₽
+        </span>
+        <span style={{ color: '#d9d9d9', margin: '0 8px' }}>|</span>
+        <span style={{ color: '#8c8c8c', marginRight: 6 }}>РП на согласовании:</span>
+        <span style={{ fontWeight: 500 }}>
+          {totalPendingAmountAll.toLocaleString('ru-RU', {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2
           })} ₽
@@ -121,7 +131,7 @@ const CounterpartyRequestsView = ({
         Добавить
       </Button>
     )
-  }, [setHeader, onCreateOpen, activeTab, totalInvoiceAmountAll, totalPaidAll, isMobile])
+  }, [setHeader, onCreateOpen, activeTab, totalInvoiceAmountAll, totalPendingAmountAll, totalPaidAll, isMobile])
 
   const tabItems = [
     {
