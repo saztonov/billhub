@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react'
-import { Typography, Tabs, Table } from 'antd'
+import { Typography, Tabs, Table, Tag } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useMaterialsStore } from '@/store/materialsStore'
@@ -83,6 +83,18 @@ const InvoicesTab = () => {
         width: 140,
         align: 'right',
         render: (v: number) => fmtAmount(v),
+      },
+      {
+        title: 'Статус',
+        dataIndex: 'materialsVerification',
+        key: 'materialsVerification',
+        width: 130,
+        align: 'center',
+        render: (v: MaterialsRequestRow['materialsVerification']) => {
+          if (!v) return '—'
+          if (v.status === 'verified') return <Tag color="green">Проверен</Tag>
+          return <Tag color="orange">На проверке</Tag>
+        },
       },
     ],
     [],

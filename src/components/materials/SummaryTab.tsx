@@ -79,6 +79,21 @@ const materialColumns: ColumnsType<HierarchyMaterialRow> = [
     },
   },
   {
+    title: 'Откл. сумма',
+    dataIndex: 'deviationAmount',
+    key: 'deviationAmount',
+    width: 140,
+    align: 'right' as const,
+    render: (v: number) => {
+      if (v === 0) return <Tag>0,00</Tag>
+      return (
+        <Tag color={v > 0 ? 'red' : 'green'}>
+          {v > 0 ? '+' : ''}{fmtAmount(v)}
+        </Tag>
+      )
+    },
+  },
+  {
     title: 'Средняя цена',
     dataIndex: 'averagePrice',
     key: 'averagePrice',
@@ -192,6 +207,21 @@ const SummaryTab = () => {
           return (
             <Tag color={dev > 0 ? 'red' : 'green'}>
               {dev > 0 ? '+' : ''}{fmtAmount(dev)}
+            </Tag>
+          )
+        },
+      },
+      {
+        title: 'Откл. сумма',
+        key: 'deviationAmount',
+        width: 150,
+        align: 'right',
+        render: (_: unknown, record: HierarchyFlatRow) => {
+          const devAmt = isGroupRow(record) ? record.deviationAmount : isCounterpartyRow(record) ? record.deviationAmount : 0
+          if (devAmt === 0) return null
+          return (
+            <Tag color={devAmt > 0 ? 'red' : 'green'}>
+              {devAmt > 0 ? '+' : ''}{fmtAmount(devAmt)}
             </Tag>
           )
         },

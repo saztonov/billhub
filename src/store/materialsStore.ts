@@ -2,6 +2,17 @@ import { create } from 'zustand'
 import { supabase } from '@/services/supabase'
 import type { RecognizedMaterial } from '@/types'
 
+/** Статус проверки материалов */
+export interface MaterialsVerification {
+  status: 'on_check' | 'verified'
+  checkedBy: string
+  checkedByName: string
+  checkedAt: string
+  verifiedBy?: string
+  verifiedByName?: string
+  verifiedAt?: string
+}
+
 /** Заявка с распознанными материалами (для списка на вкладке Счета) */
 export interface MaterialsRequestRow {
   paymentRequestId: string
@@ -13,6 +24,7 @@ export interface MaterialsRequestRow {
   itemsCount: number
   totalAmount: number
   invoicesCount: number
+  materialsVerification: MaterialsVerification | null
 }
 
 /** Строка сводной таблицы */
@@ -34,7 +46,7 @@ export interface HierarchicalRawRow {
   quantity: number
   price: number
   amount: number
-  estimateQuantity: number
+  estimateQuantity: number | null
   costTypeId: string | null
   costTypeName: string | null
   siteId: string
@@ -54,6 +66,7 @@ export interface HierarchyMaterialRow {
   totalAmount: number
   totalEstimateQuantity: number
   deviation: number
+  deviationAmount: number
 }
 
 /** Строка подрядчика (раскрываемая) */
@@ -65,6 +78,7 @@ export interface HierarchyCounterpartyRow {
   totalAmount: number
   totalEstimateQuantity: number
   deviation: number
+  deviationAmount: number
   materials: HierarchyMaterialRow[]
 }
 
@@ -77,6 +91,7 @@ export interface HierarchyGroupRow {
   totalQuantity: number
   totalEstimateQuantity: number
   deviation: number
+  deviationAmount: number
 }
 
 /** Элемент плоского списка для таблицы */
@@ -196,7 +211,7 @@ export const useMaterialsStore = create<MaterialsStoreState>((set) => ({
       // Загружаем данные заявок
       const { data: prData, error: prError } = await supabase
         .from('payment_requests')
-        .select('id, request_number, approved_at, counterparties(name), suppliers(name), construction_sites(name)')
+        .select('id, request_number, approved_at, materials_verification, counterparties(name), suppliers(name), construction_sites(name)')
         .in('id', uniqueIds)
         .order('approved_at', { ascending: false })
       if (prError) throw prError
@@ -216,6 +231,7 @@ export const useMaterialsStore = create<MaterialsStoreState>((set) => ({
           itemsCount: countMap[id]?.count ?? 0,
           totalAmount: countMap[id]?.total ?? 0,
           invoicesCount: invoicesCountMap[id] ?? 0,
+          materialsVerification: (row.materials_verification as MaterialsVerification | null) ?? null,
         }
       })
 
@@ -408,7 +424,7 @@ export const useMaterialsStore = create<MaterialsStoreState>((set) => ({
           quantity: Number(row.quantity ?? 0),
           price: Number(row.price ?? 0),
           amount: Number(row.amount ?? 0),
-          estimateQuantity: Number(row.estimate_quantity ?? 0),
+          estimateQuantity: row.estimate_quantity != null ? Number(row.estimate_quantity) : null,
           costTypeId: pr.cost_type_id as string | null,
           costTypeName: (ct?.name as string) ?? null,
           siteId: pr.site_id as string,

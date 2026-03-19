@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
-import { Typography, Table, Button, InputNumber, Descriptions, Drawer, Space, Splitter, Select, message } from 'antd'
-import { ArrowLeftOutlined, FileSearchOutlined, EyeInvisibleOutlined } from '@ant-design/icons'
+import { Typography, Table, Button, InputNumber, Descriptions, Drawer, Space, Splitter, Select, Tag, Input, message } from 'antd'
+import { ArrowLeftOutlined, FileSearchOutlined, EyeInvisibleOutlined, SearchOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useMaterialsStore } from '@/store/materialsStore'
+import type { MaterialsVerification } from '@/store/materialsStore'
 import { useAuthStore } from '@/store/authStore'
 import { useTableScrollY } from '@/hooks/useTableScrollY'
 import { useInvoiceSyncViewer } from '@/hooks/useInvoiceSyncViewer'
@@ -26,6 +27,7 @@ interface RequestInfo {
   approvedAt: string | null
   costTypeId: string | null
   costTypeName: string | null
+  materialsVerification: MaterialsVerification | null
 }
 
 /** Форматирование суммы */
@@ -119,7 +121,7 @@ const MaterialsDetailPage = () => {
       try {
         const { data, error } = await supabase
           .from('payment_requests')
-          .select('request_number, approved_at, cost_type_id, counterparties(name), suppliers(name), construction_sites(name), cost_types(name)')
+          .select('request_number, approved_at, cost_type_id, materials_verification, counterparties(name), suppliers(name), construction_sites(name), cost_types(name)')
           .eq('id', paymentRequestId)
           .single()
         if (error) throw error
@@ -139,6 +141,7 @@ const MaterialsDetailPage = () => {
           approvedAt: row.approved_at as string | null,
           costTypeId: (row.cost_type_id as string) ?? null,
           costTypeName: (ct?.name as string) ?? null,
+          materialsVerification: (row.materials_verification as MaterialsVerification | null) ?? null,
         })
       } catch (err) {
         logError({
@@ -174,6 +177,46 @@ const MaterialsDetailPage = () => {
     },
     [paymentRequestId, costTypes],
   )
+
+  // Обработчик смены статуса проверки материалов
+  const handleVerificationClick = useCallback(async () => {
+    if (!paymentRequestId || !user || !requestInfo) return
+    const current = requestInfo.materialsVerification
+    if (current?.status === 'verified') return
+
+    const now = new Date().toISOString()
+    let newVerification: MaterialsVerification
+
+    if (!current) {
+      // null -> on_check
+      newVerification = {
+        status: 'on_check',
+        checkedBy: user.id,
+        checkedByName: user.fullName,
+        checkedAt: now,
+      }
+    } else {
+      // on_check -> verified
+      newVerification = {
+        ...current,
+        status: 'verified',
+        verifiedBy: user.id,
+        verifiedByName: user.fullName,
+        verifiedAt: now,
+      }
+    }
+
+    try {
+      const { error } = await supabase
+        .from('payment_requests')
+        .update({ materials_verification: newVerification })
+        .eq('id', paymentRequestId)
+      if (error) throw error
+      setRequestInfo((prev) => prev ? { ...prev, materialsVerification: newVerification } : prev)
+    } catch {
+      message.error('Ошибка обновления статуса проверки')
+    }
+  }, [paymentRequestId, user, requestInfo])
 
   // Обработчик изменения «Кол-во смета»
   const handleEstimateChange = useCallback(
@@ -220,6 +263,31 @@ const MaterialsDetailPage = () => {
         dataIndex: 'materialName',
         key: 'materialName',
         ellipsis: true,
+        sorter: (a: RecognizedMaterial, b: RecognizedMaterial) =>
+          (a.materialName ?? '').localeCompare(b.materialName ?? '', 'ru'),
+        filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters }) => (
+          <div style={{ padding: 8 }}>
+            <Input
+              placeholder="Поиск по наименованию"
+              value={selectedKeys[0]}
+              onChange={(e) => setSelectedKeys(e.target.value ? [e.target.value] : [])}
+              onPressEnter={() => confirm()}
+              style={{ marginBottom: 8, display: 'block' }}
+              size="small"
+            />
+            <Space>
+              <Button type="primary" onClick={() => confirm()} icon={<SearchOutlined />} size="small" style={{ width: 90 }}>
+                Найти
+              </Button>
+              <Button onClick={() => { clearFilters?.(); confirm() }} size="small" style={{ width: 90 }}>
+                Сброс
+              </Button>
+            </Space>
+          </div>
+        ),
+        filterIcon: (filtered: boolean) => <SearchOutlined style={{ color: filtered ? '#1677ff' : undefined }} />,
+        onFilter: (value, record: RecognizedMaterial) =>
+          (record.materialName ?? '').toLowerCase().includes(String(value).toLowerCase()),
         render: (v: string | undefined) => v ?? '—',
       },
       {
@@ -363,7 +431,51 @@ const MaterialsDetailPage = () => {
                 )}
               </Descriptions.Item>
             </Descriptions>
-            {previewButton}
+            <Space>
+              {previewButton}
+              {(() => {
+                const v = requestInfo.materialsVerification
+                const isVerified = v?.status === 'verified'
+                const isOnCheck = v?.status === 'on_check'
+
+                if (isVerified) {
+                  return (
+                    <>
+                      <Tag color="green">Проверен</Tag>
+                      <span style={{ fontSize: 12, color: '#888' }}>
+                        {v?.verifiedByName}, {formatDate(v?.verifiedAt ?? null, false)}
+                      </span>
+                    </>
+                  )
+                }
+
+                if (isOnCheck) {
+                  return (
+                    <>
+                      <Tag color="orange">На проверке</Tag>
+                      <Button
+                        onClick={handleVerificationClick}
+                        style={{ borderColor: '#52c41a', color: '#52c41a' }}
+                      >
+                        Проверен
+                      </Button>
+                      <span style={{ fontSize: 12, color: '#888' }}>
+                        {v?.checkedByName}, {formatDate(v?.checkedAt ?? null, false)}
+                      </span>
+                    </>
+                  )
+                }
+
+                return (
+                  <Button
+                    onClick={handleVerificationClick}
+                    style={{ borderColor: '#fa8c16', color: '#fa8c16' }}
+                  >
+                    На проверке
+                  </Button>
+                )
+              })()}
+            </Space>
           </div>
         )}
       </div>

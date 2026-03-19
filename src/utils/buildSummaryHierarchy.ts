@@ -31,30 +31,23 @@ export function buildSummaryHierarchy(raw: HierarchicalRawRow[]): HierarchyFlatR
   for (const siteId of siteKeys) {
     const costTypes = tree[siteId]
 
-    // Агрегация по объекту
     let siteAmount = 0
     let siteQuantity = 0
     let siteEstimate = 0
+    let siteDeviation = 0
+    let siteDeviationAmount = 0
     const siteName = getFirstRow(costTypes).siteName
 
-    for (const ctKey of Object.keys(costTypes)) {
-      for (const cpId of Object.keys(costTypes[ctKey])) {
-        for (const row of costTypes[ctKey][cpId]) {
-          siteAmount += row.amount
-          siteQuantity += row.quantity
-          siteEstimate += row.estimateQuantity
-        }
-      }
-    }
-
+    // Строка объекта (deviationAmount обновится после подсчёта дочерних)
     const siteRow: HierarchyGroupRow = {
       key: `site_${siteId}`,
       level: 'site',
       label: siteName,
-      totalAmount: siteAmount,
-      totalQuantity: siteQuantity,
-      totalEstimateQuantity: siteEstimate,
-      deviation: siteQuantity - siteEstimate,
+      totalAmount: 0,
+      totalQuantity: 0,
+      totalEstimateQuantity: 0,
+      deviation: 0,
+      deviationAmount: 0,
     }
     result.push(siteRow)
 
@@ -73,26 +66,22 @@ export function buildSummaryHierarchy(raw: HierarchicalRawRow[]): HierarchyFlatR
       let ctAmount = 0
       let ctQuantity = 0
       let ctEstimate = 0
+      let ctDeviation = 0
+      let ctDeviationAmount = 0
       const ctName = ctKey === '__none__'
         ? 'Без вида затрат'
         : getFirstRow(counterparties).costTypeName ?? ''
 
-      for (const cpId of Object.keys(counterparties)) {
-        for (const row of counterparties[cpId]) {
-          ctAmount += row.amount
-          ctQuantity += row.quantity
-          ctEstimate += row.estimateQuantity
-        }
-      }
-
+      // Строка вида затрат (обновится после подсчёта дочерних)
       const costTypeRow: HierarchyGroupRow = {
         key: `ct_${siteId}_${ctKey}`,
         level: 'costType',
         label: ctName,
-        totalAmount: ctAmount,
-        totalQuantity: ctQuantity,
-        totalEstimateQuantity: ctEstimate,
-        deviation: ctQuantity - ctEstimate,
+        totalAmount: 0,
+        totalQuantity: 0,
+        totalEstimateQuantity: 0,
+        deviation: 0,
+        deviationAmount: 0,
       }
       result.push(costTypeRow)
 
@@ -109,6 +98,9 @@ export function buildSummaryHierarchy(raw: HierarchicalRawRow[]): HierarchyFlatR
 
         // Группируем материалы внутри подрядчика по materialId
         const matMap: Record<string, HierarchyMaterialRow> = {}
+        // Количество только из строк с заполненным estimateQuantity (для deviation)
+        const matDevQuantity: Record<string, number> = {}
+
         for (const row of rows) {
           if (!matMap[row.materialId]) {
             matMap[row.materialId] = {
@@ -121,28 +113,43 @@ export function buildSummaryHierarchy(raw: HierarchicalRawRow[]): HierarchyFlatR
               totalAmount: 0,
               totalEstimateQuantity: 0,
               deviation: 0,
+              deviationAmount: 0,
             }
+            matDevQuantity[row.materialId] = 0
           }
           matMap[row.materialId].totalQuantity += row.quantity
           matMap[row.materialId].totalAmount += row.amount
-          matMap[row.materialId].totalEstimateQuantity += row.estimateQuantity
+          // Строки с пустым estimateQuantity не участвуют в расчёте отклонения
+          if (row.estimateQuantity != null) {
+            matMap[row.materialId].totalEstimateQuantity += row.estimateQuantity
+            matDevQuantity[row.materialId] += row.quantity
+          }
         }
 
-        const materials = Object.values(matMap)
-          .map((m) => ({
-            ...m,
-            averagePrice: m.totalQuantity > 0 ? m.totalAmount / m.totalQuantity : 0,
-            deviation: m.totalQuantity - m.totalEstimateQuantity,
-          }))
+        const materials = Object.entries(matMap)
+          .map(([matId, m]) => {
+            const avgPrice = m.totalQuantity > 0 ? m.totalAmount / m.totalQuantity : 0
+            const dev = matDevQuantity[matId] - m.totalEstimateQuantity
+            return {
+              ...m,
+              averagePrice: avgPrice,
+              deviation: dev,
+              deviationAmount: dev * avgPrice,
+            }
+          })
           .sort((a, b) => a.materialName.localeCompare(b.materialName, 'ru'))
 
         let cpAmount = 0
         let cpQuantity = 0
         let cpEstimate = 0
+        let cpDeviation = 0
+        let cpDeviationAmount = 0
         for (const m of materials) {
           cpAmount += m.totalAmount
           cpQuantity += m.totalQuantity
           cpEstimate += m.totalEstimateQuantity
+          cpDeviation += m.deviation
+          cpDeviationAmount += m.deviationAmount
         }
 
         const cpRow: HierarchyCounterpartyRow = {
@@ -152,12 +159,39 @@ export function buildSummaryHierarchy(raw: HierarchicalRawRow[]): HierarchyFlatR
           totalAmount: cpAmount,
           totalQuantity: cpQuantity,
           totalEstimateQuantity: cpEstimate,
-          deviation: cpQuantity - cpEstimate,
+          deviation: cpDeviation,
+          deviationAmount: cpDeviationAmount,
           materials,
         }
         result.push(cpRow)
+
+        ctAmount += cpAmount
+        ctQuantity += cpQuantity
+        ctEstimate += cpEstimate
+        ctDeviation += cpDeviation
+        ctDeviationAmount += cpDeviationAmount
       }
+
+      // Обновляем строку вида затрат
+      costTypeRow.totalAmount = ctAmount
+      costTypeRow.totalQuantity = ctQuantity
+      costTypeRow.totalEstimateQuantity = ctEstimate
+      costTypeRow.deviation = ctDeviation
+      costTypeRow.deviationAmount = ctDeviationAmount
+
+      siteAmount += ctAmount
+      siteQuantity += ctQuantity
+      siteEstimate += ctEstimate
+      siteDeviation += ctDeviation
+      siteDeviationAmount += ctDeviationAmount
     }
+
+    // Обновляем строку объекта
+    siteRow.totalAmount = siteAmount
+    siteRow.totalQuantity = siteQuantity
+    siteRow.totalEstimateQuantity = siteEstimate
+    siteRow.deviation = siteDeviation
+    siteRow.deviationAmount = siteDeviationAmount
   }
 
   return result

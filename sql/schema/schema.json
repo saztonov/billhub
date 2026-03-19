@@ -2102,6 +2102,15 @@
               "position": 40,
               "max_length": null,
               "numeric_precision": null
+            },
+            {
+              "name": "materials_verification",
+              "type": "jsonb",
+              "default": null,
+              "nullable": true,
+              "position": 41,
+              "max_length": null,
+              "numeric_precision": null
             }
           ]
         },
@@ -3718,7 +3727,7 @@
           ]
         }
       ],
-      "generated_at": "2026-03-18T12:13:22.461392+00:00",
+      "generated_at": "2026-03-19T10:47:31.187357+00:00",
       "primary_keys": [
         {
           "columns": [
