@@ -36,6 +36,33 @@ const fmtAmount = (v: number | null | undefined): string => {
   return v.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
+/** Ячейка ввода кол-ва сметы с локальным состоянием */
+const EstimateInput = ({ value, onSave }: { value: number | null; onSave: (v: number | null) => void }) => {
+  const [text, setText] = useState(value != null ? String(value).replace('.', ',') : '')
+
+  return (
+    <Input
+      value={text}
+      size="small"
+      style={{ width: '100%', textAlign: 'right' }}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={() => {
+        const raw = text.trim().replace(',', '.')
+        if (!raw) {
+          onSave(null)
+          return
+        }
+        const num = parseFloat(raw)
+        if (!isNaN(num)) {
+          const rounded = Math.round(num * 100000) / 100000
+          onSave(rounded)
+          setText(String(rounded).replace('.', ','))
+        }
+      }}
+    />
+  )
+}
+
 /** Breakpoint для переключения на Drawer (мобильные) */
 const MOBILE_BREAKPOINT = 768
 
@@ -357,23 +384,9 @@ const MaterialsDetailPage = () => {
         render: (value: number | null, record: RecognizedMaterial) => {
           if (!canEditEstimate) return fmtAmount(value)
           return (
-            <Input
-              defaultValue={value != null ? String(value).replace('.', ',') : ''}
-              size="small"
-              style={{ width: '100%', textAlign: 'right' }}
-              onBlur={(e) => {
-                const raw = e.target.value.trim().replace(',', '.')
-                if (!raw) {
-                  handleEstimateChange(record.id, null)
-                  return
-                }
-                const num = parseFloat(raw)
-                if (!isNaN(num)) {
-                  const rounded = Math.round(num * 100000) / 100000
-                  handleEstimateChange(record.id, rounded)
-                  e.target.value = String(rounded).replace('.', ',')
-                }
-              }}
+            <EstimateInput
+              value={value}
+              onSave={(v) => handleEstimateChange(record.id, v)}
             />
           )
         },
