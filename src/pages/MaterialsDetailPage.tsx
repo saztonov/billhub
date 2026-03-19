@@ -358,7 +358,7 @@ const MaterialsDetailPage = () => {
           if (!canEditEstimate) return fmtAmount(value)
           return (
             <Input
-              defaultValue={value != null ? String(value) : ''}
+              defaultValue={value != null ? String(value).replace('.', ',') : ''}
               size="small"
               style={{ width: '100%', textAlign: 'right' }}
               onBlur={(e) => {
@@ -371,7 +371,7 @@ const MaterialsDetailPage = () => {
                 if (!isNaN(num)) {
                   const rounded = Math.round(num * 100000) / 100000
                   handleEstimateChange(record.id, rounded)
-                  e.target.value = String(rounded)
+                  e.target.value = String(rounded).replace('.', ',')
                 }
               }}
             />
