@@ -12,6 +12,7 @@ export interface MaterialsRequestRow {
   siteName: string
   itemsCount: number
   totalAmount: number
+  invoicesCount: number
 }
 
 /** Строка сводной таблицы */
@@ -178,6 +179,20 @@ export const useMaterialsStore = create<MaterialsStoreState>((set) => ({
         }
       }
 
+      // Подсчёт файлов-счетов по каждой заявке
+      const { data: filesData, error: filesError } = await supabase
+        .from('payment_request_files')
+        .select('payment_request_id')
+        .in('payment_request_id', uniqueIds)
+        .eq('document_type_id', INVOICE_DOC_TYPE_ID)
+      if (filesError) throw filesError
+
+      const invoicesCountMap: Record<string, number> = {}
+      for (const row of filesData ?? []) {
+        const id = row.payment_request_id as string
+        invoicesCountMap[id] = (invoicesCountMap[id] ?? 0) + 1
+      }
+
       // Загружаем данные заявок
       const { data: prData, error: prError } = await supabase
         .from('payment_requests')
@@ -200,6 +215,7 @@ export const useMaterialsStore = create<MaterialsStoreState>((set) => ({
           siteName: (site?.name as string) ?? '',
           itemsCount: countMap[id]?.count ?? 0,
           totalAmount: countMap[id]?.total ?? 0,
+          invoicesCount: invoicesCountMap[id] ?? 0,
         }
       })
 

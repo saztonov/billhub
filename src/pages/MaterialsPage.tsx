@@ -63,6 +63,13 @@ const InvoicesTab = () => {
         render: (v: string | null) => formatDate(v, false),
       },
       {
+        title: 'Счетов',
+        dataIndex: 'invoicesCount',
+        key: 'invoicesCount',
+        width: 90,
+        align: 'right',
+      },
+      {
         title: 'Позиций',
         dataIndex: 'itemsCount',
         key: 'itemsCount',

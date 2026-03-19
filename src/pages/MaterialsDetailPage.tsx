@@ -344,6 +344,7 @@ const MaterialsDetailPage = () => {
               <Descriptions.Item label="Поставщик">{requestInfo.supplierName}</Descriptions.Item>
               <Descriptions.Item label="Объект">{requestInfo.siteName}</Descriptions.Item>
               <Descriptions.Item label="Дата">{formatDate(requestInfo.approvedAt, false)}</Descriptions.Item>
+              <Descriptions.Item label="Счетов">{invoiceFiles.length}</Descriptions.Item>
               <Descriptions.Item label="Вид затрат">
                 {canEditEstimate ? (
                   <Select
