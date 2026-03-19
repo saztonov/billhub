@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
-import { Typography, Table, Button, InputNumber, Descriptions, Drawer, Space, Splitter, Select, Tag, Input, message } from 'antd'
+import { Typography, Table, Button, InputNumber, Descriptions, Drawer, Space, Splitter, Select, Tag, Input, Modal, message } from 'antd'
 import { ArrowLeftOutlined, FileSearchOutlined, EyeInvisibleOutlined, SearchOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useParams, useNavigate } from 'react-router-dom'
@@ -196,7 +196,11 @@ const MaterialsDetailPage = () => {
         checkedAt: now,
       }
     } else {
-      // on_check -> verified
+      // on_check -> verified: проверка вида затрат
+      if (!requestInfo.costTypeId) {
+        message.warning('Выберите вид затрат перед переводом в статус "Проверен"')
+        return
+      }
       newVerification = {
         ...current,
         status: 'verified',
@@ -217,6 +221,29 @@ const MaterialsDetailPage = () => {
       message.error('Ошибка обновления статуса проверки')
     }
   }, [paymentRequestId, user, requestInfo])
+
+  // Обработчик отмены статуса проверки (только admin)
+  const handleResetVerification = useCallback(() => {
+    if (!paymentRequestId || user?.role !== 'admin') return
+    Modal.confirm({
+      title: 'Отменить',
+      content: 'Отменить статус проверки?',
+      okText: 'Да',
+      cancelText: 'Нет',
+      onOk: async () => {
+        try {
+          const { error } = await supabase
+            .from('payment_requests')
+            .update({ materials_verification: null })
+            .eq('id', paymentRequestId)
+          if (error) throw error
+          setRequestInfo((prev) => prev ? { ...prev, materialsVerification: null } : prev)
+        } catch {
+          message.error('Ошибка сброса статуса проверки')
+        }
+      },
+    })
+  }, [paymentRequestId, user])
 
   // Обработчик изменения «Кол-во смета»
   const handleEstimateChange = useCallback(
@@ -403,6 +430,15 @@ const MaterialsDetailPage = () => {
               ? 'Загрузка...'
               : `Материалы заявки ${requestInfo?.requestNumber ?? ''}`}
           </Title>
+          {requestInfo?.materialsVerification && (
+            <Tag
+              color={requestInfo.materialsVerification.status === 'verified' ? 'green' : 'orange'}
+              style={{ cursor: user?.role === 'admin' ? 'pointer' : undefined, marginLeft: 8 }}
+              onClick={user?.role === 'admin' ? handleResetVerification : undefined}
+            >
+              {requestInfo.materialsVerification.status === 'verified' ? 'Проверен' : 'На проверке'}
+            </Tag>
+          )}
         </Space>
 
         {requestInfo && (
@@ -432,49 +468,39 @@ const MaterialsDetailPage = () => {
               </Descriptions.Item>
             </Descriptions>
             <Space>
-              {previewButton}
               {(() => {
                 const v = requestInfo.materialsVerification
                 const isVerified = v?.status === 'verified'
                 const isOnCheck = v?.status === 'on_check'
+                const lastAuthor = isVerified ? v?.verifiedByName : isOnCheck ? v?.checkedByName : null
+                const lastDate = isVerified ? v?.verifiedAt : isOnCheck ? v?.checkedAt : null
 
-                if (isVerified) {
-                  return (
-                    <>
-                      <Tag color="green">Проверен</Tag>
+                return (
+                  <>
+                    {lastAuthor && (
                       <span style={{ fontSize: 12, color: '#888' }}>
-                        {v?.verifiedByName}, {formatDate(v?.verifiedAt ?? null, false)}
+                        {lastAuthor}, {formatDate(lastDate ?? null, false)}
                       </span>
-                    </>
-                  )
-                }
-
-                if (isOnCheck) {
-                  return (
-                    <>
-                      <Tag color="orange">На проверке</Tag>
+                    )}
+                    {isVerified ? null : isOnCheck ? (
                       <Button
                         onClick={handleVerificationClick}
                         style={{ borderColor: '#52c41a', color: '#52c41a' }}
                       >
                         Проверен
                       </Button>
-                      <span style={{ fontSize: 12, color: '#888' }}>
-                        {v?.checkedByName}, {formatDate(v?.checkedAt ?? null, false)}
-                      </span>
-                    </>
-                  )
-                }
-
-                return (
-                  <Button
-                    onClick={handleVerificationClick}
-                    style={{ borderColor: '#fa8c16', color: '#fa8c16' }}
-                  >
-                    На проверке
-                  </Button>
+                    ) : (
+                      <Button
+                        onClick={handleVerificationClick}
+                        style={{ borderColor: '#fa8c16', color: '#fa8c16' }}
+                      >
+                        На проверке
+                      </Button>
+                    )}
+                  </>
                 )
               })()}
+              {previewButton}
             </Space>
           </div>
         )}
