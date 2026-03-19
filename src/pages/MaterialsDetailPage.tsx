@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
-import { Typography, Table, Button, InputNumber, Descriptions, Drawer, Space, Splitter } from 'antd'
+import { Typography, Table, Button, InputNumber, Descriptions, Drawer, Space, Splitter, Select, message } from 'antd'
 import { ArrowLeftOutlined, FileSearchOutlined, EyeInvisibleOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useParams, useNavigate } from 'react-router-dom'
@@ -12,6 +12,7 @@ import { getDownloadUrl } from '@/services/s3'
 import { formatDate } from '@/utils/requestFormatters'
 import { logError } from '@/services/errorLogger'
 import InvoiceViewer from '@/components/materials/InvoiceViewer'
+import { useCostTypeStore } from '@/store/costTypeStore'
 import type { RecognizedMaterial } from '@/types'
 
 const { Title } = Typography
@@ -23,6 +24,8 @@ interface RequestInfo {
   supplierName: string
   siteName: string
   approvedAt: string | null
+  costTypeId: string | null
+  costTypeName: string | null
 }
 
 /** Форматирование суммы */
@@ -48,6 +51,7 @@ const MaterialsDetailPage = () => {
   } = useMaterialsStore()
 
   const user = useAuthStore((s) => s.user)
+  const { costTypes, fetchCostTypes } = useCostTypeStore()
   const [requestInfo, setRequestInfo] = useState<RequestInfo | null>(null)
   const [isLoadingInfo, setIsLoadingInfo] = useState(false)
   const [splitViewOpen, setSplitViewOpen] = useState(false)
@@ -102,7 +106,8 @@ const MaterialsDetailPage = () => {
     if (!paymentRequestId) return
     fetchMaterials(paymentRequestId)
     fetchInvoiceFiles(paymentRequestId)
-  }, [paymentRequestId, fetchMaterials, fetchInvoiceFiles])
+    fetchCostTypes()
+  }, [paymentRequestId, fetchMaterials, fetchInvoiceFiles, fetchCostTypes])
 
   // Загрузка информации о заявке
   useEffect(() => {
@@ -114,7 +119,7 @@ const MaterialsDetailPage = () => {
       try {
         const { data, error } = await supabase
           .from('payment_requests')
-          .select('request_number, approved_at, counterparties(name), suppliers(name), construction_sites(name)')
+          .select('request_number, approved_at, cost_type_id, counterparties(name), suppliers(name), construction_sites(name), cost_types(name)')
           .eq('id', paymentRequestId)
           .single()
         if (error) throw error
@@ -124,6 +129,7 @@ const MaterialsDetailPage = () => {
         const cp = row.counterparties as Record<string, unknown> | null
         const sup = row.suppliers as Record<string, unknown> | null
         const site = row.construction_sites as Record<string, unknown> | null
+        const ct = row.cost_types as Record<string, unknown> | null
 
         setRequestInfo({
           requestNumber: row.request_number as string,
@@ -131,6 +137,8 @@ const MaterialsDetailPage = () => {
           supplierName: (sup?.name as string) ?? '—',
           siteName: (site?.name as string) ?? '—',
           approvedAt: row.approved_at as string | null,
+          costTypeId: (row.cost_type_id as string) ?? null,
+          costTypeName: (ct?.name as string) ?? null,
         })
       } catch (err) {
         logError({
@@ -146,6 +154,26 @@ const MaterialsDetailPage = () => {
     load()
     return () => { cancelled = true }
   }, [paymentRequestId])
+
+  // Обработчик изменения вида затрат
+  const handleCostTypeChange = useCallback(
+    async (val: string | undefined) => {
+      if (!paymentRequestId) return
+      try {
+        const { error } = await supabase
+          .from('payment_requests')
+          .update({ cost_type_id: val ?? null })
+          .eq('id', paymentRequestId)
+        if (error) throw error
+        const name = val ? costTypes.find((ct) => ct.id === val)?.name ?? null : null
+        setRequestInfo((prev) => prev ? { ...prev, costTypeId: val ?? null, costTypeName: name } : prev)
+        message.success('Вид затрат обновлён')
+      } catch {
+        message.error('Ошибка обновления вида затрат')
+      }
+    },
+    [paymentRequestId, costTypes],
+  )
 
   // Обработчик изменения «Кол-во смета»
   const handleEstimateChange = useCallback(
@@ -316,6 +344,23 @@ const MaterialsDetailPage = () => {
               <Descriptions.Item label="Поставщик">{requestInfo.supplierName}</Descriptions.Item>
               <Descriptions.Item label="Объект">{requestInfo.siteName}</Descriptions.Item>
               <Descriptions.Item label="Дата">{formatDate(requestInfo.approvedAt, false)}</Descriptions.Item>
+              <Descriptions.Item label="Вид затрат">
+                {canEditEstimate ? (
+                  <Select
+                    style={{ width: '100%', maxWidth: 300 }}
+                    placeholder="Выберите вид затрат"
+                    value={requestInfo.costTypeId ?? undefined}
+                    allowClear
+                    showSearch
+                    optionFilterProp="label"
+                    options={costTypes.filter((ct) => ct.isActive).map((ct) => ({ value: ct.id, label: ct.name }))}
+                    onChange={handleCostTypeChange}
+                    size="small"
+                  />
+                ) : (
+                  requestInfo.costTypeName ?? 'Не указан'
+                )}
+              </Descriptions.Item>
             </Descriptions>
             {previewButton}
           </div>
