@@ -332,9 +332,6 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
 
   if (!request) return null
 
-  // Разрешение на отклонение файлов: согласующие ИЛИ редактирование согласованной заявки
-  const canRejectFiles = canApprove || (isEditing && isApprovedRequest)
-
   // Колонки таблицы файлов
   const fileColumns: Record<string, unknown>[] = isMobile
     ? [
@@ -460,6 +457,8 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   const isApprovedRequest = !!request.approvedAt && !request.previousStatusId
   const canSendToRevision = ((isAdmin || isOmtsUser || isOmtsRpResponsible) && hasPendingOmtsOrOmtsRpDecision)
     || (!!canEdit && isApprovedRequest)
+  // Разрешение на отклонение файлов: согласующие ИЛИ редактирование согласованной заявки
+  const canRejectFiles = canApprove || (isEditing && isApprovedRequest)
 
   // Заявка в статусе "На доработку" (previous_status_id заполнен)
   const isRevisionStatus = !!request.previousStatusId
