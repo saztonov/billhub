@@ -332,6 +332,9 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
 
   if (!request) return null
 
+  // Разрешение на отклонение файлов: согласующие ИЛИ редактирование согласованной заявки
+  const canRejectFiles = canApprove || (isEditing && isApprovedRequest)
+
   // Колонки таблицы файлов
   const fileColumns: Record<string, unknown>[] = isMobile
     ? [
@@ -342,10 +345,10 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
           ),
         },
         {
-          title: '', key: 'actions', width: canApprove ? 100 : 64,
+          title: '', key: 'actions', width: canRejectFiles ? 100 : 64,
           render: (_: unknown, file: PaymentRequestFile) => (
             <Space size={4}>
-              {canApprove && (
+              {canRejectFiles && (
                 <Button
                   icon={file.isRejected ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
                   size="small"
@@ -403,10 +406,10 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
         }
 
         cols.push({
-          title: '', key: 'actions', width: canApprove ? 120 : 80,
+          title: '', key: 'actions', width: canRejectFiles ? 120 : 80,
           render: (_: unknown, file: PaymentRequestFile) => (
             <Space size={4}>
-              {canApprove && (
+              {canRejectFiles && (
                 <Tooltip title={file.isRejected ? 'Подтвердить' : 'Отклонить'}>
                   <Button
                     icon={file.isRejected ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
@@ -453,7 +456,10 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   const hasPendingOmtsOrOmtsRpDecision = currentDecisions.some(
     (d) => d.status === 'pending' && (d.department === 'omts' || d.isOmtsRp)
   )
-  const canSendToRevision = (isAdmin || isOmtsUser || isOmtsRpResponsible) && hasPendingOmtsOrOmtsRpDecision
+  // Согласованная заявка (не на доработке)
+  const isApprovedRequest = !!request.approvedAt && !request.previousStatusId
+  const canSendToRevision = ((isAdmin || isOmtsUser || isOmtsRpResponsible) && hasPendingOmtsOrOmtsRpDecision)
+    || (!!canEdit && isApprovedRequest)
 
   // Заявка в статусе "На доработку" (previous_status_id заполнен)
   const isRevisionStatus = !!request.previousStatusId

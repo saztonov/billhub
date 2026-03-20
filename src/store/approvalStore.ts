@@ -219,15 +219,20 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
       // Получаем текущий статус и этап заявки для сохранения
       const { data: currentReq, error: reqError } = await supabase
         .from('payment_requests')
-        .select('status_id, current_stage')
+        .select('status_id, current_stage, approved_at')
         .eq('id', paymentRequestId)
         .single()
       if (reqError) throw reqError
 
       // Меняем статус заявки и сохраняем предыдущий (current_stage и pending decision остаются)
+      // Если заявка была согласована — очищаем approved_at, чтобы она пропала из вкладки "Согласовано"
+      const updateData: Record<string, unknown> = { status_id: statusData.id, previous_status_id: currentReq.status_id }
+      if (currentReq.approved_at) {
+        updateData.approved_at = null
+      }
       const { error: updError } = await supabase
         .from('payment_requests')
-        .update({ status_id: statusData.id, previous_status_id: currentReq.status_id })
+        .update(updateData)
         .eq('id', paymentRequestId)
       if (updError) throw updError
 
@@ -277,6 +282,14 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
       if (reqError) throw reqError
       if (!currentReq.previous_status_id) throw new Error('Нет предыдущего статуса для восстановления')
 
+      // Проверяем, был ли предыдущий статус "Согласовано" — если да, восстанавливаем approved_at
+      const { data: prevStatus } = await supabase
+        .from('statuses')
+        .select('code')
+        .eq('id', currentReq.previous_status_id as string)
+        .single()
+      const wasApproved = prevStatus?.code === 'approved'
+
       // Формируем данные обновления
       const updateData: Record<string, unknown> = {
         status_id: currentReq.previous_status_id,
@@ -285,6 +298,11 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
         delivery_days_type: fieldUpdates.deliveryDaysType,
         shipping_condition_id: fieldUpdates.shippingConditionId,
         invoice_amount: fieldUpdates.invoiceAmount,
+      }
+
+      // Восстанавливаем approved_at для согласованных заявок
+      if (wasApproved) {
+        updateData.approved_at = new Date().toISOString()
       }
 
       // Если сумма изменилась — записываем старую в историю
