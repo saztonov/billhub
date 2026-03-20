@@ -332,6 +332,11 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
 
   if (!request) return null
 
+  // Согласованная заявка (не на доработке)
+  const isApprovedRequest = !!request.approvedAt && !request.previousStatusId
+  // Разрешение на отклонение файлов: согласующие ИЛИ редактирование согласованной заявки
+  const canRejectFiles = canApprove || (isEditing && isApprovedRequest)
+
   // Колонки таблицы файлов
   const fileColumns: Record<string, unknown>[] = isMobile
     ? [
@@ -453,12 +458,8 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   const hasPendingOmtsOrOmtsRpDecision = currentDecisions.some(
     (d) => d.status === 'pending' && (d.department === 'omts' || d.isOmtsRp)
   )
-  // Согласованная заявка (не на доработке)
-  const isApprovedRequest = !!request.approvedAt && !request.previousStatusId
   const canSendToRevision = ((isAdmin || isOmtsUser || isOmtsRpResponsible) && hasPendingOmtsOrOmtsRpDecision)
     || (!!canEdit && isApprovedRequest)
-  // Разрешение на отклонение файлов: согласующие ИЛИ редактирование согласованной заявки
-  const canRejectFiles = canApprove || (isEditing && isApprovedRequest)
 
   // Заявка в статусе "На доработку" (previous_status_id заполнен)
   const isRevisionStatus = !!request.previousStatusId
