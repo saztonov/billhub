@@ -55,15 +55,38 @@ export function exportRegistryToExcel(params: ExportRegistryParams): void {
     r.counterpartyName ?? '',
     r.supplierName ?? '',
     r.supplierId ? (supplierInnMap.get(r.supplierId) ?? '') : '',
-    r.invoiceAmount ?? '',
+    r.invoiceAmount != null ? Number(r.invoiceAmount) : '',
     r.comment ?? '',
   ])
 
-  const allRows = [...headerRows, ...dataRows]
+  // Строка ИТОГО (сумма будет добавлена формулой)
+  const totalRow = ['ИТОГО', '', '', '', '', '', '']
+
+  const allRows = [...headerRows, ...dataRows, totalRow]
 
   // Создаём книгу
   const wb = XLSX.utils.book_new()
   const ws = XLSX.utils.aoa_to_sheet(allRows)
+
+  // Форматирование столбца "Сумма" — денежный формат (колонка F)
+  const firstDataRow = headerRows.length
+  const totalRowIdx = headerRows.length + dataRows.length
+  const amountCol = 'F'
+
+  for (let row = firstDataRow; row < totalRowIdx; row++) {
+    const cellRef = `${amountCol}${row + 1}`
+    if (ws[cellRef] && typeof ws[cellRef].v === 'number') {
+      ws[cellRef].z = '#,##0.00'
+    }
+  }
+
+  // Формула SUM и формат для строки ИТОГО
+  const totalCellRef = `${amountCol}${totalRowIdx + 1}`
+  ws[totalCellRef] = {
+    t: 'n',
+    f: `SUM(${amountCol}${firstDataRow + 1}:${amountCol}${totalRowIdx})`,
+    z: '#,##0.00',
+  }
 
   // Ширина колонок
   ws['!cols'] = [
