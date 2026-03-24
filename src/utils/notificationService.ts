@@ -10,21 +10,24 @@ interface RequestContext {
   counterpartyId: string
   siteId: string
   currentStage: number | null
+  statusCode: string | null
 }
 
 /** Загружает контекст заявки */
 async function getRequestContext(paymentRequestId: string): Promise<RequestContext | null> {
   const { data } = await supabase
     .from('payment_requests')
-    .select('request_number, counterparty_id, site_id, current_stage')
+    .select('request_number, counterparty_id, site_id, current_stage, statuses(code)')
     .eq('id', paymentRequestId)
     .single()
   if (!data) return null
+  const statusObj = data.statuses as unknown as { code: string } | null
   return {
     requestNumber: data.request_number as string,
     counterpartyId: data.counterparty_id as string,
     siteId: data.site_id as string,
     currentStage: (data.current_stage as number) ?? null,
+    statusCode: statusObj?.code ?? null,
   }
 }
 
@@ -86,6 +89,20 @@ async function getOmtsAdminRecipients(excludeUserId?: string): Promise<string[]>
   return (data as { id: string }[])
     .map((u) => u.id)
     .filter((id) => id !== excludeUserId)
+}
+
+/** Получает id спец. лица ОМТС РП из настроек (кроме excludeUserId) */
+async function getOmtsRpResponsibleUser(excludeUserId?: string): Promise<string | null> {
+  const { data } = await supabase
+    .from('settings')
+    .select('value')
+    .eq('key', 'omts_rp_config')
+    .maybeSingle()
+  if (!data) return null
+  const config = data.value as { responsible_user_id?: string } | null
+  const userId = config?.responsible_user_id ?? null
+  if (!userId || userId === excludeUserId) return null
+  return userId
 }
 
 /** Получает id назначенного ОМТС-ответственного на заявку (кроме excludeUserId) */
@@ -187,6 +204,32 @@ export async function notifyNewRequestPending(
 }
 
 /**
+ * Уведомление спец. лицу ОМТС РП о поступлении заявки на согласование.
+ * Вызывается при: смене статуса на approv_omts_rp.
+ */
+export async function notifyOmtsRpPending(
+  paymentRequestId: string,
+  actorUserId: string,
+): Promise<void> {
+  try {
+    const ctx = await getRequestContext(paymentRequestId)
+    if (!ctx) return
+    const responsibleUserId = await getOmtsRpResponsibleUser(actorUserId)
+    if (!responsibleUserId) return
+    await insertNotifications([responsibleUserId], {
+      type: 'new_request_pending',
+      title: 'Новая заявка на согласование ОМТС РП',
+      message: `Заявка №${ctx.requestNumber} поступила на согласование ОМТС РП`,
+      paymentRequestId,
+      siteId: ctx.siteId,
+      departmentId: 'omts',
+    })
+  } catch (err) {
+    logError({ errorType: 'api_error', errorMessage: err instanceof Error ? err.message : 'Ошибка уведомления ОМТС РП', errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'notifyOmtsRpPending', paymentRequestId } })
+  }
+}
+
+/**
  * Уведомление назначенному ОМТС-сотруднику.
  * Вызывается при: назначении ответственного.
  */
@@ -252,6 +295,11 @@ export async function notifyNewComment(
       if (ctx.currentStage === 2) {
         const omtsUser = await getOmtsAssignedUser(paymentRequestId, actorUserId)
         if (omtsUser) allRecipients.add(omtsUser)
+        // На этапе ОМТС РП уведомляем также спец. лицо
+        if (ctx.statusCode === 'approv_omts_rp') {
+          const omtsRpUser = await getOmtsRpResponsibleUser(actorUserId)
+          if (omtsRpUser) allRecipients.add(omtsRpUser)
+        }
       }
     }
 
@@ -295,6 +343,11 @@ export async function notifyNewFile(
     if (ctx.currentStage === 2) {
       const omtsUser = await getOmtsAssignedUser(paymentRequestId, actorUserId)
       if (omtsUser) allRecipients.add(omtsUser)
+      // На этапе ОМТС РП уведомляем также спец. лицо
+      if (ctx.statusCode === 'approv_omts_rp') {
+        const omtsRpUser = await getOmtsRpResponsibleUser(actorUserId)
+        if (omtsRpUser) allRecipients.add(omtsRpUser)
+      }
     }
 
     await insertNotifications([...allRecipients], {

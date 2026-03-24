@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { supabase } from '@/services/supabase'
 import { logError } from '@/services/errorLogger'
-import { checkAndNotifyMissingSpecialists, notifyStatusChanged } from '@/utils/notificationService'
+import { checkAndNotifyMissingSpecialists, notifyOmtsRpPending, notifyStatusChanged } from '@/utils/notificationService'
 import { triggerOcrIfEnabled } from '@/services/ocrService'
 import { useUploadQueueStore } from '@/store/uploadQueueStore'
 import { useOmtsRpStore } from '@/store/omtsRpStore'
@@ -557,6 +557,9 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
             .from('payment_requests')
             .update({ status_id: omtsRpStatusData.id, omts_approved_at: new Date().toISOString() })
             .eq('id', paymentRequestId)
+
+          // Уведомляем спец. лицо ОМТС РП о поступлении заявки
+          notifyOmtsRpPending(paymentRequestId, userId).catch(() => {})
         } else {
           // Стандартная логика: ОМТС РП согласовано (или объект не требует ОМТС РП) → Согласована
           const { data: statusData, error: stError } = await supabase
