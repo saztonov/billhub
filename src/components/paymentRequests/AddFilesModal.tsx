@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Modal, App } from 'antd'
 import { useUploadQueueStore } from '@/store/uploadQueueStore'
-import { usePaymentRequestStore } from '@/store/paymentRequestStore'
 import { useAuthStore } from '@/store/authStore'
 import FileUploadList from './FileUploadList'
 import type { FileItem } from './FileUploadList'
@@ -18,7 +17,6 @@ const AddFilesModal = ({ open, onClose, requestId, requestNumber, counterpartyNa
   const { message } = App.useApp()
   const user = useAuthStore((s) => s.user)
   const addTask = useUploadQueueStore((s) => s.addTask)
-  const fetchRequestFiles = usePaymentRequestStore((s) => s.fetchRequestFiles)
   const [fileList, setFileList] = useState<FileItem[]>([])
   const [showValidation, setShowValidation] = useState(false)
 
@@ -58,11 +56,6 @@ const AddFilesModal = ({ open, onClose, requestId, requestNumber, counterpartyNa
 
     message.success('Файлы добавлены в очередь загрузки')
     handleClose()
-
-    // Обновляем список файлов с задержкой, чтобы очередь успела начать обработку
-    setTimeout(() => {
-      fetchRequestFiles(requestId)
-    }, 2000)
   }
 
   return (

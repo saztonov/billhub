@@ -38,13 +38,14 @@ export function useNativeDropZone(onDrop: (files: File[]) => void) {
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    el.addEventListener('dragover', handleDragOver)
-    el.addEventListener('dragleave', handleDragLeave)
-    el.addEventListener('drop', handleDrop)
+    // Capture phase: перехватываем события ДО Dragger, чтобы избежать двойной обработки
+    el.addEventListener('dragover', handleDragOver, true)
+    el.addEventListener('dragleave', handleDragLeave, true)
+    el.addEventListener('drop', handleDrop, true)
     return () => {
-      el.removeEventListener('dragover', handleDragOver)
-      el.removeEventListener('dragleave', handleDragLeave)
-      el.removeEventListener('drop', handleDrop)
+      el.removeEventListener('dragover', handleDragOver, true)
+      el.removeEventListener('dragleave', handleDragLeave, true)
+      el.removeEventListener('drop', handleDrop, true)
     }
   }, [handleDragOver, handleDragLeave, handleDrop])
 

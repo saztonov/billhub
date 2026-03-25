@@ -192,6 +192,9 @@ async function processQueue(
 
             // Обновляем локальное состояние таблицы
             usePaymentRequestStore.getState().incrementUploadedFiles(task.requestId, fileData.isResubmit)
+
+            // Обновляем список файлов в ViewRequestModal
+            usePaymentRequestStore.getState().fetchRequestFiles(task.requestId)
           }
         } else if (task.type === 'decision_files') {
           // Логика загрузки файлов решения об отклонении
