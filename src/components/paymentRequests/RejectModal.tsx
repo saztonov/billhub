@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Modal, Input, Space, Upload, List, Button } from 'antd'
 import { InboxOutlined, CloseOutlined } from '@ant-design/icons'
+import { useNativeDropZone } from '@/hooks/useNativeDropZone'
 
 const { TextArea } = Input
 const { Dragger } = Upload
@@ -23,6 +24,12 @@ const RejectModal = ({ open, onConfirm, onCancel }: RejectModalProps) => {
       setFiles([])
     }
   }, [open])
+
+  const addFiles = useCallback((newFiles: File[]) => {
+    setFiles((prev) => [...prev, ...newFiles.map((f) => ({ id: crypto.randomUUID(), file: f }))])
+  }, [])
+
+  const { ref: dropZoneRef, isDragOver } = useNativeDropZone(addFiles)
 
   const handleOk = () => {
     if (!comment.trim()) return
@@ -52,22 +59,25 @@ const RejectModal = ({ open, onConfirm, onCancel }: RejectModalProps) => {
         </div>
         <div>
           <div style={{ marginBottom: 8, fontWeight: 500 }}>Прикрепить файлы (необязательно)</div>
-          <Dragger
-            accept={ACCEPT_EXTENSIONS}
-            multiple
-            fileList={[]}
-            beforeUpload={(file) => {
-              setFiles((prev) => [...prev, { id: crypto.randomUUID(), file }])
-              return false
-            }}
-            showUploadList={false}
-          >
-            <p className="ant-upload-drag-icon">
-              <InboxOutlined />
-            </p>
-            <p className="ant-upload-text">Нажмите или перетащите файлы</p>
-            <p className="ant-upload-hint">Поддерживаются: PDF, изображения, Word, Excel</p>
-          </Dragger>
+          <div ref={dropZoneRef}>
+            <Dragger
+              accept={ACCEPT_EXTENSIONS}
+              multiple
+              fileList={[]}
+              beforeUpload={(file) => {
+                addFiles([file as unknown as File])
+                return false
+              }}
+              showUploadList={false}
+              style={{ borderColor: isDragOver ? '#1677ff' : undefined, background: isDragOver ? '#e6f4ff' : undefined }}
+            >
+              <p className="ant-upload-drag-icon">
+                <InboxOutlined />
+              </p>
+              <p className="ant-upload-text">Нажмите или перетащите файлы</p>
+              <p className="ant-upload-hint">Поддерживаются: PDF, изображения, Word, Excel</p>
+            </Dragger>
+          </div>
 
           {files.length > 0 && (
             <List

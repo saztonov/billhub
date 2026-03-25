@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { Upload, Select, Button, Typography, Space, App } from 'antd'
 import { InboxOutlined, DeleteOutlined, CheckCircleFilled, EyeOutlined } from '@ant-design/icons'
 import { useDocumentTypeStore } from '@/store/documentTypeStore'
 import { getPdfPageCount } from '@/utils/pdfUtils'
 import { checkFileMagicBytes } from '@/utils/fileValidation'
+import { useNativeDropZone } from '@/hooks/useNativeDropZone'
 import LocalFilePreviewModal from './LocalFilePreviewModal'
 import type { UploadFile } from 'antd/es/upload/interface'
 
@@ -51,22 +52,23 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`
 }
 
+const VALID_EXTS = ['doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png', 'tiff', 'tif', 'bmp', 'pdf', 'dwg']
+
 const FileUploadList = ({ fileList, onChange, showValidation }: FileUploadListProps) => {
   const { message } = App.useApp()
   const { documentTypes } = useDocumentTypeStore()
   const [dragKey, setDragKey] = useState(0)
   const [previewFile, setPreviewFile] = useState<{ file: File; name: string } | null>(null)
+  // Ref для актуального fileList — нужен в колбэках, чтобы избежать stale closure
+  const fileListRef = useRef(fileList)
+  fileListRef.current = fileList
 
-  const handleBeforeUpload = (file: File, batch: File[]) => {
-    // Обрабатываем всю пачку только на первом файле, чтобы избежать stale closure
-    if (file !== batch[0]) return false
-
-    const validExts = ['doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png', 'tiff', 'tif', 'bmp', 'pdf', 'dwg']
+  // Общая логика обработки файлов (используется и для клика, и для drag & drop)
+  const processFiles = useCallback((files: File[]) => {
     const validFiles: File[] = []
-
-    for (const f of batch) {
+    for (const f of files) {
       const ext = f.name.split('.').pop()?.toLowerCase() ?? ''
-      if (!validExts.includes(ext) && !ACCEPTED_TYPES.includes(f.type)) {
+      if (!VALID_EXTS.includes(ext) && !ACCEPTED_TYPES.includes(f.type)) {
         message.error(`Неподдерживаемый формат: ${f.name}`)
         continue
       }
@@ -78,11 +80,9 @@ const FileUploadList = ({ fileList, onChange, showValidation }: FileUploadListPr
     }
 
     if (validFiles.length > 0) {
-      // Подсчёт страниц PDF и проверка magic bytes выполняются асинхронно
       void (async () => {
         const items: FileItem[] = []
         for (const f of validFiles) {
-          // Проверка содержимого файла по magic bytes
           const isValidContent = await checkFileMagicBytes(f)
           if (!isValidContent) {
             message.error(`Файл "${f.name}" не соответствует заявленному формату`)
@@ -98,11 +98,19 @@ const FileUploadList = ({ fileList, onChange, showValidation }: FileUploadListPr
           })
         }
         if (items.length > 0) {
-          onChange([...fileList, ...items])
+          onChange([...fileListRef.current, ...items])
         }
         setDragKey((k) => k + 1)
       })()
     }
+  }, [message, onChange])
+
+  // Нативный drag & drop (минуя React event delegation для совместимости с React 19 + порталами)
+  const { ref: dropZoneRef, isDragOver } = useNativeDropZone(processFiles)
+
+  const handleBeforeUpload = (file: File, batch: File[]) => {
+    if (file !== batch[0]) return false
+    processFiles(batch)
     return false
   }
 
@@ -125,24 +133,26 @@ const FileUploadList = ({ fileList, onChange, showValidation }: FileUploadListPr
 
   return (
     <div>
-      <Dragger
-        key={dragKey}
-        accept={ACCEPT_EXTENSIONS}
-        multiple
-        showUploadList={false}
-        beforeUpload={handleBeforeUpload as unknown as (file: UploadFile) => boolean}
-        style={{ marginBottom: fileList.length > 0 ? 16 : 0 }}
-      >
-        <p className="ant-upload-drag-icon">
-          <InboxOutlined />
-        </p>
-        <p className="ant-upload-text">
-          Перетащите файлы или нажмите для выбора
-        </p>
-        <p className="ant-upload-hint">
-          doc, docx, xls, xlsx, jpg, png, tiff, bmp, pdf, dwg
-        </p>
-      </Dragger>
+      <div ref={dropZoneRef} style={{ position: 'relative' }}>
+        <Dragger
+          key={dragKey}
+          accept={ACCEPT_EXTENSIONS}
+          multiple
+          showUploadList={false}
+          beforeUpload={handleBeforeUpload as unknown as (file: UploadFile) => boolean}
+          style={{ marginBottom: fileList.length > 0 ? 16 : 0, borderColor: isDragOver ? '#1677ff' : undefined, background: isDragOver ? '#e6f4ff' : undefined }}
+        >
+          <p className="ant-upload-drag-icon">
+            <InboxOutlined />
+          </p>
+          <p className="ant-upload-text">
+            Перетащите файлы или нажмите для выбора
+          </p>
+          <p className="ant-upload-hint">
+            doc, docx, xls, xlsx, jpg, png, tiff, bmp, pdf, dwg
+          </p>
+        </Dragger>
+      </div>
 
       {fileList.length > 0 && (
         <div>

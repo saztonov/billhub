@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import {
   Modal,
   Upload,
@@ -11,6 +11,7 @@ import {
   Button,
 } from 'antd'
 import { InboxOutlined, DownloadOutlined } from '@ant-design/icons'
+import { useNativeDropZone } from '@/hooks/useNativeDropZone'
 import * as XLSX from 'xlsx'
 import { useCounterpartyStore } from '@/store/counterpartyStore'
 import { useUserStore } from '@/store/userStore'
@@ -94,6 +95,12 @@ const ImportCounterpartyUsersModal = ({ open, onClose }: ImportCounterpartyUsers
   const [importResults, setImportResults] = useState<ImportResult[] | null>(null)
   const [isImporting, setIsImporting] = useState(false)
   const [progress, setProgress] = useState({ done: 0, total: 0 })
+
+  const handleNativeDrop = useCallback((files: File[]) => {
+    if (files.length > 0) handleFile(files[0])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  const { ref: dropZoneRef, isDragOver } = useNativeDropZone(handleNativeDrop)
 
   // Маппинг ИНН → существующий контрагент
   const existingByInn = useMemo(() => {
@@ -410,19 +417,22 @@ const ImportCounterpartyUsersModal = ({ open, onClose }: ImportCounterpartyUsers
       {/* Шаг 1: загрузка файла */}
       {parsedRows.length === 0 && !importResults && (
         <>
-          <Upload.Dragger
-            accept=".xlsx,.xls"
-            beforeUpload={handleFile}
-            showUploadList={false}
-          >
-            <p className="ant-upload-drag-icon">
-              <InboxOutlined />
-            </p>
-            <p className="ant-upload-text">Перетащите файл Excel или нажмите для выбора</p>
-            <p className="ant-upload-hint">
-              Столбцы: Название подрядчика, ИНН, ФИО, Email, Пароль
-            </p>
-          </Upload.Dragger>
+          <div ref={dropZoneRef}>
+            <Upload.Dragger
+              accept=".xlsx,.xls"
+              beforeUpload={handleFile}
+              showUploadList={false}
+              style={{ borderColor: isDragOver ? '#1677ff' : undefined, background: isDragOver ? '#e6f4ff' : undefined }}
+            >
+              <p className="ant-upload-drag-icon">
+                <InboxOutlined />
+              </p>
+              <p className="ant-upload-text">Перетащите файл Excel или нажмите для выбора</p>
+              <p className="ant-upload-hint">
+                Столбцы: Название подрядчика, ИНН, ФИО, Email, Пароль
+              </p>
+            </Upload.Dragger>
+          </div>
           <div style={{ marginTop: 12, textAlign: 'right' }}>
             <Button icon={<DownloadOutlined />} size="small" onClick={handleDownloadTemplate}>
               Скачать шаблон

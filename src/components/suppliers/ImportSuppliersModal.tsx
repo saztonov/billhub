@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import {
   Modal,
   Upload,
@@ -11,6 +11,7 @@ import {
   Space,
 } from 'antd'
 import { InboxOutlined } from '@ant-design/icons'
+import { useNativeDropZone } from '@/hooks/useNativeDropZone'
 import * as XLSX from 'xlsx'
 import { useSupplierStore } from '@/store/supplierStore'
 import type { Supplier } from '@/types'
@@ -57,6 +58,12 @@ const ImportSuppliersModal = ({ open, onClose }: ImportSuppliersModalProps) => {
   const [parsedRows, setParsedRows] = useState<ParsedRow[]>([])
   const [isImporting, setIsImporting] = useState(false)
   const [progress, setProgress] = useState({ done: 0, total: 0 })
+
+  const handleNativeDrop = useCallback((files: File[]) => {
+    if (files.length > 0) handleFile(files[0])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  const { ref: dropZoneRef, isDragOver } = useNativeDropZone(handleNativeDrop)
 
   const existingByInn = useMemo(() => {
     const map = new Map<string, Supplier>()
@@ -315,21 +322,24 @@ const ImportSuppliersModal = ({ open, onClose }: ImportSuppliersModalProps) => {
       destroyOnClose
     >
       {parsedRows.length === 0 ? (
-        <Upload.Dragger
-          accept=".xlsx,.xls"
-          beforeUpload={handleFile}
-          showUploadList={false}
-        >
-          <p className="ant-upload-drag-icon">
-            <InboxOutlined />
-          </p>
-          <p className="ant-upload-text">Перетащите файл Excel или нажмите для выбора</p>
-          <p className="ant-upload-hint">
-            Обязательные колонки: Наименование, ИНН.
-            <br />
-            Заголовки определяются автоматически. Без заголовков: 1-я колонка — наименование, 2-я — ИНН.
-          </p>
-        </Upload.Dragger>
+        <div ref={dropZoneRef}>
+          <Upload.Dragger
+            accept=".xlsx,.xls"
+            beforeUpload={handleFile}
+            showUploadList={false}
+            style={{ borderColor: isDragOver ? '#1677ff' : undefined, background: isDragOver ? '#e6f4ff' : undefined }}
+          >
+            <p className="ant-upload-drag-icon">
+              <InboxOutlined />
+            </p>
+            <p className="ant-upload-text">Перетащите файл Excel или нажмите для выбора</p>
+            <p className="ant-upload-hint">
+              Обязательные колонки: Наименование, ИНН.
+              <br />
+              Заголовки определяются автоматически. Без заголовков: 1-я колонка — наименование, 2-я — ИНН.
+            </p>
+          </Upload.Dragger>
+        </div>
       ) : (
         <>
           <Space style={{ marginBottom: 16 }}>

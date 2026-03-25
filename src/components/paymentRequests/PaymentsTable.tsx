@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import {
   Table,
   Button,
@@ -27,6 +27,7 @@ import { usePaymentPaymentStore } from '@/store/paymentPaymentStore'
 import { useAuthStore } from '@/store/authStore'
 import { uploadPaymentFile, downloadFileBlob } from '@/services/s3'
 import { checkFileMagicBytes } from '@/utils/fileValidation'
+import { useNativeDropZone } from '@/hooks/useNativeDropZone'
 import FilePreviewModal from '@/components/paymentRequests/FilePreviewModal'
 import type { PaymentPayment, PaymentPaymentFile } from '@/types'
 
@@ -71,6 +72,12 @@ const PaymentsTable = ({ paymentRequestId, counterpartyName, canManage, onTotalC
   const [form] = Form.useForm()
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([])
   const [downloading, setDownloading] = useState<string | null>(null)
+
+  const handleNativeDrop = useCallback((files: File[]) => {
+    for (const f of files) handleFileBeforeUpload(f)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  const { ref: dropZoneRef, isDragOver } = useNativeDropZone(handleNativeDrop)
   const [previewFile, setPreviewFile] = useState<{ fileKey: string; fileName: string; mimeType: string | null } | null>(null)
 
   const totalPaid = useMemo(() => payments.filter(p => p.isExecuted).reduce((sum, p) => sum + p.amount, 0), [payments])
@@ -337,15 +344,18 @@ const PaymentsTable = ({ paymentRequestId, counterpartyName, canManage, onTotalC
         {/* Загрузка новых файлов */}
         <div>
           <Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>Добавить документы:</Text>
-          <Upload.Dragger
-            multiple
-            accept={ACCEPT_EXTENSIONS}
-            beforeUpload={handleFileBeforeUpload as any}
-            showUploadList={false}
-          >
-            <p><UploadOutlined style={{ fontSize: 24, color: '#999' }} /></p>
-            <p style={{ margin: 0 }}>Перетащите файлы или нажмите для выбора</p>
-          </Upload.Dragger>
+          <div ref={dropZoneRef}>
+            <Upload.Dragger
+              multiple
+              accept={ACCEPT_EXTENSIONS}
+              beforeUpload={handleFileBeforeUpload as any}
+              showUploadList={false}
+              style={{ borderColor: isDragOver ? '#1677ff' : undefined, background: isDragOver ? '#e6f4ff' : undefined }}
+            >
+              <p><UploadOutlined style={{ fontSize: 24, color: '#999' }} /></p>
+              <p style={{ margin: 0 }}>Перетащите файлы или нажмите для выбора</p>
+            </Upload.Dragger>
+          </div>
           {pendingFiles.length > 0 && (
             <div style={{ marginTop: 8 }}>
               {pendingFiles.map((pf) => (
