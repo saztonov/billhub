@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
-import { Modal, Spin, Typography } from 'antd'
+import { useEffect, useState, useCallback } from 'react'
+import { Modal, Spin, Typography, Flex, Button, Tooltip } from 'antd'
+import { ZoomInOutlined, ZoomOutOutlined, ExpandOutlined } from '@ant-design/icons'
 import { getDownloadUrl } from '@/services/s3'
 
 const { Text } = Typography
@@ -33,13 +34,19 @@ function isOffice(mime: string | null): boolean {
   ].includes(mime)
 }
 
+/** Шаги зума */
+const ZOOM_STEPS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3]
+const DEFAULT_ZOOM_INDEX = 3 // 100%
+
 const FilePreviewModal = ({ open, onClose, fileKey, fileName, mimeType }: FilePreviewModalProps) => {
   const [url, setUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [zoomIndex, setZoomIndex] = useState(DEFAULT_ZOOM_INDEX)
 
   useEffect(() => {
     if (!open || !fileKey) {
       setUrl(null)
+      setZoomIndex(DEFAULT_ZOOM_INDEX)
       return
     }
     setLoading(true)
@@ -47,6 +54,22 @@ const FilePreviewModal = ({ open, onClose, fileKey, fileName, mimeType }: FilePr
       .then((u) => setUrl(u))
       .finally(() => setLoading(false))
   }, [open, fileKey])
+
+  const zoomIn = useCallback(() => {
+    setZoomIndex((i) => Math.min(i + 1, ZOOM_STEPS.length - 1))
+  }, [])
+
+  const zoomOut = useCallback(() => {
+    setZoomIndex((i) => Math.max(i - 1, 0))
+  }, [])
+
+  const zoomReset = useCallback(() => {
+    setZoomIndex(DEFAULT_ZOOM_INDEX)
+  }, [])
+
+  const zoom = ZOOM_STEPS[zoomIndex]
+  const zoomPercent = Math.round(zoom * 100)
+  const showZoomControls = isImage(mimeType) && !loading && url
 
   /** Рендер содержимого по типу файла */
   const renderContent = () => {
@@ -60,11 +83,17 @@ const FilePreviewModal = ({ open, onClose, fileKey, fileName, mimeType }: FilePr
 
     if (isImage(mimeType)) {
       return (
-        <div style={{ textAlign: 'center' }}>
+        <div style={{ overflow: 'auto', maxHeight: '75vh', textAlign: 'center' }}>
           <img
             src={url}
             alt={fileName}
-            style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain' }}
+            style={{
+              transform: `scale(${zoom})`,
+              transformOrigin: 'top center',
+              maxWidth: '100%',
+              objectFit: 'contain',
+              transition: 'transform 0.2s ease',
+            }}
           />
         </div>
       )
@@ -100,7 +129,39 @@ const FilePreviewModal = ({ open, onClose, fileKey, fileName, mimeType }: FilePr
 
   return (
     <Modal
-      title={fileName}
+      title={
+        <Flex justify="space-between" align="center" style={{ paddingRight: 32 }}>
+          <Text ellipsis style={{ maxWidth: '60%' }}>{fileName}</Text>
+          {showZoomControls && (
+            <Flex gap={4} align="center">
+              <Tooltip title="Уменьшить">
+                <Button
+                  size="small"
+                  icon={<ZoomOutOutlined />}
+                  onClick={zoomOut}
+                  disabled={zoomIndex === 0}
+                />
+              </Tooltip>
+              <Text style={{ fontSize: 12, minWidth: 40, textAlign: 'center' }}>{zoomPercent}%</Text>
+              <Tooltip title="Увеличить">
+                <Button
+                  size="small"
+                  icon={<ZoomInOutlined />}
+                  onClick={zoomIn}
+                  disabled={zoomIndex === ZOOM_STEPS.length - 1}
+                />
+              </Tooltip>
+              <Tooltip title="Сбросить">
+                <Button
+                  size="small"
+                  icon={<ExpandOutlined />}
+                  onClick={zoomReset}
+                />
+              </Tooltip>
+            </Flex>
+          )}
+        </Flex>
+      }
       open={open}
       onCancel={onClose}
       footer={null}

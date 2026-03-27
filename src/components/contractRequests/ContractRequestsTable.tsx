@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Table, Tag, Button, Dropdown, Pagination, Flex, Badge, Popconfirm } from 'antd'
+import { Table, Tag, Button, Dropdown, Pagination, Flex, Popconfirm } from 'antd'
 import { EyeOutlined, DeleteOutlined, MoreOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { ContractRequest } from '@/types'
@@ -13,7 +13,6 @@ interface ContractRequestsTableProps {
   onDelete: (id: string) => Promise<void>
   isAdmin: boolean
   isCounterpartyUser: boolean
-  unreadCounts: Record<string, number>
 }
 
 /** Форматирование даты */
@@ -29,7 +28,6 @@ const ContractRequestsTable = ({
   onDelete,
   isAdmin,
   isCounterpartyUser,
-  unreadCounts,
 }: ContractRequestsTableProps) => {
   const isMobile = useIsMobile()
   const [currentPage, setCurrentPage] = useState(1)
@@ -59,7 +57,7 @@ const ContractRequestsTable = ({
       title: '№',
       dataIndex: 'requestNumber',
       key: 'requestNumber',
-      width: 120,
+      width: 90,
       sorter: (a, b) => a.requestNumber.localeCompare(b.requestNumber),
     },
     ...(!isCounterpartyUser ? [{
@@ -87,13 +85,6 @@ const ContractRequestsTable = ({
       sorter: (a, b) => (a.supplierName ?? '').localeCompare(b.supplierName ?? ''),
     },
     {
-      title: 'Стороны',
-      dataIndex: 'partiesCount',
-      key: 'partiesCount',
-      width: 80,
-      align: 'center' as const,
-    },
-    {
       title: 'Предмет договора',
       key: 'subjectType',
       width: 200,
@@ -105,16 +96,6 @@ const ContractRequestsTable = ({
       key: 'status',
       width: 200,
       render: (_, record) => renderStatus(record),
-    },
-    {
-      title: 'Комментарии',
-      key: 'comments',
-      width: 50,
-      align: 'center' as const,
-      render: (_, record) => {
-        const count = unreadCounts[record.id]
-        return count ? <Badge count={count} size="small" /> : null
-      },
     },
     {
       title: 'Дата',

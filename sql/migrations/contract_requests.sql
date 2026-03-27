@@ -152,12 +152,12 @@ DECLARE
     current_year text;
 BEGIN
     next_val := nextval('contract_request_number_seq');
-    current_year := to_char(now(), 'YYYY');
-    RETURN 'Д-' || current_year || '-' || lpad(next_val::text, 5, '0');
+    current_year := to_char(now(), 'YY');
+    RETURN 'Д-' || current_year || '-' || next_val::text;
 END;
 $$;
 
-COMMENT ON FUNCTION generate_contract_request_number() IS 'Генерация номера заявки на договор в формате Д-YYYY-NNNNN';
+COMMENT ON FUNCTION generate_contract_request_number() IS 'Генерация номера заявки на договор в формате Д-YY-N';
 
 -- ----------------------------------------------------------
 -- 6. Статусы для заявок на договоры
