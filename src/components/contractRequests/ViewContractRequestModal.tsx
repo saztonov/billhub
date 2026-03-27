@@ -30,9 +30,10 @@ import { useContractRequestStore } from '@/store/contractRequestStore'
 import type { EditContractRequestData } from '@/store/contractRequestStore'
 import { useContractCommentStore } from '@/store/contractCommentStore'
 import { useConstructionSiteStore } from '@/store/constructionSiteStore'
+import { useCounterpartyStore } from '@/store/counterpartyStore'
 import { useSupplierStore } from '@/store/supplierStore'
 import { downloadFileBlob } from '@/services/s3'
-import { CONTRACT_SUBJECT_LABELS, REVISION_TARGET_LABELS } from '@/types'
+import { CONTRACT_SUBJECT_LABELS, REVISION_TARGET_LABELS, DEPARTMENT_LABELS, type Department } from '@/types'
 import type { ContractRequest, ContractRequestFile, RevisionTarget } from '@/types'
 import { formatSize, formatDate } from '@/utils/requestFormatters'
 import useIsMobile from '@/hooks/useIsMobile'
@@ -80,6 +81,7 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
 
   const markAsRead = useContractCommentStore((s) => s.markAsRead)
   const { sites, fetchSites } = useConstructionSiteStore()
+  const { counterparties, fetchCounterparties } = useCounterpartyStore()
   const { suppliers, fetchSuppliers } = useSupplierStore()
 
   // Локальное состояние
@@ -120,9 +122,10 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
   useEffect(() => {
     if (isEditing) {
       if (sites.length === 0) fetchSites()
+      if (counterparties.length === 0) fetchCounterparties()
       if (suppliers.length === 0) fetchSuppliers()
     }
-  }, [isEditing, sites.length, suppliers.length, fetchSites, fetchSuppliers])
+  }, [isEditing, sites.length, counterparties.length, suppliers.length, fetchSites, fetchCounterparties, fetchSuppliers])
 
   // --- Обработчики скачивания ---
 
@@ -206,6 +209,7 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
   const startEditing = useCallback(() => {
     if (!actualRequest) return
     editForm.setFieldsValue({
+      counterpartyId: actualRequest.counterpartyId,
       siteId: actualRequest.siteId,
       supplierId: actualRequest.supplierId,
       partiesCount: actualRequest.partiesCount,
@@ -221,6 +225,7 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
     try {
       const values = await editForm.validateFields()
       const data: EditContractRequestData = {
+        counterpartyId: values.counterpartyId,
         siteId: values.siteId,
         supplierId: values.supplierId,
         partiesCount: values.partiesCount,
@@ -257,6 +262,7 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
 
   // Опции для Select
   const siteOptions = sites.filter((s) => s.isActive).map((s) => ({ label: s.name, value: s.id }))
+  const counterpartyOptions = counterparties.filter((c) => c.isActive !== false).map((c) => ({ label: c.name, value: c.id }))
   const supplierOptions = suppliers.map((s) => ({ label: s.name, value: s.id }))
 
   // --- Рендер статуса с тегами доработки ---
@@ -268,6 +274,9 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
       ))}
     </Space>
   )
+
+  // Есть ли догруженные файлы
+  const hasAdditionalFiles = currentRequestFiles.some((f) => f.isAdditional)
 
   // --- Колонки таблицы файлов ---
   const fileColumns = isMobile
@@ -373,6 +382,26 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
             ),
           },
         ]
+        if (hasAdditionalFiles) {
+          cols.splice(cols.length - 1, 0, {
+            title: 'Догружено',
+            key: 'resubmit',
+            width: 180,
+            render: (_: unknown, file: ContractRequestFile) => {
+              if (!file.isAdditional) return null
+              if (file.uploaderRole === 'counterparty_user') {
+                const cpName = file.uploaderCounterpartyName
+                return <Tag color="blue">{cpName ? `Подрядчик (${cpName})` : 'Подрядчик'}</Tag>
+              }
+              if (file.uploaderRole === 'user' || file.uploaderRole === 'admin') {
+                const dept = file.uploaderDepartment as Department | null
+                const label = dept ? DEPARTMENT_LABELS[dept] : '—'
+                return <Tag color="green">{label}</Tag>
+              }
+              return null
+            },
+          })
+        }
         return cols
       })()
 
@@ -493,11 +522,13 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
           <Form form={editForm} layout="vertical" style={{ marginBottom: 16 }}>
             <Descriptions column={isMobile ? 1 : 2} size="small" bordered={false} style={{ marginBottom: 8 }}>
               <Descriptions.Item label="Номер">{req.requestNumber}</Descriptions.Item>
-              <Descriptions.Item label="Подрядчик">{req.counterpartyName ?? '—'}</Descriptions.Item>
               <Descriptions.Item label="Статус">{renderStatus()}</Descriptions.Item>
               <Descriptions.Item label="Дата создания">{formatDate(req.createdAt)}</Descriptions.Item>
             </Descriptions>
             <Flex gap={8} wrap="wrap" style={{ marginBottom: 8 }}>
+              <Form.Item name="counterpartyId" label="Подрядчик" rules={[{ required: true, message: 'Выберите подрядчика' }]} style={{ flex: 1, minWidth: 200 }}>
+                <Select placeholder="Выберите подрядчика" showSearch optionFilterProp="label" options={counterpartyOptions} />
+              </Form.Item>
               <Form.Item name="siteId" label="Объект" rules={[{ required: true, message: 'Выберите объект' }]} style={{ flex: 1, minWidth: 200 }}>
                 <Select placeholder="Выберите объект" showSearch optionFilterProp="label" options={siteOptions} />
               </Form.Item>

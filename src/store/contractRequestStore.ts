@@ -7,7 +7,7 @@ import type { ContractRequest, ContractRequestFile, RevisionTarget, ContractStat
 /** Добавляет запись в историю статусов заявки */
 async function appendContractStatusHistory(
   contractRequestId: string,
-  entry: { event: string; revisionTargets?: string[] },
+  entry: { event: string; revisionTargets?: string[]; revisionTarget?: string },
   userId: string,
 ): Promise<void> {
   const { data: userData } = await supabase
@@ -29,6 +29,7 @@ async function appendContractStatusHistory(
     userFullName: userData?.full_name ?? undefined,
     userEmail: userData?.email ?? undefined,
     revisionTargets: entry.revisionTargets,
+    revisionTarget: entry.revisionTarget,
   })
 
   await supabase
@@ -49,6 +50,7 @@ interface CreateContractRequestData {
 
 export interface EditContractRequestData {
   siteId?: string
+  counterpartyId?: string
   supplierId?: string
   partiesCount?: number
   subjectType?: string
@@ -214,6 +216,7 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
     try {
       const updateData: Record<string, unknown> = {}
       if (data.siteId !== undefined) updateData.site_id = data.siteId
+      if (data.counterpartyId !== undefined) updateData.counterparty_id = data.counterpartyId
       if (data.supplierId !== undefined) updateData.supplier_id = data.supplierId
       if (data.partiesCount !== undefined) updateData.parties_count = data.partiesCount
       if (data.subjectType !== undefined) updateData.subject_type = data.subjectType
@@ -260,25 +263,31 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
     try {
       const { data, error } = await supabase
         .from('contract_request_files')
-        .select('id, contract_request_id, file_name, file_key, file_size, mime_type, created_by, created_at, is_additional, is_rejected, rejected_by, rejected_at')
+        .select('id, contract_request_id, file_name, file_key, file_size, mime_type, created_by, created_at, is_additional, is_rejected, rejected_by, rejected_at, users!contract_request_files_created_by_fkey(role, department_id, counterparties(name))')
         .eq('contract_request_id', requestId)
         .order('created_at', { ascending: true })
       if (error) throw error
 
-      const files: ContractRequestFile[] = (data ?? []).map((row: Record<string, unknown>) => ({
-        id: row.id as string,
-        contractRequestId: row.contract_request_id as string,
-        fileName: row.file_name as string,
-        fileKey: row.file_key as string,
-        fileSize: row.file_size as number | null,
-        mimeType: row.mime_type as string | null,
-        createdBy: row.created_by as string,
-        createdAt: row.created_at as string,
-        isAdditional: (row.is_additional as boolean) ?? false,
-        isRejected: (row.is_rejected as boolean) ?? false,
-        rejectedBy: row.rejected_by as string | null,
-        rejectedAt: row.rejected_at as string | null,
-      }))
+      const files: ContractRequestFile[] = (data ?? []).map((row: Record<string, unknown>) => {
+        const uploader = row.users as Record<string, unknown> | null
+        return {
+          id: row.id as string,
+          contractRequestId: row.contract_request_id as string,
+          fileName: row.file_name as string,
+          fileKey: row.file_key as string,
+          fileSize: row.file_size as number | null,
+          mimeType: row.mime_type as string | null,
+          createdBy: row.created_by as string,
+          createdAt: row.created_at as string,
+          isAdditional: (row.is_additional as boolean) ?? false,
+          isRejected: (row.is_rejected as boolean) ?? false,
+          rejectedBy: row.rejected_by as string | null,
+          rejectedAt: row.rejected_at as string | null,
+          uploaderRole: uploader?.role as string | undefined,
+          uploaderDepartment: uploader?.department_id as string | null | undefined,
+          uploaderCounterpartyName: (uploader?.counterparties as Record<string, unknown> | null)?.name as string | null | undefined,
+        }
+      })
 
       set({ currentRequestFiles: files })
     } catch (err) {
@@ -384,7 +393,7 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
         if (error) throw error
 
         // Записываем в историю статусов
-        await appendContractStatusHistory(id, { event: 'revision_complete' }, userId)
+        await appendContractStatusHistory(id, { event: 'revision_complete', revisionTarget: target }, userId)
 
         // Уведомляем ОМТС
         const { data: reqData } = await supabase
@@ -402,6 +411,9 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
           .update({ revision_targets: newTargets })
           .eq('id', id)
         if (error) throw error
+
+        // Записываем в историю завершение доработки этой стороной
+        await appendContractStatusHistory(id, { event: 'revision_complete', revisionTarget: target }, userId)
       }
 
       await get().fetchRequests()

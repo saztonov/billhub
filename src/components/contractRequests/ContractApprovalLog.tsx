@@ -56,7 +56,13 @@ const ContractApprovalLog = ({ statusHistory }: ContractApprovalLogProps) => {
             <span style={{ color: config.color, fontSize: 16, marginTop: 2 }}>{config.icon}</span>
             <div style={{ flex: 1 }}>
               <div>
-                <Text strong style={{ fontSize: 13 }}>{config.label}</Text>
+                <Text strong style={{ fontSize: 13 }}>
+                  {entry.event === 'revision_complete' && entry.revisionTarget === 'shtab'
+                    ? 'Согласовано штабом'
+                    : entry.event === 'revision_complete' && entry.revisionTarget === 'counterparty'
+                      ? 'Доработано подрядчиком'
+                      : config.label}
+                </Text>
                 <Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>
                   {formatDateTime(entry.at)}
                 </Text>

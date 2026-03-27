@@ -317,6 +317,7 @@ export interface ContractStatusHistoryEntry {
   userFullName?: string
   userEmail?: string
   revisionTargets?: string[]
+  revisionTarget?: string
 }
 
 /** Заявка на согласование договора */
@@ -361,6 +362,10 @@ export interface ContractRequestFile {
   isRejected: boolean
   rejectedBy: string | null
   rejectedAt: string | null
+  // Joined
+  uploaderRole?: string
+  uploaderDepartment?: string | null
+  uploaderCounterpartyName?: string | null
 }
 
 /** Комментарий (чат) заявки на согласование договора */
