@@ -2,7 +2,40 @@ import { create } from 'zustand'
 import { supabase } from '@/services/supabase'
 import { logError } from '@/services/errorLogger'
 import { notifyContractNewRequest, notifyContractStatusChanged, notifyContractRevision } from '@/utils/contractNotificationService'
-import type { ContractRequest, ContractRequestFile, RevisionTarget } from '@/types'
+import type { ContractRequest, ContractRequestFile, RevisionTarget, ContractStatusHistoryEntry } from '@/types'
+
+/** Добавляет запись в историю статусов заявки */
+async function appendContractStatusHistory(
+  contractRequestId: string,
+  entry: { event: string; revisionTargets?: string[] },
+  userId: string,
+): Promise<void> {
+  const { data: userData } = await supabase
+    .from('users')
+    .select('full_name, email')
+    .eq('id', userId)
+    .single()
+
+  const { data: current } = await supabase
+    .from('contract_requests')
+    .select('status_history')
+    .eq('id', contractRequestId)
+    .single()
+
+  const history = (current?.status_history as Record<string, unknown>[]) ?? []
+  history.push({
+    event: entry.event,
+    at: new Date().toISOString(),
+    userFullName: userData?.full_name ?? undefined,
+    userEmail: userData?.email ?? undefined,
+    revisionTargets: entry.revisionTargets,
+  })
+
+  await supabase
+    .from('contract_requests')
+    .update({ status_history: history })
+    .eq('id', contractRequestId)
+}
 
 interface CreateContractRequestData {
   siteId: string
@@ -56,7 +89,7 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
           id, request_number, site_id, counterparty_id, supplier_id,
           parties_count, subject_type, subject_detail, status_id,
           revision_targets, created_by, created_at,
-          is_deleted, deleted_at, original_received_at,
+          is_deleted, deleted_at, original_received_at, status_history,
           counterparties(name),
           suppliers(name),
           construction_sites(name),
@@ -107,6 +140,7 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
           isDeleted: (row.is_deleted as boolean) ?? false,
           deletedAt: (row.deleted_at as string) ?? null,
           originalReceivedAt: (row.original_received_at as string) ?? null,
+          statusHistory: (row.status_history as ContractStatusHistoryEntry[]) ?? [],
           counterpartyName: counterparty?.name as string | undefined,
           supplierName: supplier?.name as string | undefined,
           siteName: site?.name as string | undefined,
@@ -158,6 +192,9 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
         .select('id')
         .single()
       if (reqError) throw reqError
+
+      // Записываем в историю статусов
+      await appendContractStatusHistory(requestData.id, { event: 'created' }, userId)
 
       // Уведомляем ОМТС о новой заявке
       notifyContractNewRequest(requestData.id, data.siteId, userId, requestNumber as string).catch(() => {})
@@ -300,6 +337,9 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
         .eq('id', id)
       if (error) throw error
 
+      // Записываем в историю статусов
+      await appendContractStatusHistory(id, { event: 'revision', revisionTargets: targets }, userId)
+
       // Уведомляем Штаб и/или Подрядчика
       notifyContractRevision(id, targets, userId).catch(() => {})
 
@@ -342,6 +382,9 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
           .update({ status_id: statusData.id, revision_targets: [] })
           .eq('id', id)
         if (error) throw error
+
+        // Записываем в историю статусов
+        await appendContractStatusHistory(id, { event: 'revision_complete' }, userId)
 
         // Уведомляем ОМТС
         const { data: reqData } = await supabase
@@ -390,6 +433,9 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
       if (error) throw error
 
       // Уведомляем подрядчика
+      // Записываем в историю статусов
+      await appendContractStatusHistory(id, { event: 'approved' }, userId)
+
       notifyContractStatusChanged(id, 'Согласовано, ожидание оригинала', userId).catch(() => {})
 
       await get().fetchRequests()
@@ -424,6 +470,9 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
       if (error) throw error
 
       // Уведомляем подрядчика
+      // Записываем в историю статусов
+      await appendContractStatusHistory(id, { event: 'original_received' }, userId)
+
       notifyContractStatusChanged(id, 'Заключен', userId).catch(() => {})
 
       await get().fetchRequests()

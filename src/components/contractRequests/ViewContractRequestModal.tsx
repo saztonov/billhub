@@ -19,6 +19,7 @@ import {
   FileAddOutlined,
   DownloadOutlined,
   EditOutlined,
+  EyeOutlined,
   CheckOutlined,
   DeleteOutlined,
   CheckCircleOutlined,
@@ -36,6 +37,7 @@ import type { ContractRequest, ContractRequestFile, RevisionTarget } from '@/typ
 import { formatSize, formatDate } from '@/utils/requestFormatters'
 import useIsMobile from '@/hooks/useIsMobile'
 import ContractCommentsChat from '@/components/contractRequests/ContractCommentsChat'
+import ContractApprovalLog from '@/components/contractRequests/ContractApprovalLog'
 import ContractRevisionModal from '@/components/contractRequests/ContractRevisionModal'
 import AddContractFilesModal from '@/components/contractRequests/AddContractFilesModal'
 import FilePreviewModal from '@/components/paymentRequests/FilePreviewModal'
@@ -354,11 +356,10 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
                 )}
                 <Tooltip title="Просмотр">
                   <Button
+                    icon={<EyeOutlined />}
                     size="small"
                     onClick={() => setPreviewFile({ fileKey: file.fileKey, fileName: file.fileName, mimeType: file.mimeType })}
-                  >
-                    Просмотр
-                  </Button>
+                  />
                 </Tooltip>
                 <Tooltip title="Скачать">
                   <Button
@@ -539,6 +540,17 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
             )}
           </Descriptions>
         )}
+
+        {/* История согласования */}
+        <Collapse
+          defaultActiveKey={['history']}
+          style={{ marginBottom: 12 }}
+          items={[{
+            key: 'history',
+            label: 'История согласования',
+            children: <ContractApprovalLog statusHistory={req.statusHistory} />,
+          }]}
+        />
 
         {/* Файлы */}
         <Collapse

@@ -121,12 +121,7 @@ const ContractCommentsChat = ({ contractRequestId }: ContractCommentsChatProps) 
       if (label) parts.push(label)
     }
     if (comment.authorFullName) {
-      const words = comment.authorFullName.trim().split(/\s+/)
-      // 3+ слова — имя и отчество (2-е и 3-е), 2 слова — оба
-      const shortName = words.length >= 3
-        ? `${words[1]} ${words[2]}`
-        : words.join(' ')
-      parts.push(shortName)
+      parts.push(comment.authorFullName)
     }
     return parts.join(', ') || comment.authorEmail || '—'
   }

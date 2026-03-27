@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react'
 import { Upload, Button, Typography, Flex, App } from 'antd'
-import { InboxOutlined, DeleteOutlined } from '@ant-design/icons'
+import { InboxOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons'
 import { checkFileMagicBytes } from '@/utils/fileValidation'
 const { Dragger } = Upload
 const { Text } = Typography
@@ -28,10 +28,26 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`
 }
 
+/** Типы файлов, которые можно предпросмотреть в браузере */
+const PREVIEWABLE_EXTS = ['jpg', 'jpeg', 'png', 'bmp', 'tiff', 'tif', 'pdf']
+
 const ContractFileUpload = ({ fileList, onChange }: ContractFileUploadProps) => {
   const { message } = App.useApp()
   const fileListRef = useRef(fileList)
   fileListRef.current = fileList
+
+  /** Предпросмотр файла в новой вкладке */
+  const handlePreview = useCallback((file: File) => {
+    const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+    if (!PREVIEWABLE_EXTS.includes(ext)) {
+      message.info('Предпросмотр недоступен для этого формата')
+      return
+    }
+    const url = URL.createObjectURL(file)
+    window.open(url, '_blank')
+    // Освобождаем память через 1 минуту
+    setTimeout(() => URL.revokeObjectURL(url), 60000)
+  }, [message])
 
   /** Обработка выбранных файлов с валидацией */
   const processFiles = useCallback((files: File[]) => {
@@ -95,6 +111,11 @@ const ContractFileUpload = ({ fileList, onChange }: ContractFileUploadProps) => 
             >
               <Text ellipsis style={{ flex: 1 }}>{item.file.name}</Text>
               <Text type="secondary" style={{ whiteSpace: 'nowrap' }}>{formatSize(item.file.size)}</Text>
+              <Button
+                size="small"
+                icon={<EyeOutlined />}
+                onClick={() => handlePreview(item.file)}
+              />
               <Button
                 size="small"
                 danger

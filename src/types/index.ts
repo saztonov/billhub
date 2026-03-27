@@ -310,6 +310,15 @@ export const REVISION_TARGET_LABELS: Record<RevisionTarget, string> = {
   counterparty: 'На доработку Подрядчику',
 }
 
+/** Запись в истории статусов заявки на договор */
+export interface ContractStatusHistoryEntry {
+  event: 'created' | 'revision' | 'revision_complete' | 'approved' | 'original_received'
+  at: string
+  userFullName?: string
+  userEmail?: string
+  revisionTargets?: string[]
+}
+
 /** Заявка на согласование договора */
 export interface ContractRequest {
   id: string
@@ -327,6 +336,7 @@ export interface ContractRequest {
   isDeleted: boolean
   deletedAt: string | null
   originalReceivedAt: string | null
+  statusHistory: ContractStatusHistoryEntry[]
   // Joined
   siteName?: string
   counterpartyName?: string
