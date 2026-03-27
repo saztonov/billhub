@@ -6,6 +6,7 @@ export interface ContractFilterValues {
   siteId?: string
   supplierId?: string
   statusId?: string
+  subjectType?: string
   requestNumber?: string
   dateFrom?: string
   dateTo?: string
@@ -35,6 +36,9 @@ export function useContractRequestFiltering({ requests, filters }: UseContractRe
     }
     if (filters.statusId) {
       filtered = filtered.filter((r) => r.statusId === filters.statusId)
+    }
+    if (filters.subjectType) {
+      filtered = filtered.filter((r) => r.subjectType === filters.subjectType)
     }
     if (filters.requestNumber) {
       filtered = filtered.filter((r) =>

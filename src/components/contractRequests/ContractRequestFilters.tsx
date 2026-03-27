@@ -1,7 +1,8 @@
 import { useEffect, useMemo } from 'react'
 import { Form, Select, Input, DatePicker, Space, Button } from 'antd'
 import { ClearOutlined } from '@ant-design/icons'
-import type { Counterparty, ConstructionSite, Supplier, Status } from '@/types'
+import type { Counterparty, ConstructionSite, Supplier, Status, ContractSubjectType } from '@/types'
+import { CONTRACT_SUBJECT_LABELS } from '@/types'
 import type { ContractFilterValues } from '@/hooks/useContractRequestFiltering'
 import dayjs from 'dayjs'
 import useIsMobile from '@/hooks/useIsMobile'
@@ -75,6 +76,12 @@ const ContractRequestFilters = ({
     [statuses]
   )
 
+  const subjectOptions = useMemo(() =>
+    (Object.entries(CONTRACT_SUBJECT_LABELS) as [ContractSubjectType, string][])
+      .map(([value, label]) => ({ value, label })),
+    []
+  )
+
   // Обработка изменений полей формы
   const handleValuesChange = (changedValues: Record<string, unknown>) => {
     const { dateRange, ...rest } = changedValues
@@ -95,6 +102,7 @@ const ContractRequestFilters = ({
       siteId: undefined,
       supplierId: undefined,
       statusId: undefined,
+      subjectType: undefined,
       requestNumber: undefined,
       dateFrom: undefined,
       dateTo: undefined,
@@ -154,6 +162,18 @@ const ContractRequestFilters = ({
               optionFilterProp="label"
               popupMatchSelectWidth={false}
               options={supplierOptions}
+            />
+          </Form.Item>
+          <Form.Item
+            label="Предмет"
+            name="subjectType"
+            style={{ marginBottom: 0, width: isMobile ? '100%' : 200 }}
+          >
+            <Select
+              placeholder="Все"
+              allowClear
+              popupMatchSelectWidth={false}
+              options={subjectOptions}
             />
           </Form.Item>
           <Form.Item

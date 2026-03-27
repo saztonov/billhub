@@ -520,6 +520,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   } else {
     modalFooter = (
       <Space wrap={isMobile} style={footerWrap}>
+        {isRevisionStatus && isAdmin && <Button style={{ borderColor: '#52c41a', color: '#52c41a' }} icon={<CheckOutlined />} onClick={() => setRevisionCompleteModalOpen(true)}>Доработано</Button>}
         {canSendToRevision && <Button icon={<EditOutlined />} style={{ borderColor: '#faad14', color: '#faad14' }} onClick={() => setRevisionModalOpen(true)}>На доработку</Button>}
         {canEdit && !isCounterpartyUser && <Button icon={<EditOutlined />} onClick={startEditing}>Редактировать</Button>}
         {canApprove && (

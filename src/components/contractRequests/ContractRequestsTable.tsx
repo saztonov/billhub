@@ -88,13 +88,21 @@ const ContractRequestsTable = ({
       title: 'Предмет договора',
       key: 'subjectType',
       width: 200,
-      ellipsis: true,
-      render: (_, record) => CONTRACT_SUBJECT_LABELS[record.subjectType] ?? record.subjectType,
+      render: (_, record) => (
+        <div>
+          <div>{CONTRACT_SUBJECT_LABELS[record.subjectType] ?? record.subjectType}</div>
+          {record.subjectDetail && (
+            <div style={{ fontSize: 11, color: '#888', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {record.subjectDetail}
+            </div>
+          )}
+        </div>
+      ),
     },
     {
       title: 'Статус',
       key: 'status',
-      width: 200,
+      width: 140,
       render: (_, record) => renderStatus(record),
     },
     {
@@ -199,8 +207,8 @@ const ContractRequestsTable = ({
           rowKey="id"
           loading={isLoading}
           pagination={false}
-          size={isMobile ? 'small' : 'middle'}
-          scroll={isMobile ? undefined : { x: 1400 }}
+          size="small"
+          scroll={isMobile ? undefined : { x: 1100 }}
           rowClassName={(record) => record.isDeleted ? 'deleted-row' : ''}
           onRow={(record) => ({
             onClick: (e) => {
