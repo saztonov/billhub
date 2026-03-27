@@ -3,7 +3,9 @@ import { supabase } from '@/services/supabase'
 import { logError } from '@/services/errorLogger'
 import { uploadRequestFile, uploadDecisionFile } from '@/services/s3'
 import { notifyNewFile } from '@/utils/notificationService'
+import { notifyContractNewFile } from '@/utils/contractNotificationService'
 import { usePaymentRequestStore } from '@/store/paymentRequestStore'
+import { useContractRequestStore } from '@/store/contractRequestStore'
 
 interface FileToUpload {
   file: File
@@ -14,7 +16,7 @@ interface FileToUpload {
 }
 
 export interface UploadTask {
-  type: 'request_files' | 'decision_files'
+  type: 'request_files' | 'decision_files' | 'contract_files'
   requestId: string
   requestNumber: string
   counterpartyName?: string
@@ -52,8 +54,8 @@ export const useUploadQueueStore = create<UploadQueueStoreState>((set, get) => (
       uploaded: 0,
       total: taskData.files.length,
     }
-    // Для request_files используем requestId как ключ
-    const taskKey = taskData.type === 'request_files' ? task.requestId : task.decisionId!
+    // Для request_files и contract_files используем requestId как ключ
+    const taskKey = taskData.type === 'decision_files' ? task.decisionId! : task.requestId
     set((state) => ({
       tasks: { ...state.tasks, [taskKey]: task },
     }))
@@ -229,6 +231,47 @@ async function processQueue(
               },
             }))
           }
+        } else if (task.type === 'contract_files') {
+          // Логика загрузки файлов заявки на договор
+          for (let i = 0; i < task.files.length; i++) {
+            const fileData = task.files[i]
+
+            // Загружаем файл на S3 (аналогично request_files)
+            const { key } = await uploadRequestFile(
+              task.counterpartyName!,
+              task.requestNumber,
+              fileData.file,
+            )
+
+            // Сохраняем метаданные файла в БД
+            const { error: fileError } = await supabase
+              .from('contract_request_files')
+              .insert({
+                contract_request_id: task.requestId,
+                file_name: fileData.file.name,
+                file_key: key,
+                file_size: fileData.file.size,
+                mime_type: fileData.file.type || null,
+                created_by: task.userId,
+                is_additional: fileData.isAdditional ?? false,
+              })
+            if (fileError) throw fileError
+
+            // Обновляем прогресс в очереди
+            const newUploaded = get().tasks[taskId].uploaded + 1
+            set((state) => ({
+              tasks: {
+                ...state.tasks,
+                [taskId]: {
+                  ...state.tasks[taskId],
+                  uploaded: newUploaded,
+                },
+              },
+            }))
+          }
+
+          // Обновляем список файлов в модалке договора
+          useContractRequestStore.getState().fetchRequestFiles(task.requestId)
         }
 
         // Успех
@@ -239,9 +282,11 @@ async function processQueue(
           },
         }))
 
-        // Уведомляем о новых файлах (только для файлов заявки, не для файлов решений)
+        // Уведомляем о новых файлах (только для файлов заявок, не для файлов решений)
         if (task.type === 'request_files') {
           notifyNewFile(task.requestId, task.userId).catch(() => {})
+        } else if (task.type === 'contract_files') {
+          notifyContractNewFile(task.requestId, task.userId).catch(() => {})
         }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Ошибка загрузки файла'

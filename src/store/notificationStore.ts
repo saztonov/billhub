@@ -25,9 +25,11 @@ export const useNotificationStore = create<NotificationStoreState>((set) => ({
       const { data, error } = await supabase
         .from('notifications')
         .select(`
-          *,
+          id, type, title, message, user_id, is_read, payment_request_id,
+          contract_request_id, department_id, site_id, resolved, resolved_at, created_at,
           construction_sites(name),
-          payment_requests(request_number)
+          payment_requests(request_number),
+          contract_requests(request_number)
         `)
         .eq('user_id', userId)
         .eq('is_read', false)
@@ -38,6 +40,7 @@ export const useNotificationStore = create<NotificationStoreState>((set) => ({
       const notifications: AppNotification[] = (data ?? []).map((row: Record<string, unknown>) => {
         const site = row.construction_sites as Record<string, unknown> | null
         const pr = row.payment_requests as Record<string, unknown> | null
+        const cr = row.contract_requests as Record<string, unknown> | null
         return {
           id: row.id as string,
           type: row.type as AppNotification['type'],
@@ -46,6 +49,7 @@ export const useNotificationStore = create<NotificationStoreState>((set) => ({
           userId: row.user_id as string,
           isRead: row.is_read as boolean,
           paymentRequestId: row.payment_request_id as string | null,
+          contractRequestId: row.contract_request_id as string | null,
           department: (row.department_id as Department | null) ?? null,
           siteId: row.site_id as string | null,
           resolved: row.resolved as boolean,
@@ -53,6 +57,7 @@ export const useNotificationStore = create<NotificationStoreState>((set) => ({
           createdAt: row.created_at as string,
           siteName: site?.name as string | undefined,
           requestNumber: pr?.request_number as string | undefined,
+          contractRequestNumber: cr?.request_number as string | undefined,
         }
       })
 

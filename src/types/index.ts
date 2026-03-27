@@ -288,6 +288,88 @@ export interface PaymentRequestComment {
   recipient?: string | null
 }
 
+// Заявки на согласование договора
+
+/** Предмет договора */
+export type ContractSubjectType = 'general' | 'metal' | 'non_metallic' | 'concrete'
+
+/** Маппинг предмета договора на название */
+export const CONTRACT_SUBJECT_LABELS: Record<ContractSubjectType, string> = {
+  general: 'Общий',
+  metal: 'Поставка металлопродукции',
+  non_metallic: 'Поставка нерудных материалов',
+  concrete: 'Поставка бетона',
+}
+
+/** Цель доработки договора */
+export type RevisionTarget = 'shtab' | 'counterparty'
+
+/** Маппинг цели доработки на название */
+export const REVISION_TARGET_LABELS: Record<RevisionTarget, string> = {
+  shtab: 'Согласование Штаб',
+  counterparty: 'На доработку Подрядчику',
+}
+
+/** Заявка на согласование договора */
+export interface ContractRequest {
+  id: string
+  requestNumber: string
+  siteId: string
+  counterpartyId: string
+  supplierId: string
+  partiesCount: number
+  subjectType: ContractSubjectType
+  subjectDetail: string | null
+  statusId: string
+  revisionTargets: RevisionTarget[]
+  createdBy: string
+  createdAt: string
+  isDeleted: boolean
+  deletedAt: string | null
+  originalReceivedAt: string | null
+  // Joined
+  siteName?: string
+  counterpartyName?: string
+  supplierName?: string
+  statusName?: string
+  statusColor?: string | null
+  statusCode?: string
+  creatorFullName?: string
+}
+
+/** Файл заявки на согласование договора */
+export interface ContractRequestFile {
+  id: string
+  contractRequestId: string
+  fileName: string
+  fileKey: string
+  fileSize: number | null
+  mimeType: string | null
+  createdBy: string
+  createdAt: string
+  isAdditional: boolean
+  isRejected: boolean
+  rejectedBy: string | null
+  rejectedAt: string | null
+}
+
+/** Комментарий (чат) заявки на согласование договора */
+export interface ContractRequestComment {
+  id: string
+  contractRequestId: string
+  authorId: string
+  text: string
+  createdAt: string
+  updatedAt: string | null
+  recipient?: string | null
+  // Joined
+  authorFullName?: string
+  authorEmail?: string
+  authorRole?: string
+  authorDepartment?: string | null
+  authorCounterpartyName?: string
+}
+
 /** Прикреплённый документ контрагента/поставки */
 export interface Document {
   id: string
@@ -479,6 +561,7 @@ export interface AppNotification {
   userId: string
   isRead: boolean
   paymentRequestId: string | null
+  contractRequestId: string | null
   department: Department | null
   siteId: string | null
   resolved: boolean
@@ -486,6 +569,7 @@ export interface AppNotification {
   createdAt: string
   siteName?: string
   requestNumber?: string
+  contractRequestNumber?: string
 }
 
 /** Тип ошибки в логах */

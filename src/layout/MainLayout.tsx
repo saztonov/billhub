@@ -11,6 +11,7 @@ import {
   BellOutlined,
   MenuOutlined,
   AppstoreOutlined,
+  AuditOutlined,
 } from '@ant-design/icons'
 import { useAuthStore } from '@/store/authStore'
 import { useNotificationStore } from '@/store/notificationStore'
@@ -26,6 +27,7 @@ const { Text } = Typography
 /** Меню для роли counterparty_user (только заявки) */
 const counterpartyMenuItems: MenuProps['items'] = [
   { key: '/payment-requests', icon: <FileTextOutlined />, label: 'Заявки на оплату' },
+  { key: '/contract-requests', icon: <AuditOutlined />, label: 'Договора' },
 ]
 
 /** Возвращает меню для указанной роли и отдела */
@@ -34,6 +36,7 @@ function getMenuItems(role: UserRole, department?: string | null): MenuProps['it
 
   const items: MenuProps['items'] = [
     { key: '/payment-requests', icon: <FileTextOutlined />, label: 'Заявки на оплату' },
+    { key: '/contract-requests', icon: <AuditOutlined />, label: 'Договора' },
   ]
 
   // Материалы видны admin и сметному отделу
@@ -110,9 +113,15 @@ const MainLayout = () => {
     }
     setNotifOpen(false)
     setMobileNotifOpen(false)
-    navigate('/payment-requests', {
-      state: notif.paymentRequestId ? { openRequestId: notif.paymentRequestId } : undefined,
-    })
+    if (notif.contractRequestId) {
+      navigate('/contract-requests', {
+        state: { openContractRequestId: notif.contractRequestId },
+      })
+    } else {
+      navigate('/payment-requests', {
+        state: notif.paymentRequestId ? { openRequestId: notif.paymentRequestId } : undefined,
+      })
+    }
   }, [markAsRead, navigate])
 
   const handleMarkAllRead = useCallback(() => {

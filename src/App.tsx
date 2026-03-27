@@ -7,6 +7,7 @@ import ProtectedRoute from '@/components/ProtectedRoute'
 import RoleGuard from '@/components/RoleGuard'
 import LoginPage from '@/pages/LoginPage'
 import PaymentRequestsPage from '@/pages/PaymentRequestsPage'
+import ContractRequestsPage from '@/pages/ContractRequestsPage'
 import DistributionLettersPage from '@/pages/DistributionLettersPage'
 import EmployeesPage from '@/pages/EmployeesPage'
 import ReferencesPage from '@/pages/ReferencesPage'
@@ -52,6 +53,7 @@ const App = () => {
             {/* Доступно всем авторизованным */}
             <Route path="/" element={<Navigate to="/payment-requests" replace />} />
             <Route path="/payment-requests" element={<PaymentRequestsPage />} />
+            <Route path="/contract-requests" element={<ContractRequestsPage />} />
             <Route path="/profile" element={<ProfilePage />} />
 
             {/* Только admin и user (внутренние сотрудники) */}
