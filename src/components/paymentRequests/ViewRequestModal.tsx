@@ -55,7 +55,7 @@ import { useCommentStore } from '@/store/commentStore'
 import RejectModal from './RejectModal'
 import AddFilesModal from './AddFilesModal'
 import DpFillModal from './DpFillModal'
-import { formatSize, formatDate, extractRequestNumber, sanitizeFileName } from '@/utils/requestFormatters'
+import { formatSize, formatDate, formatDateShort, extractRequestNumber, sanitizeFileName } from '@/utils/requestFormatters'
 import useIsMobile from '@/hooks/useIsMobile'
 import type { PaymentRequest, PaymentRequestFile, Department } from '@/types'
 import { DEPARTMENT_LABELS } from '@/types'
@@ -385,6 +385,10 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
           {
             title: 'Тип документа', key: 'documentType',
             render: (_: unknown, file: PaymentRequestFile) => file.documentTypeName ? <Tag>{file.documentTypeName}</Tag> : null,
+          },
+          {
+            title: 'Дата', key: 'createdAt', width: 140,
+            render: (_: unknown, file: PaymentRequestFile) => formatDateShort(file.createdAt),
           },
         ]
 
