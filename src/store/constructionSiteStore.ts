@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { supabase } from '@/services/supabase'
+import { api } from '@/services/api'
 import type { ConstructionSite } from '@/types'
 
 interface ConstructionSiteStoreState {
@@ -20,20 +20,8 @@ export const useConstructionSiteStore = create<ConstructionSiteStoreState>((set,
   fetchSites: async () => {
     set({ isLoading: true, error: null })
     try {
-      const { data, error } = await supabase
-        .from('construction_sites')
-        .select('id, name, is_active, created_at')
-        .order('created_at', { ascending: false })
-      if (error) throw error
-
-      const sites: ConstructionSite[] = (data ?? []).map((row: Record<string, unknown>) => ({
-        id: row.id as string,
-        name: row.name as string,
-        isActive: row.is_active as boolean,
-        createdAt: row.created_at as string,
-      }))
-
-      set({ sites, isLoading: false })
+      const data = await api.get<ConstructionSite[]>('/api/references/construction-sites')
+      set({ sites: data ?? [], isLoading: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка загрузки объектов'
       set({ error: message, isLoading: false })
@@ -43,11 +31,10 @@ export const useConstructionSiteStore = create<ConstructionSiteStoreState>((set,
   createSite: async (data) => {
     set({ isLoading: true, error: null })
     try {
-      const { error } = await supabase.from('construction_sites').insert({
+      await api.post('/api/references/construction-sites', {
         name: data.name,
-        is_active: data.isActive ?? true,
+        isActive: data.isActive ?? true,
       })
-      if (error) throw error
       await get().fetchSites()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка создания объекта'
@@ -58,14 +45,10 @@ export const useConstructionSiteStore = create<ConstructionSiteStoreState>((set,
   updateSite: async (id, data) => {
     set({ isLoading: true, error: null })
     try {
-      const { error } = await supabase
-        .from('construction_sites')
-        .update({
-          name: data.name,
-          is_active: data.isActive,
-        })
-        .eq('id', id)
-      if (error) throw error
+      await api.put(`/api/references/construction-sites/${id}`, {
+        name: data.name,
+        isActive: data.isActive,
+      })
       await get().fetchSites()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка обновления объекта'
@@ -76,8 +59,7 @@ export const useConstructionSiteStore = create<ConstructionSiteStoreState>((set,
   deleteSite: async (id) => {
     set({ isLoading: true, error: null })
     try {
-      const { error } = await supabase.from('construction_sites').delete().eq('id', id)
-      if (error) throw error
+      await api.delete(`/api/references/construction-sites/${id}`)
       await get().fetchSites()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка удаления объекта'

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { supabase } from '@/services/supabase'
+import { api } from '@/services/api'
 import { logError } from '@/services/errorLogger'
 import { uploadRequestFile, uploadDecisionFile } from '@/services/s3'
 import { notifyNewFile } from '@/utils/notificationService'
@@ -137,51 +137,21 @@ async function processQueue(
               fileData.file,
             )
 
-            // Сохраняем метаданные файла в БД
-            const { error: fileError } = await supabase
-              .from('payment_request_files')
-              .insert({
-                payment_request_id: task.requestId,
-                document_type_id: fileData.documentTypeId!,
-                file_name: fileData.file.name,
-                file_key: key,
-                file_size: fileData.file.size,
-                mime_type: fileData.file.type || null,
-                page_count: fileData.pageCount ?? null,
-                created_by: task.userId,
-                is_resubmit: fileData.isResubmit ?? false,
-                is_additional: fileData.isAdditional ?? false,
-              })
-            if (fileError) throw fileError
-
-            // Обновляем uploaded_files в БД
-            const newUploaded = get().tasks[taskId].uploaded + 1
-
-            // Если файл загружается при повторной отправке, увеличиваем и total_files
-            if (fileData.isResubmit) {
-              const { data: currentReq } = await supabase
-                .from('payment_requests')
-                .select('total_files, uploaded_files')
-                .eq('id', task.requestId)
-                .single()
-
-              const newTotal = (currentReq?.total_files ?? 0) + 1
-              const newUploadedFromDb = (currentReq?.uploaded_files ?? 0) + 1
-              await supabase
-                .from('payment_requests')
-                .update({
-                  uploaded_files: newUploadedFromDb,
-                  total_files: newTotal,
-                })
-                .eq('id', task.requestId)
-            } else {
-              await supabase
-                .from('payment_requests')
-                .update({ uploaded_files: newUploaded })
-                .eq('id', task.requestId)
-            }
+            // Сохраняем метаданные файла через API
+            await api.post(`/api/payment-requests/${task.requestId}/files`, {
+              documentTypeId: fileData.documentTypeId!,
+              fileName: fileData.file.name,
+              fileKey: key,
+              fileSize: fileData.file.size,
+              mimeType: fileData.file.type || null,
+              pageCount: fileData.pageCount ?? null,
+              userId: task.userId,
+              isResubmit: fileData.isResubmit ?? false,
+              isAdditional: fileData.isAdditional ?? false,
+            })
 
             // Обновляем прогресс в очереди
+            const newUploaded = get().tasks[taskId].uploaded + 1
             set((state) => ({
               tasks: {
                 ...state.tasks,
@@ -206,18 +176,14 @@ async function processQueue(
             // Загружаем файл на S3
             const { key } = await uploadDecisionFile(task.decisionId!, fileData.file)
 
-            // Сохраняем метаданные в БД
-            const { error: fileError } = await supabase
-              .from('approval_decision_files')
-              .insert({
-                approval_decision_id: task.decisionId!,
-                file_name: fileData.file.name,
-                file_key: key,
-                file_size: fileData.file.size,
-                mime_type: fileData.file.type || null,
-                created_by: task.userId,
-              })
-            if (fileError) throw fileError
+            // Сохраняем метаданные через API
+            await api.post(`/api/approvals/decisions/${task.decisionId}/files`, {
+              fileName: fileData.file.name,
+              fileKey: key,
+              fileSize: fileData.file.size,
+              mimeType: fileData.file.type || null,
+              userId: task.userId,
+            })
 
             // Обновляем прогресс в очереди
             const newUploaded = get().tasks[taskId].uploaded + 1
@@ -243,19 +209,15 @@ async function processQueue(
               fileData.file,
             )
 
-            // Сохраняем метаданные файла в БД
-            const { error: fileError } = await supabase
-              .from('contract_request_files')
-              .insert({
-                contract_request_id: task.requestId,
-                file_name: fileData.file.name,
-                file_key: key,
-                file_size: fileData.file.size,
-                mime_type: fileData.file.type || null,
-                created_by: task.userId,
-                is_additional: fileData.isAdditional ?? false,
-              })
-            if (fileError) throw fileError
+            // Сохраняем метаданные файла через API
+            await api.post(`/api/contract-requests/${task.requestId}/files`, {
+              fileName: fileData.file.name,
+              fileKey: key,
+              fileSize: fileData.file.size,
+              mimeType: fileData.file.type || null,
+              userId: task.userId,
+              isAdditional: fileData.isAdditional ?? false,
+            })
 
             // Обновляем прогресс в очереди
             const newUploaded = get().tasks[taskId].uploaded + 1

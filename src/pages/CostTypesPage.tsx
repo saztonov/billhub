@@ -17,7 +17,7 @@ import {
   DeleteOutlined,
   UploadOutlined,
 } from '@ant-design/icons'
-import * as XLSX from 'xlsx'
+// ExcelJS загружается динамически при использовании
 import { useTableScrollY } from '@/hooks/useTableScrollY'
 import { useCostTypeStore } from '@/store/costTypeStore'
 import { logError } from '@/services/errorLogger'
@@ -105,10 +105,28 @@ const CostTypesPage = ({ canEdit }: CostTypesPageProps) => {
     }
 
     try {
+      const ExcelJS = await import('exceljs')
+      const wb = new ExcelJS.Workbook()
       const arrayBuffer = await file.arrayBuffer()
-      const workbook = XLSX.read(arrayBuffer, { type: 'array' })
-      const firstSheet = workbook.Sheets[workbook.SheetNames[0]]
-      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(firstSheet)
+      await wb.xlsx.load(arrayBuffer)
+      const firstSheet = wb.worksheets[0]
+      if (!firstSheet) {
+        message.warning('Файл пуст')
+        return
+      }
+      // Преобразуем в формат Record<string, unknown>[] с заголовками из первой строки
+      const headers: string[] = []
+      const rows: Record<string, unknown>[] = []
+      firstSheet.eachRow((row, rowNumber) => {
+        const values = (row.values as (string | number | null | undefined)[]).slice(1)
+        if (rowNumber === 1) {
+          values.forEach(v => headers.push((v ?? '').toString()))
+        } else {
+          const obj: Record<string, unknown> = {}
+          values.forEach((v, i) => { if (headers[i]) obj[headers[i]] = v })
+          rows.push(obj)
+        }
+      })
 
       const names = rows
         .map((row) => {

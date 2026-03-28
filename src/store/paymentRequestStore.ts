@@ -1,8 +1,6 @@
 import { create } from 'zustand'
-import { supabase } from '@/services/supabase'
+import { api } from '@/services/api'
 import { logError } from '@/services/errorLogger'
-import { checkAndNotifyMissingSpecialists, notifyNewRequestPending } from '@/utils/notificationService'
-import { appendStageHistory } from '@/store/approvalStore'
 import type { PaymentRequest, PaymentRequestFile } from '@/types'
 
 interface CreateRequestData {
@@ -75,116 +73,21 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
   fetchRequests: async (counterpartyId?, userSiteIds?, allSites?, includeDeleted?) => {
     set({ isLoading: true, error: null })
     try {
-      let query = supabase
-        .from('payment_requests')
-        .select(`
-          *,
-          counterparties(name),
-          suppliers(name),
-          construction_sites(name),
-          statuses!payment_requests_status_id_fkey(name, color),
-          paid_statuses:statuses!payment_requests_paid_status_id_fkey(name, color),
-          shipping:payment_request_field_options!payment_requests_shipping_condition_id_fkey(value),
-          cost_types(name),
-          current_assignment:payment_request_assignments!left(
-            assigned_user_id,
-            is_current,
-            assigned_user:users!payment_request_assignments_assigned_user_id_fkey(email, full_name)
-          )
-        `)
-        .order('created_at', { ascending: false })
-
-      // Фильтрация удаленных заявок (по умолчанию скрыты)
-      if (!includeDeleted) {
-        query = query.eq('is_deleted', false)
-      }
-
-      if (counterpartyId) {
-        query = query.eq('counterparty_id', counterpartyId)
-      }
-
-      // Фильтрация по объектам для role=user
-      if (allSites === false && userSiteIds && userSiteIds.length > 0) {
-        query = query.in('site_id', userSiteIds)
-      } else if (allSites === false && userSiteIds && userSiteIds.length === 0) {
+      // Формируем query-параметры для API
+      const params: Record<string, string | number | boolean | undefined> = {}
+      if (counterpartyId) params.counterpartyId = counterpartyId
+      if (includeDeleted) params.includeDeleted = true
+      if (allSites !== undefined) params.allSites = allSites
+      if (userSiteIds && userSiteIds.length > 0) params.siteIds = userSiteIds.join(',')
+      // Если allSites=false и нет объектов — пустой список
+      if (allSites === false && userSiteIds && userSiteIds.length === 0) {
         set({ requests: [], isLoading: false })
         return
       }
 
-      const { data, error } = await query
-      if (error) throw error
+      const data = await api.get<PaymentRequest[]>('/api/payment-requests', params)
 
-      const requests: PaymentRequest[] = (data ?? []).map((row: Record<string, unknown>) => {
-        const counterparties = row.counterparties as Record<string, unknown> | null
-        const supplier = row.suppliers as Record<string, unknown> | null
-        const site = row.construction_sites as Record<string, unknown> | null
-        const statuses = row.statuses as Record<string, unknown> | null
-        const paidStatuses = row.paid_statuses as Record<string, unknown> | null
-        const shipping = row.shipping as Record<string, unknown> | null
-        const costType = row.cost_types as Record<string, unknown> | null
-
-        // Извлекаем текущее назначение (is_current = true)
-        const assignments = (row.current_assignment as Record<string, unknown>[]) ?? []
-        const currentAssignment = assignments.find(
-          (a: Record<string, unknown>) => a.is_current === true
-        ) ?? null
-        const assignedUser = currentAssignment?.assigned_user as Record<string, unknown> | null
-
-        return {
-          id: row.id as string,
-          requestNumber: row.request_number as string,
-          counterpartyId: row.counterparty_id as string,
-          siteId: row.site_id as string,
-          statusId: row.status_id as string,
-          deliveryDays: row.delivery_days as number,
-          deliveryDaysType: (row.delivery_days_type as string) ?? 'working',
-          shippingConditionId: row.shipping_condition_id as string,
-          comment: row.comment as string | null,
-          createdBy: row.created_by as string,
-          createdAt: row.created_at as string,
-          totalFiles: (row.total_files as number) ?? 0,
-          uploadedFiles: (row.uploaded_files as number) ?? 0,
-          withdrawnAt: row.withdrawn_at as string | null,
-          withdrawalComment: row.withdrawal_comment as string | null,
-          currentStage: (row.current_stage as number) ?? null,
-          approvedAt: row.approved_at as string | null,
-          rejectedAt: row.rejected_at as string | null,
-          rejectedStage: (row.rejected_stage as number) ?? null,
-          resubmitComment: (row.resubmit_comment as string) ?? null,
-          resubmitCount: (row.resubmit_count as number) ?? 0,
-          invoiceAmount: (row.invoice_amount as number) ?? null,
-          invoiceAmountHistory: (row.invoice_amount_history as { amount: number; changedAt: string }[]) ?? [],
-          previousStatusId: (row.previous_status_id as string) ?? null,
-          stageHistory: (row.stage_history as PaymentRequest['stageHistory']) ?? [],
-          paidStatusId: (row.paid_status_id as string) ?? null,
-          totalPaid: Number(row.total_paid ?? 0),
-          isDeleted: (row.is_deleted as boolean) ?? false,
-          deletedAt: (row.deleted_at as string) ?? null,
-          supplierId: (row.supplier_id as string) ?? null,
-          dpNumber: (row.dp_number as string) ?? null,
-          dpDate: (row.dp_date as string) ?? null,
-          dpAmount: row.dp_amount != null ? Number(row.dp_amount) : null,
-          dpFileKey: (row.dp_file_key as string) ?? null,
-          dpFileName: (row.dp_file_name as string) ?? null,
-          omtsEnteredAt: (row.omts_entered_at as string) ?? null,
-          omtsApprovedAt: (row.omts_approved_at as string) ?? null,
-          costTypeId: (row.cost_type_id as string) ?? null,
-          counterpartyName: counterparties?.name as string | undefined,
-          supplierName: supplier?.name as string | undefined,
-          siteName: site?.name as string | undefined,
-          statusName: statuses?.name as string | undefined,
-          statusColor: (statuses?.color as string) ?? null,
-          paidStatusName: paidStatuses?.name as string | undefined,
-          paidStatusColor: (paidStatuses?.color as string) ?? null,
-          shippingConditionValue: shipping?.value as string | undefined,
-          assignedUserId: (currentAssignment?.assigned_user_id as string) ?? null,
-          assignedUserEmail: (assignedUser?.email as string) ?? null,
-          assignedUserFullName: (assignedUser?.full_name as string) ?? null,
-          costTypeName: (costType?.name as string) ?? null,
-        }
-      })
-
-      set({ requests, isLoading: false })
+      set({ requests: data ?? [], isLoading: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка загрузки заявок'
       set({ error: message, isLoading: false })
@@ -194,69 +97,15 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
   createRequest: async (data, counterpartyId, userId) => {
     set({ isSubmitting: true, error: null })
     try {
-      // 1. Получаем id статуса "Согласование Штаб"
-      const { data: statusData, error: statusError } = await supabase
-        .from('statuses')
-        .select('id')
-        .eq('entity_type', 'payment_request')
-        .eq('code', 'approv_shtab')
-        .single()
-      if (statusError) throw statusError
-
-      // 2. Генерация номера через БД-функцию
-      const { data: requestNumber, error: numError } = await supabase
-        .rpc('generate_request_number')
-      if (numError) throw numError
-
-      // 3. Создание заявки
-      const { data: requestData, error: reqError } = await supabase
-        .from('payment_requests')
-        .insert({
-          request_number: requestNumber,
-          counterparty_id: counterpartyId,
-          site_id: data.siteId,
-          status_id: statusData.id,
-          delivery_days: data.deliveryDays,
-          delivery_days_type: data.deliveryDaysType,
-          shipping_condition_id: data.shippingConditionId,
-          comment: data.comment || null,
-          invoice_amount: data.invoiceAmount || null,
-          supplier_id: data.supplierId || null,
-          total_files: data.totalFiles,
-          uploaded_files: 0,
-          created_by: userId,
-        })
-        .select('id')
-        .single()
-      if (reqError) throw reqError
-
-      // 4. Запускаем жесткую цепочку согласования: Этап 1 - Штаб
-      await supabase.from('approval_decisions').insert({
-        payment_request_id: requestData.id,
-        stage_order: 1,
-        department_id: 'shtab',
-        status: 'pending',
-      })
-
-      // Записываем в хронологию
-      await appendStageHistory(requestData.id, { stage: 1, department: 'shtab', event: 'received' })
-
-      // Устанавливаем текущий этап
-      await supabase
-        .from('payment_requests')
-        .update({ current_stage: 1 })
-        .eq('id', requestData.id)
-
-      // Проверяем наличие специалистов Штаба для объекта
-      await checkAndNotifyMissingSpecialists(requestData.id, data.siteId, 'shtab')
-
-      // Уведомляем Штаб о новой заявке
-      notifyNewRequestPending(requestData.id, data.siteId, userId, requestNumber as string).catch(() => {})
+      const result = await api.post<{ requestId: string; requestNumber: string }>(
+        '/api/payment-requests',
+        { ...data, counterpartyId, userId },
+      )
 
       // Файлы загружаются отдельно через uploadQueueStore
       await get().fetchRequests(counterpartyId)
       set({ isSubmitting: false })
-      return { requestId: requestData.id as string, requestNumber: requestNumber as string }
+      return result
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка создания заявки'
       logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'createRequest' } })
@@ -268,15 +117,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
   deleteRequest: async (id) => {
     set({ isLoading: true, error: null })
     try {
-      // Мягкое удаление: помечаем заявку как удаленную, файлы и данные сохраняются
-      const { error } = await supabase
-        .from('payment_requests')
-        .update({
-          is_deleted: true,
-          deleted_at: new Date().toISOString(),
-        })
-        .eq('id', id)
-      if (error) throw error
+      await api.delete(`/api/payment-requests/${id}`)
 
       await get().fetchRequests()
     } catch (err) {
@@ -288,24 +129,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
   withdrawRequest: async (id, comment?) => {
     set({ isLoading: true, error: null })
     try {
-      // Получаем id статуса "Отозвана"
-      const { data: statusData, error: statusError } = await supabase
-        .from('statuses')
-        .select('id')
-        .eq('entity_type', 'payment_request')
-        .eq('code', 'withdrawn')
-        .single()
-      if (statusError) throw statusError
-
-      const { error } = await supabase
-        .from('payment_requests')
-        .update({
-          status_id: statusData.id,
-          withdrawn_at: new Date().toISOString(),
-          withdrawal_comment: comment || null,
-        })
-        .eq('id', id)
-      if (error) throw error
+      await api.post(`/api/payment-requests/${id}/withdraw`, { comment: comment || null })
 
       await get().fetchRequests()
     } catch (err) {
@@ -317,11 +141,8 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
   updateRequestStatus: async (id, statusId) => {
     set({ isLoading: true, error: null })
     try {
-      const { error } = await supabase
-        .from('payment_requests')
-        .update({ status_id: statusId })
-        .eq('id', id)
-      if (error) throw error
+      await api.patch(`/api/payment-requests/${id}/status`, { statusId })
+
       await get().fetchRequests()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка изменения статуса'
@@ -347,42 +168,11 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
   fetchRequestFiles: async (requestId) => {
     set({ isLoading: true, error: null })
     try {
-      const { data, error } = await supabase
-        .from('payment_request_files')
-        .select('*, document_types(name), users!payment_request_files_created_by_fkey(role, department_id, counterparties(name))')
-        .eq('payment_request_id', requestId)
-        .order('created_at', { ascending: true })
-      if (error) throw error
-
-      const files: PaymentRequestFile[] = (data ?? []).map(
-        (row: Record<string, unknown>) => {
-          const dt = row.document_types as Record<string, unknown> | null
-          const uploader = row.users as Record<string, unknown> | null
-          return {
-            id: row.id as string,
-            paymentRequestId: row.payment_request_id as string,
-            documentTypeId: row.document_type_id as string,
-            fileName: row.file_name as string,
-            fileKey: row.file_key as string,
-            fileSize: row.file_size as number | null,
-            mimeType: row.mime_type as string | null,
-            pageCount: row.page_count as number | null,
-            createdBy: row.created_by as string,
-            createdAt: row.created_at as string,
-            isResubmit: (row.is_resubmit as boolean) ?? false,
-            isAdditional: (row.is_additional as boolean) ?? false,
-            isRejected: (row.is_rejected as boolean) ?? false,
-            rejectedBy: row.rejected_by as string | null,
-            rejectedAt: row.rejected_at as string | null,
-            documentTypeName: dt?.name as string | undefined,
-            uploaderRole: uploader?.role as string | undefined,
-            uploaderDepartment: uploader?.department_id as string | null | undefined,
-            uploaderCounterpartyName: (uploader?.counterparties as Record<string, unknown> | null)?.name as string | null | undefined,
-          }
-        },
+      const data = await api.get<PaymentRequestFile[]>(
+        `/api/payment-requests/${requestId}/files`,
       )
 
-      set({ currentRequestFiles: files, isLoading: false })
+      set({ currentRequestFiles: data ?? [], isLoading: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка загрузки файлов'
       set({ error: message, isLoading: false })
@@ -392,103 +182,11 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
   resubmitRequest: async (id, comment, counterpartyId, userId, fieldUpdates?) => {
     set({ isSubmitting: true, error: null })
     try {
-      // 1. Получаем id статуса "Согласование Штаб"
-      const { data: statusData, error: statusError } = await supabase
-        .from('statuses')
-        .select('id')
-        .eq('entity_type', 'payment_request')
-        .eq('code', 'approv_shtab')
-        .single()
-      if (statusError) throw statusError
-
-      // 2. Получаем текущее значение resubmit_count, rejected_stage, site_id, invoice_amount и историю сумм
-      const { data: currentReq, error: reqError } = await supabase
-        .from('payment_requests')
-        .select('resubmit_count, rejected_stage, site_id, invoice_amount, invoice_amount_history')
-        .eq('id', id)
-        .single()
-      if (reqError) throw reqError
-
-      const newCount = ((currentReq.resubmit_count as number) ?? 0) + 1
-      const siteId = currentReq.site_id as string
-      // Повторная отправка всегда начинает полный круг согласования с этапа Штаб
-      const targetStage = 1
-
-      // 3. Формируем данные для обновления заявки
-      const updateData: Record<string, unknown> = {
-        status_id: statusData.id,
-        rejected_at: null,
-        rejected_stage: null,
-        approved_at: null,
-        current_stage: targetStage,
-        resubmit_comment: comment || null,
-        resubmit_count: newCount,
-      }
-
-      // Если переданы обновленные поля — обновляем их и записываем историю суммы
-      if (fieldUpdates) {
-        // Дописываем текущую сумму в историю
-        const history = (currentReq.invoice_amount_history as { amount: number; changedAt: string }[]) ?? []
-        if (currentReq.invoice_amount != null) {
-          history.push({
-            amount: currentReq.invoice_amount as number,
-            changedAt: new Date().toISOString(),
-          })
-        }
-        updateData.invoice_amount_history = history
-        updateData.delivery_days = fieldUpdates.deliveryDays
-        updateData.delivery_days_type = fieldUpdates.deliveryDaysType
-        updateData.shipping_condition_id = fieldUpdates.shippingConditionId
-        updateData.invoice_amount = fieldUpdates.invoiceAmount
-      }
-
-      const { error: updError } = await supabase
-        .from('payment_requests')
-        .update(updateData)
-        .eq('id', id)
-      if (updError) throw updError
-
-      // 4. Создаём pending-записи для этапа Штаб (полный круг)
-
-      // Удаляем только pending записи для этапа Штаб
-      // После миграции БД: partial unique index позволяет иметь несколько rejected/approved записей,
-      // но только одну pending - история согласований сохраняется в таблице
-      await supabase
-        .from('approval_decisions')
-        .delete()
-        .eq('payment_request_id', id)
-        .eq('stage_order', 1)
-        .eq('department_id', 'shtab')
-        .eq('status', 'pending')
-
-      // Создаём новую pending-запись для этапа Штаб
-      await supabase.from('approval_decisions').insert({
-        payment_request_id: id,
-        stage_order: 1,
-        department_id: 'shtab',
-        status: 'pending',
-      })
-
-      // Записываем в хронологию (повторная отправка)
-      await appendStageHistory(id, { stage: 1, department: 'shtab', event: 'received' })
-
-      // Проверяем и уведомляем о недостающих специалистах
-      await checkAndNotifyMissingSpecialists(id, siteId, 'shtab')
-
-      // Уведомляем Штаб о повторной отправке заявки
-      notifyNewRequestPending(id, siteId, userId).catch(() => {})
-
-      // Логируем повторную отправку
-      await supabase.from('payment_request_logs').insert({
-        payment_request_id: id,
-        user_id: userId,
-        action: 'resubmit',
-        details: {
-          comment,
-          target_stage: 1,
-          target_department: 'shtab',
-          resubmit_count: newCount,
-        },
+      await api.post(`/api/payment-requests/${id}/resubmit`, {
+        comment,
+        counterpartyId,
+        userId,
+        fieldUpdates: fieldUpdates || null,
       })
 
       await get().fetchRequests(counterpartyId)
@@ -504,80 +202,11 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
   updateRequest: async (id, data, userId, newFilesCount?) => {
     set({ isSubmitting: true, error: null })
     try {
-      // Получаем текущие значения для логирования изменений
-      const { data: current, error: fetchError } = await supabase
-        .from('payment_requests')
-        .select('delivery_days, delivery_days_type, shipping_condition_id, site_id, comment, invoice_amount, total_files, supplier_id')
-        .eq('id', id)
-        .single()
-      if (fetchError) throw fetchError
-
-      // Формируем объект обновления и список изменений
-      const updates: Record<string, unknown> = {}
-      const changes: { field: string; oldValue: unknown; newValue: unknown }[] = []
-
-      if (data.deliveryDays !== undefined && data.deliveryDays !== current.delivery_days) {
-        updates.delivery_days = data.deliveryDays
-        changes.push({ field: 'delivery_days', oldValue: current.delivery_days, newValue: data.deliveryDays })
-      }
-      if (data.deliveryDaysType !== undefined && data.deliveryDaysType !== current.delivery_days_type) {
-        updates.delivery_days_type = data.deliveryDaysType
-        changes.push({ field: 'delivery_days_type', oldValue: current.delivery_days_type, newValue: data.deliveryDaysType })
-      }
-      if (data.shippingConditionId !== undefined && data.shippingConditionId !== current.shipping_condition_id) {
-        updates.shipping_condition_id = data.shippingConditionId
-        changes.push({ field: 'shipping_condition_id', oldValue: current.shipping_condition_id, newValue: data.shippingConditionId })
-      }
-      if (data.siteId !== undefined && data.siteId !== current.site_id) {
-        updates.site_id = data.siteId
-        changes.push({ field: 'site_id', oldValue: current.site_id, newValue: data.siteId })
-      }
-      if (data.comment !== undefined && data.comment !== current.comment) {
-        updates.comment = data.comment || null
-        changes.push({ field: 'comment', oldValue: current.comment, newValue: data.comment || null })
-      }
-      if (data.invoiceAmount !== undefined && data.invoiceAmount !== current.invoice_amount) {
-        updates.invoice_amount = data.invoiceAmount ?? null
-        changes.push({ field: 'invoice_amount', oldValue: current.invoice_amount, newValue: data.invoiceAmount ?? null })
-      }
-      if (data.supplierId !== undefined && data.supplierId !== current.supplier_id) {
-        updates.supplier_id = data.supplierId ?? null
-        changes.push({ field: 'supplier_id', oldValue: current.supplier_id, newValue: data.supplierId ?? null })
-      }
-
-      // Обновляем total_files если догружаются файлы
-      if (newFilesCount && newFilesCount > 0) {
-        updates.total_files = (current.total_files as number ?? 0) + newFilesCount
-      }
-
-      // Обновляем заявку если есть изменения
-      if (Object.keys(updates).length > 0) {
-        const { error: updError } = await supabase
-          .from('payment_requests')
-          .update(updates)
-          .eq('id', id)
-        if (updError) throw updError
-      }
-
-      // Логируем изменения полей
-      if (changes.length > 0) {
-        await supabase.from('payment_request_logs').insert({
-          payment_request_id: id,
-          user_id: userId,
-          action: 'edit',
-          details: { changes },
-        })
-      }
-
-      // Логируем догрузку файлов
-      if (newFilesCount && newFilesCount > 0) {
-        await supabase.from('payment_request_logs').insert({
-          payment_request_id: id,
-          user_id: userId,
-          action: 'file_upload',
-          details: { count: newFilesCount },
-        })
-      }
+      await api.put(`/api/payment-requests/${id}`, {
+        ...data,
+        userId,
+        newFilesCount: newFilesCount || 0,
+      })
 
       set({ isSubmitting: false })
     } catch (err) {
@@ -591,17 +220,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
   updateDpData: async (id, data) => {
     set({ isSubmitting: true, error: null })
     try {
-      const { error } = await supabase
-        .from('payment_requests')
-        .update({
-          dp_number: data.dpNumber,
-          dp_date: data.dpDate,
-          dp_amount: data.dpAmount,
-          dp_file_key: data.dpFileKey,
-          dp_file_name: data.dpFileName,
-        })
-        .eq('id', id)
-      if (error) throw error
+      await api.patch(`/api/payment-requests/${id}/dp`, data)
 
       // Обновляем локальное состояние
       set((state) => ({
@@ -626,26 +245,22 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
     if (!file) return
 
     const newRejected = !file.isRejected
-    const updateData = newRejected
-      ? { is_rejected: true, rejected_by: userId, rejected_at: new Date().toISOString() }
-      : { is_rejected: false, rejected_by: null, rejected_at: null }
 
-    const { error } = await supabase
-      .from('payment_request_files')
-      .update(updateData)
-      .eq('id', fileId)
+    try {
+      await api.patch(`/api/payment-requests/files/${fileId}/rejection`, {
+        isRejected: newRejected,
+        userId,
+      })
 
-    if (error) {
-      logError({ errorType: 'api_error', errorMessage: error.message, errorStack: null, metadata: { action: 'toggleFileRejection', fileId } })
-      return
+      set({
+        currentRequestFiles: files.map((f) =>
+          f.id === fileId
+            ? { ...f, isRejected: newRejected, rejectedBy: newRejected ? userId : null, rejectedAt: newRejected ? new Date().toISOString() : null }
+            : f,
+        ),
+      })
+    } catch (err) {
+      logError({ errorType: 'api_error', errorMessage: err instanceof Error ? err.message : 'Ошибка', errorStack: null, metadata: { action: 'toggleFileRejection', fileId } })
     }
-
-    set({
-      currentRequestFiles: files.map((f) =>
-        f.id === fileId
-          ? { ...f, isRejected: newRejected, rejectedBy: newRejected ? userId : null, rejectedAt: newRejected ? updateData.rejected_at as string : null }
-          : f,
-      ),
-    })
   },
 }))

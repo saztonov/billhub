@@ -1,7 +1,6 @@
 import { create } from 'zustand'
-import { supabase } from '@/services/supabase'
+import { api } from '@/services/api'
 import { logError } from '@/services/errorLogger'
-import { notifyContractNewComment } from '@/utils/contractNotificationService'
 import type { ContractRequestComment } from '@/types'
 
 interface ContractCommentStoreState {
@@ -26,34 +25,11 @@ export const useContractCommentStore = create<ContractCommentStoreState>((set, g
   fetchComments: async (contractRequestId) => {
     set({ isLoading: true })
     try {
-      const { data, error } = await supabase
-        .from('contract_request_comments')
-        .select('id, contract_request_id, author_id, text, created_at, updated_at, recipient, author:users!contract_request_comments_author_id_fkey(full_name, email, role, department_id, counterparty:counterparties!users_counterparty_id_fkey(name))')
-        .eq('contract_request_id', contractRequestId)
-        .order('created_at', { ascending: false })
+      const data = await api.get<ContractRequestComment[]>(
+        `/api/comments/contract-request/${contractRequestId}`,
+      )
 
-      if (error) throw error
-
-      const comments: ContractRequestComment[] = (data ?? []).map((row: Record<string, unknown>) => {
-        const author = row.author as Record<string, unknown> | null
-        const counterparty = author?.counterparty as Record<string, unknown> | null
-        return {
-          id: row.id as string,
-          contractRequestId: row.contract_request_id as string,
-          authorId: row.author_id as string,
-          text: row.text as string,
-          createdAt: row.created_at as string,
-          updatedAt: (row.updated_at as string) ?? null,
-          authorFullName: (author?.full_name as string) ?? undefined,
-          authorEmail: (author?.email as string) ?? undefined,
-          authorRole: (author?.role as string) ?? undefined,
-          authorDepartment: (author?.department_id as string) ?? null,
-          authorCounterpartyName: (counterparty?.name as string) ?? undefined,
-          recipient: (row.recipient as string) ?? null,
-        }
-      })
-
-      set({ comments, isLoading: false })
+      set({ comments: data ?? [], isLoading: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка загрузки комментариев'
       logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'fetchContractComments' } })
@@ -64,18 +40,12 @@ export const useContractCommentStore = create<ContractCommentStoreState>((set, g
   addComment: async (contractRequestId, text, userId, recipient) => {
     set({ isSubmitting: true })
     try {
-      const { error } = await supabase
-        .from('contract_request_comments')
-        .insert({
-          contract_request_id: contractRequestId,
-          author_id: userId,
-          text,
-          recipient: recipient || null,
-        })
-      if (error) throw error
-
-      // Уведомляем о новом комментарии
-      notifyContractNewComment(contractRequestId, userId, recipient || null).catch(() => {})
+      await api.post('/api/comments/contract-request', {
+        contractRequestId,
+        text,
+        userId,
+        recipient: recipient || null,
+      })
 
       await get().fetchComments(contractRequestId)
       set({ isSubmitting: false })
@@ -90,11 +60,7 @@ export const useContractCommentStore = create<ContractCommentStoreState>((set, g
   updateComment: async (commentId, text) => {
     set({ isSubmitting: true })
     try {
-      const { error } = await supabase
-        .from('contract_request_comments')
-        .update({ text, updated_at: new Date().toISOString() })
-        .eq('id', commentId)
-      if (error) throw error
+      await api.put(`/api/comments/contract/${commentId}`, { text })
 
       const comment = get().comments.find((c) => c.id === commentId)
       if (comment) {
@@ -114,11 +80,7 @@ export const useContractCommentStore = create<ContractCommentStoreState>((set, g
     try {
       const comment = get().comments.find((c) => c.id === commentId)
 
-      const { error } = await supabase
-        .from('contract_request_comments')
-        .delete()
-        .eq('id', commentId)
-      if (error) throw error
+      await api.delete(`/api/comments/contract/${commentId}`)
 
       if (comment) {
         await get().fetchComments(comment.contractRequestId)
@@ -132,53 +94,22 @@ export const useContractCommentStore = create<ContractCommentStoreState>((set, g
     }
   },
 
-  fetchUnreadCounts: async (userId) => {
+  fetchUnreadCounts: async (_userId) => {
     try {
-      const { data: comments, error: commentsError } = await supabase
-        .from('contract_request_comments')
-        .select('contract_request_id, created_at')
-        .neq('author_id', userId)
+      const data = await api.get<Record<string, number>>(
+        '/api/comments/contract-request/unread-counts',
+      )
 
-      if (commentsError) throw commentsError
-
-      const { data: readStatuses, error: readError } = await supabase
-        .from('contract_comment_read_status')
-        .select('contract_request_id, last_read_at')
-        .eq('user_id', userId)
-
-      if (readError) throw readError
-
-      // Строим мапу last_read_at по заявке
-      const readMap: Record<string, string> = {}
-      for (const rs of readStatuses ?? []) {
-        readMap[rs.contract_request_id] = rs.last_read_at
-      }
-
-      // Считаем непрочитанные
-      const counts: Record<string, number> = {}
-      for (const c of comments ?? []) {
-        const lastRead = readMap[c.contract_request_id]
-        if (!lastRead || new Date(c.created_at) > new Date(lastRead)) {
-          counts[c.contract_request_id] = (counts[c.contract_request_id] || 0) + 1
-        }
-      }
-
-      set({ unreadCounts: counts })
+      set({ unreadCounts: data ?? {} })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка загрузки непрочитанных'
       logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'fetchContractUnreadCounts' } })
     }
   },
 
-  markAsRead: async (userId, contractRequestId) => {
+  markAsRead: async (_userId, contractRequestId) => {
     try {
-      const { error } = await supabase
-        .from('contract_comment_read_status')
-        .upsert(
-          { user_id: userId, contract_request_id: contractRequestId, last_read_at: new Date().toISOString() },
-          { onConflict: 'user_id,contract_request_id' }
-        )
-      if (error) throw error
+      await api.post(`/api/comments/contract-request/${contractRequestId}/mark-read`)
 
       set((state) => {
         const updated = { ...state.unreadCounts }

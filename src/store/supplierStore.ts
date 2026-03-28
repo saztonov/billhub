@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { supabase } from '@/services/supabase'
+import { api } from '@/services/api'
 import type { Supplier, ImportSupplierRow } from '@/types'
 
 interface SupplierStoreState {
@@ -22,21 +22,8 @@ export const useSupplierStore = create<SupplierStoreState>((set, get) => ({
   fetchSuppliers: async () => {
     set({ isLoading: true, error: null })
     try {
-      const { data, error } = await supabase
-        .from('suppliers')
-        .select('id, name, inn, alternative_names, created_at')
-        .order('created_at', { ascending: false })
-      if (error) throw error
-
-      const suppliers: Supplier[] = (data ?? []).map((row: Record<string, unknown>) => ({
-        id: row.id as string,
-        name: row.name as string,
-        inn: row.inn as string,
-        alternativeNames: (row.alternative_names as string[]) ?? [],
-        createdAt: row.created_at as string,
-      }))
-
-      set({ suppliers, isLoading: false })
+      const data = await api.get<Supplier[]>('/api/references/suppliers')
+      set({ suppliers: data ?? [], isLoading: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка загрузки'
       set({ error: message, isLoading: false })
@@ -46,12 +33,11 @@ export const useSupplierStore = create<SupplierStoreState>((set, get) => ({
   createSupplier: async (data) => {
     set({ isLoading: true, error: null })
     try {
-      const { error } = await supabase.from('suppliers').insert({
+      await api.post('/api/references/suppliers', {
         name: data.name,
         inn: data.inn,
-        alternative_names: data.alternativeNames ?? [],
+        alternativeNames: data.alternativeNames ?? [],
       })
-      if (error) throw error
       await get().fetchSuppliers()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка создания'
@@ -62,15 +48,11 @@ export const useSupplierStore = create<SupplierStoreState>((set, get) => ({
   updateSupplier: async (id, data) => {
     set({ isLoading: true, error: null })
     try {
-      const { error } = await supabase
-        .from('suppliers')
-        .update({
-          name: data.name,
-          inn: data.inn,
-          alternative_names: data.alternativeNames,
-        })
-        .eq('id', id)
-      if (error) throw error
+      await api.put(`/api/references/suppliers/${id}`, {
+        name: data.name,
+        inn: data.inn,
+        alternativeNames: data.alternativeNames,
+      })
       await get().fetchSuppliers()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка обновления'
@@ -81,8 +63,7 @@ export const useSupplierStore = create<SupplierStoreState>((set, get) => ({
   deleteSupplier: async (id) => {
     set({ isLoading: true, error: null })
     try {
-      const { error } = await supabase.from('suppliers').delete().eq('id', id)
-      if (error) throw error
+      await api.delete(`/api/references/suppliers/${id}`)
       await get().fetchSuppliers()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка удаления'
@@ -94,13 +75,8 @@ export const useSupplierStore = create<SupplierStoreState>((set, get) => ({
     const BATCH_SIZE = 20
     let created = 0
     for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-      const batch = rows.slice(i, i + BATCH_SIZE).map((r) => ({
-        name: r.name,
-        inn: r.inn,
-        alternative_names: [],
-      }))
-      const { error } = await supabase.from('suppliers').insert(batch)
-      if (error) throw error
+      const batch = rows.slice(i, i + BATCH_SIZE)
+      await api.post('/api/references/suppliers/batch-import', { items: batch })
       created += batch.length
       onProgress?.(created, rows.length)
     }
@@ -109,10 +85,6 @@ export const useSupplierStore = create<SupplierStoreState>((set, get) => ({
   },
 
   updateSupplierForImport: async (id, name, alternativeNames) => {
-    const { error } = await supabase
-      .from('suppliers')
-      .update({ name, alternative_names: alternativeNames })
-      .eq('id', id)
-    if (error) throw error
+    await api.put(`/api/references/suppliers/${id}`, { name, alternativeNames })
   },
 }))

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { supabase } from '@/services/supabase'
+import { api } from '@/services/api'
 import type { DocumentType } from '@/types'
 
 interface DocumentTypeStoreState {
@@ -20,19 +20,8 @@ export const useDocumentTypeStore = create<DocumentTypeStoreState>((set, get) =>
   fetchDocumentTypes: async () => {
     set({ isLoading: true, error: null })
     try {
-      const { data, error } = await supabase
-        .from('document_types')
-        .select('id, name, created_at')
-        .order('created_at', { ascending: false })
-      if (error) throw error
-
-      const documentTypes: DocumentType[] = (data ?? []).map((row: Record<string, unknown>) => ({
-        id: row.id as string,
-        name: row.name as string,
-        createdAt: row.created_at as string,
-      }))
-
-      set({ documentTypes, isLoading: false })
+      const data = await api.get<DocumentType[]>('/api/references/document-types')
+      set({ documentTypes: data ?? [], isLoading: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка загрузки'
       set({ error: message, isLoading: false })
@@ -42,10 +31,7 @@ export const useDocumentTypeStore = create<DocumentTypeStoreState>((set, get) =>
   createDocumentType: async (data) => {
     set({ isLoading: true, error: null })
     try {
-      const { error } = await supabase.from('document_types').insert({
-        name: data.name,
-      })
-      if (error) throw error
+      await api.post('/api/references/document-types', { name: data.name })
       await get().fetchDocumentTypes()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка создания'
@@ -56,13 +42,7 @@ export const useDocumentTypeStore = create<DocumentTypeStoreState>((set, get) =>
   updateDocumentType: async (id, data) => {
     set({ isLoading: true, error: null })
     try {
-      const { error } = await supabase
-        .from('document_types')
-        .update({
-          name: data.name,
-        })
-        .eq('id', id)
-      if (error) throw error
+      await api.put(`/api/references/document-types/${id}`, { name: data.name })
       await get().fetchDocumentTypes()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка обновления'
@@ -73,8 +53,7 @@ export const useDocumentTypeStore = create<DocumentTypeStoreState>((set, get) =>
   deleteDocumentType: async (id) => {
     set({ isLoading: true, error: null })
     try {
-      const { error } = await supabase.from('document_types').delete().eq('id', id)
-      if (error) throw error
+      await api.delete(`/api/references/document-types/${id}`)
       await get().fetchDocumentTypes()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка удаления'

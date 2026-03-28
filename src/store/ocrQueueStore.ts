@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { supabase } from '@/services/supabase'
+import { api } from '@/services/api'
 import { logError } from '@/services/errorLogger'
 import { processPaymentRequestOcr } from '@/services/ocrService'
 import type { OcrProgress } from '@/services/ocrService'
@@ -109,19 +109,17 @@ export const useOcrQueueStore = create<OcrQueueStoreState>((set, get) => ({
   },
 }))
 
-/** Подгружает номер заявки из БД для отображения */
+/** Подгружает номер заявки из API для отображения */
 async function loadRequestNumber(
   paymentRequestId: string,
   set: (fn: (state: OcrQueueStoreState) => Partial<OcrQueueStoreState>) => void,
 ) {
   try {
-    const { data } = await supabase
-      .from('payment_requests')
-      .select('request_number')
-      .eq('id', paymentRequestId)
-      .single()
+    const data = await api.get<{ requestNumber: string }>(
+      `/api/payment-requests/${paymentRequestId}/number`,
+    )
 
-    if (data) {
+    if (data?.requestNumber) {
       set((state) => {
         const task = state.tasks[paymentRequestId]
         if (!task) return state
@@ -130,7 +128,7 @@ async function loadRequestNumber(
             ...state.tasks,
             [paymentRequestId]: {
               ...task,
-              requestNumber: (data as Record<string, unknown>).request_number as string,
+              requestNumber: data.requestNumber,
             },
           },
         }

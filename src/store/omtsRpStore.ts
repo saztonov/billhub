@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { supabase } from '@/services/supabase'
+import { api } from '@/services/api'
 import { logError } from '@/services/errorLogger'
 import type { OmtsRpSite } from '@/types'
 import type { OmtsUser } from '@/store/assignmentStore'
@@ -31,35 +31,9 @@ export const useOmtsRpStore = create<OmtsRpStoreState>((set, get) => ({
   fetchSites: async () => {
     set({ isLoading: true, error: null })
     try {
-      // Читаем массив site_ids из settings
-      const { data, error } = await supabase
-        .from('settings')
-        .select('value')
-        .eq('key', 'omts_rp_sites')
-        .single()
-      if (error) throw error
+      const data = await api.get<OmtsRpSite[]>('/api/omts-rp/sites')
 
-      const siteIds = ((data.value as Record<string, unknown>).site_ids as string[]) ?? []
-
-      if (siteIds.length === 0) {
-        set({ sites: [], isLoading: false })
-        return
-      }
-
-      // Подгружаем имена объектов
-      const { data: sitesData, error: sitesError } = await supabase
-        .from('construction_sites')
-        .select('id, name')
-        .in('id', siteIds)
-      if (sitesError) throw sitesError
-
-      const sites: OmtsRpSite[] = (sitesData ?? []).map((s: Record<string, unknown>) => ({
-        id: s.id as string,
-        constructionSiteId: s.id as string,
-        createdAt: '',
-        siteName: s.name as string,
-      }))
-      set({ sites, isLoading: false })
+      set({ sites: data ?? [], isLoading: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка загрузки объектов ОМТС РП'
       logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'fetchOmtsRpSites' } })
@@ -70,24 +44,7 @@ export const useOmtsRpStore = create<OmtsRpStoreState>((set, get) => ({
   addSite: async (constructionSiteId) => {
     set({ error: null })
     try {
-      // Читаем текущий массив
-      const { data, error: readErr } = await supabase
-        .from('settings')
-        .select('value')
-        .eq('key', 'omts_rp_sites')
-        .single()
-      if (readErr) throw readErr
-
-      const current = ((data.value as Record<string, unknown>).site_ids as string[]) ?? []
-      if (current.includes(constructionSiteId)) return
-
-      const updated = [...current, constructionSiteId]
-
-      const { error } = await supabase
-        .from('settings')
-        .update({ value: { site_ids: updated }, updated_at: new Date().toISOString() })
-        .eq('key', 'omts_rp_sites')
-      if (error) throw error
+      await api.post('/api/omts-rp/sites', { constructionSiteId })
 
       await get().fetchSites()
     } catch (err) {
@@ -101,21 +58,7 @@ export const useOmtsRpStore = create<OmtsRpStoreState>((set, get) => ({
   removeSite: async (siteId) => {
     set({ error: null })
     try {
-      const { data, error: readErr } = await supabase
-        .from('settings')
-        .select('value')
-        .eq('key', 'omts_rp_sites')
-        .single()
-      if (readErr) throw readErr
-
-      const current = ((data.value as Record<string, unknown>).site_ids as string[]) ?? []
-      const updated = current.filter((id) => id !== siteId)
-
-      const { error } = await supabase
-        .from('settings')
-        .update({ value: { site_ids: updated }, updated_at: new Date().toISOString() })
-        .eq('key', 'omts_rp_sites')
-      if (error) throw error
+      await api.delete(`/api/omts-rp/sites/${siteId}`)
 
       await get().fetchSites()
     } catch (err) {
@@ -128,15 +71,9 @@ export const useOmtsRpStore = create<OmtsRpStoreState>((set, get) => ({
 
   fetchConfig: async () => {
     try {
-      const { data, error } = await supabase
-        .from('settings')
-        .select('value')
-        .eq('key', 'omts_rp_config')
-        .single()
-      if (error) throw error
+      const data = await api.get<{ responsibleUserId: string | null }>('/api/omts-rp/config')
 
-      const responsibleUserId = (data.value as Record<string, unknown>).responsible_user_id as string | null
-      set({ responsibleUserId })
+      set({ responsibleUserId: data?.responsibleUserId ?? null })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка загрузки конфигурации ОМТС РП'
       logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'fetchOmtsRpConfig' } })
@@ -147,11 +84,7 @@ export const useOmtsRpStore = create<OmtsRpStoreState>((set, get) => ({
   updateResponsible: async (userId) => {
     set({ error: null })
     try {
-      const { error } = await supabase
-        .from('settings')
-        .update({ value: { responsible_user_id: userId }, updated_at: new Date().toISOString() })
-        .eq('key', 'omts_rp_config')
-      if (error) throw error
+      await api.put('/api/omts-rp/responsible', { userId })
 
       set({ responsibleUserId: userId })
     } catch (err) {
@@ -164,22 +97,9 @@ export const useOmtsRpStore = create<OmtsRpStoreState>((set, get) => ({
 
   fetchOmtsUsers: async () => {
     try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('id, email, full_name')
-        .eq('department_id', 'omts')
-        .eq('is_active', true)
-        .in('role', ['admin', 'user'])
-        .order('full_name', { ascending: true })
-      if (error) throw error
+      const data = await api.get<OmtsUser[]>('/api/omts-rp/omts-users')
 
-      set({
-        omtsUsers: (data ?? []).map((u: Record<string, unknown>) => ({
-          id: u.id as string,
-          email: u.email as string,
-          fullName: (u.full_name as string) || (u.email as string),
-        })),
-      })
+      set({ omtsUsers: data ?? [] })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка загрузки пользователей ОМТС'
       set({ error: message })

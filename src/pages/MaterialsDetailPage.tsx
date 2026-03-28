@@ -8,7 +8,7 @@ import type { MaterialsVerification } from '@/store/materialsStore'
 import { useAuthStore } from '@/store/authStore'
 import { useTableScrollY } from '@/hooks/useTableScrollY'
 import { useInvoiceSyncViewer } from '@/hooks/useInvoiceSyncViewer'
-import { supabase } from '@/services/supabase'
+import { api } from '@/services/api'
 import { getDownloadUrl } from '@/services/s3'
 import { formatDate } from '@/utils/requestFormatters'
 import { logError } from '@/services/errorLogger'
@@ -146,30 +146,12 @@ const MaterialsDetailPage = () => {
     const load = async () => {
       setIsLoadingInfo(true)
       try {
-        const { data, error } = await supabase
-          .from('payment_requests')
-          .select('request_number, approved_at, cost_type_id, materials_verification, counterparties(name), suppliers(name), construction_sites(name), cost_types(name)')
-          .eq('id', paymentRequestId)
-          .single()
-        if (error) throw error
-        if (cancelled) return
+        const data = await api.get<RequestInfo>(
+          `/api/materials/request-info/${paymentRequestId}`,
+        )
+        if (cancelled || !data) return
 
-        const row = data as Record<string, unknown>
-        const cp = row.counterparties as Record<string, unknown> | null
-        const sup = row.suppliers as Record<string, unknown> | null
-        const site = row.construction_sites as Record<string, unknown> | null
-        const ct = row.cost_types as Record<string, unknown> | null
-
-        setRequestInfo({
-          requestNumber: row.request_number as string,
-          counterpartyName: (cp?.name as string) ?? '—',
-          supplierName: (sup?.name as string) ?? '—',
-          siteName: (site?.name as string) ?? '—',
-          approvedAt: row.approved_at as string | null,
-          costTypeId: (row.cost_type_id as string) ?? null,
-          costTypeName: (ct?.name as string) ?? null,
-          materialsVerification: (row.materials_verification as MaterialsVerification | null) ?? null,
-        })
+        setRequestInfo(data)
       } catch (err) {
         logError({
           errorType: 'api_error',
@@ -190,11 +172,7 @@ const MaterialsDetailPage = () => {
     async (val: string | undefined) => {
       if (!paymentRequestId) return
       try {
-        const { error } = await supabase
-          .from('payment_requests')
-          .update({ cost_type_id: val ?? null })
-          .eq('id', paymentRequestId)
-        if (error) throw error
+        await api.patch(`/api/payment-requests/${paymentRequestId}`, { costTypeId: val ?? null })
         const name = val ? costTypes.find((ct) => ct.id === val)?.name ?? null : null
         setRequestInfo((prev) => prev ? { ...prev, costTypeId: val ?? null, costTypeName: name } : prev)
         message.success('Вид затрат обновлён')
@@ -238,11 +216,7 @@ const MaterialsDetailPage = () => {
     }
 
     try {
-      const { error } = await supabase
-        .from('payment_requests')
-        .update({ materials_verification: newVerification })
-        .eq('id', paymentRequestId)
-      if (error) throw error
+      await api.patch(`/api/payment-requests/${paymentRequestId}`, { materialsVerification: newVerification })
       setRequestInfo((prev) => prev ? { ...prev, materialsVerification: newVerification } : prev)
     } catch {
       message.error('Ошибка обновления статуса проверки')
@@ -259,11 +233,7 @@ const MaterialsDetailPage = () => {
       cancelText: 'Нет',
       onOk: async () => {
         try {
-          const { error } = await supabase
-            .from('payment_requests')
-            .update({ materials_verification: null })
-            .eq('id', paymentRequestId)
-          if (error) throw error
+          await api.patch(`/api/payment-requests/${paymentRequestId}`, { materialsVerification: null })
           setRequestInfo((prev) => prev ? { ...prev, materialsVerification: null } : prev)
         } catch {
           message.error('Ошибка сброса статуса проверки')

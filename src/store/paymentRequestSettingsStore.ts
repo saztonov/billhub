@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { supabase } from '@/services/supabase'
+import { api } from '@/services/api'
 import type { PaymentRequestFieldOption } from '@/types'
 
 interface PaymentRequestSettingsStoreState {
@@ -27,23 +27,8 @@ export const usePaymentRequestSettingsStore = create<PaymentRequestSettingsStore
     fetchFieldOptions: async () => {
       set({ isLoading: true, error: null })
       try {
-        const { data, error } = await supabase
-          .from('payment_request_field_options')
-          .select('id, field_code, value, is_active, display_order, created_at')
-          .order('field_code', { ascending: true })
-          .order('display_order', { ascending: true })
-        if (error) throw error
-        const fieldOptions: PaymentRequestFieldOption[] = (data ?? []).map(
-          (row: Record<string, unknown>) => ({
-            id: row.id as string,
-            fieldCode: row.field_code as string,
-            value: row.value as string,
-            isActive: row.is_active as boolean,
-            displayOrder: row.display_order as number,
-            createdAt: row.created_at as string,
-          }),
-        )
-        set({ fieldOptions, isLoading: false })
+        const data = await api.get<PaymentRequestFieldOption[]>('/api/references/field-options')
+        set({ fieldOptions: data ?? [], isLoading: false })
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Ошибка загрузки опций'
         set({ error: message, isLoading: false })
@@ -53,10 +38,7 @@ export const usePaymentRequestSettingsStore = create<PaymentRequestSettingsStore
     createFieldOption: async (data) => {
       set({ isLoading: true, error: null })
       try {
-        const { error } = await supabase
-          .from('payment_request_field_options')
-          .insert(data)
-        if (error) throw error
+        await api.post('/api/references/field-options', data)
         await get().fetchFieldOptions()
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Ошибка создания опции'
@@ -67,11 +49,7 @@ export const usePaymentRequestSettingsStore = create<PaymentRequestSettingsStore
     updateFieldOption: async (id, data) => {
       set({ isLoading: true, error: null })
       try {
-        const { error } = await supabase
-          .from('payment_request_field_options')
-          .update(data)
-          .eq('id', id)
-        if (error) throw error
+        await api.put(`/api/references/field-options/${id}`, data)
         await get().fetchFieldOptions()
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Ошибка обновления опции'
@@ -82,11 +60,7 @@ export const usePaymentRequestSettingsStore = create<PaymentRequestSettingsStore
     deleteFieldOption: async (id) => {
       set({ isLoading: true, error: null })
       try {
-        const { error } = await supabase
-          .from('payment_request_field_options')
-          .delete()
-          .eq('id', id)
-        if (error) throw error
+        await api.delete(`/api/references/field-options/${id}`)
         await get().fetchFieldOptions()
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Ошибка удаления опции'

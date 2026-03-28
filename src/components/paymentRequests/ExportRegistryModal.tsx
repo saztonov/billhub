@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Modal, Select, App } from 'antd'
-import { supabase } from '@/services/supabase'
+import { api } from '@/services/api'
 import { logError } from '@/services/errorLogger'
 import { exportRegistryToExcel } from '@/utils/exportRegistry'
 import type { PaymentRequest, Supplier, ConstructionSite, Status } from '@/types'
@@ -16,6 +16,17 @@ interface ExportRegistryModalProps {
   isShtabUser: boolean
 }
 
+/** Ответ API: привязка пользователя к объектам */
+interface UserSiteMapping {
+  construction_site_id: string
+}
+
+/** Ответ API: статус оплаты */
+interface PaidStatus {
+  id: string
+  code: string
+}
+
 const ExportRegistryModal = (props: ExportRegistryModalProps) => {
   const { open, onClose, requests, suppliers, sites, statuses, userId, isShtabUser } = props
   const { message } = App.useApp()
@@ -23,7 +34,7 @@ const ExportRegistryModal = (props: ExportRegistryModalProps) => {
   const [selectedSiteId, setSelectedSiteId] = useState<string | undefined>(undefined)
   const [loading, setLoading] = useState(false)
 
-  // Для Штаб — загрузить привязанные объекты и предвыбрать
+  // Для Штаб -- загрузить привязанные объекты и предвыбрать
   useEffect(() => {
     if (!open) return
     if (!isShtabUser) {
@@ -33,13 +44,12 @@ const ExportRegistryModal = (props: ExportRegistryModalProps) => {
 
     const loadShtabSite = async () => {
       try {
-        const { data } = await supabase
-          .from('user_construction_sites_mapping')
-          .select('construction_site_id')
-          .eq('user_id', userId)
+        const data = await api.get<UserSiteMapping[]>(
+          `/api/users/${userId}/construction-sites`,
+        )
 
         if (data && data.length > 0) {
-          setSelectedSiteId(data[0].construction_site_id as string)
+          setSelectedSiteId(data[0].construction_site_id)
         }
       } catch (err) {
         logError({
@@ -72,20 +82,19 @@ const ExportRegistryModal = (props: ExportRegistryModalProps) => {
     // Загружаем статусы оплаты для определения not_paid
     setLoading(true)
     try {
-      const { data: paidStatuses } = await supabase
-        .from('statuses')
-        .select('id, code')
-        .eq('entity_type', 'paid')
+      const paidStatuses = await api.get<PaidStatus[]>(
+        '/api/statuses', { entityType: 'paid' },
+      )
 
       const combinedStatuses = [
         ...allStatuses,
-        ...(paidStatuses ?? []).map((s: Record<string, unknown>) => ({
-          id: s.id as string,
-          code: s.code as string,
+        ...(paidStatuses ?? []).map((s) => ({
+          id: s.id,
+          code: s.code,
         })),
       ]
 
-      exportRegistryToExcel({
+      await exportRegistryToExcel({
         requests: siteRequests,
         suppliers,
         siteName: site.name,

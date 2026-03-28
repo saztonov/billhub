@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { supabase } from '@/services/supabase'
+import { api } from '@/services/api'
 import type { OcrModel } from '@/types'
 
 interface SettingsStoreState {
@@ -22,21 +22,9 @@ export const useSettingsStore = create<SettingsStoreState>((set, get) => ({
   fetchOcrModels: async () => {
     set({ isLoading: true, error: null })
     try {
-      const { data, error } = await supabase
-        .from('ocr_models')
-        .select('id, model_id, model_name, is_active, created_at')
-        .order('created_at', { ascending: false })
-      if (error) throw error
-
-      const models: OcrModel[] = (data ?? []).map((row: Record<string, unknown>) => ({
-        id: row.id as string,
-        name: row.model_name as string,
-        modelId: row.model_id as string,
-        isActive: row.is_active as boolean,
-        createdAt: row.created_at as string,
-      }))
-      const active = models.find((m) => m.isActive)
-      set({ ocrModels: models, activeModelId: active?.id ?? null, isLoading: false })
+      const models = await api.get<OcrModel[]>('/api/settings/ocr-models')
+      const active = (models ?? []).find((m) => m.isActive)
+      set({ ocrModels: models ?? [], activeModelId: active?.id ?? null, isLoading: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка загрузки моделей'
       set({ error: message, isLoading: false })
@@ -46,8 +34,7 @@ export const useSettingsStore = create<SettingsStoreState>((set, get) => ({
   addOcrModel: async (data) => {
     set({ isLoading: true, error: null })
     try {
-      const { error } = await supabase.from('ocr_models').insert(data)
-      if (error) throw error
+      await api.post('/api/settings/ocr-models', data)
       await get().fetchOcrModels()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка добавления модели'
@@ -58,8 +45,7 @@ export const useSettingsStore = create<SettingsStoreState>((set, get) => ({
   deleteOcrModel: async (id) => {
     set({ isLoading: true, error: null })
     try {
-      const { error } = await supabase.from('ocr_models').delete().eq('id', id)
-      if (error) throw error
+      await api.delete(`/api/settings/ocr-models/${id}`)
       await get().fetchOcrModels()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка удаления модели'
@@ -70,11 +56,7 @@ export const useSettingsStore = create<SettingsStoreState>((set, get) => ({
   setActiveModel: async (id) => {
     set({ isLoading: true, error: null })
     try {
-      // Деактивируем все модели
-      await supabase.from('ocr_models').update({ is_active: false }).neq('id', '')
-      // Активируем выбранную
-      const { error } = await supabase.from('ocr_models').update({ is_active: true }).eq('id', id)
-      if (error) throw error
+      await api.put(`/api/settings/ocr-models/${id}/activate`)
       await get().fetchOcrModels()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка смены активной модели'

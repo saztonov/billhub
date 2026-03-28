@@ -1,11 +1,17 @@
 import { create } from 'zustand'
-import { supabase } from '@/services/supabase'
+import { api } from '@/services/api'
 import type { ErrorLog, ErrorLogType } from '@/types'
 
 interface ErrorLogFilters {
   errorTypes?: ErrorLogType[]
   dateFrom?: string | null
   dateTo?: string | null
+}
+
+/** Ответ API со списком логов и общим количеством */
+interface ErrorLogResponse {
+  data: ErrorLog[]
+  total: number
 }
 
 interface ErrorLogStoreState {
@@ -40,47 +46,25 @@ export const useErrorLogStore = create<ErrorLogStoreState>((set, get) => ({
     set({ isLoading: true, error: null })
     try {
       const { page, pageSize, filters } = get()
-      const from = (page - 1) * pageSize
-      const to = from + pageSize - 1
 
-      // Запрос с join на users для получения email
-      let query = supabase
-        .from('error_logs')
-        .select('*, users!error_logs_user_id_fkey(email)', { count: 'exact' })
-        .order('created_at', { ascending: false })
-        .range(from, to)
-
-      // Фильтр по типу ошибки
-      if (filters.errorTypes && filters.errorTypes.length > 0) {
-        query = query.in('error_type', filters.errorTypes)
+      // Формируем параметры запроса
+      const params: Record<string, string | number | boolean | undefined> = {
+        page,
+        pageSize,
       }
 
-      // Фильтр по дате
+      if (filters.errorTypes && filters.errorTypes.length > 0) {
+        params.errorTypes = filters.errorTypes.join(',')
+      }
       if (filters.dateFrom) {
-        query = query.gte('created_at', filters.dateFrom)
+        params.dateFrom = filters.dateFrom
       }
       if (filters.dateTo) {
-        query = query.lte('created_at', filters.dateTo + 'T23:59:59.999Z')
+        params.dateTo = filters.dateTo
       }
 
-      const { data, error, count } = await query
-      if (error) throw error
-
-      const logs: ErrorLog[] = (data ?? []).map((row: Record<string, unknown>) => ({
-        id: row.id as string,
-        createdAt: row.created_at as string,
-        errorType: row.error_type as ErrorLogType,
-        errorMessage: row.error_message as string,
-        errorStack: (row.error_stack as string) ?? null,
-        url: (row.url as string) ?? null,
-        userId: (row.user_id as string) ?? null,
-        userAgent: (row.user_agent as string) ?? null,
-        component: (row.component as string) ?? null,
-        metadata: (row.metadata as Record<string, unknown>) ?? null,
-        userEmail: (row.users as Record<string, unknown> | null)?.email as string | undefined,
-      }))
-
-      set({ logs, total: count ?? 0, isLoading: false })
+      const result = await api.get<ErrorLogResponse>('/api/error-logs', params)
+      set({ logs: result.data ?? [], total: result.total ?? 0, isLoading: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка загрузки логов'
       set({ error: message, isLoading: false })
@@ -90,15 +74,7 @@ export const useErrorLogStore = create<ErrorLogStoreState>((set, get) => ({
   deleteOldLogs: async (olderThanDays) => {
     set({ isLoading: true, error: null })
     try {
-      const cutoffDate = new Date()
-      cutoffDate.setDate(cutoffDate.getDate() - olderThanDays)
-
-      const { error } = await supabase
-        .from('error_logs')
-        .delete()
-        .lt('created_at', cutoffDate.toISOString())
-
-      if (error) throw error
+      await api.delete(`/api/error-logs/bulk?days=${olderThanDays}`)
       await get().fetchLogs()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка удаления логов'

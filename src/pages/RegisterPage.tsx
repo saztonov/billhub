@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react'
 import { Form, Input, Button, Typography, Spin, Alert, App } from 'antd'
 import { UserOutlined, MailOutlined, LockOutlined } from '@ant-design/icons'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { supabase } from '@/services/supabase'
+import { api } from '@/services/api'
 
 const { Title, Text } = Typography
 
-interface CounterpartyInfo {
-  id: string
-  name: string
+interface ValidateTokenResponse {
+  valid: boolean
+  counterpartyName: string
 }
 
 const RegisterPage = () => {
@@ -17,7 +17,7 @@ const RegisterPage = () => {
   const [searchParams] = useSearchParams()
   const token = searchParams.get('token')
 
-  const [counterparty, setCounterparty] = useState<CounterpartyInfo | null>(null)
+  const [counterpartyName, setCounterpartyName] = useState<string | null>(null)
   const [isValidating, setIsValidating] = useState(true)
   const [isInvalid, setIsInvalid] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -30,50 +30,37 @@ const RegisterPage = () => {
         return
       }
 
-      const { data, error } = await supabase
-        .from('counterparties')
-        .select('id, name')
-        .eq('registration_token', token)
-        .single()
-
-      if (error || !data) {
+      try {
+        const data = await api.get<ValidateTokenResponse>('/api/auth/validate-token', { token })
+        if (data.valid) {
+          setCounterpartyName(data.counterpartyName)
+        } else {
+          setIsInvalid(true)
+        }
+      } catch {
         setIsInvalid(true)
-      } else {
-        setCounterparty({ id: data.id, name: data.name })
+      } finally {
+        setIsValidating(false)
       }
-      setIsValidating(false)
     }
 
     validateToken()
   }, [token])
 
   const onFinish = async (values: { full_name: string; email: string; password: string }) => {
-    if (!counterparty) return
+    if (!counterpartyName || !token) return
     setIsSubmitting(true)
 
     try {
-      // Регистрация в Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      await api.post('/api/auth/register', {
         email: values.email,
         password: values.password,
+        fullName: values.full_name,
+        token,
       })
-      if (authError) throw authError
-      if (!authData.user) throw new Error('Не удалось создать пользователя')
 
-      // Создание записи в таблице users
-      const { error: insertError } = await supabase
-        .from('users')
-        .insert({
-          id: authData.user.id,
-          email: values.email,
-          full_name: values.full_name,
-          role: 'counterparty_user',
-          counterparty_id: counterparty.id,
-        })
-      if (insertError) throw insertError
-
-      message.success('Регистрация прошла успешно')
-      navigate('/payment-requests')
+      message.success('Регистрация прошла успешно. Войдите с указанными данными.')
+      navigate('/login')
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Ошибка регистрации'
       message.error(errorMessage)
@@ -112,7 +99,7 @@ const RegisterPage = () => {
         Регистрация
       </Title>
       <Text type="secondary" style={{ display: 'block', textAlign: 'center', marginBottom: 24 }}>
-        {counterparty?.name}
+        {counterpartyName}
       </Text>
       <Form
         name="register"

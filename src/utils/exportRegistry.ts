@@ -1,4 +1,3 @@
-import * as XLSX from 'xlsx'
 import type { PaymentRequest, Supplier } from '@/types'
 import { extractRequestNumber } from '@/utils/requestFormatters'
 
@@ -12,8 +11,11 @@ interface ExportRegistryParams {
 }
 
 /** Экспорт реестра РП на оплату в Excel */
-export function exportRegistryToExcel(params: ExportRegistryParams): void {
+export async function exportRegistryToExcel(params: ExportRegistryParams): Promise<void> {
   const { requests, suppliers, siteName, statusApprovedCode, statusNotPaidCode, statuses } = params
+
+  // Динамический импорт ExcelJS для уменьшения бандла
+  const ExcelJS = await import('exceljs')
 
   // Находим id статусов по коду
   const approvedStatusId = statuses.find(s => s.code === statusApprovedCode)?.id
@@ -40,81 +42,72 @@ export function exportRegistryToExcel(params: ExportRegistryParams): void {
     year: 'numeric',
   })
 
-  // Формируем данные
-  const headerRows = [
-    ['РЕЕСТР РП НА ОПЛАТУ'],
-    [`Объект: ${siteName}`],
-    [`Дата реестра: ${dateStr}`],
-    [], // Пустая строка-разделитель
-    ['№пп', '№ заявки', 'Подрядчик', 'Поставщик', 'ИНН', 'Сумма', 'Описание'],
+  // Создаём книгу и лист
+  const wb = new ExcelJS.Workbook()
+  const ws = wb.addWorksheet('Реестр')
+
+  // Ширина колонок
+  ws.columns = [
+    { width: 6 },   // №пп
+    { width: 12 },  // № заявки
+    { width: 30 },  // Подрядчик
+    { width: 30 },  // Поставщик
+    { width: 14 },  // ИНН
+    { width: 15 },  // Сумма
+    { width: 40 },  // Описание
   ]
 
-  const dataRows = filtered.map((r, idx) => [
-    idx + 1,
-    extractRequestNumber(r.requestNumber),
-    r.counterpartyName ?? '',
-    r.supplierName ?? '',
-    r.supplierId ? (supplierInnMap.get(r.supplierId) ?? '') : '',
-    r.invoiceAmount != null ? Number(r.invoiceAmount) : '',
-    r.comment ?? '',
-  ])
+  // Заголовки
+  const titleRow = ws.addRow(['РЕЕСТР РП НА ОПЛАТУ'])
+  ws.mergeCells(titleRow.number, 1, titleRow.number, 7)
 
-  // Строка ИТОГО (сумма будет добавлена формулой)
-  const totalRow = ['ИТОГО', '', '', '', '', '', '']
+  const siteRow = ws.addRow([`Объект: ${siteName}`])
+  ws.mergeCells(siteRow.number, 1, siteRow.number, 7)
 
-  const allRows = [...headerRows, ...dataRows, totalRow]
+  const dateRow = ws.addRow([`Дата реестра: ${dateStr}`])
+  ws.mergeCells(dateRow.number, 1, dateRow.number, 7)
 
-  // Создаём книгу
-  const wb = XLSX.utils.book_new()
-  const ws = XLSX.utils.aoa_to_sheet(allRows)
+  ws.addRow([]) // Пустая строка-разделитель
+  ws.addRow(['№пп', '№ заявки', 'Подрядчик', 'Поставщик', 'ИНН', 'Сумма', 'Описание'])
 
-  // Форматирование столбца "Сумма" — денежный формат (колонка F)
-  const firstDataRow = headerRows.length
-  const totalRowIdx = headerRows.length + dataRows.length
-  const amountCol = 'F'
+  const firstDataRow = ws.rowCount + 1
 
-  for (let row = firstDataRow; row < totalRowIdx; row++) {
-    const cellRef = `${amountCol}${row + 1}`
-    if (ws[cellRef] && typeof ws[cellRef].v === 'number') {
-      ws[cellRef].z = '#,##0.00'
+  // Данные
+  filtered.forEach((r, idx) => {
+    ws.addRow([
+      idx + 1,
+      extractRequestNumber(r.requestNumber),
+      r.counterpartyName ?? '',
+      r.supplierName ?? '',
+      r.supplierId ? (supplierInnMap.get(r.supplierId) ?? '') : '',
+      r.invoiceAmount != null ? Number(r.invoiceAmount) : '',
+      r.comment ?? '',
+    ])
+  })
+
+  const lastDataRow = ws.rowCount
+
+  // Формат суммы для столбца F
+  for (let row = firstDataRow; row <= lastDataRow; row++) {
+    const cell = ws.getCell(`F${row}`)
+    if (typeof cell.value === 'number') {
+      cell.numFmt = '#,##0.00'
     }
   }
 
-  // Формула SUM и формат для строки ИТОГО
-  const totalCellRef = `${amountCol}${totalRowIdx + 1}`
-  ws[totalCellRef] = {
-    t: 'n',
-    f: `SUM(${amountCol}${firstDataRow + 1}:${amountCol}${totalRowIdx})`,
-    z: '#,##0.00',
-  }
-
-  // Ширина колонок
-  ws['!cols'] = [
-    { wch: 6 },   // №пп
-    { wch: 12 },  // № заявки
-    { wch: 30 },  // Подрядчик
-    { wch: 30 },  // Поставщик
-    { wch: 14 },  // ИНН
-    { wch: 15 },  // Сумма
-    { wch: 40 },  // Описание
-  ]
-
-  // Объединяем ячейки заголовка
-  ws['!merges'] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: 6 } }, // РЕЕСТР РП НА ОПЛАТУ
-    { s: { r: 1, c: 0 }, e: { r: 1, c: 6 } }, // Объект
-    { s: { r: 2, c: 0 }, e: { r: 2, c: 6 } }, // Дата реестра
-  ]
-
-  XLSX.utils.book_append_sheet(wb, ws, 'Реестр')
+  // Строка ИТОГО с формулой SUM
+  const totalRow = ws.addRow(['ИТОГО', '', '', '', '', '', ''])
+  const totalCell = totalRow.getCell(6)
+  totalCell.value = { formula: `SUM(F${firstDataRow}:F${lastDataRow})`, result: undefined } as unknown as ExcelJS.CellValue
+  totalCell.numFmt = '#,##0.00'
 
   // Скачиваем
   const safeSiteName = siteName.replace(/[\\/:*?"<>|]/g, '_')
   const dateFile = now.toISOString().slice(0, 10)
   const fileName = `Реестр_заявок_${safeSiteName}_${dateFile}.xlsx`
 
-  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
-  const blob = new Blob([wbout], { type: 'application/octet-stream' })
+  const buffer = await wb.xlsx.writeBuffer()
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url

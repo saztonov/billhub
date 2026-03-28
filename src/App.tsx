@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { Spin, Flex, App as AntdApp } from 'antd'
 import MainLayout from '@/layout/MainLayout'
@@ -6,16 +6,18 @@ import AuthLayout from '@/layout/AuthLayout'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import RoleGuard from '@/components/RoleGuard'
 import LoginPage from '@/pages/LoginPage'
-import PaymentRequestsPage from '@/pages/PaymentRequestsPage'
-import ContractRequestsPage from '@/pages/ContractRequestsPage'
-import DistributionLettersPage from '@/pages/DistributionLettersPage'
-import EmployeesPage from '@/pages/EmployeesPage'
-import ReferencesPage from '@/pages/ReferencesPage'
-import AdminPage from '@/pages/AdminPage'
-import MaterialsPage from '@/pages/MaterialsPage'
-import MaterialsDetailPage from '@/pages/MaterialsDetailPage'
-import ProfilePage from '@/pages/ProfilePage'
 import { useAuthStore } from '@/store/authStore'
+
+// Ленивая загрузка страниц для code-splitting
+const PaymentRequestsPage = lazy(() => import('@/pages/PaymentRequestsPage'))
+const ContractRequestsPage = lazy(() => import('@/pages/ContractRequestsPage'))
+const DistributionLettersPage = lazy(() => import('@/pages/DistributionLettersPage'))
+const EmployeesPage = lazy(() => import('@/pages/EmployeesPage'))
+const ReferencesPage = lazy(() => import('@/pages/ReferencesPage'))
+const AdminPage = lazy(() => import('@/pages/AdminPage'))
+const MaterialsPage = lazy(() => import('@/pages/MaterialsPage'))
+const MaterialsDetailPage = lazy(() => import('@/pages/MaterialsDetailPage'))
+const ProfilePage = lazy(() => import('@/pages/ProfilePage'))
 
 /** Инициализация сессии при загрузке приложения */
 const AppInitializer = ({ children }: { children: React.ReactNode }) => {
@@ -50,24 +52,60 @@ const App = () => {
         {/* Основное приложение (защищено авторизацией) */}
         <Route element={<ProtectedRoute />}>
           <Route element={<MainLayout />}>
-            {/* Доступно всем авторизованным */}
             <Route path="/" element={<Navigate to="/payment-requests" replace />} />
-            <Route path="/payment-requests" element={<PaymentRequestsPage />} />
-            <Route path="/contract-requests" element={<ContractRequestsPage />} />
-            <Route path="/profile" element={<ProfilePage />} />
+            {/* Suspense-обёртка для ленивых страниц */}
+            <Route path="/payment-requests" element={
+              <Suspense fallback={<Flex align="center" justify="center" style={{ padding: 48 }}><Spin size="large" /></Flex>}>
+                <PaymentRequestsPage />
+              </Suspense>
+            } />
+            <Route path="/contract-requests" element={
+              <Suspense fallback={<Flex align="center" justify="center" style={{ padding: 48 }}><Spin size="large" /></Flex>}>
+                <ContractRequestsPage />
+              </Suspense>
+            } />
+            <Route path="/profile" element={
+              <Suspense fallback={<Flex align="center" justify="center" style={{ padding: 48 }}><Spin size="large" /></Flex>}>
+                <ProfilePage />
+              </Suspense>
+            } />
 
             {/* Только admin и user (внутренние сотрудники) */}
             <Route element={<RoleGuard allowedRoles={['admin', 'user']} />}>
-              <Route path="/distribution-letters" element={<DistributionLettersPage />} />
-              <Route path="/employees" element={<EmployeesPage />} />
-              <Route path="/references" element={<ReferencesPage />} />
-              <Route path="/materials" element={<MaterialsPage />} />
-              <Route path="/materials/:paymentRequestId" element={<MaterialsDetailPage />} />
+              <Route path="/distribution-letters" element={
+                <Suspense fallback={<Flex align="center" justify="center" style={{ padding: 48 }}><Spin size="large" /></Flex>}>
+                  <DistributionLettersPage />
+                </Suspense>
+              } />
+              <Route path="/employees" element={
+                <Suspense fallback={<Flex align="center" justify="center" style={{ padding: 48 }}><Spin size="large" /></Flex>}>
+                  <EmployeesPage />
+                </Suspense>
+              } />
+              <Route path="/references" element={
+                <Suspense fallback={<Flex align="center" justify="center" style={{ padding: 48 }}><Spin size="large" /></Flex>}>
+                  <ReferencesPage />
+                </Suspense>
+              } />
+              <Route path="/materials" element={
+                <Suspense fallback={<Flex align="center" justify="center" style={{ padding: 48 }}><Spin size="large" /></Flex>}>
+                  <MaterialsPage />
+                </Suspense>
+              } />
+              <Route path="/materials/:paymentRequestId" element={
+                <Suspense fallback={<Flex align="center" justify="center" style={{ padding: 48 }}><Spin size="large" /></Flex>}>
+                  <MaterialsDetailPage />
+                </Suspense>
+              } />
             </Route>
 
             {/* Только admin */}
             <Route element={<RoleGuard allowedRoles={['admin']} />}>
-              <Route path="/admin" element={<AdminPage />} />
+              <Route path="/admin" element={
+                <Suspense fallback={<Flex align="center" justify="center" style={{ padding: 48 }}><Spin size="large" /></Flex>}>
+                  <AdminPage />
+                </Suspense>
+              } />
             </Route>
           </Route>
         </Route>

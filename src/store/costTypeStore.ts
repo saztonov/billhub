@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { supabase } from '@/services/supabase'
+import { api } from '@/services/api'
 import type { CostType } from '@/types'
 
 interface CostTypeStoreState {
@@ -21,20 +21,8 @@ export const useCostTypeStore = create<CostTypeStoreState>((set, get) => ({
   fetchCostTypes: async () => {
     set({ isLoading: true, error: null })
     try {
-      const { data, error } = await supabase
-        .from('cost_types')
-        .select('id, name, is_active, created_at')
-        .order('name', { ascending: true })
-      if (error) throw error
-
-      const costTypes: CostType[] = (data ?? []).map((row: Record<string, unknown>) => ({
-        id: row.id as string,
-        name: row.name as string,
-        isActive: row.is_active as boolean,
-        createdAt: row.created_at as string,
-      }))
-
-      set({ costTypes, isLoading: false })
+      const data = await api.get<CostType[]>('/api/references/cost-types')
+      set({ costTypes: data ?? [], isLoading: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка загрузки видов затрат'
       set({ error: message, isLoading: false })
@@ -44,8 +32,7 @@ export const useCostTypeStore = create<CostTypeStoreState>((set, get) => ({
   createCostType: async (name) => {
     set({ isLoading: true, error: null })
     try {
-      const { error } = await supabase.from('cost_types').insert({ name })
-      if (error) throw error
+      await api.post('/api/references/cost-types', { name })
       await get().fetchCostTypes()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка создания'
@@ -56,11 +43,7 @@ export const useCostTypeStore = create<CostTypeStoreState>((set, get) => ({
   updateCostType: async (id, name, isActive) => {
     set({ isLoading: true, error: null })
     try {
-      const { error } = await supabase
-        .from('cost_types')
-        .update({ name, is_active: isActive })
-        .eq('id', id)
-      if (error) throw error
+      await api.put(`/api/references/cost-types/${id}`, { name, isActive })
       await get().fetchCostTypes()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка обновления'
@@ -71,8 +54,7 @@ export const useCostTypeStore = create<CostTypeStoreState>((set, get) => ({
   deleteCostType: async (id) => {
     set({ isLoading: true, error: null })
     try {
-      const { error } = await supabase.from('cost_types').delete().eq('id', id)
-      if (error) throw error
+      await api.delete(`/api/references/cost-types/${id}`)
       await get().fetchCostTypes()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка удаления'
@@ -84,9 +66,8 @@ export const useCostTypeStore = create<CostTypeStoreState>((set, get) => ({
     const BATCH_SIZE = 20
     let created = 0
     for (let i = 0; i < names.length; i += BATCH_SIZE) {
-      const batch = names.slice(i, i + BATCH_SIZE).map((name) => ({ name }))
-      const { error } = await supabase.from('cost_types').insert(batch)
-      if (error) throw error
+      const batch = names.slice(i, i + BATCH_SIZE)
+      await api.post('/api/references/cost-types/batch-import', { items: batch })
       created += batch.length
       onProgress?.(created, names.length)
     }

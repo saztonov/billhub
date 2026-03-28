@@ -1,6 +1,20 @@
 import { create } from 'zustand'
-import { supabase } from '@/services/supabase'
+import { api, ApiError } from '@/services/api'
 import type { User } from '@/types'
+
+/** Ответ API на login и checkAuth */
+interface AuthUserResponse {
+  user: {
+    id: string
+    email: string
+    fullName: string
+    role: User['role']
+    counterpartyId: string | null
+    department: User['department']
+    allSites: boolean
+    isActive: boolean
+  }
+}
 
 interface AuthStoreState {
   user: User | null
@@ -14,6 +28,20 @@ interface AuthStoreState {
   changeOwnPassword: (currentPassword: string, newPassword: string) => Promise<void>
 }
 
+/** Маппинг ответа API в тип User */
+function mapResponseToUser(data: AuthUserResponse['user']): User {
+  return {
+    id: data.id,
+    email: data.email,
+    fullName: data.fullName,
+    role: data.role,
+    counterpartyId: data.counterpartyId,
+    department: data.department,
+    allSites: data.allSites,
+    isActive: data.isActive,
+  }
+}
+
 export const useAuthStore = create<AuthStoreState>((set) => ({
   user: null,
   isAuthenticated: false,
@@ -23,37 +51,17 @@ export const useAuthStore = create<AuthStoreState>((set) => ({
   login: async (email: string, password: string) => {
     set({ isLoading: true, error: null })
     try {
-      const { data: authData, error: authError } =
-        await supabase.auth.signInWithPassword({ email, password })
-      if (authError) throw authError
+      const response = await api.post<AuthUserResponse>('/api/auth/login', { email, password })
+      const user = mapResponseToUser(response.user)
 
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('id, email, role, counterparty_id, department_id, all_sites, full_name, is_active')
-        .eq('id', authData.user.id)
-        .single()
-      if (userError) throw userError
-
-      // Проверка деактивации
-      if (userData.is_active === false) {
-        await supabase.auth.signOut()
+      if (!user.isActive) {
         set({ user: null, isAuthenticated: false, isLoading: false, error: 'Ваш аккаунт деактивирован' })
         return
       }
 
-      const user: User = {
-        id: userData.id,
-        email: userData.email,
-        fullName: userData.full_name ?? '',
-        role: userData.role,
-        counterpartyId: userData.counterparty_id,
-        department: userData.department_id,
-        allSites: userData.all_sites ?? false,
-        isActive: userData.is_active ?? true,
-      }
       set({ user, isAuthenticated: true, isLoading: false })
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Ошибка авторизации'
+      const message = err instanceof ApiError ? err.message : 'Ошибка авторизации'
       set({ error: message, isLoading: false })
     }
   },
@@ -61,52 +69,30 @@ export const useAuthStore = create<AuthStoreState>((set) => ({
   logout: async () => {
     set({ isLoading: true })
     try {
-      await supabase.auth.signOut()
+      await api.post('/api/auth/logout')
+    } catch {
+      // Очищаем состояние даже при ошибке сети
+    } finally {
       set({ user: null, isAuthenticated: false, isLoading: false })
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Ошибка выхода'
-      set({ error: message, isLoading: false })
     }
   },
 
   checkAuth: async () => {
     set({ isLoading: true })
     try {
-      const { data: sessionData } = await supabase.auth.getSession()
-      const session = sessionData.session
-      if (!session) {
+      // skipAuthRedirect: не редиректим на логин при 401 — это задача ProtectedRoute
+      const response = await api.get<AuthUserResponse>('/api/auth/me', undefined, { skipAuthRedirect: true })
+      const user = mapResponseToUser(response.user)
+
+      if (!user.isActive) {
         set({ user: null, isAuthenticated: false, isLoading: false })
         return
       }
 
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('id, email, role, counterparty_id, department_id, all_sites, full_name, is_active')
-        .eq('id', session.user.id)
-        .single()
-      if (userError) throw userError
-
-      // Проверка деактивации — разлогиниваем
-      if (userData.is_active === false) {
-        await supabase.auth.signOut()
-        set({ user: null, isAuthenticated: false, isLoading: false })
-        return
-      }
-
-      const user: User = {
-        id: userData.id,
-        email: userData.email,
-        fullName: userData.full_name ?? '',
-        role: userData.role,
-        counterpartyId: userData.counterparty_id,
-        department: userData.department_id,
-        allSites: userData.all_sites ?? false,
-        isActive: userData.is_active ?? true,
-      }
       set({ user, isAuthenticated: true, isLoading: false })
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Ошибка проверки сессии'
-      set({ user: null, isAuthenticated: false, error: message, isLoading: false })
+    } catch {
+      // Любая ошибка (401, сеть и т.д.) — просто сбрасываем состояние без редиректа
+      set({ user: null, isAuthenticated: false, isLoading: false })
     }
   },
 
@@ -116,17 +102,6 @@ export const useAuthStore = create<AuthStoreState>((set) => ({
     const state = useAuthStore.getState()
     if (!state.user) throw new Error('Пользователь не авторизован')
 
-    // Проверяем текущий пароль
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: state.user.email,
-      password: currentPassword,
-    })
-    if (signInError) throw new Error('Неверный текущий пароль')
-
-    // Обновляем пароль
-    const { error: updateError } = await supabase.auth.updateUser({
-      password: newPassword,
-    })
-    if (updateError) throw updateError
+    await api.post('/api/auth/change-password', { currentPassword, newPassword })
   },
 }))

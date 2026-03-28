@@ -42,7 +42,7 @@ import { useAssignmentStore } from '@/store/assignmentStore'
 import { useOmtsRpStore } from '@/store/omtsRpStore'
 import { useDocumentTypeStore } from '@/store/documentTypeStore'
 import { downloadFileBlob } from '@/services/s3'
-import JSZip from 'jszip'
+// JSZip загружается динамически при скачивании архива
 import FilePreviewModal from './FilePreviewModal'
 import FileUploadList from './FileUploadList'
 import type { FileItem } from './FileUploadList'
@@ -239,6 +239,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
     if (!currentRequestFiles.length || !request) return
     setDownloadingAll(true)
     try {
+      const JSZip = (await import('jszip')).default
       const zip = new JSZip()
       const results = await Promise.allSettled(
         currentRequestFiles.map(async (file) => {

@@ -1,42 +1,7 @@
 import { create } from 'zustand'
-import { supabase } from '@/services/supabase'
+import { api } from '@/services/api'
 import { logError } from '@/services/errorLogger'
-import { notifyContractNewRequest, notifyContractStatusChanged, notifyContractRevision } from '@/utils/contractNotificationService'
-import type { ContractRequest, ContractRequestFile, RevisionTarget, ContractStatusHistoryEntry } from '@/types'
-
-/** Добавляет запись в историю статусов заявки */
-async function appendContractStatusHistory(
-  contractRequestId: string,
-  entry: { event: string; revisionTargets?: string[]; revisionTarget?: string },
-  userId: string,
-): Promise<void> {
-  const { data: userData } = await supabase
-    .from('users')
-    .select('full_name, email')
-    .eq('id', userId)
-    .single()
-
-  const { data: current } = await supabase
-    .from('contract_requests')
-    .select('status_history')
-    .eq('id', contractRequestId)
-    .single()
-
-  const history = (current?.status_history as Record<string, unknown>[]) ?? []
-  history.push({
-    event: entry.event,
-    at: new Date().toISOString(),
-    userFullName: userData?.full_name ?? undefined,
-    userEmail: userData?.email ?? undefined,
-    revisionTargets: entry.revisionTargets,
-    revisionTarget: entry.revisionTarget,
-  })
-
-  await supabase
-    .from('contract_requests')
-    .update({ status_history: history })
-    .eq('id', contractRequestId)
-}
+import type { ContractRequest, ContractRequestFile, RevisionTarget } from '@/types'
 
 interface CreateContractRequestData {
   siteId: string
@@ -85,75 +50,20 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
   fetchRequests: async (counterpartyId?, userSiteIds?, allSites?, includeDeleted?) => {
     set({ isLoading: true, error: null })
     try {
-      let query = supabase
-        .from('contract_requests')
-        .select(`
-          id, request_number, site_id, counterparty_id, supplier_id,
-          parties_count, subject_type, subject_detail, status_id,
-          revision_targets, created_by, created_at,
-          is_deleted, deleted_at, original_received_at, status_history,
-          counterparties(name),
-          suppliers(name),
-          construction_sites(name),
-          statuses!contract_requests_status_id_fkey(name, color, code),
-          creator:users!contract_requests_created_by_fkey(full_name)
-        `)
-        .order('created_at', { ascending: false })
+      const params: Record<string, string | number | boolean | undefined> = {}
+      if (counterpartyId) params.counterpartyId = counterpartyId
+      if (includeDeleted) params.includeDeleted = true
+      if (allSites !== undefined) params.allSites = allSites
+      if (userSiteIds && userSiteIds.length > 0) params.siteIds = userSiteIds.join(',')
 
-      if (!includeDeleted) {
-        query = query.eq('is_deleted', false)
-      }
-
-      if (counterpartyId) {
-        query = query.eq('counterparty_id', counterpartyId)
-      }
-
-      // Фильтрация по объектам для role=user
-      if (allSites === false && userSiteIds && userSiteIds.length > 0) {
-        query = query.in('site_id', userSiteIds)
-      } else if (allSites === false && userSiteIds && userSiteIds.length === 0) {
+      if (allSites === false && userSiteIds && userSiteIds.length === 0) {
         set({ requests: [], isLoading: false })
         return
       }
 
-      const { data, error } = await query
-      if (error) throw error
+      const data = await api.get<ContractRequest[]>('/api/contract-requests', params)
 
-      const requests: ContractRequest[] = (data ?? []).map((row: Record<string, unknown>) => {
-        const counterparty = row.counterparties as Record<string, unknown> | null
-        const supplier = row.suppliers as Record<string, unknown> | null
-        const site = row.construction_sites as Record<string, unknown> | null
-        const status = row.statuses as Record<string, unknown> | null
-        const creator = row.creator as Record<string, unknown> | null
-
-        return {
-          id: row.id as string,
-          requestNumber: row.request_number as string,
-          siteId: row.site_id as string,
-          counterpartyId: row.counterparty_id as string,
-          supplierId: row.supplier_id as string,
-          partiesCount: row.parties_count as number,
-          subjectType: row.subject_type as ContractRequest['subjectType'],
-          subjectDetail: (row.subject_detail as string) ?? null,
-          statusId: row.status_id as string,
-          revisionTargets: (row.revision_targets as RevisionTarget[]) ?? [],
-          createdBy: row.created_by as string,
-          createdAt: row.created_at as string,
-          isDeleted: (row.is_deleted as boolean) ?? false,
-          deletedAt: (row.deleted_at as string) ?? null,
-          originalReceivedAt: (row.original_received_at as string) ?? null,
-          statusHistory: (row.status_history as ContractStatusHistoryEntry[]) ?? [],
-          counterpartyName: counterparty?.name as string | undefined,
-          supplierName: supplier?.name as string | undefined,
-          siteName: site?.name as string | undefined,
-          statusName: status?.name as string | undefined,
-          statusColor: (status?.color as string) ?? null,
-          statusCode: (status?.code as string) ?? undefined,
-          creatorFullName: (creator?.full_name as string) ?? undefined,
-        }
-      })
-
-      set({ requests, isLoading: false })
+      set({ requests: data ?? [], isLoading: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка загрузки заявок на договор'
       set({ error: message, isLoading: false })
@@ -163,46 +73,13 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
   createRequest: async (data, userId) => {
     set({ isSubmitting: true, error: null })
     try {
-      // Получаем id статуса "Согласование ОМТС"
-      const { data: statusData, error: statusError } = await supabase
-        .from('statuses')
-        .select('id')
-        .eq('entity_type', 'contract_request')
-        .eq('code', 'approv_omts')
-        .single()
-      if (statusError) throw statusError
-
-      // Генерация номера через БД-функцию
-      const { data: requestNumber, error: numError } = await supabase
-        .rpc('generate_contract_request_number')
-      if (numError) throw numError
-
-      // Создание заявки
-      const { data: requestData, error: reqError } = await supabase
-        .from('contract_requests')
-        .insert({
-          request_number: requestNumber,
-          site_id: data.siteId,
-          counterparty_id: data.counterpartyId,
-          supplier_id: data.supplierId,
-          parties_count: data.partiesCount,
-          subject_type: data.subjectType,
-          subject_detail: data.subjectDetail || null,
-          status_id: statusData.id,
-          created_by: userId,
-        })
-        .select('id')
-        .single()
-      if (reqError) throw reqError
-
-      // Записываем в историю статусов
-      await appendContractStatusHistory(requestData.id, { event: 'created' }, userId)
-
-      // Уведомляем ОМТС о новой заявке
-      notifyContractNewRequest(requestData.id, data.siteId, userId, requestNumber as string).catch(() => {})
+      const result = await api.post<{ requestId: string; requestNumber: string }>(
+        '/api/contract-requests',
+        { ...data, userId },
+      )
 
       set({ isSubmitting: false })
-      return { requestId: requestData.id as string, requestNumber: requestNumber as string }
+      return result
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка создания заявки на договор'
       logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'createContractRequest' } })
@@ -211,27 +88,10 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
     }
   },
 
-  updateRequest: async (id, data, _userId) => {
+  updateRequest: async (id, data, userId) => {
     set({ isSubmitting: true, error: null })
     try {
-      const updateData: Record<string, unknown> = {}
-      if (data.siteId !== undefined) updateData.site_id = data.siteId
-      if (data.counterpartyId !== undefined) updateData.counterparty_id = data.counterpartyId
-      if (data.supplierId !== undefined) updateData.supplier_id = data.supplierId
-      if (data.partiesCount !== undefined) updateData.parties_count = data.partiesCount
-      if (data.subjectType !== undefined) updateData.subject_type = data.subjectType
-      if (data.subjectDetail !== undefined) updateData.subject_detail = data.subjectDetail
-
-      if (Object.keys(updateData).length === 0) {
-        set({ isSubmitting: false })
-        return
-      }
-
-      const { error } = await supabase
-        .from('contract_requests')
-        .update(updateData)
-        .eq('id', id)
-      if (error) throw error
+      await api.put(`/api/contract-requests/${id}`, { ...data, userId })
 
       await get().fetchRequests()
       set({ isSubmitting: false })
@@ -246,11 +106,7 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
   deleteRequest: async (id) => {
     set({ isLoading: true, error: null })
     try {
-      const { error } = await supabase
-        .from('contract_requests')
-        .update({ is_deleted: true, deleted_at: new Date().toISOString() })
-        .eq('id', id)
-      if (error) throw error
+      await api.delete(`/api/contract-requests/${id}`)
 
       await get().fetchRequests()
     } catch (err) {
@@ -261,35 +117,11 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
 
   fetchRequestFiles: async (requestId) => {
     try {
-      const { data, error } = await supabase
-        .from('contract_request_files')
-        .select('id, contract_request_id, file_name, file_key, file_size, mime_type, created_by, created_at, is_additional, is_rejected, rejected_by, rejected_at, users!contract_request_files_created_by_fkey(role, department_id, counterparties(name))')
-        .eq('contract_request_id', requestId)
-        .order('created_at', { ascending: true })
-      if (error) throw error
+      const data = await api.get<ContractRequestFile[]>(
+        `/api/contract-requests/${requestId}/files`,
+      )
 
-      const files: ContractRequestFile[] = (data ?? []).map((row: Record<string, unknown>) => {
-        const uploader = row.users as Record<string, unknown> | null
-        return {
-          id: row.id as string,
-          contractRequestId: row.contract_request_id as string,
-          fileName: row.file_name as string,
-          fileKey: row.file_key as string,
-          fileSize: row.file_size as number | null,
-          mimeType: row.mime_type as string | null,
-          createdBy: row.created_by as string,
-          createdAt: row.created_at as string,
-          isAdditional: (row.is_additional as boolean) ?? false,
-          isRejected: (row.is_rejected as boolean) ?? false,
-          rejectedBy: row.rejected_by as string | null,
-          rejectedAt: row.rejected_at as string | null,
-          uploaderRole: uploader?.role as string | undefined,
-          uploaderDepartment: uploader?.department_id as string | null | undefined,
-          uploaderCounterpartyName: (uploader?.counterparties as Record<string, unknown> | null)?.name as string | null | undefined,
-        }
-      })
-
-      set({ currentRequestFiles: files })
+      set({ currentRequestFiles: data ?? [] })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка загрузки файлов'
       logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'fetchContractRequestFiles' } })
@@ -302,55 +134,29 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
     if (!file) return
 
     const newRejected = !file.isRejected
-    const updateData = newRejected
-      ? { is_rejected: true, rejected_by: userId, rejected_at: new Date().toISOString() }
-      : { is_rejected: false, rejected_by: null, rejected_at: null }
 
-    const { error } = await supabase
-      .from('contract_request_files')
-      .update(updateData)
-      .eq('id', fileId)
+    try {
+      await api.patch(`/api/contract-requests/files/${fileId}/rejection`, {
+        isRejected: newRejected,
+        userId,
+      })
 
-    if (error) {
-      logError({ errorType: 'api_error', errorMessage: error.message, errorStack: null, metadata: { action: 'toggleContractFileRejection', fileId } })
-      return
+      set({
+        currentRequestFiles: files.map((f) =>
+          f.id === fileId
+            ? { ...f, isRejected: newRejected, rejectedBy: newRejected ? userId : null, rejectedAt: newRejected ? new Date().toISOString() : null }
+            : f,
+        ),
+      })
+    } catch (err) {
+      logError({ errorType: 'api_error', errorMessage: err instanceof Error ? err.message : 'Ошибка', errorStack: null, metadata: { action: 'toggleContractFileRejection', fileId } })
     }
-
-    set({
-      currentRequestFiles: files.map((f) =>
-        f.id === fileId
-          ? { ...f, isRejected: newRejected, rejectedBy: newRejected ? userId : null, rejectedAt: newRejected ? updateData.rejected_at as string : null }
-          : f,
-      ),
-    })
   },
 
   sendToRevision: async (id, targets, userId) => {
     set({ isSubmitting: true, error: null })
     try {
-      // Получаем id статуса "На доработке"
-      const { data: statusData, error: statusError } = await supabase
-        .from('statuses')
-        .select('id')
-        .eq('entity_type', 'contract_request')
-        .eq('code', 'on_revision')
-        .single()
-      if (statusError) throw statusError
-
-      const { error } = await supabase
-        .from('contract_requests')
-        .update({
-          status_id: statusData.id,
-          revision_targets: targets,
-        })
-        .eq('id', id)
-      if (error) throw error
-
-      // Записываем в историю статусов
-      await appendContractStatusHistory(id, { event: 'revision', revisionTargets: targets }, userId)
-
-      // Уведомляем Штаб и/или Подрядчика
-      notifyContractRevision(id, targets, userId).catch(() => {})
+      await api.post(`/api/contract-requests/${id}/revision`, { targets, userId })
 
       await get().fetchRequests()
       set({ isSubmitting: false })
@@ -365,56 +171,7 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
   completeRevision: async (id, target, userId) => {
     set({ isSubmitting: true, error: null })
     try {
-      // Загружаем текущую заявку для получения revision_targets
-      const { data: current, error: fetchErr } = await supabase
-        .from('contract_requests')
-        .select('revision_targets')
-        .eq('id', id)
-        .single()
-      if (fetchErr) throw fetchErr
-
-      const currentTargets = (current.revision_targets as string[]) ?? []
-      const newTargets = currentTargets.filter((t) => t !== target)
-
-      if (newTargets.length === 0) {
-        // Все стороны завершили — возвращаем в "Согласование ОМТС"
-        const { data: statusData, error: statusError } = await supabase
-          .from('statuses')
-          .select('id')
-          .eq('entity_type', 'contract_request')
-          .eq('code', 'approv_omts')
-          .single()
-        if (statusError) throw statusError
-
-        const { error } = await supabase
-          .from('contract_requests')
-          .update({ status_id: statusData.id, revision_targets: [] })
-          .eq('id', id)
-        if (error) throw error
-
-        // Записываем в историю статусов
-        await appendContractStatusHistory(id, { event: 'revision_complete', revisionTarget: target }, userId)
-
-        // Уведомляем ОМТС
-        const { data: reqData } = await supabase
-          .from('contract_requests')
-          .select('site_id, request_number')
-          .eq('id', id)
-          .single()
-        if (reqData) {
-          notifyContractNewRequest(id, reqData.site_id as string, userId, reqData.request_number as string).catch(() => {})
-        }
-      } else {
-        // Ещё есть незакрытые стороны
-        const { error } = await supabase
-          .from('contract_requests')
-          .update({ revision_targets: newTargets })
-          .eq('id', id)
-        if (error) throw error
-
-        // Записываем в историю завершение доработки этой стороной
-        await appendContractStatusHistory(id, { event: 'revision_complete', revisionTarget: target }, userId)
-      }
+      await api.post(`/api/contract-requests/${id}/revision-complete`, { target, userId })
 
       await get().fetchRequests()
       set({ isSubmitting: false })
@@ -429,26 +186,7 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
   approveRequest: async (id, userId) => {
     set({ isSubmitting: true, error: null })
     try {
-      // Получаем id статуса "Согласовано, ожидание оригинала"
-      const { data: statusData, error: statusError } = await supabase
-        .from('statuses')
-        .select('id')
-        .eq('entity_type', 'contract_request')
-        .eq('code', 'approved_waiting')
-        .single()
-      if (statusError) throw statusError
-
-      const { error } = await supabase
-        .from('contract_requests')
-        .update({ status_id: statusData.id, revision_targets: [] })
-        .eq('id', id)
-      if (error) throw error
-
-      // Уведомляем подрядчика
-      // Записываем в историю статусов
-      await appendContractStatusHistory(id, { event: 'approved' }, userId)
-
-      notifyContractStatusChanged(id, 'Согласовано, ожидание оригинала', userId).catch(() => {})
+      await api.post(`/api/contract-requests/${id}/approve`, { userId })
 
       await get().fetchRequests()
       set({ isSubmitting: false })
@@ -463,29 +201,7 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
   markOriginalReceived: async (id, userId) => {
     set({ isSubmitting: true, error: null })
     try {
-      // Получаем id статуса "Заключен"
-      const { data: statusData, error: statusError } = await supabase
-        .from('statuses')
-        .select('id')
-        .eq('entity_type', 'contract_request')
-        .eq('code', 'concluded')
-        .single()
-      if (statusError) throw statusError
-
-      const { error } = await supabase
-        .from('contract_requests')
-        .update({
-          status_id: statusData.id,
-          original_received_at: new Date().toISOString(),
-        })
-        .eq('id', id)
-      if (error) throw error
-
-      // Уведомляем подрядчика
-      // Записываем в историю статусов
-      await appendContractStatusHistory(id, { event: 'original_received' }, userId)
-
-      notifyContractStatusChanged(id, 'Заключен', userId).catch(() => {})
+      await api.post(`/api/contract-requests/${id}/original-received`, { userId })
 
       await get().fetchRequests()
       set({ isSubmitting: false })

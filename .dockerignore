@@ -1,0 +1,9 @@
+node_modules
+dist
+server/node_modules
+server/dist
+.env
+server/.env
+*.md
+.git
+.vscode

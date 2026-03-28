@@ -1,4 +1,4 @@
-import { supabase } from '@/services/supabase'
+import { api } from '@/services/api'
 import { useAuthStore } from '@/store/authStore'
 import type { ErrorLogType } from '@/types'
 
@@ -24,7 +24,7 @@ const isRateLimited = (): boolean => {
 }
 
 /**
- * Логирование ошибки в таблицу error_logs.
+ * Логирование ошибки в таблицу error_logs через API.
  * Fire-and-forget: не блокирует UI, не бросает ошибку при неудаче.
  */
 export const logError = (params: LogErrorParams): void => {
@@ -33,18 +33,16 @@ export const logError = (params: LogErrorParams): void => {
   const userId = useAuthStore.getState().user?.id ?? null
 
   Promise.resolve(
-    supabase
-      .from('error_logs')
-      .insert({
-        error_type: params.errorType,
-        error_message: params.errorMessage.slice(0, 5000),
-        error_stack: params.errorStack?.slice(0, 10000) ?? null,
-        url: window.location.href,
-        user_id: userId,
-        user_agent: navigator.userAgent,
-        component: params.component ?? null,
-        metadata: params.metadata ?? null,
-      })
+    api.post('/api/error-logs', {
+      errorType: params.errorType,
+      errorMessage: params.errorMessage.slice(0, 5000),
+      errorStack: params.errorStack?.slice(0, 10000) ?? null,
+      url: window.location.href,
+      userId,
+      userAgent: navigator.userAgent,
+      component: params.component ?? null,
+      metadata: params.metadata ?? null,
+    })
   ).catch(() => {
     // Ошибка логирования не должна влиять на приложение
   })

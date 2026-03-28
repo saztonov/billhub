@@ -1,31 +1,32 @@
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
-export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '')
-
-  // Определяем endpoint для прокси в зависимости от провайдера
-  const storageProvider = env.VITE_STORAGE_PROVIDER || 'cloudru'
-  const s3Endpoint = storageProvider === 'cloudflare'
-    ? env.VITE_R2_ENDPOINT
-    : env.VITE_S3_ENDPOINT
-
-  return {
-    plugins: [react()],
-    resolve: {
-      alias: {
-        '@': path.resolve(__dirname, './src'),
+export default defineConfig({
+  plugins: [react()],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
+  server: {
+    proxy: {
+      // Проксирование API-запросов на бэкенд в dev-режиме
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
       },
     },
-    server: {
-      proxy: {
-        '/s3-proxy': {
-          target: s3Endpoint,
-          changeOrigin: true,
-          rewrite: (p) => p.replace(/^\/s3-proxy/, ''),
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-antd': ['antd', '@ant-design/icons'],
+          'vendor-zustand': ['zustand'],
         },
       },
     },
-  }
+  },
 })

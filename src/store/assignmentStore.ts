@@ -1,6 +1,5 @@
 import { create } from 'zustand'
-import { supabase } from '@/services/supabase'
-import { notifyRequestAssigned } from '@/utils/notificationService'
+import { api } from '@/services/api'
 import type { PaymentRequestAssignment } from '@/types'
 
 export interface OmtsUser {
@@ -35,40 +34,11 @@ export const useAssignmentStore = create<AssignmentStoreState>((set, get) => ({
 
   fetchCurrentAssignment: async (paymentRequestId) => {
     try {
-      const { data, error } = await supabase
-        .from('payment_request_assignments')
-        .select(`
-          *,
-          assigned_user:users!payment_request_assignments_assigned_user_id_fkey(email, full_name),
-          assigned_by_user:users!payment_request_assignments_assigned_by_user_id_fkey(email)
-        `)
-        .eq('payment_request_id', paymentRequestId)
-        .eq('is_current', true)
-        .maybeSingle()
+      const data = await api.get<PaymentRequestAssignment | null>(
+        `/api/assignments/payment-request/${paymentRequestId}/current`,
+      )
 
-      if (error) throw error
-
-      if (data) {
-        const assignedUser = data.assigned_user as { email: string; full_name: string } | null
-        const assignedByUser = data.assigned_by_user as { email: string } | null
-
-        set({
-          currentAssignment: {
-            id: data.id,
-            paymentRequestId: data.payment_request_id,
-            assignedUserId: data.assigned_user_id,
-            assignedByUserId: data.assigned_by_user_id,
-            assignedAt: data.assigned_at,
-            isCurrent: data.is_current,
-            createdAt: data.created_at,
-            assignedUserEmail: assignedUser?.email,
-            assignedUserFullName: assignedUser?.full_name,
-            assignedByUserEmail: assignedByUser?.email,
-          },
-        })
-      } else {
-        set({ currentAssignment: null })
-      }
+      set({ currentAssignment: data ?? null })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка загрузки назначения'
       set({ error: message })
@@ -77,32 +47,11 @@ export const useAssignmentStore = create<AssignmentStoreState>((set, get) => ({
 
   fetchAssignmentHistory: async (paymentRequestId) => {
     try {
-      const { data, error } = await supabase
-        .from('payment_request_assignments')
-        .select(`
-          *,
-          assigned_user:users!payment_request_assignments_assigned_user_id_fkey(email, full_name),
-          assigned_by_user:users!payment_request_assignments_assigned_by_user_id_fkey(email)
-        `)
-        .eq('payment_request_id', paymentRequestId)
-        .order('assigned_at', { ascending: false })
+      const data = await api.get<PaymentRequestAssignment[]>(
+        `/api/assignments/payment-request/${paymentRequestId}`,
+      )
 
-      if (error) throw error
-
-      const history: PaymentRequestAssignment[] = (data ?? []).map((row: any) => ({
-        id: row.id,
-        paymentRequestId: row.payment_request_id,
-        assignedUserId: row.assigned_user_id,
-        assignedByUserId: row.assigned_by_user_id,
-        assignedAt: row.assigned_at,
-        isCurrent: row.is_current,
-        createdAt: row.created_at,
-        assignedUserEmail: row.assigned_user?.email,
-        assignedUserFullName: row.assigned_user?.full_name,
-        assignedByUserEmail: row.assigned_by_user?.email,
-      }))
-
-      set({ assignmentHistory: history })
+      set({ assignmentHistory: data ?? [] })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка загрузки истории'
       set({ error: message })
@@ -111,23 +60,9 @@ export const useAssignmentStore = create<AssignmentStoreState>((set, get) => ({
 
   fetchOmtsUsers: async () => {
     try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('id, email, full_name')
-        .eq('department_id', 'omts')
-        .eq('is_active', true)
-        .in('role', ['admin', 'user'])
-        .order('full_name', { ascending: true })
+      const data = await api.get<OmtsUser[]>('/api/assignments/omts-users')
 
-      if (error) throw error
-
-      set({
-        omtsUsers: (data ?? []).map((u: any) => ({
-          id: u.id,
-          email: u.email,
-          fullName: u.full_name || u.email,
-        })),
-      })
+      set({ omtsUsers: data ?? [] })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка загрузки пользователей'
       set({ error: message })
@@ -154,29 +89,13 @@ export const useAssignmentStore = create<AssignmentStoreState>((set, get) => ({
       },
     })
     try {
-      // 1. Пометить текущее назначение как неактуальное
-      await supabase
-        .from('payment_request_assignments')
-        .update({ is_current: false })
-        .eq('payment_request_id', paymentRequestId)
-        .eq('is_current', true)
+      await api.post('/api/assignments', {
+        paymentRequestId,
+        assignedUserId,
+        assignedByUserId,
+      })
 
-      // 2. Создать новое назначение
-      const { error } = await supabase
-        .from('payment_request_assignments')
-        .insert({
-          payment_request_id: paymentRequestId,
-          assigned_user_id: assignedUserId,
-          assigned_by_user_id: assignedByUserId,
-          is_current: true,
-        })
-
-      if (error) throw error
-
-      // Уведомляем назначенного ОМТС-сотрудника
-      notifyRequestAssigned(paymentRequestId, assignedUserId, assignedByUserId).catch(() => {})
-
-      // 3. Синхронизировать с БД и обновить историю
+      // Синхронизировать с БД и обновить историю
       await get().fetchCurrentAssignment(paymentRequestId)
       await get().fetchAssignmentHistory(paymentRequestId)
     } catch (err) {

@@ -9,26 +9,16 @@ import { useAssignmentStore } from '@/store/assignmentStore'
 import { useOmtsRpStore } from '@/store/omtsRpStore'
 import { useSupplierStore } from '@/store/supplierStore'
 import { useUploadQueueStore } from '@/store/uploadQueueStore'
-import { supabase } from '@/services/supabase'
+import { api } from '@/services/api'
 import type { PaymentRequest, Department } from '@/types'
 import type { FilterValues } from '@/components/paymentRequests/RequestFilters'
 
-/** Загрузить объекты пользователя из БД */
+/** Загрузить объекты пользователя через API */
 async function loadUserSiteIds(userId: string): Promise<{ allSites: boolean; siteIds: string[] }> {
-  const { data: userData } = await supabase
-    .from('users')
-    .select('all_sites')
-    .eq('id', userId)
-    .single()
-  const allSites = (userData?.all_sites as boolean) ?? false
-  if (allSites) return { allSites: true, siteIds: [] }
-
-  const { data: mappings } = await supabase
-    .from('user_construction_sites_mapping')
-    .select('construction_site_id')
-    .eq('user_id', userId)
-  const siteIds = (mappings ?? []).map((m: Record<string, unknown>) => m.construction_site_id as string)
-  return { allSites: false, siteIds }
+  const data = await api.get<{ allSites: boolean; siteIds: string[] }>(
+    `/api/users/${userId}/site-ids`,
+  )
+  return data ?? { allSites: true, siteIds: [] }
 }
 
 interface UsePaymentRequestsDataParams {

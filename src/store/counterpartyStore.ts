@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { supabase } from '@/services/supabase'
+import { api } from '@/services/api'
 import type { Counterparty } from '@/types'
 
 export interface ImportCounterpartyRow {
@@ -34,25 +34,8 @@ export const useCounterpartyStore = create<CounterpartyStoreState>((set, get) =>
   fetchCounterparties: async () => {
     set({ isLoading: true, error: null })
     try {
-      const { data, error } = await supabase
-        .from('counterparties')
-        .select('id, name, inn, address, alternative_names, registration_token, created_at')
-        .order('created_at', { ascending: false })
-      if (error) throw error
-
-      const counterparties: Counterparty[] = (data ?? []).map((row: Record<string, unknown>) => {
-        return {
-          id: row.id as string,
-          name: row.name as string,
-          inn: row.inn as string,
-          address: row.address as string,
-          alternativeNames: (row.alternative_names as string[]) ?? [],
-          registrationToken: (row.registration_token as string) ?? null,
-          createdAt: row.created_at as string,
-        }
-      })
-
-      set({ counterparties, isLoading: false })
+      const data = await api.get<Counterparty[]>('/api/references/counterparties')
+      set({ counterparties: data ?? [], isLoading: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка загрузки'
       set({ error: message, isLoading: false })
@@ -62,13 +45,12 @@ export const useCounterpartyStore = create<CounterpartyStoreState>((set, get) =>
   createCounterparty: async (data) => {
     set({ isLoading: true, error: null })
     try {
-      const { error } = await supabase.from('counterparties').insert({
+      await api.post('/api/references/counterparties', {
         name: data.name,
         inn: data.inn,
         address: data.address || '',
-        alternative_names: data.alternativeNames ?? [],
+        alternativeNames: data.alternativeNames ?? [],
       })
-      if (error) throw error
       await get().fetchCounterparties()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка создания'
@@ -79,17 +61,12 @@ export const useCounterpartyStore = create<CounterpartyStoreState>((set, get) =>
   updateCounterparty: async (id, data) => {
     set({ isLoading: true, error: null })
     try {
-      const { error } = await supabase
-        .from('counterparties')
-        .update({
-          name: data.name,
-          inn: data.inn,
-          address: data.address,
-          alternative_names: data.alternativeNames,
-        })
-        .eq('id', id)
-      if (error) throw error
-
+      await api.put(`/api/references/counterparties/${id}`, {
+        name: data.name,
+        inn: data.inn,
+        address: data.address,
+        alternativeNames: data.alternativeNames,
+      })
       await get().fetchCounterparties()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка обновления'
@@ -100,8 +77,7 @@ export const useCounterpartyStore = create<CounterpartyStoreState>((set, get) =>
   deleteCounterparty: async (id) => {
     set({ isLoading: true, error: null })
     try {
-      const { error } = await supabase.from('counterparties').delete().eq('id', id)
-      if (error) throw error
+      await api.delete(`/api/references/counterparties/${id}`)
       await get().fetchCounterparties()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка удаления'
@@ -113,14 +89,8 @@ export const useCounterpartyStore = create<CounterpartyStoreState>((set, get) =>
     const BATCH_SIZE = 20
     let created = 0
     for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-      const batch = rows.slice(i, i + BATCH_SIZE).map((r) => ({
-        name: r.name,
-        inn: r.inn,
-        address: '',
-        alternative_names: [],
-      }))
-      const { error } = await supabase.from('counterparties').insert(batch)
-      if (error) throw error
+      const batch = rows.slice(i, i + BATCH_SIZE)
+      await api.post('/api/references/counterparties/batch-import', { items: batch })
       created += batch.length
       onProgress?.(created, rows.length)
     }
@@ -129,22 +99,14 @@ export const useCounterpartyStore = create<CounterpartyStoreState>((set, get) =>
   },
 
   updateCounterpartyForImport: async (id, name, alternativeNames) => {
-    const { error } = await supabase
-      .from('counterparties')
-      .update({ name, alternative_names: alternativeNames })
-      .eq('id', id)
-    if (error) throw error
+    await api.put(`/api/references/counterparties/${id}`, { name, alternativeNames })
   },
 
   createCounterpartiesForImport: async (rows) => {
-    const { data, error } = await supabase
-      .from('counterparties')
-      .insert(rows.map((r) => ({ name: r.name, inn: r.inn, address: '', alternative_names: [] })))
-      .select('id, inn')
-    if (error) throw error
-    return (data ?? []).map((row: Record<string, unknown>) => ({
-      inn: row.inn as string,
-      id: row.id as string,
-    }))
+    const result = await api.post<{ inn: string; id: string }[]>(
+      '/api/references/counterparties/batch-import',
+      { items: rows },
+    )
+    return result ?? []
   },
 }))

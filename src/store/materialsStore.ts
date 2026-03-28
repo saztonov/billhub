@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { supabase } from '@/services/supabase'
+import { api } from '@/services/api'
 import type { RecognizedMaterial } from '@/types'
 
 /** Статус проверки материалов */
@@ -139,9 +139,6 @@ interface MaterialsStoreState {
   }) => Promise<void>
 }
 
-// ID типа документа "Счет"
-const INVOICE_DOC_TYPE_ID = 'c3c0b242-8a0c-4e20-b9ad-363ebf462a5b'
-
 export const useMaterialsStore = create<MaterialsStoreState>((set) => ({
   requests: [],
   isLoadingRequests: false,
@@ -160,82 +157,9 @@ export const useMaterialsStore = create<MaterialsStoreState>((set) => ({
   fetchRequests: async () => {
     set({ isLoadingRequests: true })
     try {
-      // Получаем уникальные payment_request_id, у которых есть распознанные материалы
-      const { data: matData, error: matError } = await supabase
-        .from('recognized_materials')
-        .select('payment_request_id')
-      if (matError) throw matError
+      const data = await api.get<MaterialsRequestRow[]>('/api/materials/requests')
 
-      const uniqueIds = [...new Set((matData ?? []).map((r: Record<string, unknown>) => r.payment_request_id as string))]
-      if (uniqueIds.length === 0) {
-        set({ requests: [], isLoadingRequests: false })
-        return
-      }
-
-      // Подсчет позиций и суммы по каждой заявке
-      const countMap: Record<string, { count: number; total: number }> = {}
-      for (const row of matData ?? []) {
-        const id = row.payment_request_id as string
-        if (!countMap[id]) countMap[id] = { count: 0, total: 0 }
-        countMap[id].count++
-      }
-
-      // Получаем суммы
-      const { data: amountData, error: amountError } = await supabase
-        .from('recognized_materials')
-        .select('payment_request_id, amount')
-        .in('payment_request_id', uniqueIds)
-      if (amountError) throw amountError
-
-      for (const row of amountData ?? []) {
-        const id = row.payment_request_id as string
-        if (countMap[id]) {
-          countMap[id].total += Number(row.amount ?? 0)
-        }
-      }
-
-      // Подсчёт файлов-счетов по каждой заявке
-      const { data: filesData, error: filesError } = await supabase
-        .from('payment_request_files')
-        .select('payment_request_id')
-        .in('payment_request_id', uniqueIds)
-        .eq('document_type_id', INVOICE_DOC_TYPE_ID)
-      if (filesError) throw filesError
-
-      const invoicesCountMap: Record<string, number> = {}
-      for (const row of filesData ?? []) {
-        const id = row.payment_request_id as string
-        invoicesCountMap[id] = (invoicesCountMap[id] ?? 0) + 1
-      }
-
-      // Загружаем данные заявок
-      const { data: prData, error: prError } = await supabase
-        .from('payment_requests')
-        .select('id, request_number, approved_at, materials_verification, counterparties(name), suppliers(name), construction_sites(name)')
-        .in('id', uniqueIds)
-        .order('approved_at', { ascending: false })
-      if (prError) throw prError
-
-      const requests: MaterialsRequestRow[] = (prData ?? []).map((row: Record<string, unknown>) => {
-        const cp = row.counterparties as Record<string, unknown> | null
-        const sup = row.suppliers as Record<string, unknown> | null
-        const site = row.construction_sites as Record<string, unknown> | null
-        const id = row.id as string
-        return {
-          paymentRequestId: id,
-          requestNumber: row.request_number as string,
-          counterpartyName: (cp?.name as string) ?? '',
-          supplierName: (sup?.name as string) ?? '',
-          approvedAt: row.approved_at as string | null,
-          siteName: (site?.name as string) ?? '',
-          itemsCount: countMap[id]?.count ?? 0,
-          totalAmount: countMap[id]?.total ?? 0,
-          invoicesCount: invoicesCountMap[id] ?? 0,
-          materialsVerification: (row.materials_verification as MaterialsVerification | null) ?? null,
-        }
-      })
-
-      set({ requests, isLoadingRequests: false })
+      set({ requests: data ?? [], isLoadingRequests: false })
     } catch {
       set({ isLoadingRequests: false })
     }
@@ -244,34 +168,11 @@ export const useMaterialsStore = create<MaterialsStoreState>((set) => ({
   fetchMaterials: async (paymentRequestId) => {
     set({ isLoadingMaterials: true, materials: [] })
     try {
-      const { data, error } = await supabase
-        .from('recognized_materials')
-        .select('id, payment_request_id, file_id, material_id, page_number, position, article, quantity, price, amount, estimate_quantity, created_at, materials_dictionary(name, unit)')
-        .eq('payment_request_id', paymentRequestId)
-        .order('position', { ascending: true })
-      if (error) throw error
+      const data = await api.get<RecognizedMaterial[]>(
+        `/api/materials/recognized/${paymentRequestId}`,
+      )
 
-      const materials: RecognizedMaterial[] = (data ?? []).map((row: Record<string, unknown>) => {
-        const mat = row.materials_dictionary as Record<string, unknown> | null
-        return {
-          id: row.id as string,
-          paymentRequestId: row.payment_request_id as string,
-          fileId: row.file_id as string | null,
-          materialId: row.material_id as string,
-          pageNumber: row.page_number as number | null,
-          position: row.position as number,
-          article: row.article as string | null,
-          quantity: row.quantity as number | null,
-          price: row.price as number | null,
-          amount: row.amount as number | null,
-          estimateQuantity: row.estimate_quantity as number | null,
-          createdAt: row.created_at as string,
-          materialName: mat?.name as string | undefined,
-          materialUnit: mat?.unit as string | null | undefined,
-        }
-      })
-
-      set({ materials, isLoadingMaterials: false })
+      set({ materials: data ?? [], isLoadingMaterials: false })
     } catch {
       set({ isLoadingMaterials: false })
     }
@@ -279,21 +180,11 @@ export const useMaterialsStore = create<MaterialsStoreState>((set) => ({
 
   fetchInvoiceFiles: async (paymentRequestId) => {
     try {
-      const { data, error } = await supabase
-        .from('payment_request_files')
-        .select('id, file_key, file_name, mime_type')
-        .eq('payment_request_id', paymentRequestId)
-        .eq('document_type_id', INVOICE_DOC_TYPE_ID)
-      if (error) throw error
+      const data = await api.get<{ id: string; fileKey: string; fileName: string; mimeType: string | null }[]>(
+        `/api/materials/invoice-files/${paymentRequestId}`,
+      )
 
-      set({
-        invoiceFiles: (data ?? []).map((row: Record<string, unknown>) => ({
-          id: row.id as string,
-          fileKey: row.file_key as string,
-          fileName: row.file_name as string,
-          mimeType: row.mime_type as string | null,
-        })),
-      })
+      set({ invoiceFiles: data ?? [] })
     } catch {
       set({ invoiceFiles: [] })
     }
@@ -301,11 +192,7 @@ export const useMaterialsStore = create<MaterialsStoreState>((set) => ({
 
   updateEstimateQuantity: async (id, value) => {
     try {
-      const { error } = await supabase
-        .from('recognized_materials')
-        .update({ estimate_quantity: value })
-        .eq('id', id)
-      if (error) throw error
+      await api.patch(`/api/materials/recognized/${id}/estimate`, { estimateQuantity: value })
 
       // Обновляем локально
       set((state) => ({
@@ -319,63 +206,16 @@ export const useMaterialsStore = create<MaterialsStoreState>((set) => ({
   fetchSummary: async (filters) => {
     set({ isLoadingSummary: true })
     try {
-      // Собираем все распознанные материалы с фильтрацией по заявкам
-      let query = supabase
-        .from('recognized_materials')
-        .select('material_id, quantity, price, amount, estimate_quantity, payment_requests!inner(counterparty_id, supplier_id, site_id, approved_at), materials_dictionary!inner(name, unit)')
+      const params: Record<string, string | number | boolean | undefined> = {}
+      if (filters?.counterpartyId) params.counterpartyId = filters.counterpartyId
+      if (filters?.supplierId) params.supplierId = filters.supplierId
+      if (filters?.siteId) params.siteId = filters.siteId
+      if (filters?.dateFrom) params.dateFrom = filters.dateFrom
+      if (filters?.dateTo) params.dateTo = filters.dateTo
 
-      if (filters?.counterpartyId) {
-        query = query.eq('payment_requests.counterparty_id', filters.counterpartyId)
-      }
-      if (filters?.supplierId) {
-        query = query.eq('payment_requests.supplier_id', filters.supplierId)
-      }
-      if (filters?.siteId) {
-        query = query.eq('payment_requests.site_id', filters.siteId)
-      }
-      if (filters?.dateFrom) {
-        query = query.gte('payment_requests.approved_at', filters.dateFrom)
-      }
-      if (filters?.dateTo) {
-        query = query.lte('payment_requests.approved_at', filters.dateTo)
-      }
+      const data = await api.get<SummaryRow[]>('/api/materials/summary', params)
 
-      const { data, error } = await query
-      if (error) throw error
-
-      // Группируем по material_id
-      const grouped: Record<string, SummaryRow> = {}
-      for (const row of data ?? []) {
-        const r = row as Record<string, unknown>
-        const matId = r.material_id as string
-        const mat = r.materials_dictionary as Record<string, unknown>
-
-        if (!grouped[matId]) {
-          grouped[matId] = {
-            materialId: matId,
-            materialName: mat.name as string,
-            materialUnit: mat.unit as string | null,
-            totalQuantity: 0,
-            averagePrice: 0,
-            totalAmount: 0,
-            totalEstimateQuantity: 0,
-          }
-        }
-
-        grouped[matId].totalQuantity += Number(r.quantity ?? 0)
-        grouped[matId].totalAmount += Number(r.amount ?? 0)
-        grouped[matId].totalEstimateQuantity += Number(r.estimate_quantity ?? 0)
-      }
-
-      // Рассчитываем среднюю цену
-      const summary = Object.values(grouped).map((row) => ({
-        ...row,
-        averagePrice: row.totalQuantity > 0 ? row.totalAmount / row.totalQuantity : 0,
-      }))
-
-      summary.sort((a, b) => a.materialName.localeCompare(b.materialName, 'ru'))
-
-      set({ summary, isLoadingSummary: false })
+      set({ summary: data ?? [], isLoadingSummary: false })
     } catch {
       set({ isLoadingSummary: false })
     }
@@ -384,57 +224,17 @@ export const useMaterialsStore = create<MaterialsStoreState>((set) => ({
   fetchHierarchicalSummary: async (filters) => {
     set({ isLoadingHierarchical: true })
     try {
-      let query = supabase
-        .from('recognized_materials')
-        .select('material_id, quantity, price, amount, estimate_quantity, payment_requests!inner(counterparty_id, supplier_id, site_id, cost_type_id, approved_at, counterparties(name), construction_sites(name), cost_types(name)), materials_dictionary!inner(name, unit)')
+      const params: Record<string, string | number | boolean | undefined> = {}
+      if (filters?.counterpartyId) params.counterpartyId = filters.counterpartyId
+      if (filters?.supplierId) params.supplierId = filters.supplierId
+      if (filters?.siteId) params.siteId = filters.siteId
+      if (filters?.costTypeId) params.costTypeId = filters.costTypeId
+      if (filters?.dateFrom) params.dateFrom = filters.dateFrom
+      if (filters?.dateTo) params.dateTo = filters.dateTo
 
-      if (filters?.counterpartyId) {
-        query = query.eq('payment_requests.counterparty_id', filters.counterpartyId)
-      }
-      if (filters?.supplierId) {
-        query = query.eq('payment_requests.supplier_id', filters.supplierId)
-      }
-      if (filters?.siteId) {
-        query = query.eq('payment_requests.site_id', filters.siteId)
-      }
-      if (filters?.costTypeId) {
-        query = query.eq('payment_requests.cost_type_id', filters.costTypeId)
-      }
-      if (filters?.dateFrom) {
-        query = query.gte('payment_requests.approved_at', filters.dateFrom)
-      }
-      if (filters?.dateTo) {
-        query = query.lte('payment_requests.approved_at', filters.dateTo)
-      }
+      const data = await api.get<HierarchicalRawRow[]>('/api/materials/hierarchical-summary', params)
 
-      const { data, error } = await query
-      if (error) throw error
-
-      const rows: HierarchicalRawRow[] = (data ?? []).map((row: Record<string, unknown>) => {
-        const pr = row.payment_requests as Record<string, unknown>
-        const mat = row.materials_dictionary as Record<string, unknown>
-        const cp = pr.counterparties as Record<string, unknown> | null
-        const site = pr.construction_sites as Record<string, unknown> | null
-        const ct = pr.cost_types as Record<string, unknown> | null
-
-        return {
-          materialId: row.material_id as string,
-          materialName: mat.name as string,
-          materialUnit: mat.unit as string | null,
-          quantity: Number(row.quantity ?? 0),
-          price: Number(row.price ?? 0),
-          amount: Number(row.amount ?? 0),
-          estimateQuantity: row.estimate_quantity != null ? Number(row.estimate_quantity) : null,
-          costTypeId: pr.cost_type_id as string | null,
-          costTypeName: (ct?.name as string) ?? null,
-          siteId: pr.site_id as string,
-          siteName: (site?.name as string) ?? '',
-          counterpartyId: pr.counterparty_id as string,
-          counterpartyName: (cp?.name as string) ?? '',
-        }
-      })
-
-      set({ hierarchicalRaw: rows, isLoadingHierarchical: false })
+      set({ hierarchicalRaw: data ?? [], isLoadingHierarchical: false })
     } catch {
       set({ isLoadingHierarchical: false })
     }

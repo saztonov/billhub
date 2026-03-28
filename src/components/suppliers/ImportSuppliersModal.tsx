@@ -12,7 +12,7 @@ import {
 } from 'antd'
 import { InboxOutlined } from '@ant-design/icons'
 import { useNativeDropZone } from '@/hooks/useNativeDropZone'
-import * as XLSX from 'xlsx'
+// ExcelJS загружается динамически при использовании
 import { useSupplierStore } from '@/store/supplierStore'
 import type { Supplier } from '@/types'
 
@@ -75,12 +75,20 @@ const ImportSuppliersModal = ({ open, onClose }: ImportSuppliersModalProps) => {
 
   const handleFile = (file: File) => {
     const reader = new FileReader()
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer)
-        const workbook = XLSX.read(data, { type: 'array' })
-        const sheet = workbook.Sheets[workbook.SheetNames[0]]
-        const json = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 })
+        const ExcelJS = await import('exceljs')
+        const wb = new ExcelJS.Workbook()
+        const arrayBuffer = e.target?.result as ArrayBuffer
+        await wb.xlsx.load(arrayBuffer)
+        const sheet = wb.worksheets[0]
+        if (!sheet) { message.error('Файл пуст'); return }
+        // Преобразуем строки ExcelJS в массив массивов строк
+        const json: string[][] = []
+        sheet.eachRow((row) => {
+          const values = row.values as (string | number | null | undefined)[]
+          json.push(values.slice(1).map(v => (v ?? '').toString()))
+        })
 
         if (json.length === 0) {
           message.error('Файл пуст')

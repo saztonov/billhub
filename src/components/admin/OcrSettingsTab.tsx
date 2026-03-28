@@ -6,8 +6,7 @@ import {
 import { PlayCircleOutlined, ApiOutlined, CloudOutlined, ReloadOutlined } from '@ant-design/icons'
 import { useOcrStore } from '@/store/ocrStore'
 import { useOcrQueueStore } from '@/store/ocrQueueStore'
-import { supabase } from '@/services/supabase'
-import { fetchAvailableModels } from '@/services/openrouter'
+import { api } from '@/services/api'
 import { testS3Connection } from '@/services/s3'
 import { logError } from '@/services/errorLogger'
 import OcrModelsSection from '@/components/admin/OcrModelsSection'
@@ -84,41 +83,8 @@ const OcrSettingsTab = () => {
   const loadApprovedRequests = useCallback(async () => {
     setLoadingRequests(true)
     try {
-      // Согласованные заявки
-      const { data, error } = await supabase
-        .from('payment_requests')
-        .select('id, request_number, invoice_amount, counterparties(name), construction_sites(name), statuses!payment_requests_status_id_fkey(code)')
-        .not('approved_at', 'is', null)
-        .eq('is_deleted', false)
-        .order('approved_at', { ascending: false })
-        .limit(200)
-      if (error) throw error
-
-      // Получаем id заявок, у которых уже есть распознанные материалы
-      const ids = (data ?? []).map((r: Record<string, unknown>) => r.id as string)
-      const { data: recognizedData } = await supabase
-        .from('recognized_materials')
-        .select('payment_request_id')
-        .in('payment_request_id', ids.length > 0 ? ids : ['__none__'])
-
-      const recognizedSet = new Set(
-        (recognizedData ?? []).map((r: Record<string, unknown>) => r.payment_request_id as string),
-      )
-
-      const requests: ApprovedRequest[] = (data ?? []).map((row: Record<string, unknown>) => {
-        const cp = row.counterparties as Record<string, unknown> | null
-        const site = row.construction_sites as Record<string, unknown> | null
-        return {
-          id: row.id as string,
-          requestNumber: row.request_number as string,
-          counterpartyName: (cp?.name as string) ?? '',
-          siteName: (site?.name as string) ?? '',
-          invoiceAmount: row.invoice_amount as number | null,
-          recognized: recognizedSet.has(row.id as string),
-        }
-      })
-
-      setApprovedRequests(requests)
+      const data = await api.get<ApprovedRequest[]>('/api/ocr/approved-requests')
+      setApprovedRequests(data ?? [])
     } catch (err) {
       logError({
         errorType: 'api_error',
@@ -178,8 +144,8 @@ const OcrSettingsTab = () => {
   const handleTestLlm = async () => {
     setIsTestingLlm(true)
     try {
-      const models = await fetchAvailableModels()
-      message.success(`OpenRouter API ключ работает. Доступно моделей: ${models.length}`)
+      const result = await api.get<{ count: number }>('/api/ocr/test-llm')
+      message.success(`OpenRouter API ключ работает. Доступно моделей: ${result?.count ?? 0}`)
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Неизвестная ошибка'
       message.error(`Ошибка проверки LLM ключа: ${errorMsg}`)

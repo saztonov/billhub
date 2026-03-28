@@ -1,6 +1,5 @@
 import { create } from 'zustand'
-import { supabase } from '@/services/supabase'
-import { supabaseNoSession } from '@/services/supabaseAdmin'
+import { api } from '@/services/api'
 import type { UserRole, Department } from '@/types'
 
 /** Пользователь из таблицы users (с именем контрагента) */
@@ -76,52 +75,8 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
   fetchUsers: async () => {
     set({ isLoading: true, error: null })
     try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('id, email, full_name, role, counterparty_id, created_at, counterparties!counterparty_id(name), department_id, all_sites, is_active')
-        .order('created_at', { ascending: false })
-      if (error) throw error
-
-      // Загружаем маппинг пользователей к объектам
-      const { data: siteMappings, error: smError } = await supabase
-        .from('user_construction_sites_mapping')
-        .select('user_id, construction_site_id, construction_sites(name)')
-      if (smError) throw smError
-
-      // Группируем маппинги по user_id
-      const sitesByUser = new Map<string, { ids: string[]; names: string[] }>()
-      for (const mapping of siteMappings ?? []) {
-        const row = mapping as Record<string, unknown>
-        const userId = row.user_id as string
-        const siteId = row.construction_site_id as string
-        const siteName = (row.construction_sites as Record<string, unknown> | null)?.name as string ?? ''
-        if (!sitesByUser.has(userId)) {
-          sitesByUser.set(userId, { ids: [], names: [] })
-        }
-        const entry = sitesByUser.get(userId)!
-        entry.ids.push(siteId)
-        entry.names.push(siteName)
-      }
-
-      const users: UserRecord[] = (data ?? []).map((row: Record<string, unknown>) => {
-        const userId = row.id as string
-        const sites = sitesByUser.get(userId)
-        return {
-          id: userId,
-          email: row.email as string,
-          fullName: (row.full_name as string) ?? '',
-          role: row.role as UserRole,
-          counterpartyId: row.counterparty_id as string | null,
-          counterpartyName: (row.counterparties as { name: string } | null)?.name ?? null,
-          department: (row.department_id as Department | null) ?? null,
-          allSites: (row.all_sites as boolean) ?? false,
-          isActive: (row.is_active as boolean) ?? true,
-          siteIds: sites?.ids ?? [],
-          siteNames: sites?.names ?? [],
-          createdAt: row.created_at as string,
-        }
-      })
-      set({ users, isLoading: false })
+      const data = await api.get<UserRecord[]>('/api/users')
+      set({ users: data ?? [], isLoading: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка загрузки пользователей'
       set({ error: message, isLoading: false })
@@ -141,51 +96,7 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
         }
       }
 
-      // Создаем пользователя в Supabase Auth через клиент без сессии
-      const { data: authData, error: authError } = await supabaseNoSession.auth.signUp({
-        email: data.email,
-        password: data.password,
-      })
-      if (authError) {
-        // Проверяем, есть ли деактивированный пользователь с таким email
-        const { data: existing } = await supabase
-          .from('users')
-          .select('id, is_active')
-          .eq('email', data.email)
-          .single()
-        if (existing && !existing.is_active) {
-          throw new Error('Пользователь с таким email уже существует и деактивирован. Активируйте его вместо создания нового.')
-        }
-        throw authError
-      }
-      if (!authData.user) throw new Error('Не удалось создать пользователя')
-
-      // Создаем запись в таблице users
-      const { error: insertError } = await supabase
-        .from('users')
-        .insert({
-          id: authData.user.id,
-          email: data.email,
-          full_name: data.full_name,
-          role: data.role,
-          counterparty_id: data.role === 'counterparty_user' ? data.counterparty_id : null,
-          department_id: data.role !== 'counterparty_user' ? data.department : null,
-          all_sites: data.role === 'counterparty_user' ? false : data.all_sites,
-        })
-      if (insertError) throw insertError
-
-      // Вставляем маппинг объектов
-      if (!data.all_sites && data.role !== 'counterparty_user' && data.site_ids.length > 0) {
-        const rows = data.site_ids.map((siteId) => ({
-          user_id: authData.user!.id,
-          construction_site_id: siteId,
-        }))
-        const { error: siteError } = await supabase
-          .from('user_construction_sites_mapping')
-          .insert(rows)
-        if (siteError) throw siteError
-      }
-
+      await api.post('/api/auth/create-user', data)
       await get().fetchUsers()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка создания пользователя'
@@ -207,65 +118,7 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
         }
       }
 
-      // Обновляем основные поля пользователя
-      const { error } = await supabase
-        .from('users')
-        .update({
-          full_name: data.full_name,
-          role: data.role,
-          counterparty_id: data.role === 'counterparty_user' ? data.counterparty_id : null,
-          department_id: data.role !== 'counterparty_user' ? data.department : null,
-          all_sites: data.role === 'counterparty_user' ? false : data.all_sites,
-        })
-        .eq('id', id)
-      if (error) throw error
-
-      // Обновляем маппинг объектов
-      // Удаляем старые записи
-      const { error: delError } = await supabase
-        .from('user_construction_sites_mapping')
-        .delete()
-        .eq('user_id', id)
-      if (delError) throw delError
-
-      // Вставляем новые (только если не all_sites и не counterparty_user)
-      if (!data.all_sites && data.role !== 'counterparty_user' && data.site_ids.length > 0) {
-        const rows = data.site_ids.map((siteId) => ({
-          user_id: id,
-          construction_site_id: siteId,
-        }))
-        const { error: insError } = await supabase
-          .from('user_construction_sites_mapping')
-          .insert(rows)
-        if (insError) throw insError
-      }
-
-      // Авторезолв уведомлений missing_specialist
-      if (data.department && data.role !== 'counterparty_user') {
-        const { data: unresolvedNotifs } = await supabase
-          .from('notifications')
-          .select('id, department_id, site_id')
-          .eq('type', 'missing_specialist')
-          .eq('resolved', false)
-          .eq('department_id', data.department)
-
-        for (const notif of unresolvedNotifs ?? []) {
-          const row = notif as Record<string, unknown>
-          const notifSiteId = row.site_id as string | null
-          // Проверяем совпадение по объекту
-          const matchesSite = data.all_sites || (notifSiteId && data.site_ids.includes(notifSiteId))
-          if (matchesSite) {
-            await supabase
-              .from('notifications')
-              .update({ resolved: true, resolved_at: new Date().toISOString() })
-              .eq('department_id', row.department_id as string)
-              .eq('site_id', notifSiteId)
-              .eq('type', 'missing_specialist')
-              .eq('resolved', false)
-          }
-        }
-      }
-
+      await api.put(`/api/users/${id}`, data)
       await get().fetchUsers()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка обновления пользователя'
@@ -276,11 +129,7 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
   deactivateUser: async (id) => {
     set({ isLoading: true, error: null })
     try {
-      const { error } = await supabase
-        .from('users')
-        .update({ is_active: false })
-        .eq('id', id)
-      if (error) throw error
+      await api.delete(`/api/users/${id}`)
       await get().fetchUsers()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка деактивации пользователя'
@@ -291,11 +140,7 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
   activateUser: async (id) => {
     set({ isLoading: true, error: null })
     try {
-      const { error } = await supabase
-        .from('users')
-        .update({ is_active: true })
-        .eq('id', id)
-      if (error) throw error
+      await api.patch(`/api/users/${id}`, { isActive: true })
       await get().fetchUsers()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка активации пользователя'
@@ -304,11 +149,7 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
   },
 
   changePassword: async (userId, newPassword) => {
-    const { error } = await supabase.rpc('change_user_password', {
-      target_user_id: userId,
-      new_password: newPassword,
-    })
-    if (error) throw error
+    await api.post('/api/auth/admin-change-password', { userId, newPassword })
   },
 
   batchCreateCounterpartyUsers: async (rows, onProgress) => {
@@ -317,25 +158,7 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i]
       try {
-        // Создаём пользователя в Auth через клиент без сессии
-        const { data: authData, error: authError } = await supabaseNoSession.auth.signUp({
-          email: row.email,
-          password: row.password,
-        })
-        if (authError) throw authError
-        if (!authData.user) throw new Error('Не удалось создать пользователя в Auth')
-
-        // Вставляем запись в таблицу users
-        const { error: insertError } = await supabase.from('users').insert({
-          id: authData.user.id,
-          email: row.email,
-          full_name: row.fullName,
-          role: 'counterparty_user',
-          counterparty_id: row.counterpartyId,
-          all_sites: false,
-        })
-        if (insertError) throw insertError
-
+        await api.post('/api/users/batch-import', row)
         results.push({ email: row.email, status: 'success' })
       } catch (err) {
         results.push({
@@ -347,7 +170,7 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
 
       onProgress(i + 1, rows.length)
 
-      // Пауза между запросами для снижения нагрузки на Auth
+      // Пауза между запросами для снижения нагрузки
       if (i < rows.length - 1) {
         await new Promise<void>((resolve) => setTimeout(resolve, 100))
       }

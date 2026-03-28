@@ -1,7 +1,6 @@
 import { create } from 'zustand'
-import { supabase } from '@/services/supabase'
+import { api } from '@/services/api'
 import { logError } from '@/services/errorLogger'
-import { notifyNewComment } from '@/utils/notificationService'
 import type { PaymentRequestComment } from '@/types'
 
 interface CommentStoreState {
@@ -26,34 +25,11 @@ export const useCommentStore = create<CommentStoreState>((set, get) => ({
   fetchComments: async (paymentRequestId) => {
     set({ isLoading: true })
     try {
-      const { data, error } = await supabase
-        .from('payment_request_comments')
-        .select('id, payment_request_id, author_id, text, created_at, updated_at, recipient, author:users!payment_request_comments_author_id_fkey(full_name, email, role, department_id, counterparty:counterparties!users_counterparty_id_fkey(name))')
-        .eq('payment_request_id', paymentRequestId)
-        .order('created_at', { ascending: false })
+      const data = await api.get<PaymentRequestComment[]>(
+        `/api/comments/payment-request/${paymentRequestId}`,
+      )
 
-      if (error) throw error
-
-      const comments: PaymentRequestComment[] = (data ?? []).map((row: Record<string, unknown>) => {
-        const author = row.author as Record<string, unknown> | null
-        const counterparty = author?.counterparty as Record<string, unknown> | null
-        return {
-          id: row.id as string,
-          paymentRequestId: row.payment_request_id as string,
-          authorId: row.author_id as string,
-          text: row.text as string,
-          createdAt: row.created_at as string,
-          updatedAt: (row.updated_at as string) ?? null,
-          authorFullName: (author?.full_name as string) ?? undefined,
-          authorEmail: (author?.email as string) ?? undefined,
-          authorRole: (author?.role as string) ?? undefined,
-          authorDepartment: (author?.department_id as string) ?? null,
-          authorCounterpartyName: (counterparty?.name as string) ?? undefined,
-          recipient: (row.recipient as string) ?? null,
-        }
-      })
-
-      set({ comments, isLoading: false })
+      set({ comments: data ?? [], isLoading: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка загрузки комментариев'
       logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'fetchComments' } })
@@ -64,18 +40,12 @@ export const useCommentStore = create<CommentStoreState>((set, get) => ({
   addComment: async (paymentRequestId, text, userId, recipient) => {
     set({ isSubmitting: true })
     try {
-      const { error } = await supabase
-        .from('payment_request_comments')
-        .insert({
-          payment_request_id: paymentRequestId,
-          author_id: userId,
-          text,
-          recipient: recipient || null,
-        })
-      if (error) throw error
-
-      // Уведомляем о новом комментарии
-      notifyNewComment(paymentRequestId, userId, recipient || null).catch(() => {})
+      await api.post(`/api/comments/payment-request`, {
+        paymentRequestId,
+        text,
+        userId,
+        recipient: recipient || null,
+      })
 
       await get().fetchComments(paymentRequestId)
       set({ isSubmitting: false })
@@ -90,11 +60,7 @@ export const useCommentStore = create<CommentStoreState>((set, get) => ({
   updateComment: async (commentId, text) => {
     set({ isSubmitting: true })
     try {
-      const { error } = await supabase
-        .from('payment_request_comments')
-        .update({ text, updated_at: new Date().toISOString() })
-        .eq('id', commentId)
-      if (error) throw error
+      await api.put(`/api/comments/${commentId}`, { text })
 
       // Обновляем локально
       const comment = get().comments.find((c) => c.id === commentId)
@@ -115,11 +81,7 @@ export const useCommentStore = create<CommentStoreState>((set, get) => ({
     try {
       const comment = get().comments.find((c) => c.id === commentId)
 
-      const { error } = await supabase
-        .from('payment_request_comments')
-        .delete()
-        .eq('id', commentId)
-      if (error) throw error
+      await api.delete(`/api/comments/${commentId}`)
 
       if (comment) {
         await get().fetchComments(comment.paymentRequestId)
@@ -133,54 +95,22 @@ export const useCommentStore = create<CommentStoreState>((set, get) => ({
     }
   },
 
-  fetchUnreadCounts: async (userId) => {
+  fetchUnreadCounts: async (_userId) => {
     try {
-      // Загружаем все комментарии с группировкой по заявке и статусы прочтения
-      const { data: comments, error: commentsError } = await supabase
-        .from('payment_request_comments')
-        .select('payment_request_id, created_at')
-        .neq('author_id', userId)
+      const data = await api.get<Record<string, number>>(
+        '/api/comments/payment-request/unread-counts',
+      )
 
-      if (commentsError) throw commentsError
-
-      const { data: readStatuses, error: readError } = await supabase
-        .from('comment_read_status')
-        .select('payment_request_id, last_read_at')
-        .eq('user_id', userId)
-
-      if (readError) throw readError
-
-      // Строим мапу last_read_at по заявке
-      const readMap: Record<string, string> = {}
-      for (const rs of readStatuses ?? []) {
-        readMap[rs.payment_request_id] = rs.last_read_at
-      }
-
-      // Считаем непрочитанные
-      const counts: Record<string, number> = {}
-      for (const c of comments ?? []) {
-        const lastRead = readMap[c.payment_request_id]
-        if (!lastRead || new Date(c.created_at) > new Date(lastRead)) {
-          counts[c.payment_request_id] = (counts[c.payment_request_id] || 0) + 1
-        }
-      }
-
-      set({ unreadCounts: counts })
+      set({ unreadCounts: data ?? {} })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка загрузки непрочитанных'
       logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'fetchUnreadCounts' } })
     }
   },
 
-  markAsRead: async (userId, paymentRequestId) => {
+  markAsRead: async (_userId, paymentRequestId) => {
     try {
-      const { error } = await supabase
-        .from('comment_read_status')
-        .upsert(
-          { user_id: userId, payment_request_id: paymentRequestId, last_read_at: new Date().toISOString() },
-          { onConflict: 'user_id,payment_request_id' }
-        )
-      if (error) throw error
+      await api.post(`/api/comments/payment-request/${paymentRequestId}/mark-read`)
 
       // Обнуляем счётчик локально
       set((state) => {

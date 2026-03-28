@@ -1,258 +1,142 @@
-import {
-  S3Client,
-  PutObjectCommand,
-  GetObjectCommand,
-  DeleteObjectCommand,
-  ListObjectsV2Command,
-} from '@aws-sdk/client-s3'
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
-import { sanitizeForS3 } from '@/utils/transliterate'
-import { getEnvVar } from '@/utils/env'
+import { api } from '@/services/api'
 
-// Определяем активного провайдера хранилища
-const STORAGE_PROVIDER = (import.meta.env.VITE_STORAGE_PROVIDER as string) || 'cloudru'
-const isCloudflare = STORAGE_PROVIDER === 'cloudflare'
+// Типы ответов API
+interface UploadUrlResponse {
+  uploadUrl: string
+  fileKey: string
+}
 
-// Конфигурация в зависимости от провайдера и среды (test/production)
-const S3_ENDPOINT = isCloudflare
-  ? getEnvVar('VITE_R2_ENDPOINT', 'VITE_TEST_R2_ENDPOINT')
-  : getEnvVar('VITE_S3_ENDPOINT', 'VITE_TEST_S3_ENDPOINT')
+interface DownloadUrlResponse {
+  downloadUrl: string
+}
 
-const S3_REGION = isCloudflare
-  ? 'auto'
-  : (getEnvVar('VITE_S3_REGION', 'VITE_TEST_S3_REGION') || 'ru-msk')
-
-const S3_ACCESS_KEY = isCloudflare
-  ? getEnvVar('VITE_R2_ACCESS_KEY', 'VITE_TEST_R2_ACCESS_KEY')
-  : getEnvVar('VITE_S3_ACCESS_KEY', 'VITE_TEST_S3_ACCESS_KEY')
-
-const S3_SECRET_KEY = isCloudflare
-  ? getEnvVar('VITE_R2_SECRET_KEY', 'VITE_TEST_R2_SECRET_KEY')
-  : getEnvVar('VITE_S3_SECRET_KEY', 'VITE_TEST_S3_SECRET_KEY')
-
-const S3_BUCKET = isCloudflare
-  ? getEnvVar('VITE_R2_BUCKET', 'VITE_TEST_R2_BUCKET')
-  : getEnvVar('VITE_S3_BUCKET', 'VITE_TEST_S3_BUCKET')
-
-/** S3-совместимый клиент (Cloud.ru или Cloudflare R2) */
-const s3Client = new S3Client({
-  endpoint: S3_ENDPOINT,
-  region: S3_REGION,
-  credentials: {
-    accessKeyId: S3_ACCESS_KEY,
-    secretAccessKey: S3_SECRET_KEY,
-  },
-  forcePathStyle: true,
-})
-
-// Базовый endpoint без trailing slash для корректной подмены в presigned URL
-const S3_BASE = S3_ENDPOINT.replace(/\/$/, '')
-
-/** Загрузка файла через presigned URL + fetch (обход CORS в dev через Vite proxy) */
-async function uploadToS3(key: string, file: File): Promise<void> {
+/** Загружает файл напрямую в S3 по presigned URL */
+async function putToS3(uploadUrl: string, file: File): Promise<void> {
   const contentType = file.type || 'application/octet-stream'
-  const command = new PutObjectCommand({
-    Bucket: S3_BUCKET,
-    Key: key,
-    ContentType: contentType,
-  })
-
-  // Presigned URL генерируется локально, без HTTP-запроса
-  let url = await getSignedUrl(s3Client, command, { expiresIn: 300 })
-
-  // В dev-режиме подменяем endpoint на Vite proxy
-  if (import.meta.env.DEV) {
-    url = url.replace(S3_BASE, '/s3-proxy')
-  }
-
-  const res = await fetch(url, {
+  const res = await fetch(uploadUrl, {
     method: 'PUT',
     body: file,
     headers: { 'Content-Type': contentType },
   })
-
-  if (!res.ok) {
-    throw new Error(`Ошибка загрузки файла: ${res.status} ${res.statusText}`)
-  }
+  if (!res.ok) throw new Error(`Ошибка загрузки файла: ${res.status}`)
 }
 
-/** Генерирует уникальный ключ для файла внутри папки контрагента */
-function generateFileKey(counterpartyName: string, fileName: string): string {
-  const safeFolder = sanitizeForS3(counterpartyName)
-  const safeName = sanitizeForS3(fileName)
-  const timestamp = Date.now()
-  return `${safeFolder}/${timestamp}_${safeName}`
-}
-
-/** Загружает файл в S3 в папку контрагента */
+/** Загружает файл в папку контрагента */
 export async function uploadFile(
   counterpartyName: string,
   file: File,
 ): Promise<{ key: string }> {
-  const key = generateFileKey(counterpartyName, file.name)
-  await uploadToS3(key, file)
-  return { key }
+  const { uploadUrl, fileKey } = await api.post<UploadUrlResponse>('/api/files/upload-url', {
+    fileName: file.name,
+    contentType: file.type || 'application/octet-stream',
+    context: 'general',
+    counterpartyName,
+  })
+  await putToS3(uploadUrl, file)
+  return { key: fileKey }
 }
 
-/** Загружает файл заявки в S3: /{контрагент}/{номер_заявки}/{timestamp}_{имя} */
+/** Загружает файл заявки */
 export async function uploadRequestFile(
   counterpartyName: string,
   requestNumber: string,
   file: File,
 ): Promise<{ key: string }> {
-  const safeFolder = sanitizeForS3(counterpartyName)
-  const safeNumber = sanitizeForS3(requestNumber)
-  const safeName = sanitizeForS3(file.name)
-  const timestamp = Date.now()
-  const key = `${safeFolder}/${safeNumber}/${timestamp}_${safeName}`
-  await uploadToS3(key, file)
-  return { key }
+  const { uploadUrl, fileKey } = await api.post<UploadUrlResponse>('/api/files/upload-url', {
+    fileName: file.name,
+    contentType: file.type || 'application/octet-stream',
+    context: 'request',
+    counterpartyName,
+    requestNumber,
+  })
+  await putToS3(uploadUrl, file)
+  return { key: fileKey }
 }
 
-/** Загружает файл решения об отклонении в S3: /approval-decisions/{decision_id}/{timestamp}_{имя} */
+/** Загружает файл решения об отклонении */
 export async function uploadDecisionFile(
   decisionId: string,
   file: File,
 ): Promise<{ key: string }> {
-  const safeName = sanitizeForS3(file.name)
-  const timestamp = Date.now()
-  const key = `approval-decisions/${decisionId}/${timestamp}_${safeName}`
-  await uploadToS3(key, file)
-  return { key }
+  const { uploadUrl, fileKey } = await api.post<UploadUrlResponse>('/api/files/upload-url', {
+    fileName: file.name,
+    contentType: file.type || 'application/octet-stream',
+    context: 'decision',
+    entityId: decisionId,
+  })
+  await putToS3(uploadUrl, file)
+  return { key: fileKey }
 }
 
-/** Загружает файл оплаты в S3: /{контрагент}/payment/{payment_id}/{timestamp}_{имя} */
+/** Загружает файл оплаты */
 export async function uploadPaymentFile(
   counterpartyName: string,
   paymentId: string,
   file: File,
 ): Promise<{ key: string }> {
-  const safeFolder = sanitizeForS3(counterpartyName)
-  const safeName = sanitizeForS3(file.name)
-  const timestamp = Date.now()
-  const key = `${safeFolder}/payment/${paymentId}/${timestamp}_${safeName}`
-  await uploadToS3(key, file)
-  return { key }
+  const { uploadUrl, fileKey } = await api.post<UploadUrlResponse>('/api/files/upload-url', {
+    fileName: file.name,
+    contentType: file.type || 'application/octet-stream',
+    context: 'payment',
+    counterpartyName,
+    entityId: paymentId,
+  })
+  await putToS3(uploadUrl, file)
+  return { key: fileKey }
 }
 
-/** Получает presigned URL для скачивания файла (время жизни 1 час) */
+/** Получает presigned URL для скачивания файла */
 export async function getDownloadUrl(
   key: string,
-  expiresIn = 3600,
+  _expiresIn?: number,
   fileName?: string,
 ): Promise<string> {
-  const command = new GetObjectCommand({
-    Bucket: S3_BUCKET,
-    Key: key,
-    // Если передано имя файла, принудительно скачиваем (не открываем в браузере)
-    ResponseContentDisposition: fileName
-      ? `attachment; filename="${fileName}"`
-      : undefined,
-  })
-  return getSignedUrl(s3Client, command, { expiresIn })
+  const params: Record<string, string> = {}
+  if (fileName) params.fileName = fileName
+  const { downloadUrl } = await api.get<DownloadUrlResponse>(
+    `/api/files/download-url/${encodeURIComponent(key)}`,
+    params,
+  )
+  return downloadUrl
 }
 
-/** Скачивает файл как Blob (через Vite proxy в dev для обхода CORS) */
+/** Скачивает файл как Blob */
 export async function downloadFileBlob(key: string): Promise<Blob> {
-  const command = new GetObjectCommand({
-    Bucket: S3_BUCKET,
-    Key: key,
-  })
-  let url = await getSignedUrl(s3Client, command, { expiresIn: 3600 })
-  if (import.meta.env.DEV) {
-    url = url.replace(S3_BASE, '/s3-proxy')
-  }
+  const url = await getDownloadUrl(key)
   const res = await fetch(url)
-  if (!res.ok) {
-    throw new Error(`Ошибка скачивания файла: ${res.status}`)
-  }
+  if (!res.ok) throw new Error(`Ошибка скачивания файла: ${res.status}`)
   return res.blob()
 }
 
-/** Получает presigned URL для загрузки файла напрямую из браузера */
+/** Получает presigned URL для загрузки (совместимость) */
 export async function getUploadUrl(
   key: string,
   contentType: string,
-  expiresIn = 3600,
 ): Promise<string> {
-  const command = new PutObjectCommand({
-    Bucket: S3_BUCKET,
-    Key: key,
-    ContentType: contentType,
+  const { uploadUrl } = await api.post<UploadUrlResponse>('/api/files/upload-url', {
+    fileName: key.split('/').pop() || 'file',
+    contentType,
+    context: 'general',
   })
-  return getSignedUrl(s3Client, command, { expiresIn })
+  return uploadUrl
 }
 
-/** Удаляет файл из S3 */
+/** Удаляет файл */
 export async function deleteFile(key: string): Promise<void> {
-  const command = new DeleteObjectCommand({
-    Bucket: S3_BUCKET,
-    Key: key,
-  })
-
-  let url = await getSignedUrl(s3Client, command, { expiresIn: 300 })
-
-  if (import.meta.env.DEV) {
-    url = url.replace(S3_BASE, '/s3-proxy')
-  }
-
-  const res = await fetch(url, { method: 'DELETE' })
-  if (!res.ok && res.status !== 404) {
-    throw new Error(`Ошибка удаления файла: ${res.status}`)
-  }
+  await api.delete(`/api/files/${encodeURIComponent(key)}`)
 }
 
-/** Проверяет подключение к S3 хранилищу (PUT + DELETE тестового файла) */
+/** Проверяет подключение к S3 хранилищу (админ) */
 export async function testS3Connection(): Promise<{ ok: true; provider: string }> {
-  const testKey = `__connection_test_${Date.now()}`
-
-  // PUT тестового файла (тот же путь, что и рабочие загрузки)
-  const putCmd = new PutObjectCommand({
-    Bucket: S3_BUCKET,
-    Key: testKey,
-    ContentType: 'text/plain',
-  })
-  let putUrl = await getSignedUrl(s3Client, putCmd, { expiresIn: 60 })
-  if (import.meta.env.DEV) {
-    putUrl = putUrl.replace(S3_BASE, '/s3-proxy')
-  }
-  const putRes = await fetch(putUrl, {
-    method: 'PUT',
-    body: 'test',
-    headers: { 'Content-Type': 'text/plain' },
-  })
-  if (!putRes.ok) {
-    throw new Error(`S3 PUT вернул статус: ${putRes.status}`)
-  }
-
-  // Удаляем тестовый файл
-  const delCmd = new DeleteObjectCommand({
-    Bucket: S3_BUCKET,
-    Key: testKey,
-  })
-  let delUrl = await getSignedUrl(s3Client, delCmd, { expiresIn: 60 })
-  if (import.meta.env.DEV) {
-    delUrl = delUrl.replace(S3_BASE, '/s3-proxy')
-  }
-  await fetch(delUrl, { method: 'DELETE' }).catch(() => {})
-
-  return { ok: true, provider: STORAGE_PROVIDER }
+  return api.get('/api/files/test-connection')
 }
 
 /** Получает список файлов контрагента */
 export async function listFiles(
   counterpartyName: string,
 ): Promise<Array<{ key: string; size: number; lastModified: Date }>> {
-  const safeFolder = sanitizeForS3(counterpartyName)
-  const command = new ListObjectsV2Command({
-    Bucket: S3_BUCKET,
-    Prefix: `${safeFolder}/`,
-  })
-
-  const response = await s3Client.send(command)
-  return (response.Contents ?? []).map((item) => ({
-    key: item.Key ?? '',
-    size: item.Size ?? 0,
-    lastModified: item.LastModified ?? new Date(),
-  }))
+  const data = await api.get<{ files: Array<{ key: string; size: number; lastModified: string }> }>(
+    `/api/files/list/${encodeURIComponent(counterpartyName)}`,
+  )
+  return data.files.map((f) => ({ ...f, lastModified: new Date(f.lastModified) }))
 }
