@@ -41,6 +41,14 @@ async function bootstrap(): Promise<void> {
   const fastify = Fastify({
     logger: {
       level: config.nodeEnv === 'production' ? 'info' : 'debug',
+      /** Скрываем секреты из логов */
+      redact: [
+        'req.headers.authorization',
+        'req.headers.cookie',
+        'body.password',
+        'body.currentPassword',
+        'body.newPassword',
+      ],
       transport:
         config.nodeEnv !== 'production'
           ? { target: 'pino-pretty', options: { colorize: true } }
