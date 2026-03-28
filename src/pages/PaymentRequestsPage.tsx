@@ -1,17 +1,15 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Button, Tabs, App, Radio, Switch } from 'antd'
-import { PlusOutlined, FilterOutlined, FileExcelOutlined } from '@ant-design/icons'
+import { Button, Tabs, App, Radio } from 'antd'
+import { FilterOutlined } from '@ant-design/icons'
 import { api } from '@/services/api'
 import { logError } from '@/services/errorLogger'
 import { usePaymentRequestsData } from '@/hooks/usePaymentRequestsData'
 import { useRequestFiltering } from '@/hooks/useRequestFiltering'
-import { useCounterpartyStore } from '@/store/counterpartyStore'
-import { useUploadQueueStore } from '@/store/uploadQueueStore'
+import { usePaymentRequestHandlers } from '@/hooks/usePaymentRequestHandlers'
+import { usePaymentRequestHeader } from '@/hooks/usePaymentRequestHeader'
 import { useCommentStore } from '@/store/commentStore'
-import { useHeaderStore } from '@/store/headerStore'
 import useIsMobile from '@/hooks/useIsMobile'
-import type { EditRequestData } from '@/store/paymentRequestStore'
 import CreateRequestModal from '@/components/paymentRequests/CreateRequestModal'
 import ViewRequestModal from '@/components/paymentRequests/ViewRequestModal'
 import RequestsTable from '@/components/paymentRequests/RequestsTable'
@@ -21,7 +19,6 @@ import MobileFiltersDrawer from '@/components/paymentRequests/MobileFiltersDrawe
 import MobileActionBar from '@/components/paymentRequests/MobileActionBar'
 import ExportRegistryModal from '@/components/paymentRequests/ExportRegistryModal'
 import type { FilterValues } from '@/components/paymentRequests/RequestFilters'
-import type { FileItem } from '@/components/paymentRequests/FileUploadList'
 import type { PaymentRequest, Department } from '@/types'
 
 const PaymentRequestsPage = () => {
@@ -148,263 +145,52 @@ const PaymentRequestsPage = () => {
     loadRequest()
   }, [location.state]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Заголовок и элементы в шапке
-  const setHeader = useHeaderStore((s) => s.setHeader)
-  const clearHeader = useHeaderStore((s) => s.clearHeader)
+  // Заголовок страницы
+  usePaymentRequestHeader({
+    activeTab,
+    isMobile,
+    isAdmin: !!isAdmin,
+    isCounterpartyUser: !!isCounterpartyUser,
+    userDeptInChain: !!userDeptInChain,
+    showDeleted,
+    setShowDeleted,
+    setIsCreateOpen,
+    setIsExportOpen,
+    totalInvoiceAmountAll,
+    totalPaidAll,
+    totalPendingAmountAll,
+    totalInvoiceAmount,
+    unassignedOmtsCount,
+  })
 
-  useEffect(() => {
-    // На мобильном не показываем extra и actions в Header
-    if (isMobile) {
-      setHeader('Заявки на оплату', null, null)
-      return
-    }
-
-    const extra = (
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        {activeTab === 'all' && (
-          <div
-            style={{
-              padding: '4px 12px',
-              border: '1px solid #d9d9d9',
-              borderRadius: '6px',
-              backgroundColor: '#fafafa',
-              whiteSpace: 'nowrap',
-              fontSize: 13,
-            }}
-          >
-            <span style={{ color: '#8c8c8c', marginRight: 6 }}>Согласовано РП:</span>
-            <span style={{ fontWeight: 500 }}>
-              {totalInvoiceAmountAll.toLocaleString('ru-RU', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-              })} ₽
-            </span>
-            <span style={{ color: '#d9d9d9', margin: '0 8px' }}>|</span>
-            <span style={{ color: '#8c8c8c', marginRight: 6 }}>РП на согласовании:</span>
-            <span style={{ fontWeight: 500 }}>
-              {totalPendingAmountAll.toLocaleString('ru-RU', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-              })} ₽
-            </span>
-            <span style={{ color: '#d9d9d9', margin: '0 8px' }}>|</span>
-            <span style={{ color: '#8c8c8c', marginRight: 6 }}>Оплачено РП:</span>
-            <span style={{ fontWeight: 500 }}>
-              {totalPaidAll.toLocaleString('ru-RU', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-              })} ₽
-            </span>
-          </div>
-        )}
-        {activeTab === 'pending' && userDeptInChain && (
-          <>
-            <div
-              style={{
-                padding: '4px 12px',
-                border: '1px solid #d9d9d9',
-                borderRadius: '6px',
-                backgroundColor: '#fafafa',
-                whiteSpace: 'nowrap',
-                fontSize: 13,
-              }}
-            >
-              <span style={{ color: '#8c8c8c', marginRight: 6 }}>Сумма счетов:</span>
-              <span style={{ fontWeight: 500 }}>
-                {totalInvoiceAmount.toLocaleString('ru-RU', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2
-                })} ₽
-              </span>
-            </div>
-            {isAdmin && (
-              <div
-                style={{
-                  padding: '4px 12px',
-                  border: '1px solid #d9d9d9',
-                  borderRadius: '6px',
-                  backgroundColor: '#fafafa',
-                  whiteSpace: 'nowrap',
-                  fontSize: 13,
-                }}
-              >
-                <span style={{ color: '#8c8c8c', marginRight: 6 }}>Не назначено:</span>
-                <span
-                  style={{
-                    fontWeight: 500,
-                    color: unassignedOmtsCount > 0 ? '#faad14' : 'inherit'
-                  }}
-                >
-                  {unassignedOmtsCount}
-                </span>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-    )
-
-    const actions = (
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-        {isAdmin && (
-          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Switch size="small" checked={showDeleted} onChange={setShowDeleted} />
-            <span style={{ fontSize: 13, color: '#8c8c8c', whiteSpace: 'nowrap' }}>Удаленные</span>
-          </span>
-        )}
-        {!isCounterpartyUser && (
-          <Button
-            icon={<FileExcelOutlined />}
-            onClick={() => setIsExportOpen(true)}
-            style={{ borderColor: '#52c41a', color: '#52c41a' }}
-          >
-            Реестр заявок
-          </Button>
-        )}
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsCreateOpen(true)}>
-          Добавить
-        </Button>
-      </div>
-    )
-
-    setHeader('Заявки на оплату', extra, actions)
-  }, [activeTab, totalInvoiceAmountAll, totalPaidAll, totalPendingAmountAll, totalInvoiceAmount, unassignedOmtsCount, isAdmin, isCounterpartyUser, userDeptInChain, showDeleted, setHeader, isMobile])
-
-  useEffect(() => {
-    return () => clearHeader()
-  }, [clearHeader])
-
-  // --- Обработчики ---
-
-  const handleEdit = async (id: string, data: EditRequestData, files: FileItem[]) => {
-    if (!user?.id) return
-    try {
-      await updateRequest(id, data, user.id, files.length > 0 ? files.length : undefined)
-
-      if (files.length > 0) {
-        const req = requests.find((r) => r.id === id)
-        if (req) {
-          if (counterparties.length === 0) await fetchCounterparties()
-          const cp = useCounterpartyStore.getState().counterparties.find((c) => c.id === req.counterpartyId)
-          if (cp) {
-            useUploadQueueStore.getState().addTask({
-              type: 'request_files',
-              requestId: id,
-              requestNumber: req.requestNumber,
-              counterpartyName: cp.name,
-              files: files.map((f) => ({
-                file: f.file,
-                documentTypeId: f.documentTypeId!,
-                pageCount: f.pageCount,
-                isAdditional: true,
-              })),
-              userId: user.id,
-            })
-          }
-        }
-      }
-
-      message.success('Заявка обновлена')
-      setViewRecord(null)
-      const [sIds, allS] = siteFilterParams()
-      if (isUser) fetchRequests(undefined, sIds, allS)
-      else fetchRequests()
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : 'Ошибка обновления')
-    }
-  }
-
-  const handleWithdraw = async (id: string, comment: string) => {
-    await withdrawRequest(id, comment || undefined)
-    message.success('Заявка отозвана')
-    if (isCounterpartyUser && user?.counterpartyId) fetchRequests(user.counterpartyId)
-  }
-
-  const handleDelete = async (id: string) => {
-    await deleteRequest(id)
-    message.success('Заявка перемещена в удаленные')
-  }
-
-  const handleApprove = async (requestId: string, comment: string) => {
-    if (!user?.id) return
-    const department = isAdmin ? adminSelectedStage : user?.department
-    if (!department) return
-    await approveRequest(requestId, department, user.id, comment)
-    message.success('Заявка согласована')
-    fetchPendingRequests(department, user.id, isAdmin)
-    if (isOmtsRpUser || isAdmin) fetchOmtsRpPendingRequests()
-    const [sIds, allS] = siteFilterParams()
-    if (isUser) fetchRequests(undefined, sIds, allS)
-    else fetchRequests()
-    fetchApprovedCount(sIds, allS)
-    fetchRejectedCount(sIds, allS)
-  }
-
-  const handleReject = async (requestId: string, comment: string, files?: { id: string; file: File }[]) => {
-    if (!user?.id) return
-    const department = isAdmin ? adminSelectedStage : user?.department
-    if (!department) return
-    await rejectRequest(requestId, department, user.id, comment, files)
-    message.success('Заявка отклонена')
-    fetchPendingRequests(department, user.id, isAdmin)
-    if (isOmtsRpUser || isAdmin) fetchOmtsRpPendingRequests()
-    const [sIds, allS] = siteFilterParams()
-    if (isUser) fetchRequests(undefined, sIds, allS)
-    else fetchRequests()
-    fetchApprovedCount(sIds, allS)
-    fetchRejectedCount(sIds, allS)
-  }
-
-  const handleAssignResponsible = useCallback(async (requestId: string, userId: string) => {
-    if (!user?.id) return
-    try {
-      await assignResponsible(requestId, userId, user.id)
-      message.success('Ответственный назначен')
-      const [sIds, allS] = siteFilterParams()
-      if (isUser) fetchRequests(undefined, sIds, allS)
-      else fetchRequests()
-    } catch {
-      message.error('Ошибка назначения')
-    }
-  }, [user?.id, assignResponsible, isUser, siteFilterParams, fetchRequests, message])
-
-  const handleResubmit = async (comment: string, files: FileItem[], fieldUpdates: {
-    deliveryDays: number
-    deliveryDaysType: string
-    shippingConditionId: string
-    invoiceAmount: number
-  }) => {
-    if (!resubmitRecord || !user?.counterpartyId || !user?.id) return
-    try {
-      await resubmitRequest(resubmitRecord.id, comment, user.counterpartyId, user.id, fieldUpdates)
-
-      if (files.length > 0) {
-        if (counterparties.length === 0) await fetchCounterparties()
-        const cp = useCounterpartyStore.getState().counterparties.find((c) => c.id === user.counterpartyId)
-        if (cp) {
-          useUploadQueueStore.getState().addTask({
-            type: 'request_files',
-            requestId: resubmitRecord.id,
-            requestNumber: resubmitRecord.requestNumber,
-            counterpartyName: cp.name,
-            files: files.map((f) => ({
-              file: f.file,
-              documentTypeId: f.documentTypeId!,
-              pageCount: f.pageCount,
-              isResubmit: true,
-            })),
-            userId: user.id,
-          })
-        }
-      }
-
-      message.success('Заявка отправлена повторно')
-      setResubmitRecord(null)
-      fetchRequests(user.counterpartyId)
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : 'Ошибка повторной отправки')
-    }
-  }
+  // Обработчики действий
+  const {
+    handleEdit,
+    handleWithdraw,
+    handleDelete,
+    handleApprove,
+    handleReject,
+    handleAssignResponsible,
+    handleResubmit,
+  } = usePaymentRequestHandlers({
+    user,
+    message,
+    storeFunctions: {
+      fetchRequests, fetchCounterparties, fetchPendingRequests,
+      fetchOmtsRpPendingRequests, fetchApprovedCount, fetchRejectedCount,
+      approveRequest, rejectRequest, deleteRequest, withdrawRequest,
+      resubmitRequest, updateRequest, assignResponsible, siteFilterParams,
+    },
+    uiSetters: { setViewRecord, setResubmitRecord },
+    roleFlags: {
+      isUser: !!isUser,
+      isAdmin: !!isAdmin,
+      isCounterpartyUser: !!isCounterpartyUser,
+      isOmtsRpUser: !!isOmtsRpUser,
+      adminSelectedStage,
+    },
+    contextData: { requests, counterparties, resubmitRecord },
+  })
 
   // Общие пропсы фильтров
   const filterProps = {

@@ -1,34 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   Modal,
-  Descriptions,
-  Tag,
   Button,
   Typography,
   Space,
-  Tooltip,
-  Table,
   Input,
   Form,
-  Select,
-  InputNumber,
-  Row,
-  Col,
   App,
   Popconfirm,
   Collapse,
 } from 'antd'
 import {
-  DownloadOutlined,
-  EyeOutlined,
   SendOutlined,
   EditOutlined,
-  FileAddOutlined,
   CheckOutlined,
   StopOutlined,
-  PlusOutlined,
-  CloseCircleOutlined,
-  CheckCircleOutlined,
 } from '@ant-design/icons'
 import { usePaymentRequestStore } from '@/store/paymentRequestStore'
 import { usePaymentPaymentStore } from '@/store/paymentPaymentStore'
@@ -55,10 +41,12 @@ import { useCommentStore } from '@/store/commentStore'
 import RejectModal from './RejectModal'
 import AddFilesModal from './AddFilesModal'
 import DpFillModal from './DpFillModal'
-import { formatSize, formatDate, formatDateShort, extractRequestNumber, sanitizeFileName } from '@/utils/requestFormatters'
+import RequestDetailsSection from './RequestDetailsSection'
+import RequestFileTable from './RequestFileTable'
+import RevisionModals from './RevisionModals'
+import { formatDate, extractRequestNumber, sanitizeFileName } from '@/utils/requestFormatters'
 import useIsMobile from '@/hooks/useIsMobile'
-import type { PaymentRequest, PaymentRequestFile, Department } from '@/types'
-import { DEPARTMENT_LABELS } from '@/types'
+import type { PaymentRequest } from '@/types'
 
 const { Text } = Typography
 const { TextArea } = Input
@@ -338,124 +326,6 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   // Разрешение на отклонение файлов: согласующие ИЛИ редактирование согласованной заявки
   const canRejectFiles = canApprove || (isEditing && isApprovedRequest)
 
-  // Колонки таблицы файлов
-  const fileColumns: Record<string, unknown>[] = isMobile
-    ? [
-        {
-          title: 'Файл', dataIndex: 'fileName', key: 'fileName', ellipsis: true,
-          render: (_: unknown, file: PaymentRequestFile) => (
-            <span style={{ fontSize: 12, ...(file.isRejected ? { textDecoration: 'line-through', color: '#999' } : {}) }}>{file.fileName}</span>
-          ),
-        },
-        {
-          title: '', key: 'actions', width: canRejectFiles ? 100 : 64,
-          render: (_: unknown, file: PaymentRequestFile) => (
-            <Space size={4}>
-              {canRejectFiles && (
-                <Button
-                  icon={file.isRejected ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
-                  size="small"
-                  style={file.isRejected ? { color: '#52c41a', borderColor: '#52c41a' } : { color: '#ff4d4f', borderColor: '#ff4d4f' }}
-                  onClick={() => user && toggleFileRejection(file.id, user.id)}
-                />
-              )}
-              <Button icon={<EyeOutlined />} size="small" onClick={() => setPreviewFile(file)} />
-              <Button icon={<DownloadOutlined />} size="small" loading={downloading === file.fileKey} onClick={() => handleDownload(file.fileKey, file.fileName)} />
-            </Space>
-          ),
-        },
-      ]
-    : (() => {
-        const cols: Record<string, unknown>[] = [
-          { title: '№', key: 'index', width: 50, render: (_: unknown, __: PaymentRequestFile, index: number) => index + 1 },
-          {
-            title: 'Файл', dataIndex: 'fileName', key: 'fileName', width: hasAdditionalFiles ? '40%' : '50%', ellipsis: true,
-            render: (_: unknown, file: PaymentRequestFile) => (
-              <span style={file.isRejected ? { textDecoration: 'line-through', color: '#999' } : undefined}>{file.fileName}</span>
-            ),
-          },
-          {
-            title: 'Размер', key: 'fileSize', width: 100,
-            render: (_: unknown, file: PaymentRequestFile) => (
-              <Text type="secondary">
-                {formatSize(file.fileSize)}
-                {file.pageCount != null && ` · ${file.pageCount} стр.`}
-              </Text>
-            ),
-          },
-          {
-            title: 'Тип документа', key: 'documentType',
-            render: (_: unknown, file: PaymentRequestFile) => file.documentTypeName ? <Tag>{file.documentTypeName}</Tag> : null,
-          },
-          {
-            title: 'Дата', key: 'createdAt', width: 140,
-            render: (_: unknown, file: PaymentRequestFile) => formatDateShort(file.createdAt),
-          },
-        ]
-
-        if (hasAdditionalFiles) {
-          cols.push({
-            title: 'Догружен', key: 'resubmit', width: 180,
-            render: (_: unknown, file: PaymentRequestFile) => {
-              if (!file.isAdditional && !file.isResubmit) return null
-              if (file.uploaderRole === 'counterparty_user') {
-                const cpName = file.uploaderCounterpartyName
-                return <Tag color="blue">{cpName ? `Подрядчик (${cpName})` : 'Подрядчик'}</Tag>
-              }
-              if (file.uploaderRole === 'user' || file.uploaderRole === 'admin') {
-                const dept = file.uploaderDepartment as Department | null
-                const label = dept ? DEPARTMENT_LABELS[dept] : '—'
-                return <Tag color="green">{label}</Tag>
-              }
-              return null
-            },
-          })
-        }
-
-        cols.push({
-          title: '', key: 'actions', width: canRejectFiles ? 120 : 80,
-          render: (_: unknown, file: PaymentRequestFile) => (
-            <Space size={4}>
-              {canRejectFiles && (
-                <Tooltip title={file.isRejected ? 'Подтвердить' : 'Отклонить'}>
-                  <Button
-                    icon={file.isRejected ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
-                    size="small"
-                    style={file.isRejected ? { color: '#52c41a', borderColor: '#52c41a' } : { color: '#ff4d4f', borderColor: '#ff4d4f' }}
-                    onClick={() => user && toggleFileRejection(file.id, user.id)}
-                  />
-                </Tooltip>
-              )}
-              <Tooltip title="Просмотр">
-                <Button icon={<EyeOutlined />} size="small" onClick={() => setPreviewFile(file)} />
-              </Tooltip>
-              <Tooltip title="Скачать">
-                <Button icon={<DownloadOutlined />} size="small" loading={downloading === file.fileKey} onClick={() => handleDownload(file.fileKey, file.fileName)} />
-              </Tooltip>
-            </Space>
-          ),
-        })
-
-        return cols
-      })()
-
-  // Маска суммы
-  const invoiceAmountMask = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value.replace(/[^\d.,]/g, '').replace(',', '.')
-    const dotIdx = raw.indexOf('.')
-    const clean = dotIdx >= 0 ? raw.slice(0, dotIdx + 1) + raw.slice(dotIdx + 1).replace(/\./g, '') : raw
-    const parts = clean.split('.')
-    if (parts[1] && parts[1].length > 2) parts[1] = parts[1].slice(0, 2)
-    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
-    return parts.join('.')
-  }
-
-  const invoiceAmountValidator = (_: unknown, value: unknown) => {
-    const num = Number(String(value ?? '').replace(/\s/g, '').replace(',', '.'))
-    if (!value || isNaN(num) || num <= 0) return Promise.reject(new Error('Сумма должна быть больше 0'))
-    return Promise.resolve()
-  }
-
   // Проверяем, может ли текущий пользователь отправить на доработку (ОМТС, ОМТС РП, admin)
   const isAdmin = user?.role === 'admin'
   const isOmtsUser = user?.department === 'omts'
@@ -556,183 +426,29 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
         }}
       >
         {/* Реквизиты */}
-        {isEditing ? (
-          <Form form={editForm} layout="vertical" style={{ marginBottom: 16 }}>
-            <Descriptions column={isMobile ? 1 : 2} size="small" bordered={false} style={{ marginBottom: 4 }}>
-              <Descriptions.Item label="Номер">{extractRequestNumber(request.requestNumber)}</Descriptions.Item>
-              <Descriptions.Item label="Подрядчик">{request.counterpartyName}</Descriptions.Item>
-            </Descriptions>
-            <Row gutter={[8, 0]}>
-              <Col xs={24} sm={12} md={6}>
-                <Form.Item name="siteId" label="Объект" rules={[{ required: true, message: 'Выберите объект' }]}>
-                  <Select placeholder="Выберите объект" showSearch optionFilterProp="label" options={siteOptions} />
-                </Form.Item>
-              </Col>
-              <Col xs={24} sm={12} md={5}>
-                <Form.Item name="supplierId" label="Поставщик">
-                  <Select placeholder="Выберите поставщика" showSearch allowClear optionFilterProp="label" options={supplierOptions} />
-                </Form.Item>
-              </Col>
-              <Col xs={24} sm={12} md={5}>
-                <Form.Item label="Срок поставки" required style={{ marginBottom: 0 }}>
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    <Form.Item name="deliveryDays" noStyle rules={[{ required: true, message: 'Укажите срок' }]}>
-                      <InputNumber min={1} style={{ width: 70 }} placeholder="Дни" />
-                    </Form.Item>
-                    <Form.Item name="deliveryDaysType" noStyle>
-                      <Select style={{ width: 100 }} options={[{ label: 'раб.', value: 'working' }, { label: 'кал.', value: 'calendar' }]} />
-                    </Form.Item>
-                  </div>
-                </Form.Item>
-              </Col>
-              <Col xs={24} sm={12} md={5}>
-                <Form.Item name="shippingConditionId" label="Условия отгрузки" rules={[{ required: true, message: 'Выберите условия' }]}>
-                  <Select placeholder="Выберите условия" options={shippingOptions.map((o) => ({ label: o.value, value: o.id }))} />
-                </Form.Item>
-              </Col>
-              <Col xs={24} sm={12} md={3}>
-                <Form.Item name="invoiceAmount" label="Сумма счета" rules={[{ validator: invoiceAmountValidator }]} getValueFromEvent={invoiceAmountMask}>
-                  <Input addonAfter="₽" style={{ width: '100%' }} placeholder="Сумма" />
-                </Form.Item>
-              </Col>
-            </Row>
-            <Row gutter={[8, 0]}>
-              <Col span={24}>
-                <Form.Item
-                  name="comment"
-                  label="Краткое описание"
-                >
-                  <Input.TextArea
-                    maxLength={64}
-                    showCount={{ formatter: ({ count, maxLength }) => `Осталось: ${(maxLength ?? 64) - count}` }}
-                    autoSize={{ minRows: 1, maxRows: 2 }}
-                    placeholder="Краткое описание заявки"
-                  />
-                </Form.Item>
-              </Col>
-            </Row>
-            <Form.Item noStyle shouldUpdate={(prev, curr) => prev.deliveryDays !== curr.deliveryDays || prev.deliveryDaysType !== curr.deliveryDaysType || prev.shippingConditionId !== curr.shippingConditionId}>
-              {({ getFieldValue }) => (
-                <DeliveryCalculation deliveryDays={getFieldValue('deliveryDays')} deliveryDaysType={getFieldValue('deliveryDaysType') || 'working'} shippingConditionId={getFieldValue('shippingConditionId')} defaultExpanded={false} />
-              )}
-            </Form.Item>
-            <Text strong style={{ display: 'block', marginBottom: 8 }}><FileAddOutlined /> Догрузить файлы</Text>
-            <FileUploadList fileList={editFileList} onChange={setEditFileList} showValidation={showEditFileValidation} />
-          </Form>
-        ) : resubmitMode ? (
-          <>
-            <Descriptions column={isMobile ? 1 : 2} size="small" bordered style={{ marginBottom: 16 }}>
-              <Descriptions.Item label="Номер">{extractRequestNumber(request.requestNumber)}</Descriptions.Item>
-              <Descriptions.Item label="Подрядчик">{request.counterpartyName}</Descriptions.Item>
-              <Descriptions.Item label="Объект">{request.siteName ?? '—'}</Descriptions.Item>
-              <Descriptions.Item label="Статус">
-                <Tag color={request.statusColor ?? 'default'} style={{ whiteSpace: 'pre-line', lineHeight: 1.3 }}>
-                  {request.statusName}
-                  {request.statusName?.startsWith('Согласование ОМТС') && (currentAssignment?.assignedUserFullName || request.assignedUserFullName)
-                    ? `\n${currentAssignment?.assignedUserFullName || request.assignedUserFullName}`
-                    : ''}
-                </Tag>
-              </Descriptions.Item>
-              <Descriptions.Item label="Дата создания">{formatDate(request.createdAt, !isCounterpartyUser)}</Descriptions.Item>
-              <Descriptions.Item label="Краткое описание" span={2}>{request.comment ?? '—'}</Descriptions.Item>
-            </Descriptions>
-            <Form form={resubmitForm} layout="vertical" style={{ marginBottom: 16 }}>
-              <Row gutter={[16, 0]}>
-                <Col xs={24} sm={8}>
-                  <Form.Item label="Срок поставки" required style={{ marginBottom: 0 }}>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <Form.Item name="deliveryDays" noStyle rules={[{ required: true, message: 'Укажите срок' }]}>
-                        <InputNumber min={1} style={{ width: 80 }} placeholder="Дни" />
-                      </Form.Item>
-                      <Form.Item name="deliveryDaysType" noStyle initialValue="working">
-                        <Select style={{ flex: 1, minWidth: 100 }} options={[{ label: 'рабочих', value: 'working' }, { label: 'календарных', value: 'calendar' }]} />
-                      </Form.Item>
-                    </div>
-                  </Form.Item>
-                </Col>
-                <Col xs={24} sm={8}>
-                  <Form.Item name="shippingConditionId" label="Условия отгрузки" rules={[{ required: true, message: 'Выберите условия' }]}>
-                    <Select placeholder="Выберите условия" options={shippingOptions.map((o) => ({ label: o.value, value: o.id }))} />
-                  </Form.Item>
-                </Col>
-                <Col xs={24} sm={8}>
-                  <Form.Item name="invoiceAmount" label="Сумма счета" required rules={[{ validator: invoiceAmountValidator }]} getValueFromEvent={invoiceAmountMask}>
-                    <Input addonAfter="₽" style={{ width: '100%' }} placeholder="Сумма" />
-                  </Form.Item>
-                </Col>
-              </Row>
-              <Form.Item noStyle shouldUpdate={(prev, curr) => prev.deliveryDays !== curr.deliveryDays || prev.deliveryDaysType !== curr.deliveryDaysType || prev.shippingConditionId !== curr.shippingConditionId}>
-                {({ getFieldValue }) => (
-                  <DeliveryCalculation deliveryDays={getFieldValue('deliveryDays')} deliveryDaysType={getFieldValue('deliveryDaysType') || 'working'} shippingConditionId={getFieldValue('shippingConditionId')} defaultExpanded={false} />
-                )}
-              </Form.Item>
-            </Form>
-          </>
-        ) : (
-          <Descriptions column={isMobile ? 1 : 2} size="small" bordered style={{ marginBottom: 16 }}>
-            <Descriptions.Item label="Номер">{extractRequestNumber(request.requestNumber)}</Descriptions.Item>
-            <Descriptions.Item label="Подрядчик">{request.counterpartyName}</Descriptions.Item>
-            <Descriptions.Item label="Объект">{request.siteName ?? '—'}</Descriptions.Item>
-            <Descriptions.Item label="Поставщик">{request.supplierName ?? '—'}</Descriptions.Item>
-            <Descriptions.Item label="Статус">
-              <Tag color={request.statusColor ?? 'default'} style={{ whiteSpace: 'pre-line', lineHeight: 1.3 }}>
-                {request.statusName}
-                {request.statusName?.startsWith('Согласование ОМТС') && (currentAssignment?.assignedUserFullName || request.assignedUserFullName)
-                  ? `\n${currentAssignment?.assignedUserFullName || request.assignedUserFullName}`
-                  : ''}
-              </Tag>
-            </Descriptions.Item>
-            <Descriptions.Item label="Срок поставки">{request.deliveryDays} {request.deliveryDaysType === 'calendar' ? 'кал.' : 'раб.'} дн.</Descriptions.Item>
-            <Descriptions.Item label="Условия отгрузки">{request.shippingConditionValue}</Descriptions.Item>
-            <Descriptions.Item label="Сумма счета">
-              {request.invoiceAmount != null
-                ? `${request.invoiceAmount.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽`
-                : '—'}
-            </Descriptions.Item>
-            <Descriptions.Item label="Оплачено">
-              {paymentsTotalPaid > 0
-                ? `${paymentsTotalPaid.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽`
-                : '0,00 ₽'}
-            </Descriptions.Item>
-            <Descriptions.Item label="Статус оплаты">
-              <Tag color={request.paidStatusColor ?? 'default'}>{request.paidStatusName ?? '—'}</Tag>
-            </Descriptions.Item>
-            <Descriptions.Item label="Дата создания">{formatDate(request.createdAt, !isCounterpartyUser)}</Descriptions.Item>
-            <Descriptions.Item label="РП">
-              {actualRequest?.dpNumber ? (
-                <Space size={4}>
-                  <span>
-                    №{actualRequest.dpNumber} от {actualRequest.dpDate ? new Date(actualRequest.dpDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }) : '—'}
-                    {actualRequest.dpAmount != null && `, ${actualRequest.dpAmount.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`}
-                  </span>
-                  {actualRequest.dpFileKey && (
-                    <>
-                      <Tooltip title="Просмотр файла РП">
-                        <Button icon={<EyeOutlined />} size="small" onClick={() => setPreviewFile({ fileKey: actualRequest.dpFileKey!, fileName: actualRequest.dpFileName ?? 'rp-file', mimeType: null })} />
-                      </Tooltip>
-                      <Tooltip title="Скачать файл РП">
-                        <Button icon={<DownloadOutlined />} size="small" loading={downloading === actualRequest.dpFileKey} onClick={() => handleDownload(actualRequest.dpFileKey!, actualRequest.dpFileName ?? 'rp-file')} />
-                      </Tooltip>
-                    </>
-                  )}
-                  {!isCounterpartyUser && (
-                    <Tooltip title="Редактировать РП">
-                      <Button icon={<EditOutlined />} size="small" onClick={() => setDpModalOpen(true)} />
-                    </Tooltip>
-                  )}
-                </Space>
-              ) : (
-                <Space size={8}>
-                  <span>—</span>
-                  {request.approvedAt && !isCounterpartyUser && (
-                    <Button size="small" type="link" onClick={() => setDpModalOpen(true)}>Заполнить</Button>
-                  )}
-                </Space>
-              )}
-            </Descriptions.Item>
-            <Descriptions.Item label="Краткое описание" span={2}>{request.comment ?? '—'}</Descriptions.Item>
-          </Descriptions>
-        )}
+        <RequestDetailsSection
+          request={request}
+          actualRequest={actualRequest ?? request}
+          isEditing={isEditing}
+          resubmitMode={resubmitMode}
+          isCounterpartyUser={!!isCounterpartyUser}
+          isMobile={isMobile}
+          editForm={editForm}
+          resubmitForm={resubmitForm}
+          editFileList={editFileList}
+          setEditFileList={setEditFileList}
+          showEditFileValidation={showEditFileValidation}
+          siteOptions={siteOptions}
+          supplierOptions={supplierOptions}
+          shippingOptions={shippingOptions}
+          currentAssignment={currentAssignment}
+          paymentsTotalPaid={paymentsTotalPaid}
+          setPreviewFile={setPreviewFile}
+          downloading={downloading}
+          handleDownload={handleDownload}
+          setDpModalOpen={setDpModalOpen}
+          fetchRequests={fetchRequests}
+        />
 
         {!isEditing && !resubmitMode && (
           <DeliveryCalculation deliveryDays={request.deliveryDays} deliveryDaysType={request.deliveryDaysType as 'working' | 'calendar'} shippingConditionId={request.shippingConditionId} defaultExpanded={false} />
@@ -775,7 +491,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                 request={request}
                 decisions={currentDecisions}
                 logs={currentLogs}
-                isCounterpartyUser={isCounterpartyUser}
+                isCounterpartyUser={!!isCounterpartyUser}
                 downloading={downloading}
                 onViewFile={handleViewDecisionFile}
                 onDownloadFile={handleDownloadDecisionFile}
@@ -784,26 +500,23 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
           }]}
         />
 
-        <Collapse
-          defaultActiveKey={['files']}
-          style={{ marginBottom: 12 }}
-          items={[{
-            key: 'files',
-            label: `Файлы (${currentRequestFiles.length})`,
-            extra: (
-              <Space size={4} onClick={(e) => e.stopPropagation()}>
-                {!isEditing && !resubmitMode && (
-                  <Button size="small" icon={<PlusOutlined />} onClick={() => setAddFilesModalOpen(true)}>{isMobile ? null : 'Добавить'}</Button>
-                )}
-                {currentRequestFiles.length > 0 && (
-                  <Button size="small" icon={<DownloadOutlined />} loading={downloadingAll} onClick={handleDownloadAll}>{isMobile ? null : 'Скачать все'}</Button>
-                )}
-              </Space>
-            ),
-            children: (
-              <Table size="small" columns={fileColumns as any} dataSource={sortedFiles} rowKey="id" loading={isLoading} pagination={false} locale={{ emptyText: 'Нет файлов' }} rowClassName={(record: PaymentRequestFile) => record.isRejected ? 'file-rejected-row' : ''} />
-            ),
-          }]}
+        {/* Таблица файлов */}
+        <RequestFileTable
+          files={sortedFiles}
+          isMobile={isMobile}
+          canRejectFiles={!!canRejectFiles}
+          downloading={downloading}
+          downloadingAll={downloadingAll}
+          isLoading={isLoading}
+          isEditing={isEditing}
+          resubmitMode={resubmitMode}
+          hasAdditionalFiles={hasAdditionalFiles}
+          toggleFileRejection={toggleFileRejection}
+          handleDownload={handleDownload}
+          setPreviewFile={setPreviewFile}
+          handleDownloadAll={handleDownloadAll}
+          setAddFilesModalOpen={setAddFilesModalOpen}
+          userId={user?.id}
         />
 
         {!isEditing && !resubmitMode && request && (
@@ -883,86 +596,21 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
         onCancel={() => setRejectModalOpen(false)}
       />
 
-      <Modal
-        title="На доработку"
-        open={revisionModalOpen}
-        onOk={() => {
-          if (!revisionComment.trim()) {
-            message.warning('Укажите комментарий')
-            return
-          }
-          handleSendToRevision()
-        }}
-        onCancel={() => { setRevisionModalOpen(false); setRevisionComment('') }}
-        okText="Отправить"
-        cancelText="Отмена"
-      >
-        <TextArea
-          rows={3}
-          placeholder="Комментарий"
-          value={revisionComment}
-          onChange={(e) => setRevisionComment(e.target.value)}
-          status={revisionComment.trim() ? undefined : 'error'}
-        />
-      </Modal>
-
-      <Modal
-        title="Проверьте данные"
-        open={revisionCompleteModalOpen}
-        onOk={() => revisionCompleteForm.submit()}
-        onCancel={() => { setRevisionCompleteModalOpen(false); revisionCompleteForm.resetFields() }}
-        okText="Подтвердить"
-        cancelText="Отмена"
-        afterOpenChange={(open) => {
-          if (open && request) {
-            revisionCompleteForm.setFieldsValue({
-              deliveryDays: request.deliveryDays,
-              deliveryDaysType: request.deliveryDaysType || 'working',
-              shippingConditionId: request.shippingConditionId,
-              invoiceAmount: request.invoiceAmount != null
-                ? request.invoiceAmount.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                : '',
-            })
-          }
-        }}
-      >
-        <Form
-          form={revisionCompleteForm}
-          layout="vertical"
-          onFinish={(values) => {
-            const amount = Number(String(values.invoiceAmount ?? '').replace(/\s/g, '').replace(',', '.'))
-            handleCompleteRevision({
-              deliveryDays: values.deliveryDays,
-              deliveryDaysType: values.deliveryDaysType,
-              shippingConditionId: values.shippingConditionId,
-              invoiceAmount: amount,
-            })
-          }}
-        >
-          <Row gutter={16}>
-            <Col xs={24} sm={12}>
-              <Form.Item label="Срок поставки, дней" required style={{ marginBottom: 12 }}>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <Form.Item name="deliveryDays" noStyle rules={[{ required: true, message: 'Укажите срок' }]}>
-                    <InputNumber min={1} style={{ flex: 1 }} />
-                  </Form.Item>
-                  <Form.Item name="deliveryDaysType" noStyle>
-                    <Select style={{ flex: 1, minWidth: 100 }} options={[{ label: 'рабочих', value: 'working' }, { label: 'календарных', value: 'calendar' }]} />
-                  </Form.Item>
-                </div>
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={12}>
-              <Form.Item name="shippingConditionId" label="Условия отгрузки" rules={[{ required: true, message: 'Выберите условия' }]}>
-                <Select placeholder="Выберите условия" options={shippingOptions.map((o) => ({ label: o.value, value: o.id }))} />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Form.Item name="invoiceAmount" label="Сумма счета" required rules={[{ validator: invoiceAmountValidator }]} getValueFromEvent={invoiceAmountMask}>
-            <Input addonAfter="₽" style={{ width: '100%' }} placeholder="Сумма" />
-          </Form.Item>
-        </Form>
-      </Modal>
+      {/* Модалки доработки */}
+      <RevisionModals
+        request={request}
+        revisionModalOpen={revisionModalOpen}
+        revisionComment={revisionComment}
+        setRevisionComment={setRevisionComment}
+        handleSendToRevision={handleSendToRevision}
+        setRevisionModalOpen={setRevisionModalOpen}
+        onRevisionCommentRequired={() => message.warning('Укажите комментарий')}
+        revisionCompleteModalOpen={revisionCompleteModalOpen}
+        revisionCompleteForm={revisionCompleteForm}
+        handleCompleteRevision={handleCompleteRevision}
+        setRevisionCompleteModalOpen={setRevisionCompleteModalOpen}
+        shippingOptions={shippingOptions}
+      />
     </>
   )
 }
