@@ -70,6 +70,47 @@ const PR_LIST_SELECT = `
   )
 `;
 
+/** Маппинг: разворачивает вложенные join-объекты Supabase в плоскую структуру для фронтенда */
+function flattenPaymentRequest(row: Record<string, unknown>): Record<string, unknown> {
+  const cp = row.counterparties as Record<string, unknown> | null;
+  const sup = row.suppliers as Record<string, unknown> | null;
+  const site = row.construction_sites as Record<string, unknown> | null;
+  const status = row.statuses as Record<string, unknown> | null;
+  const paidStatus = row.paid_statuses as Record<string, unknown> | null;
+  const shipping = row.shipping as Record<string, unknown> | null;
+  const costType = row.cost_types as Record<string, unknown> | null;
+  const assignments = row.current_assignment as Record<string, unknown>[] | null;
+  const current = assignments?.find((a) => a.is_current) ?? null;
+  const assignedUser = current?.assigned_user as Record<string, unknown> | null;
+
+  // Удаляем вложенные объекты
+  const flat = { ...row };
+  delete flat.counterparties;
+  delete flat.suppliers;
+  delete flat.construction_sites;
+  delete flat.statuses;
+  delete flat.paid_statuses;
+  delete flat.shipping;
+  delete flat.cost_types;
+  delete flat.current_assignment;
+
+  // Добавляем плоские поля
+  flat.counterparty_name = cp?.name ?? null;
+  flat.supplier_name = sup?.name ?? null;
+  flat.site_name = site?.name ?? null;
+  flat.status_name = status?.name ?? null;
+  flat.status_color = status?.color ?? null;
+  flat.paid_status_name = paidStatus?.name ?? null;
+  flat.paid_status_color = paidStatus?.color ?? null;
+  flat.shipping_condition_value = shipping?.value ?? null;
+  flat.cost_type_name = costType?.name ?? null;
+  flat.assigned_user_id = current?.assigned_user_id ?? null;
+  flat.assigned_user_email = assignedUser?.email ?? null;
+  flat.assigned_user_full_name = assignedUser?.full_name ?? null;
+
+  return flat;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Плагин маршрутов                                                   */
 /* ------------------------------------------------------------------ */
@@ -119,16 +160,19 @@ async function paymentRequestRoutes(fastify: FastifyInstance): Promise<void> {
       q = q.or(`request_number.ilike.%${query.search}%`);
     }
 
-    // Пагинация
-    const page = parseInt(query.page ?? '1', 10);
-    const pageSize = parseInt(query.pageSize ?? '50', 10);
-    const from = (page - 1) * pageSize;
-    q = q.range(from, from + pageSize - 1);
+    // Пагинация (только если явно указаны параметры)
+    if (query.page || query.pageSize) {
+      const page = parseInt(query.page ?? '1', 10);
+      const pageSize = parseInt(query.pageSize ?? '50', 10);
+      const from = (page - 1) * pageSize;
+      q = q.range(from, from + pageSize - 1);
+    }
 
     const { data, error } = await q;
     if (error) return reply.status(500).send({ error: error.message });
 
-    return reply.send(data ?? []);
+    const mapped = (data ?? []).map((row: Record<string, unknown>) => flattenPaymentRequest(row));
+    return reply.send(mapped);
   });
 
   /* ---------- GET /api/payment-requests/:id ---------- */
@@ -151,7 +195,7 @@ async function paymentRequestRoutes(fastify: FastifyInstance): Promise<void> {
       }
     }
 
-    return reply.send(data);
+    return reply.send(flattenPaymentRequest(data as Record<string, unknown>));
   });
 
   /* ---------- POST /api/payment-requests ---------- */
