@@ -1,4 +1,3 @@
-import fp from 'fastify-plugin';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { authenticate } from '../middleware/authenticate.js';
 
@@ -90,7 +89,4 @@ async function uploadProgressRoutes(fastify: FastifyInstance): Promise<void> {
   );
 }
 
-export default fp(uploadProgressRoutes, {
-  name: 'upload-progress-routes',
-  dependencies: ['queues'],
-});
+export default uploadProgressRoutes;

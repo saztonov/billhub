@@ -1,4 +1,3 @@
-import fp from 'fastify-plugin';
 import type { FastifyInstance } from 'fastify';
 import { authenticate } from '../../middleware/authenticate.js';
 import { requireRole } from '../../middleware/requireRole.js';
@@ -109,4 +108,4 @@ async function documentTypeRoutes(fastify: FastifyInstance): Promise<void> {
   );
 }
 
-export default fp(documentTypeRoutes, { name: 'document-type-routes' });
+export default documentTypeRoutes;

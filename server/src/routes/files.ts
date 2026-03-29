@@ -1,4 +1,3 @@
-import fp from 'fastify-plugin';
 import type { FastifyInstance } from 'fastify';
 import {
   PutObjectCommand,
@@ -621,7 +620,4 @@ async function fileRoutes(fastify: FastifyInstance): Promise<void> {
   );
 }
 
-export default fp(fileRoutes, {
-  name: 'file-routes',
-  dependencies: ['s3'],
-});
+export default fileRoutes;

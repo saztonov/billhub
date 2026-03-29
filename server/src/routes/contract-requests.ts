@@ -1,4 +1,3 @@
-import fp from 'fastify-plugin';
 import type { FastifyInstance } from 'fastify';
 import { authenticate } from '../middleware/authenticate.js';
 import { requireRole } from '../middleware/requireRole.js';
@@ -384,4 +383,4 @@ async function contractRequestRoutes(fastify: FastifyInstance): Promise<void> {
   });
 }
 
-export default fp(contractRequestRoutes, { name: 'contract-request-routes' });
+export default contractRequestRoutes;

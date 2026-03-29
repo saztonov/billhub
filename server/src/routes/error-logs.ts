@@ -1,4 +1,3 @@
-import fp from 'fastify-plugin';
 import type { FastifyInstance } from 'fastify';
 import { authenticate } from '../middleware/authenticate.js';
 import { requireRole } from '../middleware/requireRole.js';
@@ -96,4 +95,4 @@ async function errorLogRoutes(fastify: FastifyInstance): Promise<void> {
   });
 }
 
-export default fp(errorLogRoutes, { name: 'error-log-routes' });
+export default errorLogRoutes;

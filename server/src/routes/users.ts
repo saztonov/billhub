@@ -1,4 +1,3 @@
-import fp from 'fastify-plugin';
 import type { FastifyInstance } from 'fastify';
 import { authenticate } from '../middleware/authenticate.js';
 import { requireRole } from '../middleware/requireRole.js';
@@ -392,4 +391,4 @@ async function userRoutes(fastify: FastifyInstance): Promise<void> {
   );
 }
 
-export default fp(userRoutes, { name: 'user-routes' });
+export default userRoutes;

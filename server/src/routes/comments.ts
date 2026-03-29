@@ -1,4 +1,3 @@
-import fp from 'fastify-plugin';
 import type { FastifyInstance } from 'fastify';
 import { authenticate } from '../middleware/authenticate.js';
 
@@ -258,4 +257,4 @@ async function commentRoutes(fastify: FastifyInstance): Promise<void> {
   });
 }
 
-export default fp(commentRoutes, { name: 'comment-routes' });
+export default commentRoutes;

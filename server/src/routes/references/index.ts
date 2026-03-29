@@ -1,4 +1,3 @@
-import fp from 'fastify-plugin';
 import type { FastifyInstance } from 'fastify';
 
 import counterpartyRoutes from './counterparties.js';
@@ -18,4 +17,4 @@ async function referenceRoutes(fastify: FastifyInstance): Promise<void> {
   await fastify.register(statusRoutes, { prefix: '/api/references/statuses' });
 }
 
-export default fp(referenceRoutes, { name: 'reference-routes' });
+export default referenceRoutes;

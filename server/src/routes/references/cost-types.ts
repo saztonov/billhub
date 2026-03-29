@@ -1,4 +1,3 @@
-import fp from 'fastify-plugin';
 import type { FastifyInstance } from 'fastify';
 import { authenticate } from '../../middleware/authenticate.js';
 import { requireRole } from '../../middleware/requireRole.js';
@@ -150,4 +149,4 @@ async function costTypeRoutes(fastify: FastifyInstance): Promise<void> {
   );
 }
 
-export default fp(costTypeRoutes, { name: 'cost-type-routes' });
+export default costTypeRoutes;

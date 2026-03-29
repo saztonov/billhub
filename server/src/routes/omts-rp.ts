@@ -1,4 +1,3 @@
-import fp from 'fastify-plugin';
 import type { FastifyInstance } from 'fastify';
 import { authenticate } from '../middleware/authenticate.js';
 import { requireRole } from '../middleware/requireRole.js';
@@ -120,4 +119,4 @@ async function omtsRpRoutes(fastify: FastifyInstance): Promise<void> {
   });
 }
 
-export default fp(omtsRpRoutes, { name: 'omts-rp-routes' });
+export default omtsRpRoutes;

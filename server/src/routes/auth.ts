@@ -1,4 +1,3 @@
-import fp from 'fastify-plugin';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { CookieSerializeOptions } from '@fastify/cookie';
 import { config } from '../config.js';
@@ -472,4 +471,4 @@ async function authRoutes(fastify: FastifyInstance): Promise<void> {
   );
 }
 
-export default fp(authRoutes, { name: 'auth-routes' });
+export default authRoutes;

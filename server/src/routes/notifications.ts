@@ -1,4 +1,3 @@
-import fp from 'fastify-plugin';
 import type { FastifyInstance } from 'fastify';
 import { authenticate } from '../middleware/authenticate.js';
 
@@ -77,4 +76,4 @@ async function notificationRoutes(fastify: FastifyInstance): Promise<void> {
   });
 }
 
-export default fp(notificationRoutes, { name: 'notification-routes' });
+export default notificationRoutes;

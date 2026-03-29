@@ -1,4 +1,3 @@
-import fp from 'fastify-plugin';
 import type { FastifyInstance } from 'fastify';
 import { authenticate } from '../middleware/authenticate.js';
 import { requireRole } from '../middleware/requireRole.js';
@@ -391,4 +390,4 @@ async function handleReject(
   return reply.send({ success: true, decisionId: decisionData.id });
 }
 
-export default fp(approvalRoutes, { name: 'approval-routes' });
+export default approvalRoutes;
