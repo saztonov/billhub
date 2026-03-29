@@ -43,6 +43,8 @@ import './types/index.js';
 
 async function bootstrap(): Promise<void> {
   const fastify = Fastify({
+    /** Разрешаем пустое тело при Content-Type: application/json (POST без body) */
+    allowEmptyBody: true,
     logger: {
       level: config.nodeEnv === 'production' ? 'info' : 'debug',
       /** Скрываем секреты из логов */
@@ -83,7 +85,7 @@ async function bootstrap(): Promise<void> {
 
   /** 4. Ограничение частоты запросов */
   await fastify.register(rateLimit, {
-    max: 100,
+    max: 500,
     timeWindow: '1 minute',
   });
 
