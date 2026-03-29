@@ -43,8 +43,6 @@ import './types/index.js';
 
 async function bootstrap(): Promise<void> {
   const fastify = Fastify({
-    /** Разрешаем пустое тело при Content-Type: application/json (POST без body) */
-    allowEmptyBody: true,
     logger: {
       level: config.nodeEnv === 'production' ? 'info' : 'debug',
       /** Скрываем секреты из логов */
@@ -60,6 +58,20 @@ async function bootstrap(): Promise<void> {
           ? { target: 'pino-pretty', options: { colorize: true } }
           : undefined,
     },
+  });
+
+  /** Разрешаем пустое тело при Content-Type: application/json */
+  fastify.addContentTypeParser('application/json', { parseAs: 'string' }, (_request, body, done) => {
+    const str = (body as string).trim();
+    if (!str) {
+      done(null, null);
+      return;
+    }
+    try {
+      done(null, JSON.parse(str));
+    } catch (err) {
+      done(err as Error, undefined);
+    }
   });
 
   /** 1. CORS */
