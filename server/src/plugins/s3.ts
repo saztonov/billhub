@@ -22,9 +22,11 @@ async function s3Plugin(fastify: FastifyInstance): Promise<void> {
     bucket = config.s3Bucket;
   }
 
+  const region = config.storageProvider === 'cloudflare' ? 'auto' : config.s3Region;
+
   const client = new S3Client({
     endpoint,
-    region: config.s3Region,
+    region,
     credentials: {
       accessKeyId,
       secretAccessKey,
