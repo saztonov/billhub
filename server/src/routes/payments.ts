@@ -57,6 +57,15 @@ async function recalcPaidStatus(
 /*  Плагин маршрутов оплат                                             */
 /* ------------------------------------------------------------------ */
 
+/** Маппинг: переименовывает вложенный массив файлов оплаты */
+function flattenPayment(row: Record<string, unknown>): Record<string, unknown> {
+  const files = row.payment_payment_files as Record<string, unknown>[] | null;
+  const flat = { ...row };
+  delete flat.payment_payment_files;
+  flat.files = files ?? [];
+  return flat;
+}
+
 async function paymentRoutes(fastify: FastifyInstance): Promise<void> {
   const adminOrUser = { preHandler: [authenticate, requireRole('admin', 'user')] };
 
@@ -72,7 +81,7 @@ async function paymentRoutes(fastify: FastifyInstance): Promise<void> {
       .order('payment_number', { ascending: true });
     if (error) return reply.status(500).send({ error: error.message });
 
-    return reply.send(data ?? []);
+    return reply.send((data ?? []).map((r: Record<string, unknown>) => flattenPayment(r)));
   });
 
   /* ---------- GET /api/payments/:paymentRequestId ---------- */
@@ -88,7 +97,7 @@ async function paymentRoutes(fastify: FastifyInstance): Promise<void> {
       .order('payment_number', { ascending: true });
     if (error) return reply.status(500).send({ error: error.message });
 
-    return reply.send(data ?? []);
+    return reply.send((data ?? []).map((r: Record<string, unknown>) => flattenPayment(r)));
   });
 
   /* ---------- POST /api/payments/:paymentRequestId ---------- */

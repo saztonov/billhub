@@ -5,6 +5,20 @@ import { authenticate } from '../middleware/authenticate.js';
 /*  Плагин маршрутов комментариев                                      */
 /* ------------------------------------------------------------------ */
 
+/** Маппинг: разворачивает вложенные join-объекты автора комментария в плоскую структуру */
+function flattenComment(row: Record<string, unknown>): Record<string, unknown> {
+  const author = row.author as Record<string, unknown> | null;
+  const counterparty = author?.counterparty as Record<string, unknown> | null;
+  const flat = { ...row };
+  delete flat.author;
+  flat.author_full_name = author?.full_name ?? null;
+  flat.author_email = author?.email ?? null;
+  flat.author_role = author?.role ?? null;
+  flat.author_department = author?.department_id ?? null;
+  flat.author_counterparty_name = counterparty?.name ?? null;
+  return flat;
+}
+
 async function commentRoutes(fastify: FastifyInstance): Promise<void> {
   const auth = { preHandler: [authenticate] };
 
@@ -24,7 +38,7 @@ async function commentRoutes(fastify: FastifyInstance): Promise<void> {
       .order('created_at', { ascending: false });
     if (error) return reply.status(500).send({ error: error.message });
 
-    return reply.send(data ?? []);
+    return reply.send((data ?? []).map((r: Record<string, unknown>) => flattenComment(r)));
   });
 
   /* ---------- POST /api/comments/payment-request ---------- */
@@ -149,7 +163,7 @@ async function commentRoutes(fastify: FastifyInstance): Promise<void> {
       .order('created_at', { ascending: false });
     if (error) return reply.status(500).send({ error: error.message });
 
-    return reply.send(data ?? []);
+    return reply.send((data ?? []).map((r: Record<string, unknown>) => flattenComment(r)));
   });
 
   /* ---------- POST /api/comments/contract-request ---------- */

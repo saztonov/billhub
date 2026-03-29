@@ -80,6 +80,41 @@ const CR_LIST_SELECT = `
   creator:users!contract_requests_created_by_fkey(full_name)
 `;
 
+/** Маппинг: разворачивает вложенные join-объекты заявки на договор в плоскую структуру */
+function flattenContractRequest(row: Record<string, unknown>): Record<string, unknown> {
+  const cp = row.counterparties as Record<string, unknown> | null;
+  const sup = row.suppliers as Record<string, unknown> | null;
+  const site = row.construction_sites as Record<string, unknown> | null;
+  const status = row.statuses as Record<string, unknown> | null;
+  const creator = row.creator as Record<string, unknown> | null;
+  const flat = { ...row };
+  delete flat.counterparties;
+  delete flat.suppliers;
+  delete flat.construction_sites;
+  delete flat.statuses;
+  delete flat.creator;
+  flat.counterparty_name = cp?.name ?? null;
+  flat.supplier_name = sup?.name ?? null;
+  flat.site_name = site?.name ?? null;
+  flat.status_name = status?.name ?? null;
+  flat.status_color = status?.color ?? null;
+  flat.status_code = status?.code ?? null;
+  flat.creator_full_name = creator?.full_name ?? null;
+  return flat;
+}
+
+/** Маппинг: разворачивает вложенные join-объекты файла заявки на договор */
+function flattenContractRequestFile(row: Record<string, unknown>): Record<string, unknown> {
+  const user = row.users as Record<string, unknown> | null;
+  const counterparty = user?.counterparties as Record<string, unknown> | null;
+  const flat = { ...row };
+  delete flat.users;
+  flat.uploader_role = user?.role ?? null;
+  flat.uploader_department = user?.department_id ?? null;
+  flat.uploader_counterparty_name = counterparty?.name ?? null;
+  return flat;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Плагин маршрутов                                                   */
 /* ------------------------------------------------------------------ */
@@ -130,7 +165,7 @@ async function contractRequestRoutes(fastify: FastifyInstance): Promise<void> {
     const { data, error } = await q;
     if (error) return reply.status(500).send({ error: error.message });
 
-    return reply.send(data ?? []);
+    return reply.send((data ?? []).map((r: Record<string, unknown>) => flattenContractRequest(r)));
   });
 
   /* ---------- GET /api/contract-requests/:id ---------- */
@@ -152,7 +187,7 @@ async function contractRequestRoutes(fastify: FastifyInstance): Promise<void> {
       }
     }
 
-    return reply.send(data);
+    return reply.send(flattenContractRequest(data as Record<string, unknown>));
   });
 
   /* ---------- POST /api/contract-requests ---------- */
@@ -485,7 +520,7 @@ async function contractRequestRoutes(fastify: FastifyInstance): Promise<void> {
       .order('created_at', { ascending: true });
     if (error) return reply.status(500).send({ error: error.message });
 
-    return reply.send(data ?? []);
+    return reply.send((data ?? []).map((r: Record<string, unknown>) => flattenContractRequestFile(r)));
   });
 
   /* ---------- POST /api/contract-requests/:id/toggle-file-rejection ---------- */

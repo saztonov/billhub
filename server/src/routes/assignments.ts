@@ -9,24 +9,38 @@ import { requireRole } from '../middleware/requireRole.js';
 async function assignmentRoutes(fastify: FastifyInstance): Promise<void> {
   const adminOrUser = { preHandler: [authenticate, requireRole('admin', 'user')] };
 
+  const ASSIGNMENT_SELECT = `
+    id, payment_request_id, assigned_user_id, assigned_by_user_id, assigned_at, is_current, created_at,
+    assigned_user:users!payment_request_assignments_assigned_user_id_fkey(email, full_name),
+    assigned_by_user:users!payment_request_assignments_assigned_by_user_id_fkey(email)
+  `;
+
+  /** Разворачивает вложенные join-объекты в плоские поля */
+  function flattenAssignment(row: Record<string, unknown>): Record<string, unknown> {
+    const assignedUser = row.assigned_user as Record<string, unknown> | null;
+    const assignedByUser = row.assigned_by_user as Record<string, unknown> | null;
+    const flat = { ...row };
+    delete flat.assigned_user;
+    delete flat.assigned_by_user;
+    flat.assigned_user_email = assignedUser?.email ?? null;
+    flat.assigned_user_full_name = assignedUser?.full_name ?? null;
+    flat.assigned_by_user_email = assignedByUser?.email ?? null;
+    return flat;
+  }
+
   /* ---------- GET /api/assignments/payment-request/:requestId/current ---------- */
-  /** Получить только текущее назначение (фронтенд вызывает с /current) */
   fastify.get('/api/assignments/payment-request/:requestId/current', adminOrUser, async (request, reply) => {
     const { requestId } = request.params as { requestId: string };
     const supabase = fastify.supabase;
 
     const { data: current } = await supabase
       .from('payment_request_assignments')
-      .select(`
-        id, payment_request_id, assigned_user_id, assigned_by_user_id, assigned_at, is_current, created_at,
-        assigned_user:users!payment_request_assignments_assigned_user_id_fkey(email, full_name),
-        assigned_by_user:users!payment_request_assignments_assigned_by_user_id_fkey(email)
-      `)
+      .select(ASSIGNMENT_SELECT)
       .eq('payment_request_id', requestId)
       .eq('is_current', true)
       .maybeSingle();
 
-    return reply.send(current ?? null);
+    return reply.send(current ? flattenAssignment(current as Record<string, unknown>) : null);
   });
 
   /* ---------- GET /api/assignments/payment-request/:requestId ---------- */
@@ -34,19 +48,14 @@ async function assignmentRoutes(fastify: FastifyInstance): Promise<void> {
     const { requestId } = request.params as { requestId: string };
     const supabase = fastify.supabase;
 
-    // История назначений
     const { data: history, error } = await supabase
       .from('payment_request_assignments')
-      .select(`
-        id, payment_request_id, assigned_user_id, assigned_by_user_id, assigned_at, is_current, created_at,
-        assigned_user:users!payment_request_assignments_assigned_user_id_fkey(email, full_name),
-        assigned_by_user:users!payment_request_assignments_assigned_by_user_id_fkey(email)
-      `)
+      .select(ASSIGNMENT_SELECT)
       .eq('payment_request_id', requestId)
       .order('assigned_at', { ascending: false });
     if (error) return reply.status(500).send({ error: error.message });
 
-    return reply.send(history ?? []);
+    return reply.send((history ?? []).map((row: Record<string, unknown>) => flattenAssignment(row)));
   });
 
   /* ---------- POST /api/assignments ---------- */

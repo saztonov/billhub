@@ -13,6 +13,16 @@ const INVOICE_DOC_TYPE_ID = 'c3c0b242-8a0c-4e20-b9ad-363ebf462a5b';
 /*  Плагин маршрутов материалов                                        */
 /* ------------------------------------------------------------------ */
 
+/** Маппинг: разворачивает вложенные join-объекты распознанного материала */
+function flattenRecognizedMaterial(row: Record<string, unknown>): Record<string, unknown> {
+  const mat = row.materials_dictionary as Record<string, unknown> | null;
+  const flat = { ...row };
+  delete flat.materials_dictionary;
+  flat.material_name = mat?.name ?? null;
+  flat.material_unit = mat?.unit ?? null;
+  return flat;
+}
+
 async function materialRoutes(fastify: FastifyInstance): Promise<void> {
   const adminOrUser = { preHandler: [authenticate, requireRole('admin', 'user')] };
 
@@ -115,7 +125,7 @@ async function materialRoutes(fastify: FastifyInstance): Promise<void> {
       .order('position', { ascending: true });
     if (error) return reply.status(500).send({ error: error.message });
 
-    return reply.send(data ?? []);
+    return reply.send((data ?? []).map((r: Record<string, unknown>) => flattenRecognizedMaterial(r)));
   });
 
   /* ---------- PUT /api/materials/recognized/:id ---------- */

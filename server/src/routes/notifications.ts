@@ -5,6 +5,21 @@ import { authenticate } from '../middleware/authenticate.js';
 /*  Плагин маршрутов уведомлений                                       */
 /* ------------------------------------------------------------------ */
 
+/** Маппинг: разворачивает вложенные join-объекты уведомления в плоскую структуру */
+function flattenNotification(row: Record<string, unknown>): Record<string, unknown> {
+  const site = row.construction_sites as Record<string, unknown> | null;
+  const pr = row.payment_requests as Record<string, unknown> | null;
+  const cr = row.contract_requests as Record<string, unknown> | null;
+  const flat = { ...row };
+  delete flat.construction_sites;
+  delete flat.payment_requests;
+  delete flat.contract_requests;
+  flat.site_name = site?.name ?? null;
+  flat.request_number = pr?.request_number ?? null;
+  flat.contract_request_number = cr?.request_number ?? null;
+  return flat;
+}
+
 async function notificationRoutes(fastify: FastifyInstance): Promise<void> {
   const auth = { preHandler: [authenticate] };
 
@@ -28,7 +43,7 @@ async function notificationRoutes(fastify: FastifyInstance): Promise<void> {
       .limit(50);
     if (error) return reply.status(500).send({ error: error.message });
 
-    return reply.send(data ?? []);
+    return reply.send((data ?? []).map((r: Record<string, unknown>) => flattenNotification(r)));
   });
 
   /* ---------- GET /api/notifications/count ---------- */

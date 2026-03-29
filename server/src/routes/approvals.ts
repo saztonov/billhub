@@ -9,6 +9,8 @@ import {
   handleSendToRevision,
   handleCompleteRevision,
   PR_SELECT,
+  flattenPaymentRequest,
+  flattenApprovalDecision,
 } from './approval-helpers.js';
 
 /* ------------------------------------------------------------------ */
@@ -48,7 +50,7 @@ async function approvalRoutes(fastify: FastifyInstance): Promise<void> {
     }
 
     const enriched = (decisions ?? []).map((d: Record<string, unknown>) => ({
-      ...d,
+      ...flattenApprovalDecision(d),
       files: filesMap[d.id as string] ?? [],
     }));
 
@@ -67,7 +69,7 @@ async function approvalRoutes(fastify: FastifyInstance): Promise<void> {
       .order('created_at', { ascending: true });
     if (error) return reply.status(500).send({ error: error.message });
 
-    return reply.send(data ?? []);
+    return reply.send((data ?? []).map((r: Record<string, unknown>) => flattenApprovalDecision(r)));
   });
 
   /* ---------- POST /api/approvals/decide ---------- */
@@ -182,7 +184,7 @@ async function approvalRoutes(fastify: FastifyInstance): Promise<void> {
 
     const { data, error } = await prQuery;
     if (error) return reply.status(500).send({ error: error.message });
-    return reply.send(data ?? []);
+    return reply.send((data ?? []).map((r: Record<string, unknown>) => flattenPaymentRequest(r)));
   });
 
   /* ---------- GET /api/approvals/pending-requests ---------- */
@@ -218,7 +220,7 @@ async function approvalRoutes(fastify: FastifyInstance): Promise<void> {
 
     const { data, error } = await prQuery;
     if (error) return reply.status(500).send({ error: error.message });
-    return reply.send(data ?? []);
+    return reply.send((data ?? []).map((r: Record<string, unknown>) => flattenPaymentRequest(r)));
   });
 
   /* ---------- GET /api/approvals/omts-rp-pending-requests ---------- */
@@ -243,7 +245,7 @@ async function approvalRoutes(fastify: FastifyInstance): Promise<void> {
 
     const { data, error } = await prQuery;
     if (error) return reply.status(500).send({ error: error.message });
-    return reply.send(data ?? []);
+    return reply.send((data ?? []).map((r: Record<string, unknown>) => flattenPaymentRequest(r)));
   });
 
   /* ---------- GET /api/approvals/approved ---------- */
@@ -259,7 +261,7 @@ async function approvalRoutes(fastify: FastifyInstance): Promise<void> {
 
     const { data, error, count } = await q;
     if (error) return reply.status(500).send({ error: error.message });
-    return reply.send({ data: data ?? [], total: count ?? 0 });
+    return reply.send({ data: (data ?? []).map((r: Record<string, unknown>) => flattenPaymentRequest(r)), total: count ?? 0 });
   });
 
   /* ---------- GET /api/approvals/approved-count ---------- */
@@ -294,7 +296,7 @@ async function approvalRoutes(fastify: FastifyInstance): Promise<void> {
 
     const { data, error, count } = await q;
     if (error) return reply.status(500).send({ error: error.message });
-    return reply.send({ data: data ?? [], total: count ?? 0 });
+    return reply.send({ data: (data ?? []).map((r: Record<string, unknown>) => flattenPaymentRequest(r)), total: count ?? 0 });
   });
 
   /* ---------- GET /api/approvals/rejected-count ---------- */

@@ -7,6 +7,7 @@ import {
   handleSendToRevision,
   handleCompleteRevision,
   PR_SELECT,
+  flattenPaymentRequest,
 } from './approval-helpers.js';
 
 /* ------------------------------------------------------------------ */
@@ -144,7 +145,7 @@ async function approvalExtraRoutes(fastify: FastifyInstance): Promise<void> {
 
     const { data, error } = await q;
     if (error) return reply.status(500).send({ error: error.message });
-    return reply.send(data ?? []);
+    return reply.send((data ?? []).map((r: Record<string, unknown>) => flattenPaymentRequest(r)));
   });
 
   /* ---------- GET /api/approvals/rejected-requests ---------- */
@@ -166,7 +167,7 @@ async function approvalExtraRoutes(fastify: FastifyInstance): Promise<void> {
 
     const { data, error } = await q;
     if (error) return reply.status(500).send({ error: error.message });
-    return reply.send(data ?? []);
+    return reply.send((data ?? []).map((r: Record<string, unknown>) => flattenPaymentRequest(r)));
   });
 
   /* ---------- GET /api/approvals/pending-count ---------- */
