@@ -1,4 +1,4 @@
-import { jwtVerify } from 'jose';
+import { jwtVerify, createRemoteJWKSet } from 'jose';
 import { LRUCache } from 'lru-cache';
 import { config } from '../config.js';
 import type { FastifyReply, FastifyRequest } from 'fastify';
@@ -10,8 +10,10 @@ const userCache = new LRUCache<string, RequestUser>({
   ttl: 60_000,
 });
 
-/** Секрет JWT в формате Uint8Array для jose */
-const jwtSecret = new TextEncoder().encode(config.supabaseJwtSecret);
+/** JWKS для верификации JWT (поддерживает ES256 и HS256) */
+const JWKS = createRemoteJWKSet(
+  new URL(`${config.supabaseUrl}/auth/v1/.well-known/jwks.json`)
+);
 
 /**
  * Хук аутентификации — проверяет JWT из куки access_token,
@@ -21,9 +23,6 @@ export async function authenticate(
   request: FastifyRequest,
   reply: FastifyReply
 ): Promise<void> {
-  // TEMP DEBUG: проверяем, приходит ли Cookie-заголовок
-  request.log.info({ rawCookie: request.headers.cookie, parsedCookies: Object.keys(request.cookies || {}) }, 'DEBUG auth cookies');
-
   const token = request.cookies['access_token'];
 
   if (!token) {
@@ -34,7 +33,7 @@ export async function authenticate(
   let userId: string;
 
   try {
-    const { payload } = await jwtVerify(token, jwtSecret);
+    const { payload } = await jwtVerify(token, JWKS);
     userId = payload.sub as string;
 
     if (!userId) {
