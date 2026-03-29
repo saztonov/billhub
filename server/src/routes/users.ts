@@ -31,10 +31,6 @@ interface BatchImportRow {
   fullName: string;
 }
 
-interface BatchImportBody {
-  rows: BatchImportRow[];
-}
-
 /* ------------------------------------------------------------------ */
 /*  JSON-схемы валидации                                               */
 /* ------------------------------------------------------------------ */
@@ -69,31 +65,6 @@ const updateSitesSchema = {
     required: ['siteIds'],
     properties: {
       siteIds: { type: 'array' as const, items: { type: 'string' as const } },
-    },
-    additionalProperties: false,
-  },
-};
-
-const batchImportSchema = {
-  body: {
-    type: 'object' as const,
-    required: ['rows'],
-    properties: {
-      rows: {
-        type: 'array' as const,
-        items: {
-          type: 'object' as const,
-          required: ['counterpartyId', 'email', 'password', 'fullName'],
-          properties: {
-            counterpartyId: { type: 'string' as const, minLength: 1 },
-            email: { type: 'string' as const, format: 'email' },
-            password: { type: 'string' as const, minLength: 6 },
-            fullName: { type: 'string' as const, minLength: 1 },
-          },
-          additionalProperties: false,
-        },
-        minItems: 1,
-      },
     },
     additionalProperties: false,
   },
@@ -160,6 +131,53 @@ async function userRoutes(fastify: FastifyInstance): Promise<void> {
       });
 
       return users;
+    }
+  );
+
+  /** GET /api/users/:id/site-ids — объекты пользователя (allSites + siteIds) */
+  fastify.get<{ Params: IdParams }>(
+    '/:id/site-ids',
+    { schema: idParamsSchema, preHandler: [authenticate] },
+    async (request, reply) => {
+      const { id } = request.params;
+
+      // Получаем all_sites
+      const { data: userData, error: userErr } = await request.server.supabase
+        .from('users')
+        .select('all_sites')
+        .eq('id', id)
+        .single();
+      if (userErr) return reply.status(404).send({ error: 'Пользователь не найден' });
+
+      const allSites = (userData.all_sites as boolean) ?? false;
+
+      // Получаем привязанные объекты
+      const { data: siteMappings } = await request.server.supabase
+        .from('user_construction_sites_mapping')
+        .select('construction_site_id')
+        .eq('user_id', id);
+
+      const siteIds = (siteMappings ?? []).map(
+        (m: Record<string, unknown>) => m.construction_site_id as string,
+      );
+
+      return { allSites, siteIds };
+    }
+  );
+
+  /** GET /api/users/:id/construction-sites — маппинг объектов пользователя */
+  fastify.get<{ Params: IdParams }>(
+    '/:id/construction-sites',
+    { schema: idParamsSchema, preHandler: [authenticate] },
+    async (request, _reply) => {
+      const { id } = request.params;
+
+      const { data } = await request.server.supabase
+        .from('user_construction_sites_mapping')
+        .select('construction_site_id')
+        .eq('user_id', id);
+
+      return data ?? [];
     }
   );
 
@@ -299,6 +317,30 @@ async function userRoutes(fastify: FastifyInstance): Promise<void> {
     }
   );
 
+  /** PATCH /api/users/:id — частичное обновление (активация и т.д.) */
+  fastify.patch<{ Params: IdParams }>(
+    '/:id',
+    { schema: idParamsSchema, preHandler: [authenticate, requireRole('admin')] },
+    async (request, reply) => {
+      const { id } = request.params;
+      const body = request.body as Record<string, unknown>;
+
+      const updates: Record<string, unknown> = {};
+      if (body.isActive !== undefined) updates.is_active = body.isActive;
+
+      if (Object.keys(updates).length === 0) {
+        return { success: true };
+      }
+
+      const { error } = await request.server.supabase
+        .from('users')
+        .update(updates)
+        .eq('id', id);
+      if (error) return reply.status(400).send({ error: error.message });
+      return { success: true };
+    }
+  );
+
   /** PUT /api/users/:id/activate — активация пользователя */
   fastify.put<{ Params: IdParams }>(
     '/:id/activate',
@@ -342,12 +384,25 @@ async function userRoutes(fastify: FastifyInstance): Promise<void> {
     }
   );
 
-  /** POST /api/users/batch-import — пакетное создание пользователей контрагентов */
-  fastify.post<{ Body: BatchImportBody }>(
+  /** POST /api/users/batch-import — создание одного пользователя контрагента */
+  /** Фронтенд отправляет по одной записи за раз */
+  fastify.post(
     '/batch-import',
-    { schema: batchImportSchema, preHandler: [authenticate, requireRole('admin')] },
-    async (request, _reply) => {
-      const { rows } = request.body;
+    { preHandler: [authenticate, requireRole('admin')] },
+    async (request, reply) => {
+      const body = request.body as Record<string, unknown>;
+
+      // Определяем формат: одна запись или массив
+      let rows: BatchImportRow[];
+      if (Array.isArray(body.rows)) {
+        rows = body.rows as BatchImportRow[];
+      } else if (body.email && body.counterpartyId) {
+        // Фронтенд отправляет одну запись как объект
+        rows = [body as unknown as BatchImportRow];
+      } else {
+        return reply.status(400).send({ error: 'Неверный формат данных' });
+      }
+
       const results: { email: string; status: 'success' | 'error'; errorMessage?: string }[] = [];
 
       for (const row of rows) {

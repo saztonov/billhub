@@ -254,6 +254,102 @@ async function ocrRoutes(fastify: FastifyInstance): Promise<void> {
     return reply.send({ success: true });
   });
 
+  /* ---------- GET /api/ocr/approved-requests ---------- */
+  /** Список согласованных заявок для ручного OCR */
+  fastify.get('/api/ocr/approved-requests', adminOrUser, async (_request, reply) => {
+    const supabase = fastify.supabase;
+
+    // Получаем id статуса "approved"
+    const { data: statusData, error: statusErr } = await supabase
+      .from('statuses')
+      .select('id')
+      .eq('entity_type', 'payment_request')
+      .eq('code', 'approved')
+      .single();
+
+    if (statusErr || !statusData) {
+      return reply.send([]);
+    }
+
+    // Заявки с этим статусом
+    const { data: requests, error: reqErr } = await supabase
+      .from('payment_requests')
+      .select('id, request_number, invoice_amount, counterparties(name), construction_sites(name)')
+      .eq('status_id', statusData.id)
+      .eq('is_deleted', false)
+      .order('created_at', { ascending: false });
+
+    if (reqErr) return reply.status(500).send({ error: reqErr.message });
+
+    // Проверяем какие заявки уже распознаны
+    const prIds = (requests ?? []).map((r: Record<string, unknown>) => r.id as string);
+
+    let recognizedSet = new Set<string>();
+    if (prIds.length > 0) {
+      const { data: matData } = await supabase
+        .from('recognized_materials')
+        .select('payment_request_id')
+        .in('payment_request_id', prIds);
+
+      recognizedSet = new Set(
+        (matData ?? []).map((r: Record<string, unknown>) => r.payment_request_id as string),
+      );
+    }
+
+    const result = (requests ?? []).map((row: Record<string, unknown>) => {
+      const cp = row.counterparties as Record<string, unknown> | null;
+      const site = row.construction_sites as Record<string, unknown> | null;
+      return {
+        id: row.id,
+        requestNumber: row.request_number,
+        counterpartyName: cp?.name ?? '',
+        siteName: site?.name ?? '',
+        invoiceAmount: row.invoice_amount ?? null,
+        recognized: recognizedSet.has(row.id as string),
+      };
+    });
+
+    return reply.send(result);
+  });
+
+  /* ---------- GET /api/ocr/test-llm ---------- */
+  /** Проверка LLM-ключа OpenRouter */
+  fastify.get('/api/ocr/test-llm', adminOnly, async (_request, reply) => {
+    try {
+      const models = await fetchAvailableModels();
+      return reply.send({ count: models.length });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Ошибка проверки LLM';
+      return reply.status(500).send({ error: msg });
+    }
+  });
+
+  /* ---------- GET /api/ocr/queue/:taskId ---------- */
+  /** Статус задачи в очереди OCR */
+  fastify.get('/api/ocr/queue/:taskId', adminOrUser, async (request, reply) => {
+    const { taskId } = request.params as { taskId: string };
+
+    try {
+      const job = await fastify.ocrQueue.getJob(taskId);
+      if (!job) {
+        return reply.status(404).send({ error: 'Задача не найдена' });
+      }
+
+      const state = await job.getState();
+      const progress = job.progress as Record<string, unknown> | number;
+
+      return reply.send({
+        jobId: job.id,
+        state,
+        progress: typeof progress === 'object' ? progress : { percent: progress },
+        failedReason: job.failedReason ?? null,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Ошибка получения задачи';
+      return reply.status(500).send({ error: msg });
+    }
+  });
+
   /* ---------- GET /api/ocr/logs ---------- */
   /** Логи OCR-распознавания с пагинацией */
   fastify.get('/api/ocr/logs', adminOrUser, async (request, reply) => {

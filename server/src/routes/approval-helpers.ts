@@ -69,6 +69,101 @@ export async function getUserSiteIds(
   return { allSites: false, siteIds };
 }
 
+/** Обработка отправки на доработку */
+export async function handleSendToRevision(
+  supabase: FastifyInstance['supabase'],
+  paymentRequestId: string,
+  userId: string,
+  comment: string,
+): Promise<{ success: boolean; error?: string; status?: number }> {
+  const revisionStatusId = await getStatusId(supabase, 'payment_request', 'revision');
+  const { data: currentReq, error: reqErr } = await supabase
+    .from('payment_requests')
+    .select('status_id, current_stage, approved_at')
+    .eq('id', paymentRequestId)
+    .single();
+  if (reqErr) return { success: false, error: 'Заявка не найдена', status: 404 };
+
+  const updateData: Record<string, unknown> = {
+    status_id: revisionStatusId,
+    previous_status_id: currentReq.status_id,
+  };
+  if (currentReq.approved_at) updateData.approved_at = null;
+
+  const { error: updErr } = await supabase
+    .from('payment_requests')
+    .update(updateData)
+    .eq('id', paymentRequestId);
+  if (updErr) return { success: false, error: updErr.message, status: 500 };
+
+  const userInfo = await getUserInfo(supabase, userId);
+
+  await supabase.from('payment_request_logs').insert({
+    payment_request_id: paymentRequestId,
+    user_id: userId,
+    action: 'revision',
+    details: comment ? { comment } : null,
+  });
+
+  await appendStageHistory(supabase, paymentRequestId, {
+    stage: (currentReq.current_stage as number) ?? 2,
+    department: 'omts', event: 'revision',
+    userEmail: userInfo.email, userFullName: userInfo.fullName,
+    comment: comment || undefined,
+  });
+
+  return { success: true };
+}
+
+/** Обработка завершения доработки */
+export async function handleCompleteRevision(
+  supabase: FastifyInstance['supabase'],
+  paymentRequestId: string,
+  userId: string,
+  fieldUpdates: { deliveryDays: number; deliveryDaysType: string; shippingConditionId: string; invoiceAmount: number },
+): Promise<{ success: boolean; error?: string; status?: number }> {
+  const { data: cur, error: curErr } = await supabase
+    .from('payment_requests')
+    .select('previous_status_id, current_stage, invoice_amount, invoice_amount_history')
+    .eq('id', paymentRequestId)
+    .single();
+  if (curErr) return { success: false, error: 'Заявка не найдена', status: 404 };
+  if (!cur.previous_status_id) return { success: false, error: 'Нет предыдущего статуса', status: 400 };
+
+  const { data: prevStatus } = await supabase
+    .from('statuses').select('code').eq('id', cur.previous_status_id as string).single();
+  const wasApproved = prevStatus?.code === 'approved';
+
+  const updateData: Record<string, unknown> = {
+    status_id: cur.previous_status_id, previous_status_id: null,
+    delivery_days: fieldUpdates.deliveryDays,
+    delivery_days_type: fieldUpdates.deliveryDaysType,
+    shipping_condition_id: fieldUpdates.shippingConditionId,
+    invoice_amount: fieldUpdates.invoiceAmount,
+  };
+  if (wasApproved) updateData.approved_at = new Date().toISOString();
+  if (cur.invoice_amount != null && cur.invoice_amount !== fieldUpdates.invoiceAmount) {
+    const history = (cur.invoice_amount_history as { amount: number; changedAt: string }[]) ?? [];
+    history.push({ amount: cur.invoice_amount as number, changedAt: new Date().toISOString() });
+    updateData.invoice_amount_history = history;
+  }
+
+  const { error: updErr } = await supabase
+    .from('payment_requests').update(updateData).eq('id', paymentRequestId);
+  if (updErr) return { success: false, error: updErr.message, status: 500 };
+
+  const userInfo = await getUserInfo(supabase, userId);
+  await supabase.from('payment_request_logs').insert({
+    payment_request_id: paymentRequestId, user_id: userId, action: 'revision_complete', details: null,
+  });
+  await appendStageHistory(supabase, paymentRequestId, {
+    stage: (cur.current_stage as number) ?? 2, department: 'omts', event: 'revision_complete',
+    userEmail: userInfo.email, userFullName: userInfo.fullName,
+  });
+
+  return { success: true };
+}
+
 /** Общий select для payment_requests с join-ами */
 export const PR_SELECT = `
   *,

@@ -112,6 +112,32 @@ async function settingsRoutes(fastify: FastifyInstance): Promise<void> {
     }
   );
 
+  /** PUT /api/settings/ocr-models/:id/activate — активация модели (по ID в URL) */
+  fastify.put<{ Params: IdParams }>(
+    '/ocr-models/:id/activate',
+    { schema: idParamsSchema, preHandler: [authenticate, requireRole('admin')] },
+    async (request, reply) => {
+      const { id } = request.params;
+
+      // Деактивируем все модели
+      const { error: deactivateError } = await request.server.supabase
+        .from('ocr_models')
+        .update({ is_active: false })
+        .neq('id', '');
+      if (deactivateError) return reply.status(500).send({ error: deactivateError.message });
+
+      // Активируем выбранную
+      const { data, error } = await request.server.supabase
+        .from('ocr_models')
+        .update({ is_active: true })
+        .eq('id', id)
+        .select(SELECT_FIELDS)
+        .single();
+      if (error) return reply.status(400).send({ error: error.message });
+      return data;
+    }
+  );
+
   /** PUT /api/settings/ocr-models/set-active — установка активной модели */
   fastify.put<{ Body: SetActiveBody }>(
     '/ocr-models/set-active',

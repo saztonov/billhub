@@ -9,16 +9,16 @@ import { requireRole } from '../middleware/requireRole.js';
 async function assignmentRoutes(fastify: FastifyInstance): Promise<void> {
   const adminOrUser = { preHandler: [authenticate, requireRole('admin', 'user')] };
 
-  /* ---------- GET /api/assignments/payment-request/:requestId ---------- */
-  fastify.get('/api/assignments/payment-request/:requestId', adminOrUser, async (request, reply) => {
+  /* ---------- GET /api/assignments/payment-request/:requestId/current ---------- */
+  /** Получить только текущее назначение (фронтенд вызывает с /current) */
+  fastify.get('/api/assignments/payment-request/:requestId/current', adminOrUser, async (request, reply) => {
     const { requestId } = request.params as { requestId: string };
     const supabase = fastify.supabase;
 
-    // Текущее назначение
     const { data: current } = await supabase
       .from('payment_request_assignments')
       .select(`
-        *,
+        id, payment_request_id, assigned_user_id, assigned_by_user_id, assigned_at, is_current, created_at,
         assigned_user:users!payment_request_assignments_assigned_user_id_fkey(email, full_name),
         assigned_by_user:users!payment_request_assignments_assigned_by_user_id_fkey(email)
       `)
@@ -26,11 +26,19 @@ async function assignmentRoutes(fastify: FastifyInstance): Promise<void> {
       .eq('is_current', true)
       .maybeSingle();
 
+    return reply.send(current ?? null);
+  });
+
+  /* ---------- GET /api/assignments/payment-request/:requestId ---------- */
+  fastify.get('/api/assignments/payment-request/:requestId', adminOrUser, async (request, reply) => {
+    const { requestId } = request.params as { requestId: string };
+    const supabase = fastify.supabase;
+
     // История назначений
     const { data: history, error } = await supabase
       .from('payment_request_assignments')
       .select(`
-        *,
+        id, payment_request_id, assigned_user_id, assigned_by_user_id, assigned_at, is_current, created_at,
         assigned_user:users!payment_request_assignments_assigned_user_id_fkey(email, full_name),
         assigned_by_user:users!payment_request_assignments_assigned_by_user_id_fkey(email)
       `)
@@ -38,7 +46,7 @@ async function assignmentRoutes(fastify: FastifyInstance): Promise<void> {
       .order('assigned_at', { ascending: false });
     if (error) return reply.status(500).send({ error: error.message });
 
-    return reply.send({ current: current ?? null, history: history ?? [] });
+    return reply.send(history ?? []);
   });
 
   /* ---------- POST /api/assignments ---------- */

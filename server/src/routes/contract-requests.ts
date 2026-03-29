@@ -240,6 +240,139 @@ async function contractRequestRoutes(fastify: FastifyInstance): Promise<void> {
     return reply.send({ success: true });
   });
 
+  /* ---------- POST /api/contract-requests/:id/files ---------- */
+  /** Сохранить метаданные файла заявки на договор (вызывается из uploadQueueStore) */
+  fastify.post('/api/contract-requests/:id/files', auth, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = request.body as {
+      fileName: string;
+      fileKey: string;
+      fileSize: number;
+      mimeType: string | null;
+      userId: string;
+      isAdditional: boolean;
+    };
+    const supabase = fastify.supabase;
+
+    const { error } = await supabase
+      .from('contract_request_files')
+      .insert({
+        contract_request_id: id,
+        file_name: body.fileName,
+        file_key: body.fileKey,
+        file_size: body.fileSize,
+        mime_type: body.mimeType,
+        created_by: body.userId,
+        is_additional: body.isAdditional ?? false,
+      });
+    if (error) return reply.status(500).send({ error: error.message });
+
+    return reply.status(201).send({ success: true });
+  });
+
+  /* ---------- PATCH /api/contract-requests/files/:fileId/rejection ---------- */
+  /** Переключить отклонение файла заявки на договор (по fileId в URL) */
+  fastify.patch('/api/contract-requests/files/:fileId/rejection', adminOrUser, async (request, reply) => {
+    const { fileId } = request.params as { fileId: string };
+    const body = request.body as { isRejected: boolean; userId: string };
+    const supabase = fastify.supabase;
+
+    const updateData = body.isRejected
+      ? { is_rejected: true, rejected_by: body.userId, rejected_at: new Date().toISOString() }
+      : { is_rejected: false, rejected_by: null, rejected_at: null };
+
+    const { error } = await supabase
+      .from('contract_request_files')
+      .update(updateData)
+      .eq('id', fileId);
+    if (error) return reply.status(500).send({ error: error.message });
+
+    return reply.send({ success: true, isRejected: body.isRejected });
+  });
+
+  /* ---------- POST /api/contract-requests/:id/revision ---------- */
+  /** Отправить на доработку (алиас для send-to-revision) */
+  fastify.post('/api/contract-requests/:id/revision', adminOrUser, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = request.user!;
+    const body = request.body as { targets: string[] };
+    const supabase = fastify.supabase;
+
+    const statusId = await getStatusId(supabase, 'contract_request', 'on_revision');
+
+    const { error } = await supabase
+      .from('contract_requests')
+      .update({ status_id: statusId, revision_targets: body.targets })
+      .eq('id', id);
+    if (error) return reply.status(500).send({ error: error.message });
+
+    await appendContractStatusHistory(supabase, id, {
+      event: 'revision', revisionTargets: body.targets,
+    }, user.id);
+
+    return reply.send({ success: true });
+  });
+
+  /* ---------- POST /api/contract-requests/:id/revision-complete ---------- */
+  /** Завершить доработку (алиас для complete-revision) */
+  fastify.post('/api/contract-requests/:id/revision-complete', auth, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = request.user!;
+    const body = request.body as { target: string };
+    const supabase = fastify.supabase;
+
+    const { data: current, error: fetchErr } = await supabase
+      .from('contract_requests')
+      .select('revision_targets')
+      .eq('id', id)
+      .single();
+    if (fetchErr) return reply.status(404).send({ error: 'Заявка не найдена' });
+
+    const currentTargets = (current.revision_targets as string[]) ?? [];
+    const newTargets = currentTargets.filter((t) => t !== body.target);
+
+    if (newTargets.length === 0) {
+      const statusId = await getStatusId(supabase, 'contract_request', 'approv_omts');
+      const { error } = await supabase
+        .from('contract_requests')
+        .update({ status_id: statusId, revision_targets: [] })
+        .eq('id', id);
+      if (error) return reply.status(500).send({ error: error.message });
+    } else {
+      const { error } = await supabase
+        .from('contract_requests')
+        .update({ revision_targets: newTargets })
+        .eq('id', id);
+      if (error) return reply.status(500).send({ error: error.message });
+    }
+
+    await appendContractStatusHistory(supabase, id, {
+      event: 'revision_complete', revisionTarget: body.target,
+    }, user.id);
+
+    return reply.send({ success: true });
+  });
+
+  /* ---------- POST /api/contract-requests/:id/original-received ---------- */
+  /** Подтвердить получение оригинала (алиас для mark-original-received) */
+  fastify.post('/api/contract-requests/:id/original-received', adminOrUser, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = request.user!;
+    const supabase = fastify.supabase;
+
+    const statusId = await getStatusId(supabase, 'contract_request', 'concluded');
+
+    const { error } = await supabase
+      .from('contract_requests')
+      .update({ status_id: statusId, original_received_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) return reply.status(500).send({ error: error.message });
+
+    await appendContractStatusHistory(supabase, id, { event: 'original_received' }, user.id);
+
+    return reply.send({ success: true });
+  });
+
   /* ---------- POST /api/contract-requests/:id/send-to-revision ---------- */
   fastify.post('/api/contract-requests/:id/send-to-revision', adminOrUser, async (request, reply) => {
     const { id } = request.params as { id: string };

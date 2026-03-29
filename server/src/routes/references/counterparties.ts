@@ -13,10 +13,6 @@ interface CounterpartyBody {
   alternativeNames?: string[];
 }
 
-interface BatchImportBody {
-  rows: { name: string; inn: string }[];
-}
-
 interface IdParams {
   id: string;
 }
@@ -34,29 +30,6 @@ const counterpartySchema = {
       inn: { type: 'string' as const, minLength: 1 },
       address: { type: 'string' as const },
       alternativeNames: { type: 'array' as const, items: { type: 'string' as const } },
-    },
-    additionalProperties: false,
-  },
-};
-
-const batchImportSchema = {
-  body: {
-    type: 'object' as const,
-    required: ['rows'],
-    properties: {
-      rows: {
-        type: 'array' as const,
-        items: {
-          type: 'object' as const,
-          required: ['name', 'inn'],
-          properties: {
-            name: { type: 'string' as const, minLength: 1 },
-            inn: { type: 'string' as const, minLength: 1 },
-          },
-          additionalProperties: false,
-        },
-        minItems: 1,
-      },
     },
     additionalProperties: false,
   },
@@ -179,11 +152,17 @@ async function counterpartyRoutes(fastify: FastifyInstance): Promise<void> {
   );
 
   /** POST /api/references/counterparties/batch-import — пакетный импорт */
-  fastify.post<{ Body: BatchImportBody }>(
+  /** Принимает { items: [...] } (фронтенд) или { rows: [...] } (оригинальный) */
+  fastify.post(
     '/batch-import',
-    { schema: batchImportSchema, preHandler: [authenticate, requireRole('admin')] },
+    { preHandler: [authenticate, requireRole('admin')] },
     async (request, reply) => {
-      const { rows } = request.body;
+      const body = request.body as Record<string, unknown>;
+      // Фронтенд отправляет items, бэкенд ожидает rows — поддерживаем оба
+      const rows = (body.items ?? body.rows) as { name: string; inn: string }[];
+      if (!rows || !Array.isArray(rows) || rows.length === 0) {
+        return reply.status(400).send({ error: 'Нет данных для импорта' });
+      }
       const BATCH_SIZE = 20;
       let created = 0;
 

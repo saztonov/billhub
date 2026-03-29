@@ -6,6 +6,8 @@ import {
   appendStageHistory,
   getUserInfo,
   getUserSiteIds,
+  handleSendToRevision,
+  handleCompleteRevision,
   PR_SELECT,
 } from './approval-helpers.js';
 
@@ -102,44 +104,9 @@ async function approvalRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.post('/api/approvals/send-to-revision', adminOrUser, async (request, reply) => {
     const user = request.user!;
     const body = request.body as { paymentRequestId: string; comment: string };
-    const supabase = fastify.supabase;
 
-    const revisionStatusId = await getStatusId(supabase, 'payment_request', 'revision');
-    const { data: currentReq, error: reqErr } = await supabase
-      .from('payment_requests')
-      .select('status_id, current_stage, approved_at')
-      .eq('id', body.paymentRequestId)
-      .single();
-    if (reqErr) return reply.status(404).send({ error: 'Заявка не найдена' });
-
-    const updateData: Record<string, unknown> = {
-      status_id: revisionStatusId,
-      previous_status_id: currentReq.status_id,
-    };
-    if (currentReq.approved_at) updateData.approved_at = null;
-
-    const { error: updErr } = await supabase
-      .from('payment_requests')
-      .update(updateData)
-      .eq('id', body.paymentRequestId);
-    if (updErr) return reply.status(500).send({ error: updErr.message });
-
-    const userInfo = await getUserInfo(supabase, user.id);
-
-    await supabase.from('payment_request_logs').insert({
-      payment_request_id: body.paymentRequestId,
-      user_id: user.id,
-      action: 'revision',
-      details: body.comment ? { comment: body.comment } : null,
-    });
-
-    await appendStageHistory(supabase, body.paymentRequestId, {
-      stage: (currentReq.current_stage as number) ?? 2,
-      department: 'omts', event: 'revision',
-      userEmail: userInfo.email, userFullName: userInfo.fullName,
-      comment: body.comment || undefined,
-    });
-
+    const result = await handleSendToRevision(fastify.supabase, body.paymentRequestId, user.id, body.comment);
+    if (!result.success) return reply.status(result.status ?? 500).send({ error: result.error });
     return reply.send({ success: true });
   });
 
@@ -150,47 +117,9 @@ async function approvalRoutes(fastify: FastifyInstance): Promise<void> {
       paymentRequestId: string;
       fieldUpdates: { deliveryDays: number; deliveryDaysType: string; shippingConditionId: string; invoiceAmount: number };
     };
-    const supabase = fastify.supabase;
 
-    const { data: cur, error: curErr } = await supabase
-      .from('payment_requests')
-      .select('previous_status_id, current_stage, invoice_amount, invoice_amount_history')
-      .eq('id', body.paymentRequestId)
-      .single();
-    if (curErr) return reply.status(404).send({ error: 'Заявка не найдена' });
-    if (!cur.previous_status_id) return reply.status(400).send({ error: 'Нет предыдущего статуса' });
-
-    const { data: prevStatus } = await supabase
-      .from('statuses').select('code').eq('id', cur.previous_status_id as string).single();
-    const wasApproved = prevStatus?.code === 'approved';
-
-    const updateData: Record<string, unknown> = {
-      status_id: cur.previous_status_id, previous_status_id: null,
-      delivery_days: body.fieldUpdates.deliveryDays,
-      delivery_days_type: body.fieldUpdates.deliveryDaysType,
-      shipping_condition_id: body.fieldUpdates.shippingConditionId,
-      invoice_amount: body.fieldUpdates.invoiceAmount,
-    };
-    if (wasApproved) updateData.approved_at = new Date().toISOString();
-    if (cur.invoice_amount != null && cur.invoice_amount !== body.fieldUpdates.invoiceAmount) {
-      const history = (cur.invoice_amount_history as { amount: number; changedAt: string }[]) ?? [];
-      history.push({ amount: cur.invoice_amount as number, changedAt: new Date().toISOString() });
-      updateData.invoice_amount_history = history;
-    }
-
-    const { error: updErr } = await supabase
-      .from('payment_requests').update(updateData).eq('id', body.paymentRequestId);
-    if (updErr) return reply.status(500).send({ error: updErr.message });
-
-    const userInfo = await getUserInfo(supabase, user.id);
-    await supabase.from('payment_request_logs').insert({
-      payment_request_id: body.paymentRequestId, user_id: user.id, action: 'revision_complete', details: null,
-    });
-    await appendStageHistory(supabase, body.paymentRequestId, {
-      stage: (cur.current_stage as number) ?? 2, department: 'omts', event: 'revision_complete',
-      userEmail: userInfo.email, userFullName: userInfo.fullName,
-    });
-
+    const result = await handleCompleteRevision(fastify.supabase, body.paymentRequestId, user.id, body.fieldUpdates);
+    if (!result.success) return reply.status(result.status ?? 500).send({ error: result.error });
     return reply.send({ success: true });
   });
 
@@ -480,13 +409,17 @@ async function handleReject(
     status_id: rejectedStatusId, rejected_stage: currentStage, current_stage: null, rejected_at: new Date().toISOString(),
   }).eq('id', body.paymentRequestId);
 
+  // Получаем номер заявки для ответа (нужен фронтенду для очереди загрузки файлов)
+  const { data: prData } = await supabase
+    .from('payment_requests').select('request_number').eq('id', body.paymentRequestId).single();
+
   await appendStageHistory(supabase, body.paymentRequestId, {
     stage: currentStage, department: body.department, event: 'rejected',
     userEmail: userInfo.email, userFullName: userInfo.fullName,
     comment: body.comment || undefined,
   });
 
-  return reply.send({ success: true, decisionId: decisionData.id });
+  return reply.send({ success: true, decisionId: decisionData.id, requestNumber: prData?.request_number ?? '' });
 }
 
 export default approvalRoutes;

@@ -23,10 +23,13 @@ import userRoutes from './routes/users.js';
 
 /** Маршруты бизнес-логики */
 import paymentRequestRoutes from './routes/payment-requests.js';
+import paymentRequestExtraRoutes from './routes/payment-requests-extra.js';
 import contractRequestRoutes from './routes/contract-requests.js';
 import approvalRoutes from './routes/approvals.js';
+import approvalExtraRoutes from './routes/approval-extra.js';
 import commentRoutes from './routes/comments.js';
 import notificationRoutes from './routes/notifications.js';
+import notificationActionRoutes from './routes/notification-actions.js';
 import assignmentRoutes from './routes/assignments.js';
 import omtsRpRoutes from './routes/omts-rp.js';
 import paymentRoutes from './routes/payments.js';
@@ -101,10 +104,13 @@ async function bootstrap(): Promise<void> {
 
   /** Маршруты бизнес-логики */
   await fastify.register(paymentRequestRoutes);
+  await fastify.register(paymentRequestExtraRoutes);
   await fastify.register(contractRequestRoutes);
   await fastify.register(approvalRoutes);
+  await fastify.register(approvalExtraRoutes);
   await fastify.register(commentRoutes);
   await fastify.register(notificationRoutes);
+  await fastify.register(notificationActionRoutes);
   await fastify.register(assignmentRoutes);
   await fastify.register(omtsRpRoutes);
   await fastify.register(paymentRoutes);

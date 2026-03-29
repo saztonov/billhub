@@ -15,6 +15,8 @@ async function referenceRoutes(fastify: FastifyInstance): Promise<void> {
   await fastify.register(documentTypeRoutes, { prefix: '/api/references/document-types' });
   await fastify.register(costTypeRoutes, { prefix: '/api/references/cost-types' });
   await fastify.register(statusRoutes, { prefix: '/api/references/statuses' });
+  // Алиас: фронтенд вызывает /api/statuses (ExportRegistryModal)
+  await fastify.register(statusRoutes, { prefix: '/api/statuses' });
 }
 
 export default referenceRoutes;

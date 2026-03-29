@@ -133,6 +133,22 @@ async function materialRoutes(fastify: FastifyInstance): Promise<void> {
     return reply.send({ success: true });
   });
 
+  /* ---------- PATCH /api/materials/recognized/:id/estimate ---------- */
+  /** Алиас: фронтенд вызывает PATCH с /estimate суффиксом */
+  fastify.patch('/api/materials/recognized/:id/estimate', adminOrUser, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = request.body as { estimateQuantity: number | null };
+    const supabase = fastify.supabase;
+
+    const { error } = await supabase
+      .from('recognized_materials')
+      .update({ estimate_quantity: body.estimateQuantity })
+      .eq('id', id);
+    if (error) return reply.status(500).send({ error: error.message });
+
+    return reply.send({ success: true });
+  });
+
   /* ---------- GET /api/materials/summary ---------- */
   fastify.get('/api/materials/summary', adminOrUser, async (request, reply) => {
     const query = request.query as Record<string, string | undefined>;
