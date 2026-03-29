@@ -4,6 +4,7 @@ import cookie from '@fastify/cookie';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import { config } from './config.js';
+import { toCamelCase } from './utils/caseTransform.js';
 
 /** Плагины инфраструктуры */
 import databasePlugin from './plugins/database.js';
@@ -84,6 +85,14 @@ async function bootstrap(): Promise<void> {
   await fastify.register(rateLimit, {
     max: 100,
     timeWindow: '1 minute',
+  });
+
+  /** Глобальный хук: конвертация ключей ответа в camelCase */
+  fastify.addHook('preSerialization', async (_request, _reply, payload) => {
+    if (payload && typeof payload === 'object') {
+      return toCamelCase(payload);
+    }
+    return payload;
   });
 
   /** Плагины инфраструктуры */
