@@ -256,6 +256,67 @@ async function approvalRoutes(fastify: FastifyInstance): Promise<void> {
     return reply.send({ data: data ?? [] });
   });
 
+  /* ---------- GET /api/approvals/pending-requests ---------- */
+  fastify.get('/api/approvals/pending-requests', adminOrUser, async (request, reply) => {
+    const user = request.user!;
+    const query = request.query as { department: string; userId?: string; isAdmin?: string };
+    const supabase = fastify.supabase;
+    const department = query.department;
+    const isAdmin = query.isAdmin === 'true' || user.role === 'admin';
+
+    const { allSites, siteIds: userSiteIds } = await getUserSiteIds(supabase, user.id);
+
+    let decisionsQuery = supabase
+      .from('approval_decisions').select('payment_request_id')
+      .eq('department_id', department).eq('status', 'pending');
+
+    if (department === 'omts' && !isAdmin) {
+      const { data: rpConfig } = await supabase.from('settings').select('value').eq('key', 'omts_rp_config').single();
+      const rpResponsibleId = (rpConfig?.value as Record<string, unknown>)?.responsible_user_id as string | null;
+      if (user.id !== rpResponsibleId) decisionsQuery = decisionsQuery.eq('is_omts_rp', false);
+    }
+
+    const { data: decisions, error: decErr } = await decisionsQuery;
+    if (decErr) return reply.status(500).send({ error: decErr.message });
+
+    const requestIds = [...new Set((decisions ?? []).map((d: Record<string, unknown>) => d.payment_request_id as string))];
+    if (requestIds.length === 0 || (!allSites && userSiteIds.length === 0)) return reply.send([]);
+
+    let prQuery = supabase.from('payment_requests').select(PR_SELECT)
+      .in('id', requestIds).eq('is_deleted', false).is('withdrawn_at', null)
+      .order('created_at', { ascending: false });
+    if (!allSites) prQuery = prQuery.in('site_id', userSiteIds);
+
+    const { data, error } = await prQuery;
+    if (error) return reply.status(500).send({ error: error.message });
+    return reply.send(data ?? []);
+  });
+
+  /* ---------- GET /api/approvals/omts-rp-pending-requests ---------- */
+  fastify.get('/api/approvals/omts-rp-pending-requests', adminOrUser, async (request, reply) => {
+    const user = request.user!;
+    const supabase = fastify.supabase;
+
+    const { allSites, siteIds: userSiteIds } = await getUserSiteIds(supabase, user.id);
+
+    const { data: decisions, error: decErr } = await supabase
+      .from('approval_decisions').select('payment_request_id')
+      .eq('department_id', 'omts').eq('status', 'pending').eq('is_omts_rp', true);
+    if (decErr) return reply.status(500).send({ error: decErr.message });
+
+    const requestIds = [...new Set((decisions ?? []).map((d: Record<string, unknown>) => d.payment_request_id as string))];
+    if (requestIds.length === 0 || (!allSites && userSiteIds.length === 0)) return reply.send([]);
+
+    let prQuery = supabase.from('payment_requests').select(PR_SELECT)
+      .in('id', requestIds).eq('is_deleted', false).is('withdrawn_at', null)
+      .order('created_at', { ascending: false });
+    if (!allSites) prQuery = prQuery.in('site_id', userSiteIds);
+
+    const { data, error } = await prQuery;
+    if (error) return reply.status(500).send({ error: error.message });
+    return reply.send(data ?? []);
+  });
+
   /* ---------- GET /api/approvals/approved ---------- */
   fastify.get('/api/approvals/approved', adminOrUser, async (request, reply) => {
     const user = request.user!;
@@ -272,6 +333,25 @@ async function approvalRoutes(fastify: FastifyInstance): Promise<void> {
     return reply.send({ data: data ?? [], total: count ?? 0 });
   });
 
+  /* ---------- GET /api/approvals/approved-count ---------- */
+  fastify.get('/api/approvals/approved-count', adminOrUser, async (request, reply) => {
+    const user = request.user!;
+    const supabase = fastify.supabase;
+    const query = request.query as { allSites?: string; siteIds?: string };
+
+    const allSites = query.allSites === 'true' || user.role === 'admin';
+    const siteIds = query.siteIds ? query.siteIds.split(',') : [];
+
+    let q = supabase.from('payment_requests').select('id', { count: 'exact', head: true })
+      .not('approved_at', 'is', null).eq('is_deleted', false);
+    if (!allSites && siteIds.length > 0) q = q.in('site_id', siteIds);
+    else if (!allSites) return reply.send({ count: 0 });
+
+    const { count, error } = await q;
+    if (error) return reply.status(500).send({ error: error.message });
+    return reply.send({ count: count ?? 0 });
+  });
+
   /* ---------- GET /api/approvals/rejected ---------- */
   fastify.get('/api/approvals/rejected', adminOrUser, async (request, reply) => {
     const user = request.user!;
@@ -286,6 +366,25 @@ async function approvalRoutes(fastify: FastifyInstance): Promise<void> {
     const { data, error, count } = await q;
     if (error) return reply.status(500).send({ error: error.message });
     return reply.send({ data: data ?? [], total: count ?? 0 });
+  });
+
+  /* ---------- GET /api/approvals/rejected-count ---------- */
+  fastify.get('/api/approvals/rejected-count', adminOrUser, async (request, reply) => {
+    const user = request.user!;
+    const supabase = fastify.supabase;
+    const query = request.query as { allSites?: string; siteIds?: string };
+
+    const allSites = query.allSites === 'true' || user.role === 'admin';
+    const siteIds = query.siteIds ? query.siteIds.split(',') : [];
+
+    let q = supabase.from('payment_requests').select('id', { count: 'exact', head: true })
+      .not('rejected_at', 'is', null).eq('is_deleted', false);
+    if (!allSites && siteIds.length > 0) q = q.in('site_id', siteIds);
+    else if (!allSites) return reply.send({ count: 0 });
+
+    const { count, error } = await q;
+    if (error) return reply.status(500).send({ error: error.message });
+    return reply.send({ count: count ?? 0 });
   });
 }
 

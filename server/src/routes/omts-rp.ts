@@ -8,6 +8,22 @@ import { requireRole } from '../middleware/requireRole.js';
 
 async function omtsRpRoutes(fastify: FastifyInstance): Promise<void> {
   const adminOnly = { preHandler: [authenticate, requireRole('admin')] };
+  const adminOrUser = { preHandler: [authenticate, requireRole('admin', 'user')] };
+
+  /* ---------- GET /api/omts-rp/config ---------- */
+  fastify.get('/api/omts-rp/config', adminOrUser, async (_request, reply) => {
+    const supabase = fastify.supabase;
+
+    const { data, error } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', 'omts_rp_config')
+      .single();
+    if (error) return reply.send({ responsibleUserId: null });
+
+    const responsibleUserId = (data.value as Record<string, unknown>).responsible_user_id as string | null;
+    return reply.send({ responsibleUserId });
+  });
 
   /* ---------- GET /api/omts-rp/sites ---------- */
   fastify.get('/api/omts-rp/sites', adminOnly, async (_request, reply) => {
