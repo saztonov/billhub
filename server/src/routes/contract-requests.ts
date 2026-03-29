@@ -96,7 +96,7 @@ async function contractRequestRoutes(fastify: FastifyInstance): Promise<void> {
 
     let q = supabase
       .from('contract_requests')
-      .select(CR_LIST_SELECT, { count: 'exact' })
+      .select(CR_LIST_SELECT)
       .order('created_at', { ascending: false });
 
     if (query.showDeleted !== 'true') {
@@ -113,7 +113,7 @@ async function contractRequestRoutes(fastify: FastifyInstance): Promise<void> {
     // Фильтрация по объектам
     if (user.role === 'user' && !user.allSites) {
       const siteIds = await getUserSiteIds(supabase, user.id);
-      if (siteIds.length === 0) return reply.send({ data: [], total: 0 });
+      if (siteIds.length === 0) return reply.send([]);
       q = q.in('site_id', siteIds);
     }
 
@@ -127,10 +127,10 @@ async function contractRequestRoutes(fastify: FastifyInstance): Promise<void> {
     const from = (page - 1) * pageSize;
     q = q.range(from, from + pageSize - 1);
 
-    const { data, error, count } = await q;
+    const { data, error } = await q;
     if (error) return reply.status(500).send({ error: error.message });
 
-    return reply.send({ data: data ?? [], total: count ?? 0 });
+    return reply.send(data ?? []);
   });
 
   /* ---------- GET /api/contract-requests/:id ---------- */
@@ -152,7 +152,7 @@ async function contractRequestRoutes(fastify: FastifyInstance): Promise<void> {
       }
     }
 
-    return reply.send({ data });
+    return reply.send(data);
   });
 
   /* ---------- POST /api/contract-requests ---------- */
@@ -193,7 +193,7 @@ async function contractRequestRoutes(fastify: FastifyInstance): Promise<void> {
 
     await appendContractStatusHistory(supabase, created.id as string, { event: 'created' }, user.id);
 
-    return reply.status(201).send({ data: { id: created.id, requestNumber } });
+    return reply.status(201).send({ requestId: created.id, requestNumber });
   });
 
   /* ---------- PUT /api/contract-requests/:id ---------- */
@@ -485,7 +485,7 @@ async function contractRequestRoutes(fastify: FastifyInstance): Promise<void> {
       .order('created_at', { ascending: true });
     if (error) return reply.status(500).send({ error: error.message });
 
-    return reply.send({ data: data ?? [] });
+    return reply.send(data ?? []);
   });
 
   /* ---------- POST /api/contract-requests/:id/toggle-file-rejection ---------- */

@@ -86,7 +86,7 @@ async function paymentRequestRoutes(fastify: FastifyInstance): Promise<void> {
 
     let q = supabase
       .from('payment_requests')
-      .select(PR_LIST_SELECT, { count: 'exact' })
+      .select(PR_LIST_SELECT)
       .order('created_at', { ascending: false });
 
     // Мягкое удаление
@@ -104,7 +104,7 @@ async function paymentRequestRoutes(fastify: FastifyInstance): Promise<void> {
     // Фильтрация по объектам для user без all_sites
     if (user.role === 'user' && !user.allSites) {
       const siteIds = await getUserSiteIds(supabase, user.id);
-      if (siteIds.length === 0) return reply.send({ data: [], total: 0 });
+      if (siteIds.length === 0) return reply.send([]);
       q = q.in('site_id', siteIds);
     }
 
@@ -125,10 +125,10 @@ async function paymentRequestRoutes(fastify: FastifyInstance): Promise<void> {
     const from = (page - 1) * pageSize;
     q = q.range(from, from + pageSize - 1);
 
-    const { data, error, count } = await q;
+    const { data, error } = await q;
     if (error) return reply.status(500).send({ error: error.message });
 
-    return reply.send({ data: data ?? [], total: count ?? 0 });
+    return reply.send(data ?? []);
   });
 
   /* ---------- GET /api/payment-requests/:id ---------- */
@@ -151,7 +151,7 @@ async function paymentRequestRoutes(fastify: FastifyInstance): Promise<void> {
       }
     }
 
-    return reply.send({ data });
+    return reply.send(data);
   });
 
   /* ---------- POST /api/payment-requests ---------- */
@@ -223,9 +223,7 @@ async function paymentRequestRoutes(fastify: FastifyInstance): Promise<void> {
       .update({ current_stage: 1 })
       .eq('id', created.id);
 
-    return reply.status(201).send({
-      data: { id: created.id, requestNumber },
-    });
+    return reply.status(201).send({ requestId: created.id, requestNumber });
   });
 
   /* ---------- PUT /api/payment-requests/:id ---------- */
@@ -427,7 +425,7 @@ async function paymentRequestRoutes(fastify: FastifyInstance): Promise<void> {
       .order('created_at', { ascending: true });
     if (error) return reply.status(500).send({ error: error.message });
 
-    return reply.send({ data: data ?? [] });
+    return reply.send(data ?? []);
   });
 
   /* ---------- POST /api/payment-requests/:id/toggle-file-rejection ---------- */

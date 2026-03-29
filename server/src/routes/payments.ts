@@ -72,7 +72,7 @@ async function paymentRoutes(fastify: FastifyInstance): Promise<void> {
       .order('payment_number', { ascending: true });
     if (error) return reply.status(500).send({ error: error.message });
 
-    return reply.send({ data: data ?? [] });
+    return reply.send(data ?? []);
   });
 
   /* ---------- GET /api/payments/:paymentRequestId ---------- */
@@ -88,7 +88,7 @@ async function paymentRoutes(fastify: FastifyInstance): Promise<void> {
       .order('payment_number', { ascending: true });
     if (error) return reply.status(500).send({ error: error.message });
 
-    return reply.send({ data: data ?? [] });
+    return reply.send(data ?? []);
   });
 
   /* ---------- POST /api/payments/:paymentRequestId ---------- */
@@ -129,7 +129,7 @@ async function paymentRoutes(fastify: FastifyInstance): Promise<void> {
 
     await recalcPaidStatus(supabase, paymentRequestId);
 
-    return reply.status(201).send({ data: { id: inserted.id } });
+    return reply.status(201).send({ id: inserted.id });
   });
 
   /* ---------- POST /api/payments ---------- */
@@ -169,7 +169,7 @@ async function paymentRoutes(fastify: FastifyInstance): Promise<void> {
 
     await recalcPaidStatus(supabase, body.paymentRequestId);
 
-    return reply.status(201).send({ data: { id: inserted.id } });
+    return reply.status(201).send({ id: inserted.id });
   });
 
   /* ---------- PUT /api/payments/:id ---------- */

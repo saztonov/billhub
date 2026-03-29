@@ -40,7 +40,7 @@ async function omtsRpRoutes(fastify: FastifyInstance): Promise<void> {
     const siteIds = ((data.value as Record<string, unknown>).site_ids as string[]) ?? [];
 
     if (siteIds.length === 0) {
-      return reply.send({ data: [] });
+      return reply.send([]);
     }
 
     // Подгружаем имена объектов
@@ -50,7 +50,7 @@ async function omtsRpRoutes(fastify: FastifyInstance): Promise<void> {
       .in('id', siteIds);
     if (sitesErr) return reply.status(500).send({ error: sitesErr.message });
 
-    return reply.send({ data: sitesData ?? [] });
+    return reply.send(sitesData ?? []);
   });
 
   /* ---------- PUT /api/omts-rp/sites ---------- */
@@ -131,7 +131,7 @@ async function omtsRpRoutes(fastify: FastifyInstance): Promise<void> {
       .order('full_name', { ascending: true });
     if (error) return reply.status(500).send({ error: error.message });
 
-    return reply.send({ data: data ?? [] });
+    return reply.send(data ?? []);
   });
 }
 

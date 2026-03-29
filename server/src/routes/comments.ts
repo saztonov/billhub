@@ -24,7 +24,7 @@ async function commentRoutes(fastify: FastifyInstance): Promise<void> {
       .order('created_at', { ascending: false });
     if (error) return reply.status(500).send({ error: error.message });
 
-    return reply.send({ data: data ?? [] });
+    return reply.send(data ?? []);
   });
 
   /* ---------- POST /api/comments/payment-request ---------- */
@@ -130,7 +130,7 @@ async function commentRoutes(fastify: FastifyInstance): Promise<void> {
       }
     }
 
-    return reply.send({ data: counts });
+    return reply.send(counts);
   });
 
   /* ================================================================ */
@@ -149,7 +149,7 @@ async function commentRoutes(fastify: FastifyInstance): Promise<void> {
       .order('created_at', { ascending: false });
     if (error) return reply.status(500).send({ error: error.message });
 
-    return reply.send({ data: data ?? [] });
+    return reply.send(data ?? []);
   });
 
   /* ---------- POST /api/comments/contract-request ---------- */
@@ -284,7 +284,7 @@ async function commentRoutes(fastify: FastifyInstance): Promise<void> {
       }
     }
 
-    return reply.send({ data: counts });
+    return reply.send(counts);
   });
 }
 

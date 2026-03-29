@@ -28,7 +28,7 @@ async function notificationRoutes(fastify: FastifyInstance): Promise<void> {
       .limit(50);
     if (error) return reply.status(500).send({ error: error.message });
 
-    return reply.send({ data: data ?? [] });
+    return reply.send(data ?? []);
   });
 
   /* ---------- GET /api/notifications/count ---------- */

@@ -52,7 +52,7 @@ async function approvalRoutes(fastify: FastifyInstance): Promise<void> {
       files: filesMap[d.id as string] ?? [],
     }));
 
-    return reply.send({ data: enriched });
+    return reply.send(enriched);
   });
 
   /* ---------- GET /api/approvals/payment-request/:requestId/logs ---------- */
@@ -67,7 +67,7 @@ async function approvalRoutes(fastify: FastifyInstance): Promise<void> {
       .order('created_at', { ascending: true });
     if (error) return reply.status(500).send({ error: error.message });
 
-    return reply.send({ data: data ?? [] });
+    return reply.send(data ?? []);
   });
 
   /* ---------- POST /api/approvals/decide ---------- */
@@ -173,7 +173,7 @@ async function approvalRoutes(fastify: FastifyInstance): Promise<void> {
     if (decErr) return reply.status(500).send({ error: decErr.message });
 
     const requestIds = [...new Set((decisions ?? []).map((d: Record<string, unknown>) => d.payment_request_id as string))];
-    if (requestIds.length === 0 || (!allSites && userSiteIds.length === 0)) return reply.send({ data: [] });
+    if (requestIds.length === 0 || (!allSites && userSiteIds.length === 0)) return reply.send([]);
 
     let prQuery = supabase.from('payment_requests').select(PR_SELECT)
       .in('id', requestIds).eq('is_deleted', false).is('withdrawn_at', null)
@@ -182,7 +182,7 @@ async function approvalRoutes(fastify: FastifyInstance): Promise<void> {
 
     const { data, error } = await prQuery;
     if (error) return reply.status(500).send({ error: error.message });
-    return reply.send({ data: data ?? [] });
+    return reply.send(data ?? []);
   });
 
   /* ---------- GET /api/approvals/pending-requests ---------- */

@@ -26,7 +26,7 @@ async function materialRoutes(fastify: FastifyInstance): Promise<void> {
       .order('name', { ascending: true });
     if (error) return reply.status(500).send({ error: error.message });
 
-    return reply.send({ data: data ?? [] });
+    return reply.send(data ?? []);
   });
 
   /* ---------- GET /api/materials/requests ---------- */
@@ -40,7 +40,7 @@ async function materialRoutes(fastify: FastifyInstance): Promise<void> {
     if (matErr) return reply.status(500).send({ error: matErr.message });
 
     const uniqueIds = [...new Set((matData ?? []).map((r: Record<string, unknown>) => r.payment_request_id as string))];
-    if (uniqueIds.length === 0) return reply.send({ data: [] });
+    if (uniqueIds.length === 0) return reply.send([]);
 
     // Подсчёт позиций и суммы
     const countMap: Record<string, { count: number; total: number }> = {};
@@ -100,7 +100,7 @@ async function materialRoutes(fastify: FastifyInstance): Promise<void> {
       };
     });
 
-    return reply.send({ data: requests });
+    return reply.send(requests);
   });
 
   /* ---------- GET /api/materials/recognized/:paymentRequestId ---------- */
@@ -115,7 +115,7 @@ async function materialRoutes(fastify: FastifyInstance): Promise<void> {
       .order('position', { ascending: true });
     if (error) return reply.status(500).send({ error: error.message });
 
-    return reply.send({ data: data ?? [] });
+    return reply.send(data ?? []);
   });
 
   /* ---------- PUT /api/materials/recognized/:id ---------- */
@@ -200,7 +200,7 @@ async function materialRoutes(fastify: FastifyInstance): Promise<void> {
 
     summary.sort((a, b) => a.materialName.localeCompare(b.materialName, 'ru'));
 
-    return reply.send({ data: summary });
+    return reply.send(summary);
   });
 
   /* ---------- GET /api/materials/hierarchical-summary ---------- */
@@ -247,7 +247,7 @@ async function materialRoutes(fastify: FastifyInstance): Promise<void> {
       };
     });
 
-    return reply.send({ data: rows });
+    return reply.send(rows);
   });
 
   /* ---------- GET /api/materials/invoice-files/:paymentRequestId ---------- */
@@ -262,7 +262,7 @@ async function materialRoutes(fastify: FastifyInstance): Promise<void> {
       .eq('document_type_id', INVOICE_DOC_TYPE_ID);
     if (error) return reply.status(500).send({ error: error.message });
 
-    return reply.send({ data: data ?? [] });
+    return reply.send(data ?? []);
   });
 }
 

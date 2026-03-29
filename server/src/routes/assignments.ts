@@ -92,7 +92,7 @@ async function assignmentRoutes(fastify: FastifyInstance): Promise<void> {
       .order('full_name', { ascending: true });
     if (error) return reply.status(500).send({ error: error.message });
 
-    return reply.send({ data: data ?? [] });
+    return reply.send(data ?? []);
   });
 }
 
