@@ -190,8 +190,39 @@ async function commentRoutes(fastify: FastifyInstance): Promise<void> {
     return reply.send({ success: true });
   });
 
+  /* ---------- PUT /api/comments/contract/:id ---------- */
+  /** Алиас: фронтенд вызывает /api/comments/contract/:id */
+  fastify.put('/api/comments/contract/:id', auth, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = request.body as { text: string };
+    const supabase = fastify.supabase;
+
+    const { error } = await supabase
+      .from('contract_request_comments')
+      .update({ text: body.text, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) return reply.status(500).send({ error: error.message });
+
+    return reply.send({ success: true });
+  });
+
   /* ---------- DELETE /api/comments/contract-request/:id ---------- */
   fastify.delete('/api/comments/contract-request/:id', auth, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const supabase = fastify.supabase;
+
+    const { error } = await supabase
+      .from('contract_request_comments')
+      .delete()
+      .eq('id', id);
+    if (error) return reply.status(500).send({ error: error.message });
+
+    return reply.send({ success: true });
+  });
+
+  /* ---------- DELETE /api/comments/contract/:id ---------- */
+  /** Алиас: фронтенд вызывает /api/comments/contract/:id */
+  fastify.delete('/api/comments/contract/:id', auth, async (request, reply) => {
     const { id } = request.params as { id: string };
     const supabase = fastify.supabase;
 
