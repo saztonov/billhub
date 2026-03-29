@@ -46,14 +46,14 @@ const idParamsSchema = {
 const updateUserSchema = {
   body: {
     type: 'object' as const,
-    required: ['fullName', 'role', 'allSites', 'siteIds'],
+    required: ['full_name', 'role', 'all_sites', 'site_ids'],
     properties: {
-      fullName: { type: 'string' as const, minLength: 1 },
+      full_name: { type: 'string' as const, minLength: 1 },
       role: { type: 'string' as const, enum: ['admin', 'user', 'counterparty_user'] },
-      counterpartyId: { type: ['string', 'null'] as const },
+      counterparty_id: { type: ['string', 'null'] as const },
       department: { type: ['string', 'null'] as const },
-      allSites: { type: 'boolean' as const },
-      siteIds: { type: 'array' as const, items: { type: 'string' as const } },
+      all_sites: { type: 'boolean' as const },
+      site_ids: { type: 'array' as const, items: { type: 'string' as const } },
     },
     additionalProperties: false,
   },
@@ -232,7 +232,13 @@ async function userRoutes(fastify: FastifyInstance): Promise<void> {
     { schema: { ...idParamsSchema, ...updateUserSchema }, preHandler: [authenticate, requireRole('admin')] },
     async (request, reply) => {
       const { id } = request.params;
-      const { fullName, role, counterpartyId, department, allSites, siteIds } = request.body;
+      const body = request.body as Record<string, unknown>;
+      const fullName = body.full_name as string;
+      const role = body.role as string;
+      const counterpartyId = (body.counterparty_id ?? null) as string | null;
+      const department = (body.department ?? null) as string | null;
+      const allSites = body.all_sites as boolean;
+      const siteIds = (body.site_ids ?? []) as string[];
 
       // Валидация: для подразделения Штаб обязательно 1-2 объекта
       if (department === 'shtab' && !allSites) {
