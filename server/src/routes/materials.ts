@@ -26,6 +26,36 @@ function flattenRecognizedMaterial(row: Record<string, unknown>): Record<string,
 async function materialRoutes(fastify: FastifyInstance): Promise<void> {
   const adminOrUser = { preHandler: [authenticate, requireRole('admin', 'user')] };
 
+  /* ---------- GET /api/materials/request-info/:paymentRequestId ---------- */
+  /** Информация о заявке для страницы детализации материалов */
+  fastify.get('/api/materials/request-info/:paymentRequestId', adminOrUser, async (request, reply) => {
+    const { paymentRequestId } = request.params as { paymentRequestId: string };
+    const supabase = fastify.supabase;
+
+    const { data, error } = await supabase
+      .from('payment_requests')
+      .select('request_number, approved_at, cost_type_id, materials_verification, counterparties(name), suppliers(name), construction_sites(name), cost_types(name)')
+      .eq('id', paymentRequestId)
+      .single();
+    if (error) return reply.status(404).send({ error: 'Заявка не найдена' });
+
+    const cp = data.counterparties as Record<string, unknown> | null;
+    const sup = data.suppliers as Record<string, unknown> | null;
+    const site = data.construction_sites as Record<string, unknown> | null;
+    const ct = data.cost_types as Record<string, unknown> | null;
+
+    return reply.send({
+      request_number: data.request_number,
+      counterparty_name: cp?.name ?? null,
+      supplier_name: sup?.name ?? null,
+      site_name: site?.name ?? null,
+      approved_at: data.approved_at,
+      cost_type_id: data.cost_type_id,
+      cost_type_name: ct?.name ?? null,
+      materials_verification: data.materials_verification,
+    });
+  });
+
   /* ---------- GET /api/materials/dictionary ---------- */
   fastify.get('/api/materials/dictionary', adminOrUser, async (_request, reply) => {
     const supabase = fastify.supabase;
