@@ -21,6 +21,9 @@ export async function authenticate(
   request: FastifyRequest,
   reply: FastifyReply
 ): Promise<void> {
+  // TEMP DEBUG: проверяем, приходит ли Cookie-заголовок
+  request.log.info({ rawCookie: request.headers.cookie, parsedCookies: Object.keys(request.cookies || {}) }, 'DEBUG auth cookies');
+
   const token = request.cookies['access_token'];
 
   if (!token) {
