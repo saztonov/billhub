@@ -1,8 +1,10 @@
-# Этап 1: Сборка бэкенда
-FROM node:20-alpine AS builder
+# Этап 1: Сборка бэкенда (Debian для совместимости node-canvas с g++)
+FROM node:20-bookworm-slim AS builder
 
-# Нативные зависимости для сборки node-canvas
-RUN apk add --no-cache python3 make g++ cairo-dev pango-dev libjpeg-turbo-dev giflib-dev librsvg-dev pixman-dev
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 make g++ \
+    libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev libpixman-1-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -12,7 +14,7 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-# Этап 2: Продакшн-образ
+# Этап 2: Продакшн-образ (Alpine для минимального размера)
 FROM node:20-alpine
 
 # Нативные зависимости для node-canvas (рендеринг PDF в OCR-процессе)
