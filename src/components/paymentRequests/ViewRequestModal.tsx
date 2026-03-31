@@ -288,8 +288,6 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
 
   const sortedFiles = useMemo(() => {
     return [...currentRequestFiles].sort((a, b) => {
-      if (a.isResubmit && !b.isResubmit) return -1
-      if (!a.isResubmit && b.isResubmit) return 1
       // Сортировка по дате от новых к старым
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     })
