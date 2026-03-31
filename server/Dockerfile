@@ -1,6 +1,9 @@
 # Этап 1: Сборка бэкенда
 FROM node:20-alpine AS builder
 
+# Нативные зависимости для сборки node-canvas
+RUN apk add --no-cache python3 make g++ cairo-dev pango-dev libjpeg-turbo-dev giflib-dev librsvg-dev pixman-dev
+
 WORKDIR /app
 
 COPY package*.json ./
