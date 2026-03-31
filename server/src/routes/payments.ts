@@ -68,9 +68,10 @@ function flattenPayment(row: Record<string, unknown>): Record<string, unknown> {
 
 async function paymentRoutes(fastify: FastifyInstance): Promise<void> {
   const adminOrUser = { preHandler: [authenticate, requireRole('admin', 'user')] };
+  const anyAuthenticated = { preHandler: [authenticate, requireRole('admin', 'user', 'counterparty_user')] };
 
   /* ---------- GET /api/payments/payment-request/:requestId ---------- */
-  fastify.get('/api/payments/payment-request/:requestId', adminOrUser, async (request, reply) => {
+  fastify.get('/api/payments/payment-request/:requestId', anyAuthenticated, async (request, reply) => {
     const { requestId } = request.params as { requestId: string };
     const supabase = fastify.supabase;
 
@@ -86,7 +87,7 @@ async function paymentRoutes(fastify: FastifyInstance): Promise<void> {
 
   /* ---------- GET /api/payments/:paymentRequestId ---------- */
   /** Алиас: фронтенд вызывает GET /api/payments/:paymentRequestId */
-  fastify.get('/api/payments/:paymentRequestId', adminOrUser, async (request, reply) => {
+  fastify.get('/api/payments/:paymentRequestId', anyAuthenticated, async (request, reply) => {
     const { paymentRequestId } = request.params as { paymentRequestId: string };
     const supabase = fastify.supabase;
 

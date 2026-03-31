@@ -8,6 +8,7 @@ import { requireRole } from '../middleware/requireRole.js';
 
 async function assignmentRoutes(fastify: FastifyInstance): Promise<void> {
   const adminOrUser = { preHandler: [authenticate, requireRole('admin', 'user')] };
+  const anyAuthenticated = { preHandler: [authenticate, requireRole('admin', 'user', 'counterparty_user')] };
 
   const ASSIGNMENT_SELECT = `
     id, payment_request_id, assigned_user_id, assigned_by_user_id, assigned_at, is_current, created_at,
@@ -29,7 +30,7 @@ async function assignmentRoutes(fastify: FastifyInstance): Promise<void> {
   }
 
   /* ---------- GET /api/assignments/payment-request/:requestId/current ---------- */
-  fastify.get('/api/assignments/payment-request/:requestId/current', adminOrUser, async (request, reply) => {
+  fastify.get('/api/assignments/payment-request/:requestId/current', anyAuthenticated, async (request, reply) => {
     const { requestId } = request.params as { requestId: string };
     const supabase = fastify.supabase;
 
@@ -44,7 +45,7 @@ async function assignmentRoutes(fastify: FastifyInstance): Promise<void> {
   });
 
   /* ---------- GET /api/assignments/payment-request/:requestId ---------- */
-  fastify.get('/api/assignments/payment-request/:requestId', adminOrUser, async (request, reply) => {
+  fastify.get('/api/assignments/payment-request/:requestId', anyAuthenticated, async (request, reply) => {
     const { requestId } = request.params as { requestId: string };
     const supabase = fastify.supabase;
 

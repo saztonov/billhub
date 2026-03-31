@@ -19,9 +19,10 @@ import {
 
 async function approvalRoutes(fastify: FastifyInstance): Promise<void> {
   const adminOrUser = { preHandler: [authenticate, requireRole('admin', 'user')] };
+  const anyAuthenticated = { preHandler: [authenticate, requireRole('admin', 'user', 'counterparty_user')] };
 
   /* ---------- GET /api/approvals/payment-request/:requestId ---------- */
-  fastify.get('/api/approvals/payment-request/:requestId', adminOrUser, async (request, reply) => {
+  fastify.get('/api/approvals/payment-request/:requestId', anyAuthenticated, async (request, reply) => {
     const { requestId } = request.params as { requestId: string };
     const supabase = fastify.supabase;
 
@@ -58,7 +59,7 @@ async function approvalRoutes(fastify: FastifyInstance): Promise<void> {
   });
 
   /* ---------- GET /api/approvals/payment-request/:requestId/logs ---------- */
-  fastify.get('/api/approvals/payment-request/:requestId/logs', adminOrUser, async (request, reply) => {
+  fastify.get('/api/approvals/payment-request/:requestId/logs', anyAuthenticated, async (request, reply) => {
     const { requestId } = request.params as { requestId: string };
     const supabase = fastify.supabase;
 

@@ -224,5 +224,10 @@ export function flattenApprovalDecision(row: Record<string, unknown>): Record<st
   delete flat.users;
   flat.user_email = user?.email ?? null;
   flat.user_full_name = user?.full_name ?? null;
+  // Маппинг department_id -> department (фронтенд ожидает поле department)
+  if ('department_id' in flat) {
+    flat.department = flat.department_id;
+    delete flat.department_id;
+  }
   return flat;
 }
