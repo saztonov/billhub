@@ -12,6 +12,10 @@ import {
   flattenPaymentRequest,
   flattenApprovalDecision,
 } from './approval-helpers.js';
+import {
+  getPaymentRequestCreator,
+  insertNotifications,
+} from '../services/notification-helpers.js';
 
 /* ------------------------------------------------------------------ */
 /*  Плагин маршрутов согласований                                      */
@@ -382,6 +386,24 @@ async function handleApprove(
       await supabase.from('payment_requests')
         .update({ status_id: approvedStatusId, current_stage: null, approved_at: new Date().toISOString(), omts_approved_at: new Date().toISOString() })
         .eq('id', body.paymentRequestId);
+
+      // Уведомление подрядчику (создателю заявки) о согласовании
+      const creatorId = await getPaymentRequestCreator(supabase, body.paymentRequestId);
+      if (creatorId && creatorId !== userId) {
+        const { data: req } = await supabase
+          .from('payment_requests')
+          .select('request_number')
+          .eq('id', body.paymentRequestId)
+          .single();
+        const label = req?.request_number ? ` N${req.request_number}` : '';
+        insertNotifications(supabase, [{
+          user_id: creatorId,
+          type: 'status_changed',
+          title: 'Заявка согласована',
+          message: `Заявка${label} согласована`,
+          payment_request_id: body.paymentRequestId,
+        }]).catch(() => {});
+      }
     }
   }
 
