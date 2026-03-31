@@ -140,7 +140,10 @@ const CounterpartyLog = ({ request, decisions, logs, downloading, onViewFile, on
         items.push({ icon: <FileAddOutlined style={{ color: '#1677ff' }} />, text: `Догружено файлов: ${count}`, date: l.createdAt })
       } else if (l.action === 'resubmit') {
         const comment = (l.details?.comment as string) ?? ''
-        const text = comment ? `Повторно отправлено. Комментарий: ${comment}` : 'Повторно отправлено'
+        const fileCount = (l.details?.fileCount as number) ?? 0
+        let text = 'Повторно отправлено'
+        if (fileCount > 0) text += `. Приложено файлов: ${fileCount}`
+        if (comment) text += `. Комментарий: ${comment}`
         items.push({ icon: <SendOutlined style={{ color: '#1677ff' }} />, text, date: l.createdAt })
       }
     }
@@ -254,7 +257,10 @@ const AdminLog = ({ request, decisions, logs, downloading, onViewFile, onDownloa
         result.push({ icon: <FileAddOutlined style={{ color: '#1677ff' }} />, text: `Догружено файлов: ${count}`, date: l.createdAt, userEmail: l.userEmail, userFullName: l.userFullName })
       } else if (l.action === 'resubmit') {
         const comment = (l.details?.comment as string) ?? ''
-        const text = comment ? `Повторно отправлено. Комментарий: ${comment}` : 'Повторно отправлено'
+        const fileCount = (l.details?.fileCount as number) ?? 0
+        let text = 'Повторно отправлено'
+        if (fileCount > 0) text += `. Приложено файлов: ${fileCount}`
+        if (comment) text += `. Комментарий: ${comment}`
         result.push({ icon: <SendOutlined style={{ color: '#1677ff' }} />, text, date: l.createdAt, userEmail: l.userEmail, userFullName: l.userFullName })
       }
     }

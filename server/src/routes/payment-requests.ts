@@ -377,6 +377,7 @@ async function paymentRequestRoutes(fastify: FastifyInstance): Promise<void> {
     const user = request.user!;
     const body = request.body as {
       comment: string;
+      fileCount?: number;
       fieldUpdates?: {
         deliveryDays: number;
         deliveryDaysType: string;
@@ -448,6 +449,7 @@ async function paymentRequestRoutes(fastify: FastifyInstance): Promise<void> {
       action: 'resubmit',
       details: {
         comment: body.comment,
+        fileCount: body.fileCount ?? 0,
         target_stage: 1,
         target_department: 'shtab',
         resubmit_count: newCount,

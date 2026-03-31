@@ -52,6 +52,7 @@ interface PaymentRequestStoreState {
       shippingConditionId: string
       invoiceAmount: number
     },
+    fileCount?: number,
   ) => Promise<void>
   updateRequest: (
     id: string,
@@ -179,7 +180,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
     }
   },
 
-  resubmitRequest: async (id, comment, counterpartyId, userId, fieldUpdates?) => {
+  resubmitRequest: async (id, comment, counterpartyId, userId, fieldUpdates?, fileCount?) => {
     set({ isSubmitting: true, error: null })
     try {
       await api.post(`/api/payment-requests/${id}/resubmit`, {
@@ -187,6 +188,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
         counterpartyId,
         userId,
         fieldUpdates: fieldUpdates || null,
+        fileCount: fileCount ?? 0,
       })
 
       await get().fetchRequests(counterpartyId)

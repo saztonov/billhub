@@ -202,7 +202,7 @@ export function usePaymentRequestHandlers({
   }) => {
     if (!resubmitRecord || !user?.counterpartyId || !user?.id) return
     try {
-      await resubmitRequest(resubmitRecord.id, comment, user.counterpartyId, user.id, fieldUpdates)
+      await resubmitRequest(resubmitRecord.id, comment, user.counterpartyId, user.id, fieldUpdates, files.length)
 
       // Уведомление Штабу (и ОМТС при отклонении на их этапе) о повторной отправке
       notifyRequestResubmitted(resubmitRecord.id, user.id, resubmitRecord.rejectedStage ?? null).catch(() => {})
