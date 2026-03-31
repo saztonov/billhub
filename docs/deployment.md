@@ -1,859 +1,428 @@
-# Архитектура развертывания BillHub на VPS
+# Развертывание BillHub на VPS (Docker)
 
 ## Оглавление
-1. [Обзор](#обзор)
+1. [Архитектура](#архитектура)
 2. [Системные требования](#системные-требования)
-3. [Архитектура решения](#архитектура-решения)
-4. [Структура файлов](#структура-файлов)
-5. [Процесс развертывания](#процесс-развертывания)
-6. [Настройка nginx](#настройка-nginx)
-7. [Проверка работоспособности](#проверка-работоспособности)
-8. [Обновление приложения](#обновление-приложения)
-9. [Список команд для развертывания](#список-команд-для-развертывания)
+3. [Структура Docker](#структура-docker)
+4. [Первоначальное развертывание](#первоначальное-развертывание)
+5. [Настройка nginx](#настройка-nginx)
+6. [Проверка работоспособности](#проверка-работоспособности)
+7. [Обновление приложения](#обновление-приложения)
+8. [Откат](#откат)
+9. [Полезные команды](#полезные-команды)
 
 ---
 
-## Обзор
+## Архитектура
 
-BillHub - это Single Page Application (SPA) на React 19 + Vite + TypeScript, которое развертывается как статический сайт на VPS с ISPmanager.
+```
+Клиент (HTTPS:443)
+  → Host nginx (SSL-терминация, Let's Encrypt)
+    → Docker frontend nginx (127.0.0.1:3080)
+      → статика SPA (React)
+      → /api/* → Docker backend Fastify (backend:3000)
+        → Redis (redis:6379) — очереди BullMQ
+        → Supabase (БД, Auth)
+        → Cloud.ru S3 (файлы)
+        → OpenRouter (OCR)
+```
 
-**Ключевые особенности архитектуры:**
-- Нет собственного backend-сервера на VPS
-- Все API-запросы идут в облачные сервисы (Supabase, Cloud.ru S3, OpenRouter.ai)
-- Статические файлы раздаются через nginx
-- SSL-сертификат Let's Encrypt для HTTPS
-- pm2 НЕ используется (статический деплой)
+### Контейнеры
+
+| Сервис | Образ | Порт | Назначение |
+|---|---|---|---|
+| frontend | nginx:alpine | 127.0.0.1:3080→80 | SPA + reverse proxy к backend |
+| backend | node:20-alpine | 3000 (внутренний) | Fastify API-сервер |
+| redis | redis:7-alpine | 6379 (внутренний) | Очереди BullMQ (файлы, OCR) |
+
+### Домены
+- `ravek.link` — основной домен (SSL: Let's Encrypt, certbot)
+- `billhub.fvds.ru` — алиас (SSL: Let's Encrypt, ISPmanager)
+
+### Сеть
+- Host nginx слушает на `185.200.179.0:80` и `185.200.179.0:443`
+- Docker-контейнеры в bridge-сети `billhub`, не видны снаружи
+- Frontend доступен только с localhost (127.0.0.1:3080)
 
 ---
 
 ## Системные требования
 
-### Сервер
-- **ОС:** Linux (Ubuntu/Debian рекомендуется)
-- **Node.js:** v18.0.0 или выше (установлено: v20.19.5 ✅)
-- **npm:** v9.0.0 или выше (установлено: v10.8.2 ✅)
-- **nginx:** v1.18.0 или выше
-- **ISPmanager:** любая актуальная версия
-- **Git:** для клонирования репозитория
+- **ОС:** Ubuntu/Debian
+- **RAM:** 4 ГБ (рекомендуется)
+- **Диск:** 60 ГБ
+- **Docker:** 28+ с Docker Compose v2
+- **nginx:** установлен, управляет SSL
 
-### Пользователи и права
-- **root:** для установки системных пакетов, настройки nginx
-- **billhub:** пользователь для работы с приложением и файлами сайта
+### Пользователи
+- **root** — настройка nginx, системные пакеты
+- **billhub** — работа с приложением, Docker (группа `docker`)
 
-### Сетевые требования
-- **Исходящий HTTPS к:**
-  - `https://*.supabase.co` - Supabase API
-  - `https://*.cloud.ru` - Cloud.ru S3
-  - `https://openrouter.ai` - OpenRouter Vision API
-- **Входящий HTTP/HTTPS:** порты 80, 443 для nginx
-
----
-
-## Архитектура решения
-
-### Схема компонентов
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                         КЛИЕНТ                              │
-│                  (Браузер пользователя)                     │
-└────────────────────────┬────────────────────────────────────┘
-                         │ HTTPS (443)
-                         │
-┌────────────────────────▼────────────────────────────────────┐
-│                    VPS: billhub.fvds.ru                     │
-│                                                              │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │              nginx (веб-сервер)                        │ │
-│  │  - SSL-терминация (Let's Encrypt)                     │ │
-│  │  - Раздача статики из /var/www/                       │ │
-│  │  - SPA роутинг (try_files → index.html)               │ │
-│  └─────────────────────┬──────────────────────────────────┘ │
-│                        │                                     │
-│  ┌─────────────────────▼──────────────────────────────────┐ │
-│  │   /var/www/billhub/data/www/billhub.fvds.ru/          │ │
-│  │   - index.html                                         │ │
-│  │   - assets/index-[hash].js                             │ │
-│  │   - assets/index-[hash].css                            │ │
-│  │   - assets/pdf.worker.min-[hash].mjs                   │ │
-│  └────────────────────────────────────────────────────────┘ │
-│                                                              │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │   /var/www/billhub/data/billhub-app/  (рабочая директория)    │ │
-│  │   - src/            (исходники)                        │ │
-│  │   - dist/           (собранное приложение)             │ │
-│  │   - .env            (переменные окружения)             │ │
-│  │   - node_modules/   (зависимости)                      │ │
-│  └────────────────────────────────────────────────────────┘ │
-└──────────────────────────────────────────────────────────────┘
-                         │
-                         │ HTTPS (исходящий)
-                         │
-        ┌────────────────┼────────────────┐
-        │                │                │
-        ▼                ▼                ▼
-┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-│   Supabase   │  │  Cloud.ru S3 │  │  OpenRouter  │
-│  (Database)  │  │  (Storage)   │  │    (OCR)     │
-│    (Auth)    │  │              │  │              │
-└──────────────┘  └──────────────┘  └──────────────┘
-```
-
-### Поток данных
-
-1. **Загрузка приложения:**
-   ```
-   Клиент → nginx → /var/www/.../index.html + assets/
-   ```
-
-2. **API-запросы:**
-   ```
-   Клиент → Supabase API (облако)
-   ```
-
-3. **Загрузка/скачивание файлов:**
-   ```
-   Клиент → Cloud.ru S3 (presigned URLs)
-   ```
-
-4. **OCR-распознавание:**
-   ```
-   Клиент → OpenRouter.ai API (облако)
-   ```
-
-### Жизненный цикл развертывания
-
-```
-GitHub: https://github.com/saztonov/billhub
-    ↓ git clone (billhub)
-/var/www/billhub/data/billhub-app/
-    ↓ npm install (billhub)
-node_modules/
-    ↓ npm run build (billhub)
-dist/ (~3.1 МБ)
-    ↓ cp dist/* (root/sudo)
-/var/www/billhub/data/www/billhub.fvds.ru/
-    ↓ chown/chmod (root/sudo)
-Права доступа billhub:billhub 755
-    ↓ nginx reload (root/sudo)
-Приложение доступно на https://billhub.fvds.ru
-```
+### Ключевые пути
+- Репозиторий: `/var/www/billhub/data/billhub-app/`
+- Nginx конфиг: `/etc/nginx/vhosts/billhub/billhub.fvds.ru.conf`
+- SSL (ravek.link): `/etc/letsencrypt/live/ravek.link/`
+- SSL (billhub.fvds.ru): `/var/www/httpd-cert/billhub/billhub.fvds.ru_le1.*`
+- Логи nginx: `/var/www/httpd-logs/billhub.fvds.ru.access.log`
+- Backend .env: `/var/www/billhub/data/billhub-app/server/.env`
 
 ---
 
-## Структура файлов
+## Структура Docker
 
-### Рабочая директория (/var/www/billhub/data/billhub-app/)
+### docker-compose.yml
+
+3 сервиса: frontend, backend, redis.
+
+- Frontend: порт `127.0.0.1:3080:80`, зависит от healthy backend
+- Backend: `env_file: ./server/.env`, лимит памяти 768M, healthcheck на `/api/health`
+- Redis: `maxmemory 64mb`, политика `noeviction` (требование BullMQ)
+- Volumes: `upload-temp` (временные файлы), `redis-data` (данные очередей)
+
+### Dockerfile.frontend (multi-stage)
+
+1. Builder: `node:20-alpine` → `npm ci` → `npm run build`
+2. Production: `nginx:alpine` → копирует `dist/` и `nginx.conf`
+
+### server/Dockerfile (multi-stage)
+
+1. Builder: `node:20-bookworm-slim` (Debian, для совместимости node-canvas с g++) → `npm ci` → `npm run build`
+2. Production: `node:20-alpine` + нативные библиотеки (cairo, pango) → `--max-old-space-size=512`
+
+### nginx.conf (Docker frontend)
+
+- `/assets/` — кэш 1 год (файлы с хэшем в имени)
+- `/index.html` — без кэша (no-cache, no-store)
+- `/api/files/upload/` — лимит 6 МБ на чанк, таймаут 120s
+- `/api/files/download/` — стриминг, таймаут 600s
+- `/api/` — proxy к backend:3000, лимит 110 МБ, SSE
+- `/` — SPA-роутинг (try_files → index.html)
+
+### server/.env
+
+На основе `server/.env.example`. Ключевые значения для production:
 
 ```
-billhub-app/
-├── src/                          # Исходный код (не используется в production)
-│   ├── pages/                    # Страницы-роуты
-│   ├── components/               # UI-компоненты
-│   ├── services/                 # API-сервисы
-│   ├── store/                    # Zustand stores
-│   └── main.tsx                  # Точка входа
-├── dist/                         # Production build (генерируется npm run build)
-│   ├── index.html
-│   └── assets/
-│       ├── index-[hash].js       # ~2.8 МБ (минифицирован)
-│       ├── index-[hash].css
-│       └── pdf.worker.min-[hash].mjs
-├── node_modules/                 # Зависимости npm (~500+ пакетов)
-├── .env                          # Переменные окружения (НЕ коммитится в Git)
-├── package.json                  # Манифест проекта
-├── vite.config.ts                # Конфигурация сборки
-└── tsconfig.json                 # Конфигурация TypeScript
+PORT=3000
+CORS_ORIGIN=https://ravek.link
+NODE_ENV=production
+REDIS_URL=redis://redis:6379
+STORAGE_PROVIDER=cloudru
 ```
 
-### Production-директория (/var/www/billhub/data/www/billhub.fvds.ru/)
-
-```
-billhub.fvds.ru/
-├── index.html                    # Точка входа SPA (2 КБ)
-├── assets/
-│   ├── index-[hash].js           # Основной бандл JavaScript
-│   ├── index-[hash].css          # Стили
-│   └── pdf.worker.min-[hash].mjs # PDF.js worker
-└── vite.svg                      # Favicon
-```
-
-**Владелец:** billhub:billhub
-**Права:** 755 (чтение и выполнение для всех, запись только владельцу)
+Все секреты (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_JWT_SECRET, S3_*, OPENROUTER_API_KEY) заполняются реальными значениями. Файл не коммитится в git.
 
 ---
 
-## Процесс развертывания
+## Первоначальное развертывание
 
-### Этап 1: Подготовка окружения
-
-Установка Node.js 20.x LTS (если не установлен):
+### Шаг 1. Установить Docker (root)
 
 ```bash
-# Пользователь: root
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-apt-get install -y nodejs
+curl -fsSL https://get.docker.com | sh
+systemctl enable docker
+systemctl start docker
 ```
 
-Проверка установки:
+### Шаг 2. Добавить billhub в группу docker (root)
 
 ```bash
-# Пользователь: root или billhub
-node --version   # должно вывести v20.x.x
-npm --version    # должно вывести v10.x.x
+usermod -aG docker billhub
 ```
 
-### Этап 2: Клонирование репозитория
+Требуется перелогин пользователя billhub.
+
+### Шаг 3. Клонировать репозиторий (billhub)
 
 ```bash
-# Пользователь: billhub
 cd /var/www/billhub/data
 git clone https://github.com/saztonov/billhub.git billhub-app
 cd billhub-app
 ```
 
-**Примечание:** Репозиторий публичный, дополнительная аутентификация не требуется.
-
-### Этап 3: Установка зависимостей
+### Шаг 4. Создать server/.env (billhub)
 
 ```bash
-# Пользователь: billhub
-npm install
+cp server/.env.example server/.env
+chmod 600 server/.env
+nano server/.env
 ```
 
-Устанавливается ~500+ пакетов, займет 2-5 минут.
+Заполнить все значения. См. раздел [server/.env](#serverenv).
 
-### Этап 4: Настройка переменных окружения
+### Шаг 5. Собрать и запустить Docker (billhub)
 
 ```bash
-# Пользователь: billhub
-nano .env
+cd /var/www/billhub/data/billhub-app
+docker compose build
+docker compose up -d
 ```
 
-Содержимое `.env`:
-
-```env
-# Supabase (база данных + аутентификация)
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY=your-publishable-key
-VITE_SUPABASE_TENANT_ID=your-tenant-id
-
-# Cloud.ru S3 (хранилище файлов)
-VITE_S3_ENDPOINT=https://your-endpoint.cloud.ru
-VITE_S3_REGION=ru-msk
-VITE_S3_ACCESS_KEY=your-access-key
-VITE_S3_SECRET_KEY=your-secret-key
-VITE_S3_BUCKET=your-bucket-name
-
-# OpenRouter.ai (OCR-распознавание)
-VITE_OPENROUTER_API_KEY=your-openrouter-api-key
-```
-
-**Важно:** переменные встраиваются в бандл при сборке, изменение `.env` требует пересборки.
-
-### Этап 5: Сборка production-версии
+### Шаг 6. Проверить контейнеры (billhub)
 
 ```bash
-# Пользователь: billhub
-npm run build
+docker compose ps
 ```
 
-Процесс сборки:
-1. TypeScript компиляция (`tsc -b`)
-2. Vite сборка с минификацией
-3. Генерация директории `dist/`
-
-Проверка результата:
+Все 3 сервиса должны быть `Up`. Backend — `Up (healthy)`.
 
 ```bash
-# Пользователь: billhub
-ls -lh dist/
+curl -s http://127.0.0.1:3080/ | head -3
+curl -s http://127.0.0.1:3080/api/health
 ```
 
-Должны увидеть `index.html`, `assets/`, `vite.svg`.
+### Шаг 7. Настроить nginx (root)
 
-### Этап 6: Копирование в production-директорию
+См. раздел [Настройка nginx](#настройка-nginx).
 
-```bash
-# Пользователь: root (через sudo)
-rm -rf /var/www/billhub/data/www/billhub.fvds.ru/*
-cp -r /var/www/billhub/data/billhub-app/dist/* /var/www/billhub/data/www/billhub.fvds.ru/
-```
-
-Установка прав доступа:
+### Шаг 8. Проверить (root)
 
 ```bash
-# Пользователь: root (через sudo)
-chown -R billhub:billhub /var/www/billhub/data/www/billhub.fvds.ru/
-chmod -R 755 /var/www/billhub/data/www/billhub.fvds.ru/
+curl -I https://ravek.link
+curl -s https://ravek.link/api/health
 ```
 
 ---
 
 ## Настройка nginx
 
-### Конфигурация для SPA
+### Конфиг: /etc/nginx/vhosts/billhub/billhub.fvds.ru.conf
 
-ISPmanager автоматически создает конфигурацию при добавлении сайта.
+Файл содержит 4 блока server:
 
-**Путь к конфигурации для billhub.fvds.ru:**
-`/etc/nginx/vhosts/billhub/billhub.fvds.ru.conf`
+1. **billhub.fvds.ru HTTP (порт 80)** — proxy к Docker
+2. **billhub.fvds.ru HTTPS (порт 443)** — proxy к Docker
+3. **ravek.link HTTPS (порт 443)** — proxy к Docker
+4. **ravek.link HTTP (порт 80)** — редирект на HTTPS
 
-**Найти конфигурационный файл:**
+Блоки 1-3 используют одинаковый location /:
 
-```bash
-# Пользователь: root
-find /etc/nginx -name "*billhub*"
+```nginx
+        location / {
+            proxy_pass http://127.0.0.1:3080;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_read_timeout 600s;
+            proxy_send_timeout 600s;
+            client_max_body_size 110m;
+            proxy_buffering off;
+        }
 ```
 
-**Необходимая конфигурация:**
+Блок 4 (ravek.link HTTP) — только редирект:
 
 ```nginx
 server {
-    listen 443 ssl http2;
-    server_name billhub.fvds.ru www.billhub.fvds.ru;
-
-    # SSL-сертификаты (настроены через ISPmanager + Let's Encrypt)
-    ssl_certificate /var/www/httpd-cert/billhub/billhub.fvds.ru_le1.crtca;
-    ssl_certificate_key /var/www/httpd-cert/billhub/billhub.fvds.ru_le1.key;
-
-    # Корневая директория
-    root /var/www/billhub/data/www/billhub.fvds.ru;
-    index index.html;
-
-    # КРИТИЧНО для SPA: все запросы отдают index.html для React Router
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    # Кеширование статических ресурсов
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
-        expires 1y;
-        add_header Cache-Control "public, immutable";
-    }
-
-    # Логи
-    access_log /var/www/httpd-logs/billhub.fvds.ru.access.log;
-    error_log /var/www/httpd-logs/billhub.fvds.ru.error.log;
-}
-
-# Редирект с HTTP на HTTPS
-server {
-    listen 80;
-    server_name billhub.fvds.ru www.billhub.fvds.ru;
-    return 301 https://$host$request_uri;
+        server_name ravek.link www.ravek.link;
+        listen 185.200.179.0:80;
+        return 301 https://$host$request_uri;
 }
 ```
 
-**Ключевая директива для SPA:**
-
-```nginx
-location / {
-    try_files $uri $uri/ /index.html;
-}
-```
-
-Это обеспечивает:
-- Прямые ссылки работают (`https://billhub.fvds.ru/invoices`)
-- Обновление страницы (F5) не дает 404
-- React Router корректно обрабатывает все маршруты
-
-### Применение конфигурации
+### Применение (root)
 
 ```bash
-# Пользователь: root
-# Проверка синтаксиса
 nginx -t
-
-# Мягкий перезапуск (без разрыва соединений)
 systemctl reload nginx
-
-# Или полный перезапуск
-systemctl restart nginx
-
-# Проверка статуса
-systemctl status nginx
 ```
-
-### Важно: ISPmanager и nginx
-
-ISPmanager может автоматически перезаписывать конфигурацию nginx при изменениях через веб-интерфейс.
-
-**Решение:**
-1. Добавьте директивы через ISPmanager → "Дополнительные директивы nginx"
-2. Или пересоздавайте конфигурацию после изменений в ISPmanager
 
 ---
 
 ## Проверка работоспособности
 
-### 1. Проверка через curl (на сервере)
+### Базовая (root или billhub)
 
 ```bash
-# Пользователь: billhub или root
-# Проверка HTTP-статуса
-curl -I https://billhub.fvds.ru
-
-# Ожидается: HTTP/2 200
-
-# Проверка содержимого
-curl https://billhub.fvds.ru | grep "<title>"
-
-# Ожидается: <title>BillHub</title>
+curl -I https://ravek.link
+curl -s https://ravek.link/api/health
+curl -s https://ravek.link/api/health/ready
 ```
 
-### 2. Проверка в браузере
-
-**Доступность:**
-- Откройте `https://billhub.fvds.ru`
-- Проверьте валидность SSL (замок в адресной строке)
-- Главная страница должна загрузиться
-
-**React Router:**
-- Откройте напрямую `https://billhub.fvds.ru/invoices` (или другой роут)
-- Должна загрузиться страница, а не 404
-- Нажмите F5 - страница перезагрузится корректно
-- Используйте кнопку "Назад" - навигация работает
-
-**DevTools (F12):**
-- Console: не должно быть критических ошибок (красных)
-- Network: все запросы к `/assets/*` возвращают 200 OK
-- Network: проверьте что переменные окружения подставлены (запросы идут на правильные Supabase/S3 URL)
-
-### 3. Проверка интеграций
-
-**Supabase (Auth + DB):**
-- Попробуйте авторизоваться
-- Если успешно - подключение работает
-
-**Cloud.ru S3:**
-- Загрузите тестовый счет
-- Если файл сохранился - S3 работает
-
-**OpenRouter OCR:**
-- Загрузите счет с изображением
-- Если распознался - OCR API работает
-
-### 4. Проверка логов nginx
+### Память (billhub)
 
 ```bash
-# Пользователь: root
-# Мониторинг запросов в реальном времени
-tail -f /var/www/httpd-logs/billhub.fvds.ru.access.log
-
-# Просмотр ошибок
-tail -f /var/www/httpd-logs/billhub.fvds.ru.error.log
+docker stats --no-stream
+free -h
 ```
 
-### 5. Тестирование на разных устройствах
+### Логи (billhub)
 
-- Desktop (Chrome, Firefox, Safari)
-- Mobile (iOS Safari, Android Chrome)
-- Tablet
+```bash
+docker compose logs --tail=50 backend
+docker compose logs --tail=50 frontend
+docker compose logs --tail=50 redis
+```
 
-Убедитесь в корректности responsive-дизайна.
+### В браузере
+
+- Открыть https://ravek.link — загрузка SPA
+- Авторизоваться
+- Перейти на https://ravek.link/invoices, нажать F5 (SPA-роутинг)
+- Загрузить файл, скачать файл
 
 ---
 
 ## Обновление приложения
 
-### Быстрое обновление (стандартный случай)
-
-Подключиться к серверу через PuTTY.
-
-**Шаг 1. Получить код и собрать (пользователь: billhub)**
+### Стандартное обновление (billhub)
 
 ```bash
 cd /var/www/billhub/data/billhub-app
-git pull
-npm install
-npm run build
+git pull origin main
+docker compose build
+docker compose up -d
 ```
 
-> `npm install` можно пропустить, если package.json не менялся.
+Docker пересоберёт только изменённые образы. Контейнеры без изменений не перезапускаются.
 
-**Шаг 2. Скопировать сборку в production (пользователь: root)**
-
-```bash
-rm -rf /var/www/billhub/data/www/billhub.fvds.ru/*
-cp -r /var/www/billhub/data/billhub-app/dist/* /var/www/billhub/data/www/billhub.fvds.ru/
-chown -R billhub:billhub /var/www/billhub/data/www/billhub.fvds.ru/
-systemctl reload nginx
-```
-
-**Шаг 3. Проверить (пользователь: billhub или root)**
+### Обновление только фронтенда (billhub)
 
 ```bash
-curl -I https://billhub.fvds.ru
-```
-
-Ожидаемый ответ: `HTTP/2 200`.
-
-### Обновление с изменением переменных окружения
-
-Если добавились новые переменные или изменились значения существующих:
-
-```bash
-# Пользователь: billhub
 cd /var/www/billhub/data/billhub-app
-nano .env
+git pull origin main
+docker compose build frontend
+docker compose up -d
 ```
 
-После редактирования `.env` необходима пересборка (`npm run build`), так как переменные `VITE_*` встраиваются в бандл на этапе сборки.
-
-Далее выполнить шаги 1-3 из раздела "Быстрое обновление".
-
-### Откат к предыдущей версии
-
-Если после обновления обнаружены проблемы:
+### Обновление только бэкенда (billhub)
 
 ```bash
-# Пользователь: billhub
 cd /var/www/billhub/data/billhub-app
-git log --oneline -5          # посмотреть последние коммиты
-git checkout <хеш-коммита>    # откатиться к нужному коммиту
-npm install
-npm run build
+git pull origin main
+docker compose build backend
+docker compose up -d
 ```
 
-Затем выполнить шаг 2 (копирование в production от root).
+### Обновление server/.env (billhub)
+
+```bash
+nano /var/www/billhub/data/billhub-app/server/.env
+docker compose restart backend
+```
+
+Пересборка не нужна — env подключается при запуске контейнера.
+
+### Очистка старых образов (billhub)
+
+После нескольких обновлений накапливаются неиспользуемые образы:
+
+```bash
+docker image prune -f
+```
+
+---
+
+## Откат
+
+### К предыдущей версии кода (billhub)
+
+```bash
+cd /var/www/billhub/data/billhub-app
+git log --oneline -5
+git checkout <хеш-коммита>
+docker compose build
+docker compose up -d
+```
 
 Вернуться на последнюю версию:
 
 ```bash
-# Пользователь: billhub
 git checkout main
+docker compose build
+docker compose up -d
 ```
 
-### Автоматизация обновления (скрипт)
+### Полный откат на статический SPA
 
-Скрипт `/var/www/billhub/data/deploy.sh` для автоматизации:
+#### (billhub)
 
 ```bash
-#!/bin/bash
-set -e
-
-echo "=== Обновление BillHub ==="
-
 cd /var/www/billhub/data/billhub-app
-
-echo "[1/6] Git pull..."
-git pull
-
-echo "[2/6] npm install..."
-npm install
-
-echo "[3/6] npm run build..."
-npm run build
-
-echo "[4/6] Копирование файлов..."
-sudo rm -rf /var/www/billhub/data/www/billhub.fvds.ru/*
-sudo cp -r dist/* /var/www/billhub/data/www/billhub.fvds.ru/
-
-echo "[5/6] Установка прав..."
-sudo chown -R billhub:billhub /var/www/billhub/data/www/billhub.fvds.ru/
-
-echo "[6/6] Перезагрузка nginx..."
-sudo systemctl reload nginx
-
-echo "=== Готово! ==="
-echo "Проверьте: https://billhub.fvds.ru"
+docker compose down
 ```
 
-Создание и использование:
+#### (root)
 
-```bash
-# Пользователь: billhub
-nano /var/www/billhub/data/deploy.sh   # вставить содержимое выше
-chmod +x /var/www/billhub/data/deploy.sh
+Вернуть в `/etc/nginx/vhosts/billhub/billhub.fvds.ru.conf` блоки `location /` со статикой вместо proxy_pass:
 
-# Запуск обновления одной командой:
-/var/www/billhub/data/deploy.sh
+```nginx
+        location / {
+                location ~* ^.+\.(jpg|jpeg|gif|png|svg|js|css|mp3|ogg|mpe?g|avi|zip|gz|bz2?|rar|swf|webp|woff|woff2)$ {
+                        expires 24h;
+                        try_files $uri =404;
+                }
+                try_files $uri $uri/ /index.html;
+        }
 ```
 
-> Скрипт требует sudo для копирования файлов и перезагрузки nginx. Пользователь billhub должен иметь права sudo.
-
----
-
-## Список команд для развертывания
-
-### Полный список команд с указанием пользователя
-
-#### Шаг 0: Проверка путей, созданных ISPmanager
-
-**ВАЖНО:** Перед началом развертывания нужно проверить реальные пути, которые создал ISPmanager.
-
 ```bash
-# === Проверка директории сайта ===
-# Пользователь: root или billhub
-ls -la /var/www/billhub/
-ls -la /var/www/billhub/data/
-ls -la /var/www/billhub/data/www/
-
-# Должна существовать директория:
-# /var/www/billhub/data/www/billhub.fvds.ru/
-
-# === Проверка прав доступа к директории сайта ===
-# Пользователь: root
-ls -ld /var/www/billhub/data/www/billhub.fvds.ru/
-
-# Владелец должен быть billhub:billhub
-
-# === Поиск конфигурации nginx ===
-# Пользователь: root
-ls -la /etc/nginx/vhosts/ | grep billhub
-# или
-find /etc/nginx -name "*billhub*"
-
-# Запомните путь к конфигурационному файлу
-# Для billhub.fvds.ru: /etc/nginx/vhosts/billhub/billhub.fvds.ru.conf
-
-# === Проверка конфигурации nginx ===
-# Пользователь: root
-cat /etc/nginx/vhosts/billhub/billhub.fvds.ru.conf
-
-# Проверьте директивы:
-# - root (путь к сайту)
-# - ssl_certificate (путь к сертификату)
-# - ssl_certificate_key (путь к ключу)
-
-# === Поиск SSL-сертификатов ===
-# Пользователь: root
-find /var/www -name "*billhub.fvds.ru*" -type f
-# или
-ls -la /var/www/httpd-cert/
-ls -la /var/www/httpd-cert/billhub/ 2>/dev/null || echo "Директория не найдена"
-
-# Обычно сертификаты в:
-# /var/www/httpd-cert/<user>/<domain>.crtca (сертификат)
-# /var/www/httpd-cert/<user>/<domain>.key (ключ)
-
-# === Проверка содержимого директории сайта ===
-# Пользователь: billhub или root
-ls -lah /var/www/billhub/data/www/billhub.fvds.ru/
-
-# Если там уже есть файлы (заглушка ISPmanager) - это нормально,
-# они будут заменены при копировании dist/
-
-# === Проверка домашней директории пользователя billhub ===
-# Пользователь: billhub
-cd ~
-pwd
-# Должно вывести: /var/www/billhub/data
-
-ls -la
-# Проверьте права и доступность директории
-```
-
-**После проверки запомните:**
-1. Точный путь к директории сайта: `/var/www/billhub/data/www/billhub.fvds.ru/` ✅
-2. Путь к конфигурации nginx: `/etc/nginx/vhosts/billhub/billhub.fvds.ru.conf` ✅
-3. Пути к SSL-сертификатам:
-   - Certificate: `/var/www/httpd-cert/billhub/billhub.fvds.ru_le1.crtca` ✅
-   - Key: `/var/www/httpd-cert/billhub/billhub.fvds.ru_le1.key` ✅
-4. Репозиторий: `https://github.com/saztonov/billhub` ✅
-5. Node.js: v20.19.5, npm: v10.8.2 ✅
-
----
-
-#### Подготовка окружения
-
-```bash
-# === Проверка Node.js ===
-# Пользователь: billhub (или root)
-node --version
-npm --version
-
-# Установлено: Node.js v20.19.5 и npm v10.8.2 ✅
-# Установка не требуется
-```
-
-#### Клонирование репозитория
-
-```bash
-# === Переход в домашнюю директорию ===
-# Пользователь: billhub
-cd /var/www/billhub/data
-
-# === Клонирование репозитория ===
-# Пользователь: billhub
-git clone https://github.com/saztonov/billhub.git billhub-app
-
-# === Переход в директорию проекта ===
-# Пользователь: billhub
-cd billhub-app
-```
-
-#### Установка зависимостей
-
-```bash
-# === Установка npm пакетов ===
-# Пользователь: billhub
-npm install
-```
-
-#### Создание .env файла
-
-```bash
-# === Создание .env ===
-# Пользователь: billhub
-nano .env
-
-# Вставьте содержимое:
-# VITE_SUPABASE_URL=...
-# VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY=...
-# VITE_OPENROUTER_API_KEY=...
-# VITE_SUPABASE_TENANT_ID=...
-# VITE_S3_ENDPOINT=...
-# VITE_S3_REGION=...
-# VITE_S3_ACCESS_KEY=...
-# VITE_S3_SECRET_KEY=...
-# VITE_S3_BUCKET=...
-#
-# Сохранение: Ctrl+O, Enter
-# Выход: Ctrl+X
-```
-
-#### Сборка проекта
-
-```bash
-# === Запуск production-сборки ===
-# Пользователь: billhub
-npm run build
-
-# === Проверка результата ===
-# Пользователь: billhub
-ls -lh dist/
-```
-
-#### Копирование в production-директорию
-
-```bash
-# === Очистка старой версии ===
-# Пользователь: root
-rm -rf /var/www/billhub/data/www/billhub.fvds.ru/*
-
-# === Копирование собранных файлов ===
-# Пользователь: root
-cp -r /var/www/billhub/data/billhub-app/dist/* /var/www/billhub/data/www/billhub.fvds.ru/
-
-# === Установка правильных прав доступа ===
-# Пользователь: root
-chown -R billhub:billhub /var/www/billhub/data/www/billhub.fvds.ru/
-chmod -R 755 /var/www/billhub/data/www/billhub.fvds.ru/
-
-# === Проверка скопированных файлов ===
-# Пользователь: billhub (или root)
-ls -lh /var/www/billhub/data/www/billhub.fvds.ru/
-```
-
-#### Настройка nginx
-
-```bash
-# === Поиск конфигурационного файла ===
-# Пользователь: root
-ls -la /etc/nginx/vhosts/
-# или
-grep -r "billhub.fvds.ru" /etc/nginx/
-
-# === Редактирование конфигурации ===
-# Пользователь: root
-nano /etc/nginx/vhosts/billhub.conf
-
-# Найдите блок location / и убедитесь что содержит:
-# location / {
-#     root /var/www/billhub/data/www/billhub.fvds.ru;
-#     index index.html;
-#     try_files $uri $uri/ /index.html;
-# }
-#
-# Сохранение: Ctrl+O, Enter
-# Выход: Ctrl+X
-
-# === Проверка корректности конфигурации ===
-# Пользователь: root
 nginx -t
-
-# === Перезапуск nginx ===
-# Пользователь: root
 systemctl reload nginx
-# или полный перезапуск:
-# systemctl restart nginx
-
-# === Проверка статуса nginx ===
-# Пользователь: root
-systemctl status nginx
 ```
 
-#### Проверка работоспособности
+---
+
+## Полезные команды
+
+### Статус контейнеров (billhub)
 
 ```bash
-# === Проверка HTTP-статуса ===
-# Пользователь: billhub (или root)
-curl -I https://billhub.fvds.ru
+docker compose ps
+```
 
-# === Проверка содержимого ===
-# Пользователь: billhub (или root)
-curl https://billhub.fvds.ru | grep "<title>"
+### Логи в реальном времени (billhub)
 
-# === Просмотр логов доступа (в реальном времени) ===
-# Пользователь: root
+```bash
+docker compose logs -f backend
+docker compose logs -f frontend
+```
+
+### Перезапуск одного сервиса (billhub)
+
+```bash
+docker compose restart backend
+docker compose restart frontend
+docker compose restart redis
+```
+
+### Остановка всех контейнеров (billhub)
+
+```bash
+docker compose down
+```
+
+### Запуск после остановки (billhub)
+
+```bash
+docker compose up -d
+```
+
+### Использование ресурсов (billhub)
+
+```bash
+docker stats --no-stream
+```
+
+### Зайти внутрь контейнера (billhub)
+
+```bash
+docker exec -it billhub-app-backend-1 sh
+docker exec -it billhub-app-frontend-1 sh
+```
+
+### Логи nginx (root)
+
+```bash
 tail -f /var/www/httpd-logs/billhub.fvds.ru.access.log
-
-# === Просмотр логов ошибок ===
-# Пользователь: root
 tail -f /var/www/httpd-logs/billhub.fvds.ru.error.log
 ```
 
-#### Обновление приложения (после изменений в коде)
-
-Подробная инструкция в разделе [Обновление приложения](#обновление-приложения).
-
-Краткая последовательность:
-
-```bash
-# === Пользователь: billhub ===
-cd /var/www/billhub/data/billhub-app
-git pull
-npm install
-npm run build
-
-# === Пользователь: root ===
-rm -rf /var/www/billhub/data/www/billhub.fvds.ru/*
-cp -r /var/www/billhub/data/billhub-app/dist/* /var/www/billhub/data/www/billhub.fvds.ru/
-chown -R billhub:billhub /var/www/billhub/data/www/billhub.fvds.ru/
-systemctl reload nginx
-
-# === Проверка (любой пользователь) ===
-curl -I https://billhub.fvds.ru
-```
-
 ---
 
-## Примечания
-
-### Безопасность
-
-1. **.env файл** должен находиться ТОЛЬКО в `/var/www/billhub/data/billhub-app/`, НЕ в `/var/www/billhub/data/www/billhub.fvds.ru/`
-2. **Переменные окружения** встраиваются в бандл на этапе сборки (публичные ключи, endpoint'ы)
-3. **Права доступа:** убедитесь что файлы в `/var/www/` имеют правильного владельца и права
-
-### ISPmanager
-
-- ISPmanager может автоматически регенерировать конфигурацию nginx
-- Если настройки сбрасываются - используйте "Дополнительные директивы nginx" в панели ISPmanager
-
-### Git credentials
-
-- Для приватного репозитория настройте SSH-ключ или Personal Access Token
-- Или используйте HTTPS с токеном: `git clone https://TOKEN@github.com/user/repo.git`
-
-### pm2
-
-- pm2 НЕ используется для BillHub (статический деплой)
-- pm2 установлен на сервере для других проектов, но для этого приложения не требуется
-
----
-
-**Дата создания документа:** 2026-02-14
-**Версия:** 1.0
+**Дата обновления:** 2026-03-31
+**Архитектура:** Docker (frontend + backend + redis)

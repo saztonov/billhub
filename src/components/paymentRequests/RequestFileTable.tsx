@@ -89,9 +89,9 @@ const RequestFileTable = ({
     const cols: Record<string, unknown>[] = [
       { title: '№', key: 'index', width: 50, render: (_: unknown, __: PaymentRequestFile, index: number) => index + 1 },
       {
-        title: 'Файл', dataIndex: 'fileName', key: 'fileName', width: hasAdditionalFiles ? '40%' : '50%', ellipsis: true,
+        title: 'Файл', dataIndex: 'fileName', key: 'fileName', width: hasAdditionalFiles ? '35%' : '45%',
         render: (_: unknown, file: PaymentRequestFile) => (
-          <span style={file.isRejected ? { textDecoration: 'line-through', color: '#999' } : undefined}>{file.fileName}</span>
+          <span style={{ wordBreak: 'break-word', ...(file.isRejected ? { textDecoration: 'line-through', color: '#999' } : {}) }}>{file.fileName}</span>
         ),
       },
       {
@@ -104,7 +104,7 @@ const RequestFileTable = ({
         ),
       },
       {
-        title: 'Тип документа', key: 'documentType',
+        title: 'Тип документа', key: 'documentType', width: 160,
         render: (_: unknown, file: PaymentRequestFile) => file.documentTypeName ? <Tag>{file.documentTypeName}</Tag> : null,
       },
       {
