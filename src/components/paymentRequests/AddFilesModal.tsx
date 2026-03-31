@@ -11,9 +11,10 @@ interface AddFilesModalProps {
   requestId: string
   requestNumber: string
   counterpartyName: string
+  isResubmit?: boolean
 }
 
-const AddFilesModal = ({ open, onClose, requestId, requestNumber, counterpartyName }: AddFilesModalProps) => {
+const AddFilesModal = ({ open, onClose, requestId, requestNumber, counterpartyName, isResubmit }: AddFilesModalProps) => {
   const { message } = App.useApp()
   const user = useAuthStore((s) => s.user)
   const addTask = useUploadQueueStore((s) => s.addTask)
@@ -48,8 +49,8 @@ const AddFilesModal = ({ open, onClose, requestId, requestNumber, counterpartyNa
         file: f.file,
         documentTypeId: f.documentTypeId!,
         pageCount: f.pageCount,
-        isResubmit: false,
-        isAdditional: true,
+        isResubmit: !!isResubmit,
+        isAdditional: !isResubmit,
       })),
       userId: user.id,
     })

@@ -174,7 +174,7 @@ const RequestFileTable = ({
         label: `Файлы (${files.length + (decisionFiles?.length ?? 0)})`,
         extra: (
           <Space size={4} onClick={(e) => e.stopPropagation()}>
-            {!isEditing && !resubmitMode && (
+            {!isEditing && (
               <Button size="small" icon={<PlusOutlined />} onClick={() => setAddFilesModalOpen(true)}>{isMobile ? null : 'Добавить'}</Button>
             )}
             {files.length > 0 && (

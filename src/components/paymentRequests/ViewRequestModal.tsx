@@ -94,7 +94,6 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   const [downloading, setDownloading] = useState<string | null>(null)
   const [downloadingAll, setDownloadingAll] = useState(false)
   const [previewFile, setPreviewFile] = useState<{ fileKey: string; fileName: string; mimeType: string | null } | null>(null)
-  const [resubmitFileList, setResubmitFileList] = useState<FileItem[]>([])
   const [resubmitComment, setResubmitComment] = useState('')
 
   // Модалка отклонения
@@ -111,7 +110,6 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   const [editForm] = Form.useForm()
   const [editFileList, setEditFileList] = useState<FileItem[]>([])
   const [showEditFileValidation, setShowEditFileValidation] = useState(false)
-  const [showResubmitFileValidation, setShowResubmitFileValidation] = useState(false)
   const [resubmitForm] = Form.useForm()
   const [revisionCompleteForm] = Form.useForm()
   const { fieldOptions, fetchFieldOptions, getOptionsByField } = usePaymentRequestSettingsStore()
@@ -312,15 +310,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       }
       return
     }
-    if (resubmitFileList.length > 0) {
-      const filesWithoutType = resubmitFileList.filter((f) => !f.documentTypeId)
-      if (filesWithoutType.length > 0) {
-        setShowResubmitFileValidation(true)
-        message.error('Укажите тип для каждого файла')
-        return
-      }
-    }
-    onResubmit?.(resubmitComment, resubmitFileList, {
+    onResubmit?.(resubmitComment, [], {
       ...formValues,
       invoiceAmount: Number(String(formValues.invoiceAmount).replace(/\s/g, '')),
     })
@@ -564,9 +554,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
 
         {resubmitMode && (
           <div style={{ marginTop: 16 }}>
-            <Text strong style={{ display: 'block', marginBottom: 8 }}>Догрузить файлы</Text>
-            <FileUploadList fileList={resubmitFileList} onChange={setResubmitFileList} showValidation={showResubmitFileValidation} />
-            <Text strong style={{ display: 'block', marginTop: 16, marginBottom: 8 }}>Комментарий к повторной отправке</Text>
+            <Text strong style={{ display: 'block', marginBottom: 8 }}>Комментарий к повторной отправке</Text>
             <TextArea rows={3} placeholder="Необязательное поле" value={resubmitComment} onChange={(e) => setResubmitComment(e.target.value)} />
           </div>
         )}
@@ -580,6 +568,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
         requestId={request.id}
         requestNumber={request.requestNumber}
         counterpartyName={request.counterpartyName ?? ''}
+        isResubmit={resubmitMode}
       />
 
       <DpFillModal
