@@ -9,7 +9,7 @@ RUN npm ci
 COPY . .
 
 # URL бэкенда для API-запросов (проксируется через nginx)
-ARG VITE_API_URL=/api
+ARG VITE_API_URL=
 RUN npm run build
 
 # Этап 2: Раздача статики через nginx
