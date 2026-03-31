@@ -12,6 +12,7 @@ import {
   resolveFileRecipients,
   resolveContractCommentRecipients,
   resolveContractFileRecipients,
+  type NotificationInsert,
 } from '../services/notification-helpers.js';
 
 /* ------------------------------------------------------------------ */
@@ -218,7 +219,7 @@ async function notificationActionRoutes(fastify: FastifyInstance): Promise<void>
 
       // Всегда уведомляем Штаб
       const shtabIds = await getUsersByDepartmentAndSite(supabase, 'shtab', siteId, actorUserId);
-      const notifications = shtabIds.map((uid) => ({
+      const notifications: NotificationInsert[] = shtabIds.map((uid) => ({
         user_id: uid,
         type: 'resubmitted' as const,
         title: 'Повторная отправка заявки',
