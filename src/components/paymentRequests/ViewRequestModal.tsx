@@ -30,7 +30,6 @@ import { useDocumentTypeStore } from '@/store/documentTypeStore'
 import { downloadFileBlob } from '@/services/s3'
 // JSZip загружается динамически при скачивании архива
 import FilePreviewModal from './FilePreviewModal'
-import FileUploadList from './FileUploadList'
 import type { FileItem } from './FileUploadList'
 import DeliveryCalculation from './DeliveryCalculation'
 import ApprovalLog from './ApprovalLog'
@@ -140,13 +139,11 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
 
   useEffect(() => {
     if (!open) {
-      setResubmitFileList([])
       setResubmitComment('')
       try { if (resubmitMode) resubmitForm.resetFields() } catch { /* форма не подключена к DOM */ }
       setIsEditing(false)
       setEditFileList([])
       setShowEditFileValidation(false)
-      setShowResubmitFileValidation(false)
       setRejectModalOpen(false)
       setRevisionComment('')
       setRevisionModalOpen(false)
@@ -507,7 +504,6 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
           downloadingAll={downloadingAll}
           isLoading={isLoading}
           isEditing={isEditing}
-          resubmitMode={resubmitMode}
           hasAdditionalFiles={hasAdditionalFiles}
           toggleFileRejection={toggleFileRejection}
           handleDownload={handleDownload}

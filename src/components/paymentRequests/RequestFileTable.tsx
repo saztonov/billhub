@@ -30,7 +30,6 @@ interface RequestFileTableProps {
   downloadingAll: boolean
   isLoading: boolean
   isEditing: boolean
-  resubmitMode?: boolean
   hasAdditionalFiles: boolean
   toggleFileRejection: (fileId: string, userId: string) => void
   handleDownload: (fileKey: string, fileName: string) => void
@@ -51,7 +50,6 @@ const RequestFileTable = ({
   downloadingAll,
   isLoading,
   isEditing,
-  resubmitMode,
   hasAdditionalFiles,
   toggleFileRejection,
   handleDownload,
