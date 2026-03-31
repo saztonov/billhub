@@ -32,6 +32,6 @@ EXPOSE 3000
 
 # Проверка здоровья сервиса
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=10s \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:3000/api/health || exit 1
 
 CMD ["node", "--max-old-space-size=512", "dist/server.js"]
