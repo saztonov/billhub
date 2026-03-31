@@ -1,8 +1,6 @@
 import { useMemo } from 'react'
-import { Typography, Space, Tag, Tooltip, Button } from 'antd'
+import { Typography, Space, Tag } from 'antd'
 import {
-  DownloadOutlined,
-  EyeOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
   ClockCircleOutlined,
@@ -30,44 +28,17 @@ interface ApprovalLogProps {
   decisions: ApprovalDecision[]
   logs: PaymentRequestLog[]
   isCounterpartyUser: boolean
-  downloading: string | null
-  onViewFile: (fileKey: string, fileName: string, mimeType: string | null) => void
-  onDownloadFile: (fileKey: string, fileName: string) => void
 }
 
-/** Кнопки просмотра/скачивания файла решения */
-const DecisionFileActions = ({ files, downloading, onViewFile, onDownloadFile }: {
-  files: ApprovalDecisionFile[]
-  downloading: string | null
-  onViewFile: (fileKey: string, fileName: string, mimeType: string | null) => void
-  onDownloadFile: (fileKey: string, fileName: string) => void
-}) => (
+/** Названия прикреплённых файлов решения (без кнопок — файлы отображаются в разделе "Файлы") */
+const DecisionFileNames = ({ files }: { files: ApprovalDecisionFile[] }) => (
   <div style={{ marginLeft: 22, marginTop: 8 }}>
     <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>
       Прикрепленные файлы:
     </Text>
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       {files.map((file) => (
-        <div key={file.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Text style={{ flex: 1, fontSize: 12 }}>{file.fileName}</Text>
-          <Space size="small">
-            <Tooltip title="Просмотр">
-              <Button
-                size="small"
-                icon={<EyeOutlined />}
-                onClick={() => onViewFile(file.fileKey, file.fileName, file.mimeType)}
-              />
-            </Tooltip>
-            <Tooltip title="Скачать">
-              <Button
-                size="small"
-                icon={<DownloadOutlined />}
-                loading={downloading === file.fileKey}
-                onClick={() => onDownloadFile(file.fileKey, file.fileName)}
-              />
-            </Tooltip>
-          </Space>
-        </div>
+        <Text key={file.id} type="secondary" style={{ fontSize: 12 }}>{file.fileName}</Text>
       ))}
     </div>
   </div>
@@ -98,7 +69,7 @@ function stageLabel(entry: StageHistoryEntry): string {
 }
 
 /** Лог для контрагента */
-const CounterpartyLog = ({ request, decisions, logs, downloading, onViewFile, onDownloadFile }: Omit<ApprovalLogProps, 'isCounterpartyUser'>) => {
+const CounterpartyLog = ({ request, decisions, logs }: Omit<ApprovalLogProps, 'isCounterpartyUser'>) => {
   const logItems = useMemo(() => {
     type LogItem = { icon: React.ReactNode; text: string; date?: string; files?: ApprovalDecisionFile[] }
     const items: LogItem[] = []
@@ -171,12 +142,7 @@ const CounterpartyLog = ({ request, decisions, logs, downloading, onViewFile, on
               {item.date && <Text type="secondary">{formatDate(item.date, false)}</Text>}
             </Space>
             {item.files && item.files.length > 0 && (
-              <DecisionFileActions
-                files={item.files}
-                downloading={downloading}
-                onViewFile={onViewFile}
-                onDownloadFile={onDownloadFile}
-              />
+              <DecisionFileNames files={item.files} />
             )}
           </div>
         ))}
@@ -186,7 +152,7 @@ const CounterpartyLog = ({ request, decisions, logs, downloading, onViewFile, on
 }
 
 /** Лог для admin/user */
-const AdminLog = ({ request, decisions, logs, downloading, onViewFile, onDownloadFile }: Omit<ApprovalLogProps, 'isCounterpartyUser'>) => {
+const AdminLog = ({ request, decisions, logs }: Omit<ApprovalLogProps, 'isCounterpartyUser'>) => {
   type LogItem = {
     icon: React.ReactNode
     text: string
@@ -295,12 +261,7 @@ const AdminLog = ({ request, decisions, logs, downloading, onViewFile, onDownloa
                 <Text type="secondary" style={{ display: 'block', marginLeft: 22 }}>Комментарий: {item.comment}</Text>
               )}
               {item.files && item.files.length > 0 && (
-                <DecisionFileActions
-                  files={item.files}
-                  downloading={downloading}
-                  onViewFile={onViewFile}
-                  onDownloadFile={onDownloadFile}
-                />
+                <DecisionFileNames files={item.files} />
               )}
             </div>
           </div>
@@ -317,9 +278,6 @@ const ApprovalLog = (props: ApprovalLogProps) => {
         request={props.request}
         decisions={props.decisions}
         logs={props.logs}
-        downloading={props.downloading}
-        onViewFile={props.onViewFile}
-        onDownloadFile={props.onDownloadFile}
       />
     )
   }
@@ -329,9 +287,6 @@ const ApprovalLog = (props: ApprovalLogProps) => {
       request={props.request}
       decisions={props.decisions}
       logs={props.logs}
-      downloading={props.downloading}
-      onViewFile={props.onViewFile}
-      onDownloadFile={props.onDownloadFile}
     />
   )
 }

@@ -16,13 +16,14 @@ import {
   CheckCircleOutlined,
 } from '@ant-design/icons'
 import { formatSize, formatDateShortWithTime } from '@/utils/requestFormatters'
-import type { PaymentRequestFile, Department } from '@/types'
+import type { PaymentRequestFile, ApprovalDecisionFile, Department } from '@/types'
 import { DEPARTMENT_LABELS } from '@/types'
 
 const { Text } = Typography
 
 interface RequestFileTableProps {
   files: PaymentRequestFile[]
+  decisionFiles?: ApprovalDecisionFile[]
   isMobile: boolean
   canRejectFiles: boolean
   downloading: string | null
@@ -36,11 +37,14 @@ interface RequestFileTableProps {
   setPreviewFile: (f: { fileKey: string; fileName: string; mimeType: string | null } | null) => void
   handleDownloadAll: () => void
   setAddFilesModalOpen: (open: boolean) => void
+  onViewDecisionFile?: (fileKey: string, fileName: string, mimeType: string | null) => void
+  onDownloadDecisionFile?: (fileKey: string, fileName: string) => void
   userId?: string
 }
 
 const RequestFileTable = ({
   files,
+  decisionFiles,
   isMobile,
   canRejectFiles,
   downloading,
@@ -54,6 +58,8 @@ const RequestFileTable = ({
   setPreviewFile,
   handleDownloadAll,
   setAddFilesModalOpen,
+  onViewDecisionFile,
+  onDownloadDecisionFile,
   userId,
 }: RequestFileTableProps) => {
   // Колонки таблицы файлов
@@ -165,7 +171,7 @@ const RequestFileTable = ({
       style={{ marginBottom: 12 }}
       items={[{
         key: 'files',
-        label: `Файлы (${files.length})`,
+        label: `Файлы (${files.length + (decisionFiles?.length ?? 0)})`,
         extra: (
           <Space size={4} onClick={(e) => e.stopPropagation()}>
             {!isEditing && !resubmitMode && (
@@ -177,7 +183,30 @@ const RequestFileTable = ({
           </Space>
         ),
         children: (
-          <Table size="small" columns={fileColumns as any} dataSource={files} rowKey="id" loading={isLoading} pagination={false} locale={{ emptyText: 'Нет файлов' }} rowClassName={(record: PaymentRequestFile) => record.isRejected ? 'file-rejected-row' : ''} />
+          <>
+            <Table size="small" columns={fileColumns as any} dataSource={files} rowKey="id" loading={isLoading} pagination={false} locale={{ emptyText: 'Нет файлов' }} rowClassName={(record: PaymentRequestFile) => record.isRejected ? 'file-rejected-row' : ''} />
+            {decisionFiles && decisionFiles.length > 0 && (
+              <div style={{ marginTop: 12 }}>
+                <Text strong style={{ fontSize: 13, display: 'block', marginBottom: 8 }}>Файлы согласования</Text>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {decisionFiles.map((file) => (
+                    <div key={file.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
+                      <Text style={{ flex: 1, fontSize: 13 }}>{file.fileName}</Text>
+                      {file.fileSize != null && <Text type="secondary" style={{ fontSize: 12 }}>{formatSize(file.fileSize)}</Text>}
+                      <Space size={4}>
+                        <Tooltip title="Просмотр">
+                          <Button icon={<EyeOutlined />} size="small" onClick={() => onViewDecisionFile?.(file.fileKey, file.fileName, file.mimeType)} />
+                        </Tooltip>
+                        <Tooltip title="Скачать">
+                          <Button icon={<DownloadOutlined />} size="small" loading={downloading === file.fileKey} onClick={() => onDownloadDecisionFile?.(file.fileKey, file.fileName)} />
+                        </Tooltip>
+                      </Space>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
         ),
       }]}
     />

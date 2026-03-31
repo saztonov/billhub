@@ -293,6 +293,11 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
     })
   }, [currentRequestFiles])
 
+  // Собираем файлы из решений (прикреплённые при отклонении)
+  const decisionFiles = useMemo(() => {
+    return currentDecisions.flatMap(d => d.files ?? [])
+  }, [currentDecisions])
+
   const hasAdditionalFiles = sortedFiles.some((f) => f.isAdditional || f.isResubmit)
 
   const handleResubmitSubmit = async () => {
@@ -497,9 +502,6 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                 decisions={currentDecisions}
                 logs={currentLogs}
                 isCounterpartyUser={!!isCounterpartyUser}
-                downloading={downloading}
-                onViewFile={handleViewDecisionFile}
-                onDownloadFile={handleDownloadDecisionFile}
               />
             ),
           }]}
@@ -508,6 +510,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
         {/* Таблица файлов */}
         <RequestFileTable
           files={sortedFiles}
+          decisionFiles={decisionFiles}
           isMobile={isMobile}
           canRejectFiles={!!canRejectFiles}
           downloading={downloading}
@@ -521,6 +524,8 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
           setPreviewFile={setPreviewFile}
           handleDownloadAll={handleDownloadAll}
           setAddFilesModalOpen={setAddFilesModalOpen}
+          onViewDecisionFile={handleViewDecisionFile}
+          onDownloadDecisionFile={handleDownloadDecisionFile}
           userId={user?.id}
         />
 
