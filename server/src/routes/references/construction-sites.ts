@@ -49,7 +49,7 @@ async function constructionSiteRoutes(fastify: FastifyInstance): Promise<void> {
   /** GET /api/references/construction-sites — список объектов */
   fastify.get(
     '/',
-    { preHandler: [authenticate, requireRole('admin', 'user')] },
+    { preHandler: [authenticate, requireRole('admin', 'user', 'counterparty_user')] },
     async (request, reply) => {
       const { data, error } = await request.server.supabase
         .from('construction_sites')

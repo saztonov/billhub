@@ -84,7 +84,7 @@ async function fieldOptionRoutes(fastify: FastifyInstance): Promise<void> {
   /** GET /api/references/field-options — список опций (с фильтром по fieldCode) */
   fastify.get<{ Querystring: FieldOptionQuery }>(
     '/',
-    { schema: querySchema, preHandler: [authenticate, requireRole('admin', 'user')] },
+    { schema: querySchema, preHandler: [authenticate, requireRole('admin', 'user', 'counterparty_user')] },
     async (request, reply) => {
       const { fieldCode } = request.query;
       let query = request.server.supabase

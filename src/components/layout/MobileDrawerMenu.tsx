@@ -41,8 +41,7 @@ const MobileDrawerMenu = (props: MobileDrawerMenuProps) => {
       placement="left"
       open={open}
       onClose={onClose}
-      width={280}
-      styles={{ body: { padding: 0, display: 'flex', flexDirection: 'column' } }}
+      styles={{ wrapper: { width: 280 }, body: { padding: 0, display: 'flex', flexDirection: 'column' } }}
       title={
         <Text strong style={{ fontSize: 20, letterSpacing: 1 }}>
           BillHub

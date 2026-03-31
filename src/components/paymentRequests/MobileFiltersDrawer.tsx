@@ -31,8 +31,7 @@ const MobileFiltersDrawer = (props: MobileFiltersDrawerProps) => {
       placement="bottom"
       open={open}
       onClose={onClose}
-      height="70vh"
-      styles={{ body: { padding: '8px 12px', overflow: 'auto' } }}
+      styles={{ wrapper: { height: '70vh' }, body: { padding: '8px 12px', overflow: 'auto' } }}
       extra={
         <Button type="primary" onClick={onClose}>
           Применить

@@ -78,7 +78,7 @@ async function supplierRoutes(fastify: FastifyInstance): Promise<void> {
   /** GET /api/references/suppliers — список поставщиков */
   fastify.get(
     '/',
-    { preHandler: [authenticate, requireRole('admin', 'user')] },
+    { preHandler: [authenticate, requireRole('admin', 'user', 'counterparty_user')] },
     async (request, reply) => {
       const { data, error } = await request.server.supabase
         .from('suppliers')

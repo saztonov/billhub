@@ -97,7 +97,7 @@ async function statusRoutes(fastify: FastifyInstance): Promise<void> {
   /** GET /api/references/statuses?entityType=xxx — статусы по типу сущности */
   fastify.get<{ Querystring: StatusQuery }>(
     '/',
-    { schema: querySchema, preHandler: [authenticate, requireRole('admin', 'user')] },
+    { schema: querySchema, preHandler: [authenticate, requireRole('admin', 'user', 'counterparty_user')] },
     async (request, reply) => {
       const { entityType } = request.query;
       const { data, error } = await request.server.supabase
