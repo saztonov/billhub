@@ -15,6 +15,7 @@ import {
 } from '@ant-design/icons'
 import { useAuthStore } from '@/store/authStore'
 import { useNotificationStore } from '@/store/notificationStore'
+import { updateFaviconBadge } from '@/utils/faviconBadge'
 import { useHeaderStore } from '@/store/headerStore'
 import useIsMobile from '@/hooks/useIsMobile'
 import MobileDrawerMenu from '@/components/layout/MobileDrawerMenu'
@@ -92,6 +93,11 @@ const MainLayout = () => {
     const interval = setInterval(() => fetchUnreadCount(user.id), 30000)
     return () => clearInterval(interval)
   }, [user?.id, fetchUnreadCount])
+
+  // Обновление favicon при изменении количества непрочитанных
+  useEffect(() => {
+    updateFaviconBadge(unreadCount)
+  }, [unreadCount])
 
   const handleNotifOpen = useCallback((open: boolean) => {
     setNotifOpen(open)
