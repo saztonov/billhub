@@ -330,7 +330,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
                 }}
               >
                 <Input
-                  addonAfter="₽"
+                  suffix="₽"
                   style={{ width: '100%' }}
                   placeholder="Сумма"
                 />

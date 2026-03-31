@@ -321,7 +321,7 @@ const PaymentsTable = ({ paymentRequestId, counterpartyName, canManage, onTotalC
             <DatePicker format="DD.MM.YYYY" style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item name="amount" label="Сумма" rules={[{ required: true, message: 'Укажите сумму' }, { type: 'number', min: 0.01, message: 'Сумма должна быть больше 0' }]}>
-            <InputNumber min={0.01} step={0.01} style={{ width: '100%' }} addonAfter="₽" precision={2} />
+            <InputNumber min={0.01} step={0.01} style={{ width: '100%' }} suffix="₽" precision={2} />
           </Form.Item>
         </Form>
 

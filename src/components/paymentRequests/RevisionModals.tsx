@@ -131,7 +131,7 @@ const RevisionModals = ({
             </Col>
           </Row>
           <Form.Item name="invoiceAmount" label="Сумма счета" required rules={[{ validator: invoiceAmountValidator }]} getValueFromEvent={invoiceAmountMask}>
-            <Input addonAfter="₽" style={{ width: '100%' }} placeholder="Сумма" />
+            <Input suffix="₽" style={{ width: '100%' }} placeholder="Сумма" />
           </Form.Item>
         </Form>
       </Modal>

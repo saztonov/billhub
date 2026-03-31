@@ -133,7 +133,7 @@ const DpFillModal = ({ open, onClose, requestId, requestNumber, counterpartyName
           <DatePicker format="DD.MM.YYYY" style={{ width: '100%' }} placeholder="Выберите дату" />
         </Form.Item>
         <Form.Item name="dpAmount" label="Сумма РП" rules={[{ validator: amountValidator }]} getValueFromEvent={amountMask}>
-          <Input addonAfter="₽" placeholder="Сумма" />
+          <Input suffix="₽" placeholder="Сумма" />
         </Form.Item>
         <Form.Item label="Файл РП" required>
           <Upload

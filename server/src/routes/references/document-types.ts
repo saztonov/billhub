@@ -47,7 +47,7 @@ async function documentTypeRoutes(fastify: FastifyInstance): Promise<void> {
   /** GET /api/references/document-types — список типов документов */
   fastify.get(
     '/',
-    { preHandler: [authenticate, requireRole('admin', 'user')] },
+    { preHandler: [authenticate, requireRole('admin', 'user', 'counterparty_user')] },
     async (request, reply) => {
       const { data, error } = await request.server.supabase
         .from('document_types')

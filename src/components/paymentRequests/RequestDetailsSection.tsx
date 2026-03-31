@@ -131,7 +131,7 @@ const RequestDetailsSection = ({
           </Col>
           <Col xs={24} sm={12} md={3}>
             <Form.Item name="invoiceAmount" label="Сумма счета" rules={[{ validator: invoiceAmountValidator }]} getValueFromEvent={invoiceAmountMask}>
-              <Input addonAfter="₽" style={{ width: '100%' }} placeholder="Сумма" />
+              <Input suffix="₽" style={{ width: '100%' }} placeholder="Сумма" />
             </Form.Item>
           </Col>
         </Row>
@@ -197,7 +197,7 @@ const RequestDetailsSection = ({
             </Col>
             <Col xs={24} sm={8}>
               <Form.Item name="invoiceAmount" label="Сумма счета" required rules={[{ validator: invoiceAmountValidator }]} getValueFromEvent={invoiceAmountMask}>
-                <Input addonAfter="₽" style={{ width: '100%' }} placeholder="Сумма" />
+                <Input suffix="₽" style={{ width: '100%' }} placeholder="Сумма" />
               </Form.Item>
             </Col>
           </Row>

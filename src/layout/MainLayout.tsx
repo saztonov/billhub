@@ -246,8 +246,7 @@ const MainLayout = () => {
           placement="right"
           open={mobileNotifOpen}
           onClose={() => setMobileNotifOpen(false)}
-          width="100%"
-          styles={{ body: { padding: 0 } }}
+          styles={{ wrapper: { width: '100%' }, body: { padding: 0 } }}
         >
           {notificationList}
         </Drawer>
