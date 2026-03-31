@@ -96,7 +96,18 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
         }
       }
 
-      await api.post('/api/auth/create-user', data)
+      // Маппинг snake_case полей формы в camelCase для сервера
+      const payload = {
+        email: data.email,
+        password: data.password,
+        fullName: data.full_name,
+        role: data.role,
+        counterpartyId: data.counterparty_id ?? undefined,
+        departmentId: data.department ?? undefined,
+        allSites: data.all_sites,
+        siteIds: data.site_ids,
+      }
+      await api.post('/api/auth/create-user', payload)
       await get().fetchUsers()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка создания пользователя'
