@@ -54,16 +54,16 @@ async function renderBadgeFavicon(): Promise<string> {
   return canvas.toDataURL('image/png')
 }
 
-/** Устанавливает href у <link rel="icon"> */
+/** Устанавливает href у <link rel="icon">, пересоздавая элемент для гарантии обновления */
 function setFaviconHref(href: string) {
-  let link = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
-  if (!link) {
-    link = document.createElement('link')
-    link.rel = 'icon'
-    document.head.appendChild(link)
-  }
-  link.type = href === ORIGINAL_HREF ? 'image/svg+xml' : 'image/png'
-  link.href = href
+  const old = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
+  if (old) old.remove()
+
+  const link = document.createElement('link')
+  link.rel = 'icon'
+  link.type = href.startsWith('data:') ? 'image/png' : 'image/svg+xml'
+  link.href = href.startsWith('data:') ? href : `${href}?v=${Date.now()}`
+  document.head.appendChild(link)
 }
 
 /** Обновляет favicon в зависимости от количества непрочитанных уведомлений */
