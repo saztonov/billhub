@@ -15,7 +15,7 @@ import {
   CloseCircleOutlined,
   CheckCircleOutlined,
 } from '@ant-design/icons'
-import { formatSize, formatDateShort } from '@/utils/requestFormatters'
+import { formatSize, formatDateShortWithTime } from '@/utils/requestFormatters'
 import type { PaymentRequestFile, Department } from '@/types'
 import { DEPARTMENT_LABELS } from '@/types'
 
@@ -109,7 +109,7 @@ const RequestFileTable = ({
       },
       {
         title: 'Дата', key: 'createdAt', width: 140,
-        render: (_: unknown, file: PaymentRequestFile) => formatDateShort(file.createdAt),
+        render: (_: unknown, file: PaymentRequestFile) => formatDateShortWithTime(file.createdAt),
       },
     ]
 
