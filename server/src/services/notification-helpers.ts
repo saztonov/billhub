@@ -153,9 +153,16 @@ export async function getOmtsRpUsers(
 /*  Определение получателей уведомлений                                */
 /* ------------------------------------------------------------------ */
 
+/** Известные значения recipient — это департаменты, а не userId */
+const DEPARTMENT_RECIPIENTS = ['shtab', 'omts', 'smetny', 'counterparty'];
+
 /**
  * Получатели комментария к заявке на оплату.
- * Если указан recipient — только ему. Иначе — создателю + штабу объекта.
+ * recipient может быть:
+ *   - null / undefined — всем (создателю + штабу объекта)
+ *   - "shtab" / "omts" / "smetny" — всем пользователям указанного департамента на объекте
+ *   - "counterparty" — контрагенту-создателю заявки
+ *   - конкретный userId — только этому пользователю
  */
 export async function resolveCommentRecipients(
   supabase: SupabaseClient,
@@ -163,25 +170,35 @@ export async function resolveCommentRecipients(
   actorUserId: string,
   recipient: string | null | undefined,
 ): Promise<string[]> {
-  if (recipient) {
-    return recipient === actorUserId ? [] : [recipient];
-  }
-
   const info = await getPaymentRequestInfo(supabase, paymentRequestId);
   if (!info) return [];
 
   const ids = new Set<string>();
 
-  // Создателю заявки
-  if (info.created_by !== actorUserId) {
-    ids.add(info.created_by);
+  if (recipient && DEPARTMENT_RECIPIENTS.includes(recipient)) {
+    // Recipient — название департамента: уведомляем всех пользователей этого департамента на объекте
+    if (recipient === 'counterparty') {
+      // Уведомить создателя заявки (контрагента)
+      if (info.created_by !== actorUserId) ids.add(info.created_by);
+    } else {
+      const deptUsers = await getUsersByDepartmentAndSite(
+        supabase, recipient, info.site_id, actorUserId,
+      );
+      deptUsers.forEach((id) => ids.add(id));
+    }
+  } else if (recipient) {
+    // Recipient — конкретный userId
+    if (recipient !== actorUserId) ids.add(recipient);
+  } else {
+    // Без recipient — всем: создателю + штабу объекта
+    if (info.created_by !== actorUserId) {
+      ids.add(info.created_by);
+    }
+    const shtabUsers = await getUsersByDepartmentAndSite(
+      supabase, 'shtab', info.site_id, actorUserId,
+    );
+    shtabUsers.forEach((id) => ids.add(id));
   }
-
-  // Штабу объекта
-  const shtabUsers = await getUsersByDepartmentAndSite(
-    supabase, 'shtab', info.site_id, actorUserId,
-  );
-  shtabUsers.forEach((id) => ids.add(id));
 
   return Array.from(ids);
 }
@@ -221,24 +238,34 @@ export async function resolveContractCommentRecipients(
   actorUserId: string,
   recipient: string | null | undefined,
 ): Promise<string[]> {
-  if (recipient) {
-    return recipient === actorUserId ? [] : [recipient];
-  }
-
   const info = await getContractRequestInfo(supabase, contractRequestId);
   if (!info) return [];
 
   const ids = new Set<string>();
 
-  if (info.created_by !== actorUserId) {
-    ids.add(info.created_by);
+  if (recipient && DEPARTMENT_RECIPIENTS.includes(recipient)) {
+    // Recipient — название департамента
+    if (recipient === 'counterparty') {
+      if (info.created_by !== actorUserId) ids.add(info.created_by);
+    } else {
+      const deptUsers = await getUsersByDepartmentAndSite(
+        supabase, recipient, info.site_id, actorUserId,
+      );
+      deptUsers.forEach((id) => ids.add(id));
+    }
+  } else if (recipient) {
+    // Recipient — конкретный userId
+    if (recipient !== actorUserId) ids.add(recipient);
+  } else {
+    // Без recipient — всем: создателю + ОМТС объекта
+    if (info.created_by !== actorUserId) {
+      ids.add(info.created_by);
+    }
+    const omtsUsers = await getUsersByDepartmentAndSite(
+      supabase, 'omts', info.site_id, actorUserId,
+    );
+    omtsUsers.forEach((id) => ids.add(id));
   }
-
-  // ОМТС объекта
-  const omtsUsers = await getUsersByDepartmentAndSite(
-    supabase, 'omts', info.site_id, actorUserId,
-  );
-  omtsUsers.forEach((id) => ids.add(id));
 
   return Array.from(ids);
 }

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { api } from '@/services/api'
 import { logError } from '@/services/errorLogger'
+import { notifyContractNewComment } from '@/utils/contractNotificationService'
 import type { ContractRequestComment } from '@/types'
 
 interface ContractCommentStoreState {
@@ -46,6 +47,9 @@ export const useContractCommentStore = create<ContractCommentStoreState>((set, g
         userId,
         recipient: recipient || null,
       })
+
+      // Уведомление получателям комментария
+      notifyContractNewComment(contractRequestId, userId, recipient || null)
 
       await get().fetchComments(contractRequestId)
       set({ isSubmitting: false })

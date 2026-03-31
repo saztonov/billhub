@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { api } from '@/services/api'
 import { logError } from '@/services/errorLogger'
+import { notifyNewComment } from '@/utils/notificationService'
 import type { PaymentRequestComment } from '@/types'
 
 interface CommentStoreState {
@@ -46,6 +47,9 @@ export const useCommentStore = create<CommentStoreState>((set, get) => ({
         userId,
         recipient: recipient || null,
       })
+
+      // Уведомление получателям комментария
+      notifyNewComment(paymentRequestId, userId, recipient || null)
 
       await get().fetchComments(paymentRequestId)
       set({ isSubmitting: false })
