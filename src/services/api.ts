@@ -56,8 +56,9 @@ async function apiFetch<T>(url: string, options?: RequestInit, isRetry = false, 
   const fullUrl = `${BASE_URL}${url}`
   const isFormData = options?.body instanceof FormData
 
+  const isBlob = options?.body instanceof Blob || options?.body instanceof ArrayBuffer
   const headers = new Headers(options?.headers)
-  if (!isFormData && !headers.has('Content-Type')) {
+  if (!isFormData && !isBlob && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
   }
 
@@ -132,6 +133,14 @@ export const api = {
 
   delete: <T>(url: string) =>
     apiFetch<T>(url, { method: 'DELETE' }),
+
+  /** PUT с бинарным телом (для загрузки чанков файлов) */
+  putBinary: <T>(url: string, data: Blob | ArrayBuffer, contentType = 'application/octet-stream') =>
+    apiFetch<T>(url, {
+      method: 'PUT',
+      body: data,
+      headers: { 'Content-Type': contentType },
+    }),
 } as const
 
 /** SSE-подключение с автоматическим парсингом JSON */

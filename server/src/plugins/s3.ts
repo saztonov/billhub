@@ -32,6 +32,7 @@ async function s3Plugin(fastify: FastifyInstance): Promise<void> {
       secretAccessKey,
     },
     forcePathStyle: true,
+    maxAttempts: 10,
   });
 
   fastify.decorate('s3Client', client);

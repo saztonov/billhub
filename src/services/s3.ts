@@ -1,39 +1,162 @@
 import { api } from '@/services/api'
 
-// Типы ответов API
-interface UploadUrlResponse {
-  uploadUrl: string
+/* ------------------------------------------------------------------ */
+/*  Константы                                                          */
+/* ------------------------------------------------------------------ */
+
+/** Размер чанка (5 МБ — совпадает с серверным PART_SIZE) */
+const CHUNK_SIZE = 5 * 1024 * 1024
+
+/** Максимальное время клиентских ретраев (20 минут) */
+const MAX_RETRY_DURATION_MS = 20 * 60 * 1000
+
+/** Максимальная задержка между ретраями (2 минуты) */
+const MAX_RETRY_DELAY_MS = 2 * 60 * 1000
+
+/** Начальная задержка ретрая (5 секунд) */
+const INITIAL_RETRY_DELAY_MS = 5000
+
+/* ------------------------------------------------------------------ */
+/*  Типы                                                               */
+/* ------------------------------------------------------------------ */
+
+interface InitResponse {
+  uploadId: string
   fileKey: string
+  partSize: number
+  totalParts: number
 }
 
-interface DownloadUrlResponse {
-  downloadUrl: string
+interface PartResponse {
+  partNumber: number
+  etag: string
 }
 
-/** Загружает файл напрямую в S3 по presigned URL */
-async function putToS3(uploadUrl: string, file: File): Promise<void> {
+interface CompleteResponse {
+  fileKey: string
+  fileSize: number
+  mimeType: string
+}
+
+interface StatusResponse {
+  uploadId: string
+  fileKey: string
+  uploadedParts: number[]
+  totalParts: number
+}
+
+/* ------------------------------------------------------------------ */
+/*  Утилита ретраев с экспоненциальным backoff                         */
+/* ------------------------------------------------------------------ */
+
+async function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/**
+ * Выполняет функцию с автоматическими ретраями (экспоненциальный backoff).
+ * Ретраит ошибки 502, 503, 0 (сеть) в течение MAX_RETRY_DURATION_MS.
+ */
+async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
+  const startTime = Date.now()
+  let delay = INITIAL_RETRY_DELAY_MS
+
+  while (true) {
+    try {
+      return await fn()
+    } catch (err: unknown) {
+      const elapsed = Date.now() - startTime
+      const status = (err as { status?: number }).status ?? 0
+      const isRetryable = status === 0 || status === 502 || status === 503
+
+      if (!isRetryable || elapsed + delay > MAX_RETRY_DURATION_MS) {
+        throw err
+      }
+
+      await sleep(delay)
+      delay = Math.min(delay * 2, MAX_RETRY_DELAY_MS)
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Чанковая загрузка через серверный proxy                            */
+/* ------------------------------------------------------------------ */
+
+/** Контексты загрузки (совпадают с серверными) */
+type UploadContext = 'request' | 'decision' | 'payment' | 'contract' | 'general'
+
+interface UploadOptions {
+  context: UploadContext
+  counterpartyName?: string
+  requestNumber?: string
+  entityId?: string
+}
+
+/**
+ * Загружает файл чанками через серверный proxy.
+ * Каждый чанк — отдельный HTTP-запрос, при разрыве связи теряется только текущий чанк.
+ */
+async function chunkedUpload(file: File, options: UploadOptions): Promise<{ key: string }> {
   const contentType = file.type || 'application/octet-stream'
-  const res = await fetch(uploadUrl, {
-    method: 'PUT',
-    body: file,
-    headers: { 'Content-Type': contentType },
+
+  /** 1. Инициализация сессии загрузки */
+  const initData = await api.post<InitResponse>('/api/files/upload/init', {
+    fileName: file.name,
+    contentType,
+    fileSize: file.size,
+    ...options,
   })
-  if (!res.ok) throw new Error(`Ошибка загрузки файла: ${res.status}`)
+
+  const { uploadId, fileKey, totalParts } = initData
+
+  /** 2. Определяем какие чанки уже загружены (для resume) */
+  let uploadedSet = new Set<number>()
+
+  /** 3. Загрузка чанков последовательно */
+  for (let partNumber = 1; partNumber <= totalParts; partNumber++) {
+    if (uploadedSet.has(partNumber)) continue
+
+    const start = (partNumber - 1) * CHUNK_SIZE
+    const end = Math.min(start + CHUNK_SIZE, file.size)
+    const chunk = file.slice(start, end)
+
+    await withRetry(async () => {
+      await api.putBinary<PartResponse>(
+        `/api/files/upload/${uploadId}/part/${partNumber}`,
+        chunk,
+      )
+    })
+  }
+
+  /** 4. Завершение загрузки */
+  await api.post<CompleteResponse>(`/api/files/upload/${uploadId}/complete`)
+
+  return { key: fileKey }
 }
+
+/**
+ * Пытается восстановить загрузку после полного обрыва (например, F5 в браузере).
+ * Возвращает список загруженных частей или null, если сессия не найдена.
+ */
+export async function getUploadStatus(uploadId: string): Promise<StatusResponse | null> {
+  try {
+    return await api.get<StatusResponse>(`/api/files/upload/${uploadId}/status`)
+  } catch {
+    return null
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Публичные функции загрузки (API совместим со старым)                */
+/* ------------------------------------------------------------------ */
 
 /** Загружает файл в папку контрагента */
 export async function uploadFile(
   counterpartyName: string,
   file: File,
 ): Promise<{ key: string }> {
-  const { uploadUrl, fileKey } = await api.post<UploadUrlResponse>('/api/files/upload-url', {
-    fileName: file.name,
-    contentType: file.type || 'application/octet-stream',
-    context: 'general',
-    counterpartyName,
-  })
-  await putToS3(uploadUrl, file)
-  return { key: fileKey }
+  return chunkedUpload(file, { context: 'general', counterpartyName })
 }
 
 /** Загружает файл заявки */
@@ -42,15 +165,7 @@ export async function uploadRequestFile(
   requestNumber: string,
   file: File,
 ): Promise<{ key: string }> {
-  const { uploadUrl, fileKey } = await api.post<UploadUrlResponse>('/api/files/upload-url', {
-    fileName: file.name,
-    contentType: file.type || 'application/octet-stream',
-    context: 'request',
-    counterpartyName,
-    requestNumber,
-  })
-  await putToS3(uploadUrl, file)
-  return { key: fileKey }
+  return chunkedUpload(file, { context: 'request', counterpartyName, requestNumber })
 }
 
 /** Загружает файл решения об отклонении */
@@ -58,14 +173,7 @@ export async function uploadDecisionFile(
   decisionId: string,
   file: File,
 ): Promise<{ key: string }> {
-  const { uploadUrl, fileKey } = await api.post<UploadUrlResponse>('/api/files/upload-url', {
-    fileName: file.name,
-    contentType: file.type || 'application/octet-stream',
-    context: 'decision',
-    entityId: decisionId,
-  })
-  await putToS3(uploadUrl, file)
-  return { key: fileKey }
+  return chunkedUpload(file, { context: 'decision', entityId: decisionId })
 }
 
 /** Загружает файл оплаты */
@@ -74,52 +182,40 @@ export async function uploadPaymentFile(
   paymentId: string,
   file: File,
 ): Promise<{ key: string }> {
-  const { uploadUrl, fileKey } = await api.post<UploadUrlResponse>('/api/files/upload-url', {
-    fileName: file.name,
-    contentType: file.type || 'application/octet-stream',
-    context: 'payment',
-    counterpartyName,
-    entityId: paymentId,
-  })
-  await putToS3(uploadUrl, file)
-  return { key: fileKey }
+  return chunkedUpload(file, { context: 'payment', counterpartyName, entityId: paymentId })
 }
 
-/** Получает presigned URL для скачивания файла */
+/* ------------------------------------------------------------------ */
+/*  Скачивание через серверный proxy                                   */
+/* ------------------------------------------------------------------ */
+
+/** Возвращает URL для скачивания файла через proxy */
+export function getProxyDownloadUrl(key: string, fileName?: string): string {
+  const base = (import.meta.env.VITE_API_URL || '') + `/api/files/download/${encodeURIComponent(key)}`
+  if (fileName) return `${base}?fileName=${encodeURIComponent(fileName)}`
+  return base
+}
+
+/** Получает URL для скачивания файла (через серверный proxy) */
 export async function getDownloadUrl(
   key: string,
   _expiresIn?: number,
   fileName?: string,
 ): Promise<string> {
-  const params: Record<string, string> = {}
-  if (fileName) params.fileName = fileName
-  const { downloadUrl } = await api.get<DownloadUrlResponse>(
-    `/api/files/download-url/${encodeURIComponent(key)}`,
-    params,
-  )
-  return downloadUrl
+  return getProxyDownloadUrl(key, fileName)
 }
 
-/** Скачивает файл как Blob */
+/** Скачивает файл как Blob через серверный proxy */
 export async function downloadFileBlob(key: string): Promise<Blob> {
-  const url = await getDownloadUrl(key)
-  const res = await fetch(url)
+  const url = getProxyDownloadUrl(key)
+  const res = await fetch(url, { credentials: 'include' })
   if (!res.ok) throw new Error(`Ошибка скачивания файла: ${res.status}`)
   return res.blob()
 }
 
-/** Получает presigned URL для загрузки (совместимость) */
-export async function getUploadUrl(
-  key: string,
-  contentType: string,
-): Promise<string> {
-  const { uploadUrl } = await api.post<UploadUrlResponse>('/api/files/upload-url', {
-    fileName: key.split('/').pop() || 'file',
-    contentType,
-    context: 'general',
-  })
-  return uploadUrl
-}
+/* ------------------------------------------------------------------ */
+/*  Прочие функции (без изменений)                                     */
+/* ------------------------------------------------------------------ */
 
 /** Удаляет файл */
 export async function deleteFile(key: string): Promise<void> {

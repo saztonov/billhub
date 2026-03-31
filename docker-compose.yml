@@ -32,7 +32,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 768M
+          memory: 1228M
     networks:
       - billhub
 
