@@ -128,20 +128,15 @@ const CommentsChat = ({ paymentRequestId }: CommentsChatProps) => {
     return parts.join(', ') || comment.authorEmail || '—'
   }
 
-  // Определяем последний комментарий текущего пользователя
-  // Комментарии отсортированы от новых к старым — первый найденный = последний по времени
-  const lastOwnComment = user
-    ? comments.find((c) => c.authorId === user.id)
-    : null
-
+  // Редактировать/удалять можно только самый последний комментарий в чате, и только если он принадлежит текущему пользователю
   const canEditComment = (comment: PaymentRequestComment) => {
     if (isAdmin) return true
-    return lastOwnComment?.id === comment.id
+    return comments[0]?.id === comment.id && comment.authorId === user?.id
   }
 
   const canDeleteComment = (comment: PaymentRequestComment) => {
     if (isAdmin) return true
-    return lastOwnComment?.id === comment.id
+    return comments[0]?.id === comment.id && comment.authorId === user?.id
   }
 
   return (

@@ -126,22 +126,15 @@ const ContractCommentsChat = ({ contractRequestId }: ContractCommentsChatProps) 
     return parts.join(', ') || comment.authorEmail || '—'
   }
 
-  // Определяем последний комментарий текущего пользователя
-  // Комментарии отсортированы от новых к старым — первый найденный = последний по времени
-  const lastOwnComment = user
-    ? comments.find((c) => c.authorId === user.id)
-    : null
-
-  /** Проверка права на редактирование комментария */
+  // Редактировать/удалять можно только самый последний комментарий в чате, и только если он принадлежит текущему пользователю
   const canEditComment = (comment: ContractRequestComment) => {
     if (isAdmin) return true
-    return lastOwnComment?.id === comment.id
+    return comments[0]?.id === comment.id && comment.authorId === user?.id
   }
 
-  /** Проверка права на удаление комментария */
   const canDeleteComment = (comment: ContractRequestComment) => {
     if (isAdmin) return true
-    return lastOwnComment?.id === comment.id
+    return comments[0]?.id === comment.id && comment.authorId === user?.id
   }
 
   return (
