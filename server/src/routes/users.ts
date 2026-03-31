@@ -232,7 +232,7 @@ async function userRoutes(fastify: FastifyInstance): Promise<void> {
     { schema: { ...idParamsSchema, ...updateUserSchema }, preHandler: [authenticate, requireRole('admin')] },
     async (request, reply) => {
       const { id } = request.params;
-      const body = request.body as Record<string, unknown>;
+      const body = request.body as unknown as Record<string, unknown>;
       const fullName = body.full_name as string;
       const role = body.role as string;
       const counterpartyId = (body.counterparty_id ?? null) as string | null;

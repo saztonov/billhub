@@ -39,10 +39,10 @@ async function materialRoutes(fastify: FastifyInstance): Promise<void> {
       .single();
     if (error) return reply.status(404).send({ error: 'Заявка не найдена' });
 
-    const cp = data.counterparties as Record<string, unknown> | null;
-    const sup = data.suppliers as Record<string, unknown> | null;
-    const site = data.construction_sites as Record<string, unknown> | null;
-    const ct = data.cost_types as Record<string, unknown> | null;
+    const cp = data.counterparties as unknown as Record<string, unknown> | null;
+    const sup = data.suppliers as unknown as Record<string, unknown> | null;
+    const site = data.construction_sites as unknown as Record<string, unknown> | null;
+    const ct = data.cost_types as unknown as Record<string, unknown> | null;
 
     return reply.send({
       request_number: data.request_number,
