@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { api } from '@/services/api'
-import type { AppNotification, Department } from '@/types'
+import type { AppNotification } from '@/types'
 
 interface NotificationStoreState {
   notifications: AppNotification[]

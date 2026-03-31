@@ -17,12 +17,12 @@ interface UserInfo {
 interface StoreFunctions {
   fetchRequests: (counterpartyId?: string, siteIds?: string[], allSites?: boolean, showDeleted?: boolean) => void
   fetchCounterparties: () => Promise<void>
-  fetchPendingRequests: (department: string, userId: string, isAdmin: boolean) => void
+  fetchPendingRequests: (department: Department, userId: string, isAdmin?: boolean) => void
   fetchOmtsRpPendingRequests: () => void
   fetchApprovedCount: (siteIds?: string[], allSites?: boolean) => void
   fetchRejectedCount: (siteIds?: string[], allSites?: boolean) => void
-  approveRequest: (requestId: string, department: string, userId: string, comment: string) => Promise<void>
-  rejectRequest: (requestId: string, department: string, userId: string, comment: string, files?: { id: string; file: File }[]) => Promise<void>
+  approveRequest: (requestId: string, department: Department, userId: string, comment: string) => Promise<void>
+  rejectRequest: (requestId: string, department: Department, userId: string, comment: string, files?: { id: string; file: File }[]) => Promise<void>
   deleteRequest: (id: string) => Promise<void>
   withdrawRequest: (id: string, comment?: string) => Promise<void>
   resubmitRequest: (id: string, comment: string, counterpartyId: string, userId: string, fieldUpdates: {
@@ -30,7 +30,7 @@ interface StoreFunctions {
     deliveryDaysType: string
     shippingConditionId: string
     invoiceAmount: number
-  }) => Promise<void>
+  }, fileCount?: number) => Promise<void>
   updateRequest: (id: string, data: EditRequestData, userId: string, filesCount?: number) => Promise<void>
   assignResponsible: (requestId: string, userId: string, assignedBy: string) => Promise<void>
   siteFilterParams: () => [string[]?, boolean?]

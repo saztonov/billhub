@@ -104,7 +104,7 @@ export function usePaymentRequestHeader({
         ),
         isAdmin && createElement('div', { style: infoBadgeStyle },
           createElement(Label, null, 'Не назначено:'),
-          createElement(Value, { color: unassignedOmtsCount > 0 ? '#faad14' : undefined }, String(unassignedOmtsCount)),
+          createElement(Value, { children: String(unassignedOmtsCount), color: unassignedOmtsCount > 0 ? '#faad14' : undefined }),
         ),
       ),
     )

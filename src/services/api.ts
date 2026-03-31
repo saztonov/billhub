@@ -2,13 +2,14 @@ const BASE_URL = import.meta.env.VITE_API_URL || ''
 
 /** Ошибка API с HTTP-статусом */
 export class ApiError extends Error {
-  constructor(
-    public status: number,
-    message: string,
-    public details?: unknown,
-  ) {
+  status: number
+  details?: unknown
+
+  constructor(status: number, message: string, details?: unknown) {
     super(message)
     this.name = 'ApiError'
+    this.status = status
+    this.details = details
   }
 }
 

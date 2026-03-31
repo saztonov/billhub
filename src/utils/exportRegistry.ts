@@ -98,7 +98,7 @@ export async function exportRegistryToExcel(params: ExportRegistryParams): Promi
   // Строка ИТОГО с формулой SUM
   const totalRow = ws.addRow(['ИТОГО', '', '', '', '', '', ''])
   const totalCell = totalRow.getCell(6)
-  totalCell.value = { formula: `SUM(F${firstDataRow}:F${lastDataRow})`, result: undefined } as unknown as ExcelJS.CellValue
+  totalCell.value = { formula: `SUM(F${firstDataRow}:F${lastDataRow})`, result: undefined } as unknown as import('exceljs').CellValue
   totalCell.numFmt = '#,##0.00'
 
   // Скачиваем
