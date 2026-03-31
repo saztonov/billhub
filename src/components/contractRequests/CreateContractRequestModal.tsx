@@ -10,6 +10,7 @@ import { useUploadQueueStore } from '@/store/uploadQueueStore'
 import { CONTRACT_SUBJECT_LABELS, type ContractSubjectType } from '@/types'
 import useIsMobile from '@/hooks/useIsMobile'
 import ContractFileUpload from '@/components/contractRequests/ContractFileUpload'
+import { notifyContractNewRequest } from '@/utils/contractNotificationService'
 
 interface FileItem {
   uid: string
@@ -129,6 +130,9 @@ const CreateContractRequestModal = ({ open, onClose, onCreated }: CreateContract
         },
         user!.id,
       )
+
+      // Уведомление ОМТС о новой заявке на договор
+      notifyContractNewRequest(requestId, values.siteId, user!.id, requestNumber)
 
       // Добавляем файлы в очередь загрузки
       addTask({

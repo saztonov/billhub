@@ -13,6 +13,7 @@ import {
 import { CheckCircleFilled } from '@ant-design/icons'
 import FileUploadList from './FileUploadList'
 import type { FileItem } from './FileUploadList'
+import { notifyNewRequestPending } from '@/utils/notificationService'
 import DeliveryCalculation from './DeliveryCalculation'
 import { usePaymentRequestStore } from '@/store/paymentRequestStore'
 import useIsMobile from '@/hooks/useIsMobile'
@@ -141,6 +142,9 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
         counterpartyId,
         user.id,
       )
+
+      // Уведомление Штабу о новой заявке
+      notifyNewRequestPending(requestId, values.siteId, user.id, requestNumber)
 
       // Добавляем файлы в очередь фоновой загрузки
       addUploadTask({
