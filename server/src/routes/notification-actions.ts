@@ -36,6 +36,12 @@ interface OmtsRpPendingBody {
   actorUserId: string;
 }
 
+interface ResubmittedBody {
+  paymentRequestId: string;
+  actorUserId: string;
+  rejectedStage: number | null;
+}
+
 interface AssignedBody {
   paymentRequestId: string;
   assignedUserId: string;
@@ -146,6 +152,60 @@ async function notificationActionRoutes(fastify: FastifyInstance): Promise<void>
         department_id: 'shtab' as const,
       })));
 
+      return reply.send({ success: true });
+    },
+  );
+
+  /** Повторная отправка заявки — уведомление штабу (и ОМТС при rejected_stage=2) */
+  fastify.post<{ Body: ResubmittedBody }>(
+    '/api/notifications/payment-request/resubmitted',
+    auth,
+    async (request, reply) => {
+      const { paymentRequestId, actorUserId, rejectedStage } = request.body;
+      const supabase = fastify.supabase;
+
+      // Читаем site_id и request_number из заявки
+      const { data: req } = await supabase
+        .from('payment_requests')
+        .select('site_id, request_number')
+        .eq('id', paymentRequestId)
+        .single();
+
+      if (!req) return reply.send({ success: true });
+
+      const siteId = req.site_id as string;
+      const requestNumber = req.request_number as string | null;
+      const label = requestNumber ? ` N${requestNumber}` : '';
+
+      // Всегда уведомляем Штаб
+      const shtabIds = await getUsersByDepartmentAndSite(supabase, 'shtab', siteId, actorUserId);
+      const notifications = shtabIds.map((uid) => ({
+        user_id: uid,
+        type: 'resubmitted' as const,
+        title: 'Повторная отправка заявки',
+        message: `Заявка${label} отправлена повторно на согласование`,
+        payment_request_id: paymentRequestId,
+        site_id: siteId,
+        department_id: 'shtab' as const,
+      }));
+
+      // Если отклонение было на этапе ОМТС — уведомляем и их
+      if (rejectedStage === 2) {
+        const omtsIds = await getUsersByDepartmentAndSite(supabase, 'omts', siteId, actorUserId);
+        for (const uid of omtsIds) {
+          notifications.push({
+            user_id: uid,
+            type: 'resubmitted' as const,
+            title: 'Повторная отправка заявки',
+            message: `Заявка${label} отправлена повторно на согласование`,
+            payment_request_id: paymentRequestId,
+            site_id: siteId,
+            department_id: 'omts' as const,
+          });
+        }
+      }
+
+      await insertNotifications(supabase, notifications);
       return reply.send({ success: true });
     },
   );

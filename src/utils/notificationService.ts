@@ -48,6 +48,26 @@ export async function notifyNewRequestPending(
 }
 
 /**
+ * Уведомление Штабу (и ОМТС при отклонении на их этапе) о повторной отправке заявки.
+ * Вызывается при: повторной отправке отклонённой заявки контрагентом.
+ */
+export async function notifyRequestResubmitted(
+  paymentRequestId: string,
+  actorUserId: string,
+  rejectedStage: number | null,
+): Promise<void> {
+  try {
+    await api.post('/api/notifications/payment-request/resubmitted', {
+      paymentRequestId,
+      actorUserId,
+      rejectedStage,
+    })
+  } catch (err) {
+    logError({ errorType: 'api_error', errorMessage: err instanceof Error ? err.message : 'Ошибка уведомления о повторной отправке', errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'notifyRequestResubmitted', paymentRequestId } })
+  }
+}
+
+/**
  * Уведомление спец. лицу ОМТС РП о поступлении заявки на согласование.
  * Вызывается при: смене статуса на approv_omts_rp.
  */

@@ -245,8 +245,12 @@ async function processQueue(
         }))
 
         // Уведомляем о новых файлах (только для файлов заявок, не для файлов решений)
+        // При повторной отправке уведомление о файлах не отправляем — вместо него отправляется уведомление о повторной отправке
         if (task.type === 'request_files') {
-          notifyNewFile(task.requestId, task.userId).catch(() => {})
+          const allResubmit = task.files.every((f) => f.isResubmit)
+          if (!allResubmit) {
+            notifyNewFile(task.requestId, task.userId).catch(() => {})
+          }
         } else if (task.type === 'contract_files') {
           notifyContractNewFile(task.requestId, task.userId).catch(() => {})
         }

@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { useCounterpartyStore } from '@/store/counterpartyStore'
 import { useUploadQueueStore } from '@/store/uploadQueueStore'
+import { notifyRequestResubmitted } from '@/utils/notificationService'
 import type { EditRequestData } from '@/store/paymentRequestStore'
 import type { FileItem } from '@/components/paymentRequests/FileUploadList'
 import type { PaymentRequest, Department, Counterparty } from '@/types'
@@ -202,6 +203,9 @@ export function usePaymentRequestHandlers({
     if (!resubmitRecord || !user?.counterpartyId || !user?.id) return
     try {
       await resubmitRequest(resubmitRecord.id, comment, user.counterpartyId, user.id, fieldUpdates)
+
+      // Уведомление Штабу (и ОМТС при отклонении на их этапе) о повторной отправке
+      notifyRequestResubmitted(resubmitRecord.id, user.id, resubmitRecord.rejectedStage ?? null).catch(() => {})
 
       if (files.length > 0) {
         if (counterparties.length === 0) await fetchCounterparties()
