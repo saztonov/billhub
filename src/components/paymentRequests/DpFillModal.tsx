@@ -123,7 +123,7 @@ const DpFillModal = ({ open, onClose, requestId, requestNumber, counterpartyName
       okText="Сохранить"
       cancelText="Отмена"
       confirmLoading={submitting}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
         <Form.Item name="dpNumber" label="Номер РП" rules={[{ required: true, message: 'Введите номер РП' }]}>

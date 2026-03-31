@@ -130,8 +130,10 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       fetchAssignmentHistory(request.id)
       fetchDocumentTypes()
       if (user?.role === 'admin') fetchOmtsUsers()
-      fetchOmtsRpConfig()
-      fetchOmtsRpSites()
+      if (user?.role !== 'counterparty_user') {
+        fetchOmtsRpConfig()
+        fetchOmtsRpSites()
+      }
       // Отмечаем комментарии как прочитанные
       if (user?.id) markAsRead(user.id, request.id)
     }
