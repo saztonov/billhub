@@ -26,6 +26,24 @@ export async function notifyStatusChanged(
 }
 
 /**
+ * Уведомление подрядчику (создателю заявки) об отправке на доработку.
+ * Вызывается при: отправке заявки на доработку сотрудником ОМТС/Штаба.
+ */
+export async function notifyRequestRevision(
+  paymentRequestId: string,
+  actorUserId: string,
+): Promise<void> {
+  try {
+    await api.post('/api/notifications/payment-request/revision', {
+      paymentRequestId,
+      actorUserId,
+    })
+  } catch (err) {
+    logError({ errorType: 'api_error', errorMessage: err instanceof Error ? err.message : 'Ошибка уведомления о доработке', errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'notifyRequestRevision', paymentRequestId } })
+  }
+}
+
+/**
  * Уведомление Штабу о новой заявке на согласовании.
  * Вызывается при: создании заявки, повторной отправке.
  */

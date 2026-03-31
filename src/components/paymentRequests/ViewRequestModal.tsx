@@ -45,6 +45,7 @@ import RequestDetailsSection from './RequestDetailsSection'
 import RequestFileTable from './RequestFileTable'
 import RevisionModals from './RevisionModals'
 import { formatDate, extractRequestNumber, sanitizeFileName } from '@/utils/requestFormatters'
+import { notifyRequestRevision } from '@/utils/notificationService'
 import useIsMobile from '@/hooks/useIsMobile'
 import type { PaymentRequest } from '@/types'
 
@@ -346,6 +347,9 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
     if (!request) return
     try {
       await sendToRevision(request.id, revisionComment)
+      if (user?.id) {
+        notifyRequestRevision(request.id, user.id)
+      }
       message.success('Заявка отправлена на доработку')
       setRevisionModalOpen(false)
       setRevisionComment('')

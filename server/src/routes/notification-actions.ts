@@ -65,6 +65,11 @@ interface CheckSpecialistsBody {
   department: 'omts' | 'shtab' | 'smetny';
 }
 
+interface RevisionBody {
+  paymentRequestId: string;
+  actorUserId: string;
+}
+
 interface ContractNewRequestBody {
   contractRequestId: string;
   siteId: string;
@@ -122,6 +127,40 @@ async function notificationActionRoutes(fastify: FastifyInstance): Promise<void>
         type: 'status_changed',
         title: 'Изменён статус заявки',
         message: `Статус заявки изменён на «${statusLabel}»`,
+        payment_request_id: paymentRequestId,
+      }]);
+
+      return reply.send({ success: true });
+    },
+  );
+
+  /** Отправка на доработку — уведомление создателю заявки (подрядчику) */
+  fastify.post<{ Body: RevisionBody }>(
+    '/api/notifications/payment-request/revision',
+    auth,
+    async (request, reply) => {
+      const { paymentRequestId, actorUserId } = request.body;
+      const supabase = fastify.supabase;
+
+      const creatorId = await getPaymentRequestCreator(supabase, paymentRequestId);
+      if (!creatorId || creatorId === actorUserId) {
+        return reply.send({ success: true });
+      }
+
+      // Получаем номер заявки
+      const { data: req } = await supabase
+        .from('payment_requests')
+        .select('request_number')
+        .eq('id', paymentRequestId)
+        .single();
+
+      const label = req?.request_number ? ` N${req.request_number}` : '';
+
+      await insertNotifications(supabase, [{
+        user_id: creatorId,
+        type: 'status_changed',
+        title: 'Заявка отправлена на доработку',
+        message: `Заявка${label} отправлена на доработку`,
         payment_request_id: paymentRequestId,
       }]);
 
