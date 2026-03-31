@@ -494,7 +494,7 @@ const RequestsTable = (props: RequestsTableProps) => {
     }
 
     cols.push({
-      title: 'Действия', key: 'actions', width: showApprovalActions ? 140 : 126,
+      title: 'Действия', key: 'actions', width: showApprovalActions ? 140 : 126, fixed: 'right' as const,
       render: (_: unknown, record: PaymentRequest) => (
         <Space>
           <Tooltip title="Просмотр"><Button icon={<EyeOutlined />} size="small" onClick={() => onView(record)} /></Tooltip>
