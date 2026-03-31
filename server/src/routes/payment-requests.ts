@@ -469,7 +469,23 @@ async function paymentRequestRoutes(fastify: FastifyInstance): Promise<void> {
       .order('created_at', { ascending: true });
     if (error) return reply.status(500).send({ error: error.message });
 
-    return reply.send(data ?? []);
+    /** Преобразуем вложенные join-объекты в плоские поля */
+    const files = (data ?? []).map((row: Record<string, unknown>) => {
+      const docType = row.document_types as { name: string } | null;
+      const uploader = row.users as { role: string; department_id: string | null; counterparties: { name: string } | null } | null;
+
+      return {
+        ...row,
+        document_type_name: docType?.name ?? null,
+        uploader_role: uploader?.role ?? null,
+        uploader_department: uploader?.department_id ?? null,
+        uploader_counterparty_name: uploader?.counterparties?.name ?? null,
+        document_types: undefined,
+        users: undefined,
+      };
+    });
+
+    return reply.send(files);
   });
 
   /* ---------- POST /api/payment-requests/:id/toggle-file-rejection ---------- */
