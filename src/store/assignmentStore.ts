@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { api } from '@/services/api'
 import type { PaymentRequestAssignment } from '@/types'
+import { notifyRequestAssigned } from '@/utils/notificationService'
 
 export interface OmtsUser {
   id: string
@@ -94,6 +95,9 @@ export const useAssignmentStore = create<AssignmentStoreState>((set, get) => ({
         assignedUserId,
         assignedByUserId,
       })
+
+      // Отправить уведомление назначенному пользователю
+      notifyRequestAssigned(paymentRequestId, assignedUserId, assignedByUserId)
 
       // Синхронизировать с БД и обновить историю
       await get().fetchCurrentAssignment(paymentRequestId)
