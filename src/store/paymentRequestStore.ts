@@ -39,7 +39,7 @@ interface PaymentRequestStoreState {
   deleteRequest: (id: string) => Promise<void>
   withdrawRequest: (id: string, comment?: string) => Promise<void>
   updateRequestStatus: (id: string, statusId: string) => Promise<void>
-  incrementUploadedFiles: (requestId: string, isResubmit?: boolean) => void
+  incrementUploadedFiles: (requestId: string, isResubmit?: boolean, isAdditional?: boolean) => void
   fetchRequestFiles: (requestId: string) => Promise<void>
   resubmitRequest: (
     id: string,
@@ -150,15 +150,15 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
     }
   },
 
-  incrementUploadedFiles: (requestId, isResubmit) => {
+  incrementUploadedFiles: (requestId, isResubmit, isAdditional) => {
     set((state) => ({
       requests: state.requests.map((r) =>
         r.id === requestId
           ? {
               ...r,
               uploadedFiles: r.uploadedFiles + 1,
-              // При повторной отправке увеличиваем также totalFiles
-              totalFiles: isResubmit ? r.totalFiles + 1 : r.totalFiles,
+              // При повторной отправке или догрузке увеличиваем также totalFiles
+              totalFiles: (isResubmit || isAdditional) ? r.totalFiles + 1 : r.totalFiles,
             }
           : r,
       ),

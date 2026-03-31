@@ -98,7 +98,7 @@ export function usePaymentRequestHandlers({
   const handleEdit = async (id: string, data: EditRequestData, files: FileItem[]) => {
     if (!user?.id) return
     try {
-      await updateRequest(id, data, user.id, files.length > 0 ? files.length : undefined)
+      await updateRequest(id, data, user.id)
 
       if (files.length > 0) {
         const req = requests.find((r) => r.id === id)

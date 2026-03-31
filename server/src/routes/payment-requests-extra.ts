@@ -108,8 +108,36 @@ async function paymentRequestExtraRoutes(fastify: FastifyInstance): Promise<void
       });
     if (error) return reply.status(500).send({ error: error.message });
 
-    // Увеличиваем uploaded_files
-    await supabase.rpc('increment_uploaded_files', { request_id: id });
+    // Обновляем счётчики файлов
+    const { data: req, error: fetchErr } = await supabase
+      .from('payment_requests')
+      .select('uploaded_files, total_files')
+      .eq('id', id)
+      .single();
+
+    if (fetchErr) {
+      request.log.error({ fetchErr }, 'Ошибка чтения счётчика файлов');
+      return reply.status(500).send({ error: 'Ошибка обновления счётчика файлов' });
+    }
+
+    const currentUploaded = (req.uploaded_files as number) ?? 0;
+    const currentTotal = (req.total_files as number) ?? 0;
+    const updates: Record<string, number> = { uploaded_files: currentUploaded + 1 };
+
+    // Для дополнительных и повторных файлов увеличиваем total_files
+    if (body.isAdditional || body.isResubmit) {
+      updates.total_files = currentTotal + 1;
+    }
+
+    const { error: updateErr } = await supabase
+      .from('payment_requests')
+      .update(updates)
+      .eq('id', id);
+
+    if (updateErr) {
+      request.log.error({ updateErr }, 'Ошибка обновления счётчика файлов');
+      return reply.status(500).send({ error: 'Ошибка обновления счётчика файлов' });
+    }
 
     return reply.status(201).send({ success: true });
   });

@@ -163,7 +163,7 @@ async function processQueue(
             }))
 
             // Обновляем локальное состояние таблицы
-            usePaymentRequestStore.getState().incrementUploadedFiles(task.requestId, fileData.isResubmit)
+            usePaymentRequestStore.getState().incrementUploadedFiles(task.requestId, fileData.isResubmit, fileData.isAdditional)
 
             // Обновляем список файлов в ViewRequestModal
             usePaymentRequestStore.getState().fetchRequestFiles(task.requestId)
