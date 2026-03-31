@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { randomUUID } from 'node:crypto';
 import { pipeline } from 'node:stream/promises';
 import type { Readable } from 'node:stream';
 import {
@@ -373,6 +374,9 @@ async function fileProxyRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(500).send({ error: 'Ошибка создания multipart upload' });
       }
 
+      /** Генерируем короткий ID сессии (S3 upload ID слишком длинный для URL) */
+      const sessionId = randomUUID();
+
       /** Сохраняем сессию в Redis */
       const session: UploadSession = {
         s3UploadId,
@@ -384,11 +388,10 @@ async function fileProxyRoutes(fastify: FastifyInstance): Promise<void> {
         parts: {},
       };
 
-      /** Используем s3UploadId как ID сессии — он уникален */
-      await saveSession(fastify, s3UploadId, session);
+      await saveSession(fastify, sessionId, session);
 
       return reply.send({
-        uploadId: s3UploadId,
+        uploadId: sessionId,
         fileKey,
         partSize: PART_SIZE,
         totalParts,
