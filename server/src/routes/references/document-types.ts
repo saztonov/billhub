@@ -8,6 +8,11 @@ import { requireRole } from '../../middleware/requireRole.js';
 
 interface DocumentTypeBody {
   name: string;
+  category?: string;
+}
+
+interface DocumentTypeQuery {
+  category?: string;
 }
 
 interface IdParams {
@@ -24,6 +29,7 @@ const documentTypeSchema = {
     required: ['name'],
     properties: {
       name: { type: 'string' as const, minLength: 1 },
+      category: { type: 'string' as const, enum: ['operational', 'founding'], nullable: true },
     },
     additionalProperties: false,
   },
@@ -42,17 +48,23 @@ const idParamsSchema = {
 /* ------------------------------------------------------------------ */
 
 async function documentTypeRoutes(fastify: FastifyInstance): Promise<void> {
-  const SELECT_FIELDS = 'id, name, created_at';
+  const SELECT_FIELDS = 'id, name, category, created_at';
 
   /** GET /api/references/document-types — список типов документов */
-  fastify.get(
+  fastify.get<{ Querystring: DocumentTypeQuery }>(
     '/',
     { preHandler: [authenticate, requireRole('admin', 'user', 'counterparty_user')] },
     async (request, reply) => {
-      const { data, error } = await request.server.supabase
+      const { category } = request.query as DocumentTypeQuery;
+      let query = request.server.supabase
         .from('document_types')
-        .select(SELECT_FIELDS)
-        .order('created_at', { ascending: false });
+        .select(SELECT_FIELDS);
+
+      if (category) {
+        query = query.eq('category', category);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
       if (error) return reply.status(500).send({ error: error.message });
       return data;
     }
@@ -63,10 +75,12 @@ async function documentTypeRoutes(fastify: FastifyInstance): Promise<void> {
     '/',
     { schema: documentTypeSchema, preHandler: [authenticate, requireRole('admin')] },
     async (request, reply) => {
-      const { name } = request.body;
+      const { name, category } = request.body;
+      const insertData: Record<string, unknown> = { name };
+      if (category) insertData['category'] = category;
       const { data, error } = await request.server.supabase
         .from('document_types')
-        .insert({ name })
+        .insert(insertData)
         .select(SELECT_FIELDS)
         .single();
       if (error) return reply.status(400).send({ error: error.message });
@@ -80,10 +94,12 @@ async function documentTypeRoutes(fastify: FastifyInstance): Promise<void> {
     { schema: { ...idParamsSchema, ...documentTypeSchema }, preHandler: [authenticate, requireRole('admin')] },
     async (request, reply) => {
       const { id } = request.params;
-      const { name } = request.body;
+      const { name, category } = request.body;
+      const updateData: Record<string, unknown> = { name };
+      if (category) updateData['category'] = category;
       const { data, error } = await request.server.supabase
         .from('document_types')
-        .update({ name })
+        .update(updateData)
         .eq('id', id)
         .select(SELECT_FIELDS)
         .single();

@@ -14,7 +14,8 @@ export interface FileProcessingJobData {
     | 'payment_request_files'
     | 'approval_decision_files'
     | 'contract_request_files'
-    | 'payment_payment_files';
+    | 'payment_payment_files'
+    | 'founding_document_files';
   entityId: string;
   fileId: string;
   fileKey: string;
@@ -41,6 +42,7 @@ const COUNTER_MAP: Record<
   },
   approval_decision_files: null,
   payment_payment_files: null,
+  founding_document_files: null,
 };
 
 /** Supabase клиент для воркера (service role) */

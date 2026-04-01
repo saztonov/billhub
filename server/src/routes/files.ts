@@ -41,14 +41,15 @@ const ALLOWED_CONTENT_TYPES = new Set([
 ]);
 
 /** Контексты загрузки файлов */
-type UploadContext = 'request' | 'decision' | 'payment' | 'contract' | 'general';
+type UploadContext = 'request' | 'decision' | 'payment' | 'contract' | 'general' | 'founding';
 
 /** Таблицы метаданных файлов */
 type FileEntityType =
   | 'payment_request_files'
   | 'approval_decision_files'
   | 'contract_request_files'
-  | 'payment_payment_files';
+  | 'payment_payment_files'
+  | 'founding_document_files';
 
 /** Маппинг entityType -> поле внешнего ключа */
 const ENTITY_FK_MAP: Record<FileEntityType, string> = {
@@ -56,6 +57,7 @@ const ENTITY_FK_MAP: Record<FileEntityType, string> = {
   approval_decision_files: 'approval_decision_id',
   contract_request_files: 'contract_request_id',
   payment_payment_files: 'payment_payment_id',
+  founding_document_files: 'supplier_founding_document_id',
 };
 
 /* ------------------------------------------------------------------ */
@@ -82,6 +84,7 @@ interface ConfirmBody {
   documentTypeId?: string;
   isResubmit?: boolean;
   isAdditional?: boolean;
+  comment?: string;
 }
 
 interface DownloadUrlParams {
@@ -118,7 +121,7 @@ const uploadUrlSchema = {
       contentType: { type: 'string' as const, minLength: 1 },
       context: {
         type: 'string' as const,
-        enum: ['request', 'decision', 'payment', 'contract', 'general'],
+        enum: ['request', 'decision', 'payment', 'contract', 'general', 'founding'],
       },
       counterpartyName: { type: 'string' as const, minLength: 1 },
       requestNumber: { type: 'string' as const, minLength: 1 },
@@ -140,6 +143,7 @@ const confirmSchema = {
           'approval_decision_files',
           'contract_request_files',
           'payment_payment_files',
+          'founding_document_files',
         ],
       },
       entityId: { type: 'string' as const, format: 'uuid' },
@@ -150,6 +154,7 @@ const confirmSchema = {
       documentTypeId: { type: 'string' as const, format: 'uuid', nullable: true },
       isResubmit: { type: 'boolean' as const, nullable: true },
       isAdditional: { type: 'boolean' as const, nullable: true },
+      comment: { type: 'string' as const, nullable: true },
     },
   },
 };
@@ -186,6 +191,7 @@ const deleteSchema = {
           'approval_decision_files',
           'contract_request_files',
           'payment_payment_files',
+          'founding_document_files',
         ],
         nullable: true,
       },
@@ -255,6 +261,12 @@ function buildFileKey(body: UploadUrlBody): string {
       }
       const folder = sanitizeForS3(body.counterpartyName);
       return `${folder}/${timestamp}_${safeName}`;
+    }
+    case 'founding': {
+      if (!body.entityId) {
+        throw new Error('entityId обязателен для контекста founding');
+      }
+      return `founding-docs/${body.entityId}/${timestamp}_${safeName}`;
     }
   }
 }
@@ -442,6 +454,11 @@ async function fileRoutes(fastify: FastifyInstance): Promise<void> {
       /** Дополнительные поля для contract_request_files */
       if (body.entityType === 'contract_request_files') {
         if (body.isAdditional !== undefined) record['is_additional'] = body.isAdditional;
+      }
+
+      /** Дополнительные поля для founding_document_files */
+      if (body.entityType === 'founding_document_files') {
+        if (body.comment !== undefined) record['comment'] = body.comment;
       }
 
       /** Вставляем метаданные в соответствующую таблицу */

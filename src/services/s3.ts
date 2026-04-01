@@ -84,7 +84,7 @@ async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
 /* ------------------------------------------------------------------ */
 
 /** Контексты загрузки (совпадают с серверными) */
-type UploadContext = 'request' | 'decision' | 'payment' | 'contract' | 'general'
+type UploadContext = 'request' | 'decision' | 'payment' | 'contract' | 'general' | 'founding'
 
 interface UploadOptions {
   context: UploadContext
@@ -174,6 +174,14 @@ export async function uploadDecisionFile(
   file: File,
 ): Promise<{ key: string }> {
   return chunkedUpload(file, { context: 'decision', entityId: decisionId })
+}
+
+/** Загружает файл учредительного документа */
+export async function uploadFoundingFile(
+  entityId: string,
+  file: File,
+): Promise<{ key: string }> {
+  return chunkedUpload(file, { context: 'founding', entityId })
 }
 
 /** Загружает файл оплаты */

@@ -81,10 +81,39 @@ export const DEPARTMENT_LABELS: Record<Department, string> = {
   smetny: 'Сметный',
 }
 
+/** Категория типа документа */
+export type DocumentTypeCategory = 'operational' | 'founding'
+
 /** Тип документа */
 export interface DocumentType {
   id: string
   name: string
+  category: DocumentTypeCategory
+  createdAt: string
+}
+
+/** Строка таблицы учредительных документов поставщика */
+export interface FoundingDocumentRow {
+  typeId: string
+  typeName: string
+  docId: string | null
+  isAvailable: boolean
+  checkedByName: string | null
+  checkedAt: string | null
+  comment: string
+  fileCount: number
+}
+
+/** Файл учредительного документа */
+export interface FoundingDocumentFile {
+  id: string
+  fileName: string
+  fileKey: string
+  fileSize: number | null
+  mimeType: string | null
+  comment: string
+  createdBy: string
+  createdByName: string | null
   createdAt: string
 }
 

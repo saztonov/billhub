@@ -8,16 +8,23 @@ import {
   Input,
   Popconfirm,
   App,
+  Segmented,
 } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useTableScrollY } from '@/hooks/useTableScrollY'
 import { useDocumentTypeStore } from '@/store/documentTypeStore'
-import type { DocumentType } from '@/types'
+import type { DocumentType, DocumentTypeCategory } from '@/types'
+
+const CATEGORY_OPTIONS = [
+  { label: 'Операционные', value: 'operational' },
+  { label: 'Учредительные', value: 'founding' },
+]
 
 const DocumentTypesPage = () => {
   const { message } = App.useApp()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingRecord, setEditingRecord] = useState<DocumentType | null>(null)
+  const [category, setCategory] = useState<DocumentTypeCategory>('operational')
   const [form] = Form.useForm()
   const {
     documentTypes,
@@ -29,8 +36,8 @@ const DocumentTypesPage = () => {
   } = useDocumentTypeStore()
 
   useEffect(() => {
-    fetchDocumentTypes()
-  }, [fetchDocumentTypes])
+    fetchDocumentTypes(category)
+  }, [fetchDocumentTypes, category])
 
   const handleCreate = () => {
     setEditingRecord(null)
@@ -46,18 +53,20 @@ const DocumentTypesPage = () => {
 
   const handleDelete = async (id: string) => {
     await deleteDocumentType(id)
-    message.success('Тип документа удалён')
+    await fetchDocumentTypes(category)
+    message.success('Тип документа удален')
   }
 
   const handleSubmit = async () => {
     const values = await form.validateFields()
     if (editingRecord) {
-      await updateDocumentType(editingRecord.id, { name: values.name })
-      message.success('Тип документа обновлён')
+      await updateDocumentType(editingRecord.id, { name: values.name, category })
+      message.success('Тип документа обновлен')
     } else {
-      await createDocumentType({ name: values.name })
+      await createDocumentType({ name: values.name, category })
       message.success('Тип документа создан')
     }
+    await fetchDocumentTypes(category)
     setIsModalOpen(false)
     form.resetFields()
   }
@@ -67,6 +76,7 @@ const DocumentTypesPage = () => {
     {
       title: 'Действия',
       key: 'actions',
+      width: 100,
       render: (_: unknown, record: DocumentType) => (
         <Space>
           <Button icon={<EditOutlined />} onClick={() => handleEdit(record)} size="small" />
@@ -82,7 +92,12 @@ const DocumentTypesPage = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16, flexShrink: 0 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexShrink: 0 }}>
+        <Segmented
+          options={CATEGORY_OPTIONS}
+          value={category}
+          onChange={(val) => setCategory(val as DocumentTypeCategory)}
+        />
         <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
           Добавить
         </Button>

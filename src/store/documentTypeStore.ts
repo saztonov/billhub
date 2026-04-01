@@ -6,7 +6,8 @@ interface DocumentTypeStoreState {
   documentTypes: DocumentType[]
   isLoading: boolean
   error: string | null
-  fetchDocumentTypes: () => Promise<void>
+  /** Загрузка типов документов. Если передана category — фильтрация на сервере */
+  fetchDocumentTypes: (category?: string) => Promise<void>
   createDocumentType: (data: Partial<DocumentType>) => Promise<void>
   updateDocumentType: (id: string, data: Partial<DocumentType>) => Promise<void>
   deleteDocumentType: (id: string) => Promise<void>
@@ -17,10 +18,13 @@ export const useDocumentTypeStore = create<DocumentTypeStoreState>((set, get) =>
   isLoading: false,
   error: null,
 
-  fetchDocumentTypes: async () => {
+  fetchDocumentTypes: async (category?: string) => {
     set({ isLoading: true, error: null })
     try {
-      const data = await api.get<DocumentType[]>('/api/references/document-types')
+      const url = category
+        ? `/api/references/document-types?category=${category}`
+        : '/api/references/document-types'
+      const data = await api.get<DocumentType[]>(url)
       set({ documentTypes: data ?? [], isLoading: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка загрузки'
@@ -31,7 +35,9 @@ export const useDocumentTypeStore = create<DocumentTypeStoreState>((set, get) =>
   createDocumentType: async (data) => {
     set({ isLoading: true, error: null })
     try {
-      await api.post('/api/references/document-types', { name: data.name })
+      const body: Record<string, unknown> = { name: data.name }
+      if (data.category) body.category = data.category
+      await api.post('/api/references/document-types', body)
       await get().fetchDocumentTypes()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка создания'
@@ -42,7 +48,9 @@ export const useDocumentTypeStore = create<DocumentTypeStoreState>((set, get) =>
   updateDocumentType: async (id, data) => {
     set({ isLoading: true, error: null })
     try {
-      await api.put(`/api/references/document-types/${id}`, { name: data.name })
+      const body: Record<string, unknown> = { name: data.name }
+      if (data.category) body.category = data.category
+      await api.put(`/api/references/document-types/${id}`, body)
       await get().fetchDocumentTypes()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка обновления'

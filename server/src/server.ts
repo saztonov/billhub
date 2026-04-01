@@ -38,6 +38,7 @@ import errorLogRoutes from './routes/error-logs.js';
 import materialRoutes from './routes/materials.js';
 import ocrRoutes from './routes/ocr.js';
 import fileProxyRoutes from './routes/file-proxy.js';
+import foundingDocumentRoutes from './routes/founding-documents.js';
 
 /** Импорт типов для расширения FastifyInstance */
 import './types/index.js';
@@ -147,6 +148,7 @@ async function bootstrap(): Promise<void> {
   await fastify.register(materialRoutes);
   await fastify.register(ocrRoutes);
   await fastify.register(fileProxyRoutes);
+  await fastify.register(foundingDocumentRoutes, { prefix: '/api/founding-documents' });
 
   /** Запуск сервера */
   try {
