@@ -214,20 +214,14 @@ export function usePaymentRequestsData({
     }
   }, [isCounterpartyUser, fetchCounterparties, fetchSites, fetchStatuses, fetchSuppliers])
 
-  // Загружаем список ОМТС для назначения + конфигурацию ОМТС РП
+  // Загружаем список ОМТС для назначения + данные ОМТС РП
   useEffect(() => {
     if (isOmtsUser || isAdmin) {
       fetchOmtsUsers()
+      fetchOmtsRpSites()
       fetchOmtsRpConfig()
     }
-  }, [isOmtsUser, isAdmin, fetchOmtsUsers, fetchOmtsRpConfig])
-
-  // Загружаем объекты ОМТС РП только для ответственного или админа
-  useEffect(() => {
-    if (isOmtsRpUser || isAdmin) {
-      fetchOmtsRpSites()
-    }
-  }, [isOmtsRpUser, isAdmin, fetchOmtsRpSites])
+  }, [isOmtsUser, isAdmin, fetchOmtsUsers, fetchOmtsRpSites, fetchOmtsRpConfig])
 
   /** Проверяет, может ли текущий пользователь редактировать заявку */
   const canEditRequest = useCallback((record: PaymentRequest | null): boolean => {
