@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { authenticate } from '../middleware/authenticate.js';
 import { requireRole } from '../middleware/requireRole.js';
 
@@ -9,6 +9,32 @@ import { requireRole } from '../middleware/requireRole.js';
 async function omtsRpRoutes(fastify: FastifyInstance): Promise<void> {
   const adminOnly = { preHandler: [authenticate, requireRole('admin')] };
   const adminOrUser = { preHandler: [authenticate, requireRole('admin', 'user')] };
+
+  /** Пропускает admin или ответственного ОМТС РП */
+  async function requireAdminOrOmtsRpResponsible(
+    request: FastifyRequest,
+    reply: FastifyReply
+  ): Promise<void> {
+    const user = request.user;
+    if (!user) {
+      reply.status(401).send({ error: 'Не авторизован' });
+      return;
+    }
+    if (user.role === 'admin') return;
+
+    const { data } = await fastify.supabase
+      .from('settings')
+      .select('value')
+      .eq('key', 'omts_rp_config')
+      .single();
+
+    const responsibleUserId = (data?.value as Record<string, unknown>)?.responsible_user_id as string | undefined;
+    if (responsibleUserId && user.id === responsibleUserId) return;
+
+    reply.status(403).send({ error: 'Доступ запрещён' });
+  }
+
+  const adminOrOmtsRp = { preHandler: [authenticate, requireAdminOrOmtsRpResponsible] };
 
   /* ---------- GET /api/omts-rp/config ---------- */
   fastify.get('/api/omts-rp/config', adminOrUser, async (_request, reply) => {
@@ -26,7 +52,7 @@ async function omtsRpRoutes(fastify: FastifyInstance): Promise<void> {
   });
 
   /* ---------- GET /api/omts-rp/sites ---------- */
-  fastify.get('/api/omts-rp/sites', adminOnly, async (_request, reply) => {
+  fastify.get('/api/omts-rp/sites', adminOrOmtsRp, async (_request, reply) => {
     const supabase = fastify.supabase;
 
     // Читаем массив site_ids из settings

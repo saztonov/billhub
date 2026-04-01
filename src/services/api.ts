@@ -16,6 +16,9 @@ export class ApiError extends Error {
 /** Флаг предотвращения повторного refresh */
 let isRefreshing = false
 
+/** Флаг: redirect на логин уже начался, новые запросы блокируются */
+let isRedirecting = false
+
 /** Валидация returnUrl: только относительные пути */
 function safeReturnUrl(path: string): string {
   if (path.startsWith('/') && !path.startsWith('//')) return path
@@ -24,6 +27,7 @@ function safeReturnUrl(path: string): string {
 
 /** Редирект на страницу логина */
 function redirectToLogin(): never {
+  isRedirecting = true
   const returnUrl = safeReturnUrl(window.location.pathname + window.location.search)
   window.location.href = `/login?returnUrl=${encodeURIComponent(returnUrl)}`
   throw new ApiError(401, 'Требуется авторизация')
@@ -54,6 +58,9 @@ interface FetchOptions {
 
 /** Базовый fetch-обёртка */
 async function apiFetch<T>(url: string, options?: RequestInit, isRetry = false, fetchOptions?: FetchOptions): Promise<T> {
+  // Блокируем запросы после начала redirect на логин
+  if (isRedirecting) throw new ApiError(401, 'Требуется авторизация')
+
   const fullUrl = `${BASE_URL}${url}`
   const isFormData = options?.body instanceof FormData
 
