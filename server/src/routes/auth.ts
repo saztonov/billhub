@@ -457,9 +457,8 @@ async function authRoutes(fastify: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const { userId, newPassword } = request.body;
 
-      const { error } = await request.server.supabase.rpc('change_user_password', {
-        target_user_id: userId,
-        new_password: newPassword,
+      const { error } = await request.server.supabase.auth.admin.updateUserById(userId, {
+        password: newPassword,
       });
 
       if (error) {
