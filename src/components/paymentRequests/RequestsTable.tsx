@@ -29,8 +29,33 @@ import RejectModal from './RejectModal'
 import WithdrawModal from './WithdrawModal'
 import { formatDateShort, extractRequestNumber, calculateDays } from '@/utils/requestFormatters'
 import { useTableScrollY } from '@/hooks/useTableScrollY'
+import { applyColumnConfig } from '@/hooks/useColumnConfig'
+import type { ColumnConfig } from '@/hooks/useColumnConfig'
+import type { ColumnRegistryItem } from './ColumnConfigPopover'
 import type { PaymentRequest, StageHistoryEntry } from '@/types'
 import { DEPARTMENT_LABELS } from '@/types'
+
+/** Реестр всех возможных десктопных столбцов (без "Действия") */
+export const DESKTOP_COLUMN_REGISTRY: ColumnRegistryItem[] = [
+  { key: 'requestNumber', title: '№' },
+  { key: 'counterpartyName', title: 'Подрядчик' },
+  { key: 'siteName', title: 'Объект' },
+  { key: 'supplierName', title: 'Поставщик' },
+  { key: 'status', title: 'Статус' },
+  { key: 'paidStatus', title: 'Оплата' },
+  { key: 'invoiceAmount', title: 'Сумма' },
+  { key: 'dpNumber', title: 'РП' },
+  { key: 'unreadComments', title: 'Новые' },
+  { key: 'responsible', title: 'Ответственный' },
+  { key: 'createdAt', title: 'Дата' },
+  { key: 'days', title: 'Срок' },
+  { key: 'omtsDays', title: 'Срок ОМТС' },
+  { key: 'approvedAt', title: 'Дата согласования' },
+  { key: 'rejectedAt', title: 'Дата отклонения' },
+  { key: 'rejectedBy', title: 'Кто отклонил' },
+  { key: 'files', title: 'Файлы' },
+  { key: 'approval', title: 'Согласование' },
+]
 
 export interface RequestsTableProps {
   requests: PaymentRequest[]
@@ -63,6 +88,7 @@ export interface RequestsTableProps {
   showOmtsDays?: boolean
   unreadCounts?: Record<string, number>
   isMobile?: boolean
+  columnConfig?: ColumnConfig
 }
 
 /** Возвращает первые 2 слова из ФИО (fallback на email) */
@@ -535,7 +561,13 @@ const RequestsTable = (props: RequestsTableProps) => {
     onView, onApprove, onWithdraw, onResubmit, onDelete, isAdmin, statusOptions, onStatusChange, statusChangingId, onReject,
   ])
 
-  const columns = isMobile ? mobileColumns : desktopColumns
+  // Применяем пользовательский конфиг к десктопным столбцам
+  const configuredDesktopColumns = useMemo(() => {
+    if (isMobile || !props.columnConfig) return desktopColumns
+    return applyColumnConfig(desktopColumns, props.columnConfig)
+  }, [desktopColumns, props.columnConfig, isMobile])
+
+  const columns = isMobile ? mobileColumns : configuredDesktopColumns
 
   const { containerRef, paginationRef, scrollY } = useTableScrollY([filteredRequests.length])
   const [currentPage, setCurrentPage] = useState(1)

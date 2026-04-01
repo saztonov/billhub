@@ -13,6 +13,9 @@ import useIsMobile from '@/hooks/useIsMobile'
 import CreateRequestModal from '@/components/paymentRequests/CreateRequestModal'
 import ViewRequestModal from '@/components/paymentRequests/ViewRequestModal'
 import RequestsTable from '@/components/paymentRequests/RequestsTable'
+import { DESKTOP_COLUMN_REGISTRY } from '@/components/paymentRequests/RequestsTable'
+import ColumnConfigPopover from '@/components/paymentRequests/ColumnConfigPopover'
+import { useColumnConfig } from '@/hooks/useColumnConfig'
 import RequestFilters from '@/components/paymentRequests/RequestFilters'
 import CounterpartyRequestsView from '@/components/paymentRequests/CounterpartyRequestsView'
 import MobileFiltersDrawer from '@/components/paymentRequests/MobileFiltersDrawer'
@@ -26,6 +29,7 @@ const PaymentRequestsPage = () => {
   const location = useLocation()
   const nav = useNavigate()
   const isMobile = useIsMobile()
+  const { config: columnConfig, setConfig: setColumnConfig, resetConfig: resetColumnConfig } = useColumnConfig()
 
   // UI state
   const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -242,6 +246,7 @@ const PaymentRequestsPage = () => {
           uploadTasks={uploadTasks}
           totalStages={totalStages}
           isMobile={isMobile}
+          columnConfig={columnConfig}
         />
         {isMobile && (
           <>
@@ -326,6 +331,7 @@ const PaymentRequestsPage = () => {
           showOmtsDays={!isMobile}
           unreadCounts={unreadCounts}
           isMobile={isMobile}
+          columnConfig={columnConfig}
         />
       ),
     },
@@ -365,6 +371,7 @@ const PaymentRequestsPage = () => {
             showOmtsDays={!isMobile}
             unreadCounts={unreadCounts}
             isMobile={isMobile}
+            columnConfig={columnConfig}
           />
         </div>
       ),
@@ -391,6 +398,7 @@ const PaymentRequestsPage = () => {
           showOmtsDays={!isMobile}
           unreadCounts={unreadCounts}
           isMobile={isMobile}
+          columnConfig={columnConfig}
         />
       ),
     })
@@ -414,6 +422,7 @@ const PaymentRequestsPage = () => {
           showOmtsDays={!isMobile}
           unreadCounts={unreadCounts}
           isMobile={isMobile}
+          columnConfig={columnConfig}
         />
       ),
     },
@@ -434,6 +443,7 @@ const PaymentRequestsPage = () => {
           showOmtsDays={!isMobile}
           unreadCounts={unreadCounts}
           isMobile={isMobile}
+          columnConfig={columnConfig}
         />
       ),
     },
@@ -462,13 +472,21 @@ const PaymentRequestsPage = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <DefaultTabBar {...tabBarProps} style={{ ...tabBarProps.style, flex: 1, marginBottom: 0 }} />
               {!isMobile && (
-                <Button
-                  icon={<FilterOutlined />}
-                  onClick={() => setFiltersOpen(!filtersOpen)}
-                  type={filtersOpen ? 'primary' : 'default'}
-                  size="small"
-                  style={{ flexShrink: 0 }}
-                />
+                <>
+                  <ColumnConfigPopover
+                    availableColumns={DESKTOP_COLUMN_REGISTRY}
+                    config={columnConfig}
+                    onChange={setColumnConfig}
+                    onReset={resetColumnConfig}
+                  />
+                  <Button
+                    icon={<FilterOutlined />}
+                    onClick={() => setFiltersOpen(!filtersOpen)}
+                    type={filtersOpen ? 'primary' : 'default'}
+                    size="small"
+                    style={{ flexShrink: 0 }}
+                  />
+                </>
               )}
             </div>
           </div>

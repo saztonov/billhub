@@ -7,6 +7,7 @@ import RequestFilters from './RequestFilters'
 import type { FilterValues } from './RequestFilters'
 import type { PaymentRequest, ConstructionSite, Status, Supplier } from '@/types'
 import type { UploadTask } from '@/store/uploadQueueStore'
+import type { ColumnConfig } from '@/hooks/useColumnConfig'
 
 interface CounterpartyRequestsViewProps {
   filteredAll: PaymentRequest[]
@@ -41,6 +42,7 @@ interface CounterpartyRequestsViewProps {
   totalPaidAll: number
   unreadCounts?: Record<string, number>
   isMobile?: boolean
+  columnConfig?: ColumnConfig
 }
 
 /** UI заявок для роли counterparty_user */
@@ -77,6 +79,7 @@ const CounterpartyRequestsView = ({
   totalPaidAll,
   unreadCounts,
   isMobile,
+  columnConfig,
 }: CounterpartyRequestsViewProps) => {
   const setHeader = useHeaderStore((s) => s.setHeader)
 
@@ -150,6 +153,7 @@ const CounterpartyRequestsView = ({
           totalStages={totalStages}
           unreadCounts={unreadCounts}
           isMobile={isMobile}
+          columnConfig={columnConfig}
         />
       ),
     },
@@ -169,6 +173,7 @@ const CounterpartyRequestsView = ({
           totalStages={totalStages}
           unreadCounts={unreadCounts}
           isMobile={isMobile}
+          columnConfig={columnConfig}
         />
       ),
     },
@@ -187,6 +192,7 @@ const CounterpartyRequestsView = ({
           totalStages={totalStages}
           unreadCounts={unreadCounts}
           isMobile={isMobile}
+          columnConfig={columnConfig}
         />
       ),
     },
@@ -205,6 +211,7 @@ const CounterpartyRequestsView = ({
           totalStages={totalStages}
           unreadCounts={unreadCounts}
           isMobile={isMobile}
+          columnConfig={columnConfig}
         />
       ),
     },
@@ -224,6 +231,7 @@ const CounterpartyRequestsView = ({
           totalStages={totalStages}
           unreadCounts={unreadCounts}
           isMobile={isMobile}
+          columnConfig={columnConfig}
         />
       ),
     },
