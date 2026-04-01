@@ -22,7 +22,7 @@ interface Props {
 const FoundingDocTypesModal = ({ open, onClose }: Props) => {
   const { message } = App.useApp()
   const {
-    documentTypes,
+    foundingTypes,
     isLoading,
     fetchDocumentTypes,
     createDocumentType,
@@ -109,7 +109,7 @@ const FoundingDocTypesModal = ({ open, onClose }: Props) => {
       </div>
       <Table
         columns={columns}
-        dataSource={documentTypes}
+        dataSource={foundingTypes}
         rowKey="id"
         loading={isLoading}
         pagination={false}

@@ -28,12 +28,16 @@ const DocumentTypesPage = () => {
   const [form] = Form.useForm()
   const {
     documentTypes,
+    foundingTypes,
     isLoading,
     fetchDocumentTypes,
     createDocumentType,
     updateDocumentType,
     deleteDocumentType,
   } = useDocumentTypeStore()
+
+  // Выбираем нужный массив в зависимости от категории
+  const displayTypes = category === 'founding' ? foundingTypes : documentTypes
 
   useEffect(() => {
     fetchDocumentTypes(category)
@@ -88,7 +92,7 @@ const DocumentTypesPage = () => {
     },
   ]
 
-  const { containerRef, scrollY } = useTableScrollY([documentTypes.length])
+  const { containerRef, scrollY } = useTableScrollY([displayTypes.length])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
@@ -105,7 +109,7 @@ const DocumentTypesPage = () => {
       <div ref={containerRef} style={{ flex: 1, overflow: 'hidden' }}>
         <Table
           columns={columns}
-          dataSource={documentTypes}
+          dataSource={displayTypes}
           rowKey="id"
           loading={isLoading}
           scroll={{ x: 800, y: scrollY }}
