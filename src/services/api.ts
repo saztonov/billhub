@@ -123,8 +123,8 @@ export const api = {
   get: <T>(url: string, params?: Record<string, string | number | boolean | undefined>, fetchOptions?: FetchOptions) =>
     apiFetch<T>(withParams(url, params), undefined, false, fetchOptions),
 
-  post: <T>(url: string, body?: unknown) =>
-    apiFetch<T>(url, { method: 'POST', body: body !== undefined ? JSON.stringify(body) : undefined }),
+  post: <T>(url: string, body?: unknown, fetchOptions?: FetchOptions) =>
+    apiFetch<T>(url, { method: 'POST', body: body !== undefined ? JSON.stringify(body) : undefined }, false, fetchOptions),
 
   put: <T>(url: string, body?: unknown) =>
     apiFetch<T>(url, { method: 'PUT', body: body !== undefined ? JSON.stringify(body) : undefined }),

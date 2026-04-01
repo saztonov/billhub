@@ -57,7 +57,7 @@ const RegisterPage = () => {
         password: values.password,
         fullName: values.full_name,
         token,
-      })
+      }, { skipAuthRedirect: true })
 
       message.success('Регистрация прошла успешно. Войдите с указанными данными.')
       navigate('/login')

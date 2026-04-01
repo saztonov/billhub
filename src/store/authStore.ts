@@ -51,7 +51,7 @@ export const useAuthStore = create<AuthStoreState>((set) => ({
   login: async (email: string, password: string) => {
     set({ isLoading: true, error: null })
     try {
-      const response = await api.post<AuthUserResponse>('/api/auth/login', { email, password })
+      const response = await api.post<AuthUserResponse>('/api/auth/login', { email, password }, { skipAuthRedirect: true })
       const user = mapResponseToUser(response.user)
 
       if (!user.isActive) {
