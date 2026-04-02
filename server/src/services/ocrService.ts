@@ -147,7 +147,7 @@ async function renderPdfPageToBase64(
     data: dataCopy,
     useSystemFonts: true,
     canvasFactory,
-  }).promise;
+  } as Parameters<typeof pdfjsLib.getDocument>[0]).promise;
 
   try {
     const page = await pdfDoc.getPage(pageNum);
