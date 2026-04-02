@@ -1,4 +1,4 @@
-import { GetObjectCommand } from '@aws-sdk/client-s3';
+import { GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import type { S3Client } from '@aws-sdk/client-s3';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Readable } from 'node:stream';
@@ -393,6 +393,21 @@ export async function processPaymentRequestOcr(
 
           const base64 = await renderPdfPageToBase64(fileBuffer, p);
           imagesBase64.push({ base64, pageNum: p });
+
+          // DEBUG: сохраняем отрендеренную страницу в S3 для визуальной проверки
+          try {
+            const rawB64 = base64.replace(/^data:image\/jpeg;base64,/, '');
+            const debugBuf = Buffer.from(rawB64, 'base64');
+            await s3Client.send(new PutObjectCommand({
+              Bucket: s3Bucket,
+              Key: `_debug_ocr/page_${p}.jpg`,
+              Body: debugBuf,
+              ContentType: 'image/jpeg',
+            }));
+            logger.info({ page: p }, 'DEBUG: страница сохранена в S3 _debug_ocr/page_%d.jpg', p);
+          } catch (debugErr) {
+            logger.warn({ error: String(debugErr) }, 'DEBUG: не удалось сохранить страницу в S3');
+          }
         }
       } else {
         // Изображение -- конвертируем напрямую
