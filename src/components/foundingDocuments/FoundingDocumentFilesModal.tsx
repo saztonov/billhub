@@ -13,12 +13,14 @@ import {
   UploadOutlined,
   DownloadOutlined,
   DeleteOutlined,
+  EyeOutlined,
 } from '@ant-design/icons'
 import { useFoundingDocumentStore } from '@/store/foundingDocumentStore'
 import { uploadFoundingFile, getProxyDownloadUrl } from '@/services/s3'
 import { api } from '@/services/api'
 import dayjs from 'dayjs'
 import type { FoundingDocumentFile } from '@/types'
+import FilePreviewModal from '@/components/paymentRequests/FilePreviewModal'
 
 interface Props {
   open: boolean
@@ -43,6 +45,7 @@ const FoundingDocumentFilesModal = ({
     useFoundingDocumentStore()
   const [uploading, setUploading] = useState(false)
   const [fileComment, setFileComment] = useState('')
+  const [previewFile, setPreviewFile] = useState<FoundingDocumentFile | null>(null)
 
   useEffect(() => {
     if (open) {
@@ -114,7 +117,7 @@ const FoundingDocumentFilesModal = ({
       key: 'fileName',
       ellipsis: true,
       render: (name: string, record: FoundingDocumentFile) => (
-        <Button type="link" size="small" onClick={() => handleDownload(record)} style={{ padding: 0 }}>
+        <Button type="link" size="small" onClick={() => setPreviewFile(record)} style={{ padding: 0 }}>
           {name}
         </Button>
       ),
@@ -145,6 +148,11 @@ const FoundingDocumentFilesModal = ({
       width: 80,
       render: (_: unknown, record: FoundingDocumentFile) => (
         <Space size={4}>
+          <Button
+            icon={<EyeOutlined />}
+            size="small"
+            onClick={() => setPreviewFile(record)}
+          />
           <Button
             icon={<DownloadOutlined />}
             size="small"
@@ -199,6 +207,14 @@ const FoundingDocumentFilesModal = ({
         </Upload>
       </div>
     </Modal>
+
+    <FilePreviewModal
+      open={!!previewFile}
+      onClose={() => setPreviewFile(null)}
+      fileKey={previewFile?.fileKey ?? null}
+      fileName={previewFile?.fileName ?? ''}
+      mimeType={previewFile?.mimeType ?? null}
+    />
   )
 }
 
