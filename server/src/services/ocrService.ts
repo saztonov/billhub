@@ -110,99 +110,59 @@ async function downloadS3File(
   return Buffer.concat(chunks);
 }
 
-/** Фабрика canvas для pdfjs-dist v4 на базе node-canvas (класс-конструктор) */
-let NodeCanvasFactoryClass: new () => object;
+/** Рендерит все страницы PDF в JPEG через poppler-utils (pdftoppm) */
+async function renderPdfToJpegPages(pdfBuffer: Buffer): Promise<{ base64: string; pageNum: number }[]> {
+  const { execFile } = await import('node:child_process');
+  const { promisify } = await import('node:util');
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const os = await import('node:os');
 
-async function getNodeCanvasFactory(): Promise<new () => object> {
-  if (NodeCanvasFactoryClass) return NodeCanvasFactoryClass;
+  const execFileAsync = promisify(execFile);
 
-  const { createCanvas } = await import('canvas');
-
-  NodeCanvasFactoryClass = class {
-    create(width: number, height: number) {
-      const canvas = createCanvas(width, height);
-      const context = canvas.getContext('2d');
-      return { canvas, context };
-    }
-    reset(canvasAndContext: { canvas: { width: number; height: number } }, width: number, height: number) {
-      canvasAndContext.canvas.width = width;
-      canvasAndContext.canvas.height = height;
-    }
-    destroy(canvasAndContext: { canvas: { width: number; height: number } }) {
-      canvasAndContext.canvas.width = 0;
-      canvasAndContext.canvas.height = 0;
-    }
-  };
-
-  return NodeCanvasFactoryClass;
-}
-
-/** Рендерит страницу PDF в base64 JPEG через pdfjs-dist + node-canvas */
-async function renderPdfPageToBase64(
-  pdfBuffer: Buffer,
-  pageNum: number,
-): Promise<string> {
-  const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
-  const { createCanvas } = await import('canvas');
-  const CanvasFactory = await getNodeCanvasFactory();
-
-  // Копируем данные в новый ArrayBuffer — pdfjs-dist может detach исходный
-  const dataCopy = new Uint8Array(pdfBuffer.byteLength);
-  dataCopy.set(new Uint8Array(pdfBuffer.buffer, pdfBuffer.byteOffset, pdfBuffer.byteLength));
-  const pdfDoc = await pdfjsLib.getDocument({
-    data: dataCopy,
-    useSystemFonts: true,
-    CanvasFactory,
-  }).promise;
+  // Сохраняем PDF во временный файл
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ocr-'));
+  const pdfPath = path.join(tmpDir, 'input.pdf');
+  const outPrefix = path.join(tmpDir, 'page');
 
   try {
-    const page = await pdfDoc.getPage(pageNum);
+    await fs.writeFile(pdfPath, pdfBuffer);
 
-    // Масштаб для получения ~2048px по большей стороне
-    const viewport = page.getViewport({ scale: 1 });
-    const maxDim = Math.max(viewport.width, viewport.height);
-    const scale = Math.min(RENDER_MAX_DIM / maxDim, 2);
-    const scaledViewport = page.getViewport({ scale });
+    // pdftoppm рендерит PDF в JPEG с разрешением 200 DPI
+    await execFileAsync('pdftoppm', [
+      '-jpeg', '-jpegopt', 'quality=85',
+      '-r', '200',
+      '-l', String(MAX_PDF_PAGES),
+      pdfPath, outPrefix,
+    ]);
 
-    const canvas = createCanvas(
-      Math.floor(scaledViewport.width),
-      Math.floor(scaledViewport.height),
-    );
-    const ctx = canvas.getContext('2d');
+    // Читаем результаты (файлы page-01.jpg, page-02.jpg, ...)
+    const files = await fs.readdir(tmpDir);
+    const jpegFiles = files
+      .filter((f) => f.startsWith('page-') && f.endsWith('.jpg'))
+      .sort();
 
-    await page.render({
-      canvasContext: ctx as unknown as CanvasRenderingContext2D,
-      viewport: scaledViewport,
-    }).promise;
+    const results: { base64: string; pageNum: number }[] = [];
 
-    const jpegBuffer = canvas.toBuffer('image/jpeg', { quality: 0.85 });
-    const base64 = `data:image/jpeg;base64,${jpegBuffer.toString('base64')}`;
+    for (let i = 0; i < jpegFiles.length; i++) {
+      const filePath = path.join(tmpDir, jpegFiles[i] as string);
+      const jpegBuffer = await fs.readFile(filePath);
+      const base64 = `data:image/jpeg;base64,${jpegBuffer.toString('base64')}`;
 
-    logger.info(
-      { pageNum, canvasWidth: canvas.width, canvasHeight: canvas.height, jpegSizeKb: Math.round(jpegBuffer.length / 1024) },
-      'PDF страница отрендерена: %dx%d, JPEG %d КБ',
-      canvas.width, canvas.height, Math.round(jpegBuffer.length / 1024),
-    );
+      logger.info(
+        { pageNum: i + 1, jpegSizeKb: Math.round(jpegBuffer.length / 1024) },
+        'PDF страница отрендерена (poppler): JPEG %d КБ',
+        Math.round(jpegBuffer.length / 1024),
+      );
 
-    // Очистка памяти
-    page.cleanup();
+      results.push({ base64, pageNum: i + 1 });
+    }
 
-    return base64;
+    return results;
   } finally {
-    await pdfDoc.destroy();
+    // Очистка временных файлов
+    await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
   }
-}
-
-/** Получает количество страниц в PDF */
-async function getPdfPageCount(pdfBuffer: Buffer): Promise<number> {
-  const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
-  // Копируем данные в новый ArrayBuffer — pdfjs-dist может detach исходный
-  const dataCopy = new Uint8Array(pdfBuffer.byteLength);
-  dataCopy.set(new Uint8Array(pdfBuffer.buffer, pdfBuffer.byteOffset, pdfBuffer.byteLength));
-  const pdfDoc = await pdfjsLib.getDocument({ data: dataCopy }).promise;
-  const count = pdfDoc.numPages;
-  await pdfDoc.destroy();
-  return count;
 }
 
 /** Конвертирует Buffer изображения в base64 data URL */
@@ -378,31 +338,18 @@ export async function processPaymentRequestOcr(
       const imagesBase64: { base64: string; pageNum: number }[] = [];
 
       if (mimeType === 'application/pdf') {
-        const totalPages = await getPdfPageCount(fileBuffer);
-        const maxPages = Math.min(totalPages, MAX_PDF_PAGES);
+        onProgress?.({
+          stage: 'rendering',
+          fileIndex: fi,
+          totalFiles: invoiceFiles.length,
+          pageIndex: 0,
+          totalPages: 1,
+        });
 
-        // Рендерим страницы по одной для экономии памяти
-        for (let p = 1; p <= maxPages; p++) {
-          onProgress?.({
-            stage: 'rendering',
-            fileIndex: fi,
-            totalFiles: invoiceFiles.length,
-            pageIndex: p - 1,
-            totalPages: maxPages,
-          });
-
-          const base64 = await renderPdfPageToBase64(fileBuffer, p);
-          imagesBase64.push({ base64, pageNum: p });
-
-          // DEBUG: сохраняем отрендеренную страницу в /tmp для проверки
-          try {
-            const { writeFileSync } = await import('node:fs');
-            const rawB64 = base64.replace(/^data:image\/jpeg;base64,/, '');
-            writeFileSync(`/tmp/ocr_debug_page_${p}.jpg`, Buffer.from(rawB64, 'base64'));
-            logger.info({ page: p }, 'DEBUG: страница сохранена в /tmp/ocr_debug_page_%d.jpg', p);
-          } catch (debugErr) {
-            logger.warn({ error: String(debugErr) }, 'DEBUG: не удалось сохранить страницу');
-          }
+        // Рендерим PDF через poppler-utils (pdftoppm) — корректно рендерит шрифты
+        const pdfPages = await renderPdfToJpegPages(fileBuffer);
+        for (const page of pdfPages) {
+          imagesBase64.push(page);
         }
       } else {
         // Изображение -- конвертируем напрямую
