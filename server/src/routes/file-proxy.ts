@@ -56,7 +56,7 @@ const ALLOWED_CONTENT_TYPES = new Set([
 ]);
 
 /** Контексты загрузки файлов */
-type UploadContext = 'request' | 'decision' | 'payment' | 'contract' | 'general';
+type UploadContext = 'request' | 'decision' | 'payment' | 'contract' | 'general' | 'founding';
 
 /* ------------------------------------------------------------------ */
 /*  Типы                                                               */
@@ -119,7 +119,7 @@ const initSchema = {
       fileSize: { type: 'number' as const, minimum: 1 },
       context: {
         type: 'string' as const,
-        enum: ['request', 'decision', 'payment', 'contract', 'general'],
+        enum: ['request', 'decision', 'payment', 'contract', 'general', 'founding'],
       },
       counterpartyName: { type: 'string' as const, minLength: 1 },
       requestNumber: { type: 'string' as const, minLength: 1 },
@@ -224,6 +224,12 @@ function buildFileKey(body: InitBody): string {
       }
       const folder = sanitizeForS3(body.counterpartyName);
       return `${folder}/${timestamp}_${safeName}`;
+    }
+    case 'founding': {
+      if (!body.entityId) {
+        throw new Error('entityId обязателен для контекста founding');
+      }
+      return `founding-docs/${body.entityId}/${timestamp}_${safeName}`;
     }
   }
 }
