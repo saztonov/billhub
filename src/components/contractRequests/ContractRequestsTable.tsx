@@ -31,7 +31,7 @@ const ContractRequestsTable = ({
 }: ContractRequestsTableProps) => {
   const isMobile = useIsMobile()
   const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(20)
+  const [pageSize, setPageSize] = useState(100)
 
   // Сброс страницы при изменении данных
   useMemo(() => { setCurrentPage(1) }, [requests.length])
@@ -229,7 +229,7 @@ const ContractRequestsTable = ({
           total={requests.length}
           onChange={(page, size) => { setCurrentPage(page); setPageSize(size) }}
           showSizeChanger
-          pageSizeOptions={['10', '20', '50', '100']}
+          pageSizeOptions={['10', '20', '50', '100', '200']}
           size="small"
           simple={isMobile}
         />

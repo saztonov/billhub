@@ -266,8 +266,8 @@ const PaymentRequestSettingsPage = () => {
               scroll={{ x: 700 }}
               pagination={{
                 showSizeChanger: true,
-                pageSizeOptions: ['10', '20', '50', '100'],
-                defaultPageSize: 20,
+                pageSizeOptions: ['10', '20', '50', '100', '200'],
+                defaultPageSize: 100,
                 showTotal: (total, range) => `${range[0]}-${range[1]} из ${total}`,
               }}
             />
@@ -294,8 +294,8 @@ const PaymentRequestSettingsPage = () => {
               scroll={{ x: 600 }}
               pagination={{
                 showSizeChanger: true,
-                pageSizeOptions: ['10', '20', '50', '100'],
-                defaultPageSize: 20,
+                pageSizeOptions: ['10', '20', '50', '100', '200'],
+                defaultPageSize: 100,
                 showTotal: (total, range) => `${range[0]}-${range[1]} из ${total}`,
               }}
             />

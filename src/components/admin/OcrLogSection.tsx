@@ -30,7 +30,7 @@ const OcrLogSection = () => {
   } = useOcrStore()
 
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(20)
+  const [pageSize, setPageSize] = useState(100)
   const [materialsModalOpen, setMaterialsModalOpen] = useState(false)
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null)
   const [selectedRequestNumber, setSelectedRequestNumber] = useState<string>('')
@@ -223,7 +223,7 @@ const OcrLogSection = () => {
           pageSize,
           total: logsTotal,
           showSizeChanger: true,
-          pageSizeOptions: ['10', '20', '50'],
+          pageSizeOptions: ['10', '20', '50', '100', '200'],
           onChange: handlePageChange,
         }}
       />

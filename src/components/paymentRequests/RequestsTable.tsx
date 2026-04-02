@@ -572,7 +572,7 @@ const RequestsTable = (props: RequestsTableProps) => {
 
   const { containerRef, paginationRef, scrollY } = useTableScrollY([filteredRequests.length])
   const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(20)
+  const [pageSize, setPageSize] = useState(100)
 
   // Сброс страницы при смене данных
   useEffect(() => {
@@ -615,7 +615,7 @@ const RequestsTable = (props: RequestsTableProps) => {
           pageSize={pageSize}
           total={filteredRequests.length}
           showSizeChanger={!isMobile}
-          pageSizeOptions={[10, 20, 50, 100]}
+          pageSizeOptions={[10, 20, 50, 100, 200]}
           onChange={(page, size) => {
             setCurrentPage(page)
             setPageSize(size)

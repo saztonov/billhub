@@ -35,7 +35,7 @@ export const useErrorLogStore = create<ErrorLogStoreState>((set, get) => ({
   isLoading: false,
   error: null,
   page: 1,
-  pageSize: 20,
+  pageSize: 100,
   filters: {},
 
   setPage: (page) => set({ page }),

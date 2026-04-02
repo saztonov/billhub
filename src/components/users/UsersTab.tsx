@@ -404,8 +404,8 @@ const UsersTab = () => {
           rowClassName={(record: UserRecord) => !record.isActive ? 'deactivated-row' : ''}
           pagination={{
             showSizeChanger: true,
-            pageSizeOptions: ['10', '20', '50', '100'],
-            defaultPageSize: 20,
+            pageSizeOptions: ['10', '20', '50', '100', '200'],
+            defaultPageSize: 100,
             showTotal: (total, range) => `${range[0]}-${range[1]} из ${total}`,
           }}
         />
