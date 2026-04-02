@@ -343,7 +343,7 @@ export const REVISION_TARGET_LABELS: Record<RevisionTarget, string> = {
 
 /** Запись в истории статусов заявки на договор */
 export interface ContractStatusHistoryEntry {
-  event: 'created' | 'revision' | 'revision_complete' | 'approved' | 'original_received'
+  event: 'created' | 'revision' | 'revision_complete' | 'approved' | 'original_received' | 'assigned'
   at: string
   userFullName?: string
   userEmail?: string
@@ -369,6 +369,9 @@ export interface ContractRequest {
   deletedAt: string | null
   originalReceivedAt: string | null
   statusHistory: ContractStatusHistoryEntry[]
+  responsibleUserId: string | null
+  contractNumber: string | null
+  contractSigningDate: string | null
   // Joined
   siteName?: string
   counterpartyName?: string
@@ -379,6 +382,7 @@ export interface ContractRequest {
   statusColor?: string | null
   statusCode?: string
   creatorFullName?: string
+  responsibleUserFullName?: string
 }
 
 /** Файл заявки на согласование договора */

@@ -77,6 +77,7 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
     markOriginalReceived,
     deleteRequest,
     updateRequest,
+    assignToMe,
   } = useContractRequestStore()
 
   const markAsRead = useContractCommentStore((s) => s.markAsRead)
@@ -146,6 +147,17 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
   }, [])
 
   // --- Обработчики действий ---
+
+  /** Взять заявку в работу */
+  const handleAssignToMe = useCallback(async () => {
+    if (!request) return
+    try {
+      await assignToMe(request.id)
+      message.success('Заявка взята в работу')
+    } catch {
+      message.error('Ошибка назначения')
+    }
+  }, [request, assignToMe, message])
 
   /** Согласование (ОМТС / admin) */
   const handleApprove = useCallback(async () => {
@@ -569,6 +581,22 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
             {req.creatorFullName && (
               <Descriptions.Item label="Автор">{req.creatorFullName}</Descriptions.Item>
             )}
+          </Descriptions>
+        )}
+
+        {/* Кнопка "В работу" — для ОМТС/admin, если ещё нет ответственного */}
+        {(isOmts || isAdmin) && !req.responsibleUserId && (
+          <Flex justify="center" style={{ marginBottom: 12 }}>
+            <Button type="primary" onClick={handleAssignToMe} loading={isSubmitting}>
+              В работу
+            </Button>
+          </Flex>
+        )}
+
+        {/* Ответственный */}
+        {req.responsibleUserFullName && (
+          <Descriptions column={1} size="small" style={{ marginBottom: 12 }}>
+            <Descriptions.Item label="Ответственный">{req.responsibleUserFullName}</Descriptions.Item>
           </Descriptions>
         )}
 

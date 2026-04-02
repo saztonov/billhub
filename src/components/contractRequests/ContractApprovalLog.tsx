@@ -4,6 +4,7 @@ import {
   SendOutlined,
   EditOutlined,
   FileProtectOutlined,
+  UserOutlined,
 } from '@ant-design/icons'
 import type { ContractStatusHistoryEntry } from '@/types'
 import { REVISION_TARGET_LABELS, type RevisionTarget } from '@/types'
@@ -21,6 +22,7 @@ const EVENT_CONFIG: Record<string, { icon: React.ReactNode; label: string; color
   revision_complete: { icon: <CheckCircleOutlined />, label: 'Доработка завершена', color: '#52c41a' },
   approved: { icon: <CheckCircleOutlined />, label: 'Согласовано', color: '#52c41a' },
   original_received: { icon: <FileProtectOutlined />, label: 'Оригинал получен', color: '#389e0d' },
+  assigned: { icon: <UserOutlined />, label: 'Взято в работу', color: '#1677ff' },
 }
 
 /** Форматирование даты и времени */

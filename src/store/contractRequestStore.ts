@@ -38,6 +38,8 @@ interface ContractRequestStoreState {
   completeRevision: (id: string, target: RevisionTarget, userId: string) => Promise<void>
   approveRequest: (id: string, userId: string) => Promise<void>
   markOriginalReceived: (id: string, userId: string) => Promise<void>
+  assignToMe: (id: string) => Promise<void>
+  updateContractDetails: (id: string, data: { contractNumber?: string | null; contractSigningDate?: string | null }) => Promise<void>
 }
 
 export const useContractRequestStore = create<ContractRequestStoreState>((set, get) => ({
@@ -209,6 +211,46 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
       const message = err instanceof Error ? err.message : 'Ошибка подтверждения оригинала'
       logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'markOriginalReceived', id } })
       set({ error: message, isSubmitting: false })
+      throw err
+    }
+  },
+
+  assignToMe: async (id) => {
+    set({ isSubmitting: true, error: null })
+    try {
+      await api.post(`/api/contract-requests/${id}/assign`, {})
+
+      await get().fetchRequests()
+      set({ isSubmitting: false })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Ошибка назначения ответственного'
+      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'assignContractRequest', id } })
+      set({ error: message, isSubmitting: false })
+      throw err
+    }
+  },
+
+  updateContractDetails: async (id, data) => {
+    const prev = get().requests
+    // Оптимистичное обновление
+    set({
+      requests: prev.map((r) =>
+        r.id === id
+          ? {
+              ...r,
+              ...(data.contractNumber !== undefined ? { contractNumber: data.contractNumber } : {}),
+              ...(data.contractSigningDate !== undefined ? { contractSigningDate: data.contractSigningDate } : {}),
+            }
+          : r,
+      ),
+    })
+    try {
+      await api.patch(`/api/contract-requests/${id}/contract-details`, data)
+    } catch (err) {
+      // Откат при ошибке
+      set({ requests: prev })
+      const message = err instanceof Error ? err.message : 'Ошибка обновления данных договора'
+      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'updateContractDetails', id } })
       throw err
     }
   },

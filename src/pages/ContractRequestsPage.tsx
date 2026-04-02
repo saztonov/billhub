@@ -6,6 +6,7 @@ import { useHeaderStore } from '@/store/headerStore'
 import useIsMobile from '@/hooks/useIsMobile'
 import { useContractRequestsData } from '@/hooks/useContractRequestsData'
 import { useContractRequestFiltering, type ContractFilterValues } from '@/hooks/useContractRequestFiltering'
+import { useContractRequestStore } from '@/store/contractRequestStore'
 import ContractRequestsTable from '@/components/contractRequests/ContractRequestsTable'
 import ContractRequestFilters from '@/components/contractRequests/ContractRequestFilters'
 import CreateContractRequestModal from '@/components/contractRequests/CreateContractRequestModal'
@@ -57,11 +58,14 @@ const ContractRequestsPage = () => {
 
   // Данные
   const {
-    isCounterpartyUser, isAdmin,
+    isCounterpartyUser, isAdmin, isOmtsUser,
     requests, isLoading,
     counterparties, sites, suppliers, statuses,
     loadRequests, deleteRequest,
   } = useContractRequestsData({ showDeleted })
+
+  const updateContractDetails = useContractRequestStore((s) => s.updateContractDetails)
+  const canEditContractDetails = isAdmin || isOmtsUser
 
   // Фильтрация
   const { filteredRequests } = useContractRequestFiltering({ requests, filters })
@@ -141,7 +145,8 @@ const ContractRequestsPage = () => {
         onDelete={handleDelete}
         isAdmin={isAdmin}
         isCounterpartyUser={isCounterpartyUser}
-
+        canEditContractDetails={canEditContractDetails}
+        onUpdateContractDetails={updateContractDetails}
       />
 
       <CreateContractRequestModal

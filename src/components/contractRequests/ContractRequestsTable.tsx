@@ -5,6 +5,7 @@ import type { ColumnsType } from 'antd/es/table'
 import type { ContractRequest } from '@/types'
 import { CONTRACT_SUBJECT_LABELS, REVISION_TARGET_LABELS } from '@/types'
 import useIsMobile from '@/hooks/useIsMobile'
+import { InlineTextCell, InlineDateCell } from '@/components/contractRequests/InlineEditableCell'
 
 interface ContractRequestsTableProps {
   requests: ContractRequest[]
@@ -13,6 +14,8 @@ interface ContractRequestsTableProps {
   onDelete: (id: string) => Promise<void>
   isAdmin: boolean
   isCounterpartyUser: boolean
+  canEditContractDetails: boolean
+  onUpdateContractDetails?: (id: string, data: { contractNumber?: string | null; contractSigningDate?: string | null }) => Promise<void>
 }
 
 /** Форматирование даты */
@@ -28,6 +31,8 @@ const ContractRequestsTable = ({
   onDelete,
   isAdmin,
   isCounterpartyUser,
+  canEditContractDetails,
+  onUpdateContractDetails,
 }: ContractRequestsTableProps) => {
   const isMobile = useIsMobile()
   const [currentPage, setCurrentPage] = useState(1)
@@ -106,6 +111,36 @@ const ContractRequestsTable = ({
       key: 'status',
       width: 140,
       render: (_, record) => renderStatus(record),
+    },
+    {
+      title: 'Ответственный',
+      key: 'responsible',
+      width: 160,
+      ellipsis: true,
+      sorter: (a, b) => (a.responsibleUserFullName ?? '').localeCompare(b.responsibleUserFullName ?? '', 'ru'),
+      render: (_, record) => record.responsibleUserFullName || '—',
+    },
+    {
+      title: '№ договора',
+      key: 'contractNumber',
+      width: 130,
+      render: (_, record) => canEditContractDetails && onUpdateContractDetails ? (
+        <InlineTextCell
+          value={record.contractNumber}
+          onSave={(val) => onUpdateContractDetails(record.id, { contractNumber: val })}
+        />
+      ) : (record.contractNumber || '—'),
+    },
+    {
+      title: 'Дата подписания',
+      key: 'contractSigningDate',
+      width: 140,
+      render: (_, record) => canEditContractDetails && onUpdateContractDetails ? (
+        <InlineDateCell
+          value={record.contractSigningDate}
+          onSave={(val) => onUpdateContractDetails(record.id, { contractSigningDate: val })}
+        />
+      ) : (record.contractSigningDate ? formatDate(record.contractSigningDate) : '—'),
     },
     {
       title: 'Дата',
@@ -210,12 +245,12 @@ const ContractRequestsTable = ({
           loading={isLoading}
           pagination={false}
           size="small"
-          scroll={isMobile ? undefined : { x: 1100 }}
+          scroll={isMobile ? undefined : { x: 1600 }}
           rowClassName={(record) => record.isDeleted ? 'deleted-row' : ''}
           onRow={(record) => ({
             onClick: (e) => {
               const target = e.target as HTMLElement
-              if (target.closest('button, a, .ant-select, .ant-dropdown, .ant-popconfirm')) return
+              if (target.closest('button, a, .ant-select, .ant-dropdown, .ant-popconfirm, .ant-input, .ant-picker')) return
               onView(record)
             },
             style: { cursor: 'pointer', opacity: record.isDeleted ? 0.45 : 1 },

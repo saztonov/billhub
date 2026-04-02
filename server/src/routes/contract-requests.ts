@@ -73,11 +73,13 @@ const CR_LIST_SELECT = `
   parties_count, subject_type, subject_detail, status_id,
   revision_targets, created_by, created_at,
   is_deleted, deleted_at, original_received_at, status_history,
+  responsible_user_id, contract_number, contract_signing_date,
   counterparties(name, inn),
   suppliers(name, inn),
   construction_sites(name),
   statuses!contract_requests_status_id_fkey(name, color, code),
-  creator:users!contract_requests_created_by_fkey(full_name)
+  creator:users!contract_requests_created_by_fkey(full_name),
+  responsible:users!contract_requests_responsible_user_id_fkey(full_name)
 `;
 
 /** Маппинг: разворачивает вложенные join-объекты заявки на договор в плоскую структуру */
@@ -87,12 +89,14 @@ function flattenContractRequest(row: Record<string, unknown>): Record<string, un
   const site = row.construction_sites as Record<string, unknown> | null;
   const status = row.statuses as Record<string, unknown> | null;
   const creator = row.creator as Record<string, unknown> | null;
+  const responsible = row.responsible as Record<string, unknown> | null;
   const flat = { ...row };
   delete flat.counterparties;
   delete flat.suppliers;
   delete flat.construction_sites;
   delete flat.statuses;
   delete flat.creator;
+  delete flat.responsible;
   flat.counterparty_name = cp?.name ?? null;
   flat.counterparty_inn = cp?.inn ?? null;
   flat.supplier_name = sup?.name ?? null;
@@ -102,6 +106,7 @@ function flattenContractRequest(row: Record<string, unknown>): Record<string, un
   flat.status_color = status?.color ?? null;
   flat.status_code = status?.code ?? null;
   flat.creator_full_name = creator?.full_name ?? null;
+  flat.responsible_user_full_name = responsible?.full_name ?? null;
   return flat;
 }
 
@@ -523,6 +528,51 @@ async function contractRequestRoutes(fastify: FastifyInstance): Promise<void> {
     if (error) return reply.status(500).send({ error: error.message });
 
     return reply.send((data ?? []).map((r: Record<string, unknown>) => flattenContractRequestFile(r)));
+  });
+
+  /* ---------- POST /api/contract-requests/:id/assign ---------- */
+  /** Взять заявку в работу (назначить текущего пользователя ответственным) */
+  fastify.post('/api/contract-requests/:id/assign', adminOrUser, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = request.user!;
+    const supabase = fastify.supabase;
+
+    const { error } = await supabase
+      .from('contract_requests')
+      .update({ responsible_user_id: user.id })
+      .eq('id', id);
+    if (error) return reply.status(500).send({ error: error.message });
+
+    await appendContractStatusHistory(supabase, id, { event: 'assigned' }, user.id);
+
+    return reply.send({ success: true });
+  });
+
+  /* ---------- PATCH /api/contract-requests/:id/contract-details ---------- */
+  /** Обновить номер договора и/или дату подписания */
+  fastify.patch('/api/contract-requests/:id/contract-details', adminOrUser, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = request.body as {
+      contractNumber?: string | null;
+      contractSigningDate?: string | null;
+    };
+    const supabase = fastify.supabase;
+
+    const updateData: Record<string, unknown> = {};
+    if (body.contractNumber !== undefined) updateData.contract_number = body.contractNumber;
+    if (body.contractSigningDate !== undefined) updateData.contract_signing_date = body.contractSigningDate;
+
+    if (Object.keys(updateData).length === 0) {
+      return reply.send({ success: true });
+    }
+
+    const { error } = await supabase
+      .from('contract_requests')
+      .update(updateData)
+      .eq('id', id);
+    if (error) return reply.status(500).send({ error: error.message });
+
+    return reply.send({ success: true });
   });
 
   /* ---------- POST /api/contract-requests/:id/toggle-file-rejection ---------- */
