@@ -17,11 +17,13 @@ RUN npm run build
 # Этап 2: Продакшн-образ (Debian slim — совместимость с node-canvas, собранным на glibc)
 FROM node:20-bookworm-slim
 
-# Рантайм-зависимости для node-canvas (без dev-пакетов)
+# Рантайм-зависимости для node-canvas + шрифты для рендеринга PDF
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libcairo2 libpango-1.0-0 libpangocairo-1.0-0 \
     libjpeg62-turbo libgif7 librsvg2-2 libpixman-1-0 \
     wget \
+    fonts-dejavu-core fonts-liberation fontconfig \
+    && fc-cache -fv \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
