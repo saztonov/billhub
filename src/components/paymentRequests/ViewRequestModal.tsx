@@ -7,7 +7,6 @@ import {
   Input,
   Form,
   App,
-  Popconfirm,
   Collapse,
 } from 'antd'
 import {
@@ -50,6 +49,8 @@ import type { PaymentRequest } from '@/types'
 
 const { Text } = Typography
 const { TextArea } = Input
+// UUID типа документа «Счёт»
+const INVOICE_DOC_TYPE_ID = 'c3c0b242-8a0c-4e20-b9ad-363ebf462a5b'
 
 interface ViewRequestModalProps {
   open: boolean
@@ -333,6 +334,32 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   // Заявка в статусе "На доработку" (previous_status_id заполнен)
   const isRevisionStatus = !!request.previousStatusId
 
+  // Обработчик нажатия «Согласовать» с проверкой количества действующих счетов
+  const handleApproveClick = () => {
+    const isOmtsStage = request.currentStage != null && request.currentStage >= 2
+    const activeInvoiceCount = isOmtsStage
+      ? currentRequestFiles.filter(f => f.documentTypeId === INVOICE_DOC_TYPE_ID && !f.isRejected).length
+      : 0
+
+    if (isOmtsStage && activeInvoiceCount > 1) {
+      Modal.confirm({
+        title: 'Согласование заявки',
+        content: 'В заявке больше 1 действующего счета. Вы уверены, что нужно согласовать заявку?',
+        okText: 'Согласовать',
+        cancelText: 'Отмена',
+        onOk: () => onApprove?.(request.id, ''),
+      })
+    } else {
+      Modal.confirm({
+        title: 'Согласование заявки',
+        content: 'Подтвердите корректность всех файлов и условий',
+        okText: 'Согласовать',
+        cancelText: 'Отмена',
+        onOk: () => onApprove?.(request.id, ''),
+      })
+    }
+  }
+
   const handleSendToRevision = async () => {
     if (!request) return
     try {
@@ -392,9 +419,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
         {canSendToRevision && <Button icon={<EditOutlined />} style={{ borderColor: '#faad14', color: '#faad14' }} onClick={() => setRevisionModalOpen(true)}>На доработку</Button>}
         {canEdit && !isCounterpartyUser && <Button icon={<EditOutlined />} onClick={startEditing}>Редактировать</Button>}
         {canApprove && (
-          <Popconfirm title="Согласование заявки" description="Подтвердите корректность всех файлов и условий" onConfirm={() => onApprove?.(request.id, '')} okText="Согласовать" cancelText="Отмена">
-            <Button type="primary" icon={<CheckOutlined />}>Согласовать</Button>
-          </Popconfirm>
+          <Button type="primary" icon={<CheckOutlined />} onClick={handleApproveClick}>Согласовать</Button>
         )}
         {canApprove && <Button danger icon={<StopOutlined />} onClick={() => setRejectModalOpen(true)}>Отклонить</Button>}
         {isRevisionStatus && isCounterpartyUser && <Button style={{ borderColor: '#52c41a', color: '#52c41a' }} icon={<CheckOutlined />} onClick={() => setRevisionCompleteModalOpen(true)}>Доработано</Button>}
