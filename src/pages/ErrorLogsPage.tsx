@@ -27,6 +27,7 @@ const ERROR_TYPE_CONFIG: Record<ErrorLogType, { label: string; color: string }> 
   unhandled_rejection: { label: 'Promise', color: 'orange' },
   react_error: { label: 'React', color: 'volcano' },
   api_error: { label: 'API', color: 'blue' },
+  export_error: { label: 'Экспорт', color: 'purple' },
 }
 
 const ERROR_TYPE_OPTIONS = Object.entries(ERROR_TYPE_CONFIG).map(([value, config]) => ({
