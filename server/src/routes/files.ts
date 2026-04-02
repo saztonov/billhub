@@ -635,7 +635,6 @@ async function fileRoutes(fastify: FastifyInstance): Promise<void> {
       return reply.send({ files });
     }
   );
-}
 
   /**
    * GET /api/files/test-connection
