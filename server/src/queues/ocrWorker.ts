@@ -46,9 +46,11 @@ function createWorkerDeps(): OcrDependencies {
     bucket = config.s3Bucket;
   }
 
+  const region = config.storageProvider === 'cloudflare' ? 'auto' : config.s3Region;
+
   const s3Client = new S3Client({
     endpoint,
-    region: config.s3Region,
+    region,
     credentials: { accessKeyId, secretAccessKey },
     forcePathStyle: true,
   });
