@@ -1,5 +1,6 @@
-import { useEffect, useMemo } from 'react'
-import { Typography, Tabs, Table, Tag } from 'antd'
+import { useEffect, useMemo, useState } from 'react'
+import { Typography, Tabs, Table, Tag, Button, App } from 'antd'
+import { FileExcelOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useMaterialsStore } from '@/store/materialsStore'
@@ -7,6 +8,8 @@ import type { MaterialsRequestRow } from '@/store/materialsStore'
 import { useTableScrollY } from '@/hooks/useTableScrollY'
 import { formatDate } from '@/utils/requestFormatters'
 import SummaryTab from '@/components/materials/SummaryTab'
+import { exportMaterialsInvoicesToExcel } from '@/utils/exportMaterialsInvoices'
+import { logError } from '@/services/errorLogger'
 
 const { Title } = Typography
 
@@ -22,12 +25,31 @@ const fmtAmount = (v: number | null | undefined): string => {
 
 const InvoicesTab = () => {
   const navigate = useNavigate()
+  const { message } = App.useApp()
   const { requests, isLoadingRequests, fetchRequests } = useMaterialsStore()
   const { containerRef, scrollY } = useTableScrollY([requests])
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     fetchRequests()
   }, [fetchRequests])
+
+  const handleExport = async () => {
+    setExporting(true)
+    try {
+      await exportMaterialsInvoicesToExcel(requests)
+    } catch (err) {
+      logError({
+        errorType: 'export_error',
+        errorMessage: err instanceof Error ? err.message : 'Ошибка экспорта материалов',
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'exportMaterialsInvoices' },
+      })
+      message.error('Ошибка при экспорте')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const columns = useMemo<ColumnsType<MaterialsRequestRow>>(
     () => [
@@ -102,6 +124,16 @@ const InvoicesTab = () => {
 
   return (
     <div ref={containerRef} style={{ flex: 1, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+        <Button
+          icon={<FileExcelOutlined />}
+          onClick={handleExport}
+          loading={exporting}
+          disabled={!requests.length || isLoadingRequests}
+        >
+          Экспорт в Excel
+        </Button>
+      </div>
       <Table<MaterialsRequestRow>
         dataSource={requests}
         columns={columns}
