@@ -11,10 +11,10 @@ async function omtsRpRoutes(fastify: FastifyInstance): Promise<void> {
   const adminOrUser = { preHandler: [authenticate, requireRole('admin', 'user')] };
 
   /** Пропускает admin или сотрудника ОМТС */
-  function requireAdminOrOmts(
+  async function requireAdminOrOmts(
     request: FastifyRequest,
     reply: FastifyReply
-  ): void {
+  ): Promise<void> {
     const user = request.user;
     if (!user) {
       reply.status(401).send({ error: 'Не авторизован' });
@@ -23,6 +23,7 @@ async function omtsRpRoutes(fastify: FastifyInstance): Promise<void> {
     if (user.role === 'admin' || user.department === 'omts') return;
 
     reply.status(403).send({ error: 'Доступ запрещён' });
+    return;
   }
 
   const adminOrOmts = { preHandler: [authenticate, requireAdminOrOmts] };

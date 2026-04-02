@@ -14,6 +14,7 @@ export function requireRole(...roles: UserRole[]) {
 
     if (!user || !roles.includes(user.role)) {
       reply.status(403).send({ error: 'Доступ запрещён' });
+      return;
     }
   };
 }
