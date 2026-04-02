@@ -54,7 +54,7 @@ const ContractRequestsTable = ({
         </Flex>
       )
     }
-    return <Tag color={record.statusColor || undefined}>{record.statusName}</Tag>
+    return <Tag color={record.statusColor || undefined} style={{ whiteSpace: 'normal' }}>{record.statusName}</Tag>
   }
 
   const desktopColumns: ColumnsType<ContractRequest> = [
@@ -70,9 +70,13 @@ const ContractRequestsTable = ({
       dataIndex: 'counterpartyName',
       key: 'counterpartyName',
       width: 180,
-      ellipsis: true,
       sorter: (a: ContractRequest, b: ContractRequest) => (a.counterpartyName ?? '').localeCompare(b.counterpartyName ?? ''),
-      render: (_: string | undefined, record: ContractRequest) => record.counterpartyName ? (record.counterpartyInn ? `${record.counterpartyName}, ${record.counterpartyInn}` : record.counterpartyName) : '—',
+      render: (_: string | undefined, record: ContractRequest) => record.counterpartyName ? (
+        <div>
+          <div>{record.counterpartyName}</div>
+          {record.counterpartyInn && <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>{record.counterpartyInn}</div>}
+        </div>
+      ) : '—',
     }] : []),
     {
       title: 'Объект',
@@ -87,9 +91,13 @@ const ContractRequestsTable = ({
       dataIndex: 'supplierName',
       key: 'supplierName',
       width: 180,
-      ellipsis: true,
       sorter: (a, b) => (a.supplierName ?? '').localeCompare(b.supplierName ?? ''),
-      render: (_: string | undefined, record: ContractRequest) => record.supplierName ? (record.supplierInn ? `${record.supplierName}, ${record.supplierInn}` : record.supplierName) : '—',
+      render: (_: string | undefined, record: ContractRequest) => record.supplierName ? (
+        <div>
+          <div>{record.supplierName}</div>
+          {record.supplierInn && <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>{record.supplierInn}</div>}
+        </div>
+      ) : '—',
     },
     {
       title: 'Предмет договора',
@@ -109,7 +117,7 @@ const ContractRequestsTable = ({
     {
       title: 'Статус',
       key: 'status',
-      width: 140,
+      width: 180,
       render: (_, record) => renderStatus(record),
     },
     {
