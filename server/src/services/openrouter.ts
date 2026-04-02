@@ -145,10 +145,13 @@ export async function recognizeInvoiceStructured(
     ],
   };
 
+  const bodyStr = JSON.stringify(body);
+  logger.info({ modelId, bodyLengthKb: Math.round(bodyStr.length / 1024), imageLengthKb: Math.round(imageUrl.length / 1024) }, 'Отправка запроса в OpenRouter');
+
   const response = await fetchWithRetry(CHAT_COMPLETIONS_URL, {
     method: 'POST',
     headers: getHeaders(),
-    body: JSON.stringify(body),
+    body: bodyStr,
   });
 
   if (!response.ok) {
@@ -165,8 +168,7 @@ export async function recognizeInvoiceStructured(
   // Извлекаем JSON из ответа (может быть обрамлен ```json...```)
   const jsonStr = content.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
 
-  logger.info({ rawContentLength: content.length, jsonStrLength: jsonStr.length }, 'Ответ OpenRouter получен');
-  logger.debug({ rawContent: content.substring(0, 500) }, 'Содержимое ответа OpenRouter');
+  logger.info({ rawContentLength: content.length, jsonStrLength: jsonStr.length, rawContent: content.substring(0, 300) }, 'Ответ OpenRouter получен');
 
   let parsed: { items: OcrParsedItem[] };
   try {
