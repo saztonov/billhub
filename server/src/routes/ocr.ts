@@ -369,8 +369,8 @@ async function ocrRoutes(fastify: FastifyInstance): Promise<void> {
     // Получаем логи
     const { data, error } = await fastify.supabase
       .from('ocr_recognition_log')
-      .select('id, payment_request_id, file_id, model_id, status, error_message, attempt_number, input_tokens, output_tokens, total_cost, created_at, completed_at')
-      .order('created_at', { ascending: false })
+      .select('id, payment_request_id, file_id, model_id, status, error_message, attempt_number, input_tokens, output_tokens, total_cost, started_at, completed_at')
+      .order('started_at', { ascending: false })
       .range(from, to);
 
     if (error) return reply.status(500).send({ error: error.message });
@@ -405,7 +405,7 @@ async function ocrRoutes(fastify: FastifyInstance): Promise<void> {
       inputTokens: row.input_tokens,
       outputTokens: row.output_tokens,
       totalCost: row.total_cost,
-      startedAt: row.created_at,
+      startedAt: row.started_at,
       completedAt: row.completed_at,
     }));
 
