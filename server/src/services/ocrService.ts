@@ -178,6 +178,12 @@ async function renderPdfPageToBase64(
     const jpegBuffer = canvas.toBuffer('image/jpeg', { quality: 0.85 });
     const base64 = `data:image/jpeg;base64,${jpegBuffer.toString('base64')}`;
 
+    logger.info(
+      { pageNum, canvasWidth: canvas.width, canvasHeight: canvas.height, jpegSizeKb: Math.round(jpegBuffer.length / 1024) },
+      'PDF страница отрендерена: %dx%d, JPEG %d КБ',
+      canvas.width, canvas.height, Math.round(jpegBuffer.length / 1024),
+    );
+
     // Очистка памяти
     page.cleanup();
 
