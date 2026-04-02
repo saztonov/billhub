@@ -14,12 +14,6 @@ interface ContractRequestsTableProps {
   isCounterpartyUser: boolean
 }
 
-/** Форматирование даты */
-function formatDate(dateStr: string): string {
-  const d = new Date(dateStr)
-  return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })
-}
-
 const ContractRequestsTable = ({
   requests,
   isLoading,
@@ -123,15 +117,6 @@ const ContractRequestsTable = ({
       render: (_, record) => record.responsibleUserFullName || '—',
     },
     {
-      title: 'Дата',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      width: 100,
-      defaultSortOrder: 'descend',
-      sorter: (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-      render: (val: string) => formatDate(val),
-    },
-    {
       title: '',
       key: 'actions',
       width: 100,
@@ -225,7 +210,7 @@ const ContractRequestsTable = ({
           loading={isLoading}
           pagination={false}
           size="small"
-          scroll={isMobile ? undefined : { x: 1330 }}
+          scroll={isMobile ? undefined : { x: 1230 }}
           rowClassName={(record) => record.isDeleted ? 'deleted-row' : ''}
           onRow={(record) => ({
             onClick: (e) => {
