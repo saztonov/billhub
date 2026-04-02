@@ -99,7 +99,7 @@ export const InlineDateCell = ({ value, onSave }: InlineDateCellProps) => {
         value={value ? dayjs(value) : null}
         format="DD.MM.YYYY"
         onChange={handleChange}
-        onBlur={() => setEditing(false)}
+        onOpenChange={(open) => { if (!open) setEditing(false) }}
         style={{ width: '100%' }}
       />
     )
