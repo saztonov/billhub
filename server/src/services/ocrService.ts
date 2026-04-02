@@ -110,6 +110,25 @@ async function downloadS3File(
   return Buffer.concat(chunks);
 }
 
+/** Фабрика canvas для pdfjs-dist на базе node-canvas */
+function buildNodeCanvasFactory(createCanvasFn: typeof import('canvas').createCanvas) {
+  return {
+    create(width: number, height: number) {
+      const canvas = createCanvasFn(width, height);
+      const context = canvas.getContext('2d');
+      return { canvas, context };
+    },
+    reset(canvasAndContext: { canvas: ReturnType<typeof createCanvasFn> }, width: number, height: number) {
+      canvasAndContext.canvas.width = width;
+      canvasAndContext.canvas.height = height;
+    },
+    destroy(canvasAndContext: { canvas: ReturnType<typeof createCanvasFn> }) {
+      canvasAndContext.canvas.width = 0;
+      canvasAndContext.canvas.height = 0;
+    },
+  };
+}
+
 /** Рендерит страницу PDF в base64 JPEG через pdfjs-dist + node-canvas */
 async function renderPdfPageToBase64(
   pdfBuffer: Buffer,
@@ -119,10 +138,16 @@ async function renderPdfPageToBase64(
   const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
   const { createCanvas } = await import('canvas');
 
+  const canvasFactory = buildNodeCanvasFactory(createCanvas);
+
   // Копируем данные в новый ArrayBuffer — pdfjs-dist может detach исходный
   const dataCopy = new Uint8Array(pdfBuffer.byteLength);
   dataCopy.set(new Uint8Array(pdfBuffer.buffer, pdfBuffer.byteOffset, pdfBuffer.byteLength));
-  const pdfDoc = await pdfjsLib.getDocument({ data: dataCopy, useSystemFonts: true }).promise;
+  const pdfDoc = await pdfjsLib.getDocument({
+    data: dataCopy,
+    useSystemFonts: true,
+    canvasFactory,
+  }).promise;
 
   try {
     const page = await pdfDoc.getPage(pageNum);
@@ -139,7 +164,6 @@ async function renderPdfPageToBase64(
     );
     const ctx = canvas.getContext('2d');
 
-    // pdfjs-dist ожидает CanvasRenderingContext2D, node-canvas совместим
     await page.render({
       canvasContext: ctx as unknown as CanvasRenderingContext2D,
       viewport: scaledViewport,
