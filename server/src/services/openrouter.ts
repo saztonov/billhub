@@ -164,7 +164,19 @@ export async function recognizeInvoiceStructured(
 
   // Извлекаем JSON из ответа (может быть обрамлен ```json...```)
   const jsonStr = content.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
-  const parsed = JSON.parse(jsonStr) as { items: OcrParsedItem[] };
+
+  logger.info({ rawContentLength: content.length, jsonStrLength: jsonStr.length }, 'Ответ OpenRouter получен');
+  logger.debug({ rawContent: content.substring(0, 500) }, 'Содержимое ответа OpenRouter');
+
+  let parsed: { items: OcrParsedItem[] };
+  try {
+    parsed = JSON.parse(jsonStr) as { items: OcrParsedItem[] };
+  } catch (parseErr) {
+    logger.error({ jsonStr: jsonStr.substring(0, 500), error: String(parseErr) }, 'Ошибка парсинга JSON ответа OpenRouter');
+    throw new Error(`Не удалось распарсить JSON из ответа OpenRouter: ${String(parseErr)}`);
+  }
+
+  logger.info({ itemsCount: (parsed.items ?? []).length }, 'Распознано позиций из ответа');
 
   return {
     items: parsed.items ?? [],

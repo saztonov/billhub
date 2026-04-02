@@ -467,12 +467,18 @@ export async function processPaymentRequestOcr(
           fileOutputTokens += retryTokens.output;
         }
 
+        logger.info(
+          { paymentRequestId, fileId, pageNum, itemsCount: result.items.length },
+          'Распознано позиций на странице: %d',
+          result.items.length,
+        );
+
         for (const item of result.items) {
           if (!item.name) continue;
           const materialId = await findOrCreateMaterial(supabase, item.name, item.unit ?? null);
           globalPosition++;
 
-          await supabase.from('recognized_materials').insert({
+          const { error: insertErr } = await supabase.from('recognized_materials').insert({
             payment_request_id: paymentRequestId,
             file_id: fileId,
             material_id: materialId,
@@ -483,6 +489,13 @@ export async function processPaymentRequestOcr(
             price: item.price ?? null,
             amount: item.amount ?? null,
           });
+
+          if (insertErr) {
+            logger.error(
+              { paymentRequestId, fileId, materialId, error: insertErr.message },
+              'Ошибка сохранения распознанного материала',
+            );
+          }
         }
       }
 
