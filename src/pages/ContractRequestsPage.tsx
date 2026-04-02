@@ -57,7 +57,7 @@ const ContractRequestsPage = () => {
 
   // Данные
   const {
-    isCounterpartyUser, isAdmin, isOmtsUser,
+    isCounterpartyUser, isAdmin,
     requests, isLoading,
     counterparties, sites, suppliers, statuses,
     loadRequests, deleteRequest,
