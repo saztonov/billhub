@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   Modal,
   Descriptions,
@@ -41,6 +41,7 @@ import ContractCommentsChat from '@/components/contractRequests/ContractComments
 import ContractApprovalLog from '@/components/contractRequests/ContractApprovalLog'
 import ContractRevisionModal from '@/components/contractRequests/ContractRevisionModal'
 import AddContractFilesModal from '@/components/contractRequests/AddContractFilesModal'
+import { InlineTextCell, InlineDateCell } from '@/components/contractRequests/InlineEditableCell'
 import FilePreviewModal from '@/components/paymentRequests/FilePreviewModal'
 
 interface ViewContractRequestModalProps {
@@ -66,6 +67,7 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
 
   // Сторы
   const {
+    requests,
     currentRequestFiles,
     isLoading,
     isSubmitting,
@@ -77,6 +79,7 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
     markOriginalReceived,
     deleteRequest,
     updateRequest,
+    updateContractDetails,
     assignToMe,
   } = useContractRequestStore()
 
@@ -97,8 +100,14 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
     mimeType: string | null
   } | null>(null)
 
-  // Актуальные данные заявки
-  const actualRequest = request
+  // Актуальные данные заявки (обновляются при оптимистичных изменениях в store)
+  const actualRequest = useMemo(() => {
+    if (!request) return null
+    return requests.find((r) => r.id === request.id) ?? request
+  }, [request, requests])
+
+  // Право на редактирование номера договора и даты подписания
+  const canEditContractDetails = isAdmin || isOmts
 
   // Загрузка данных при открытии
   useEffect(() => {
@@ -574,6 +583,22 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
               <Descriptions.Item label="Уточнение предмета" span={2}>{req.subjectDetail}</Descriptions.Item>
             )}
             <Descriptions.Item label="Статус">{renderStatus()}</Descriptions.Item>
+            <Descriptions.Item label="№ договора">
+              {canEditContractDetails ? (
+                <InlineTextCell
+                  value={req.contractNumber}
+                  onSave={(val) => updateContractDetails(req.id, { contractNumber: val })}
+                />
+              ) : (req.contractNumber || '—')}
+            </Descriptions.Item>
+            <Descriptions.Item label="Дата подписания">
+              {canEditContractDetails ? (
+                <InlineDateCell
+                  value={req.contractSigningDate}
+                  onSave={(val) => updateContractDetails(req.id, { contractSigningDate: val })}
+                />
+              ) : (req.contractSigningDate ? formatDate(req.contractSigningDate) : '—')}
+            </Descriptions.Item>
             <Descriptions.Item label="Дата создания">{formatDate(req.createdAt)}</Descriptions.Item>
             {req.originalReceivedAt && (
               <Descriptions.Item label="Оригинал получен">{formatDate(req.originalReceivedAt)}</Descriptions.Item>
