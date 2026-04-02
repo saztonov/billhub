@@ -637,4 +637,24 @@ async function fileRoutes(fastify: FastifyInstance): Promise<void> {
   );
 }
 
+  /**
+   * GET /api/files/test-connection
+   * Проверка подключения к S3 хранилищу (админ)
+   */
+  fastify.get(
+    '/api/files/test-connection',
+    { preHandler: [authenticate, requireRole('admin')] },
+    async (_request, reply) => {
+      const command = new ListObjectsV2Command({
+        Bucket: fastify.s3Bucket,
+        MaxKeys: 1,
+      });
+
+      await fastify.s3Client.send(command);
+
+      return reply.send({ ok: true, provider: config.storageProvider });
+    },
+  );
+}
+
 export default fileRoutes;
