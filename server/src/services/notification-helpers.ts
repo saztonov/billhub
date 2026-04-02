@@ -120,10 +120,10 @@ export async function getPaymentRequestInfo(
 export async function getContractRequestInfo(
   supabase: SupabaseClient,
   contractRequestId: string,
-): Promise<{ site_id: string; created_by: string } | null> {
+): Promise<{ site_id: string; created_by: string; request_number: string | null } | null> {
   const { data } = await supabase
     .from('contract_requests')
-    .select('site_id, created_by')
+    .select('site_id, created_by, request_number')
     .eq('id', contractRequestId)
     .single();
   return data ?? null;

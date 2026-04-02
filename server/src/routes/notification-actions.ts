@@ -123,11 +123,18 @@ async function notificationActionRoutes(fastify: FastifyInstance): Promise<void>
         return reply.send({ success: true });
       }
 
+      const { data: req } = await supabase
+        .from('payment_requests')
+        .select('request_number')
+        .eq('id', paymentRequestId)
+        .single();
+      const label = req?.request_number ? ` N${req.request_number}` : '';
+
       await insertNotifications(supabase, [{
         user_id: creatorId,
         type: 'status_changed',
         title: 'Изменён статус заявки',
-        message: `Статус заявки изменён на «${statusLabel}»`,
+        message: `Статус заявки${label} изменён на «${statusLabel}»`,
         payment_request_id: paymentRequestId,
       }]);
 
@@ -261,11 +268,18 @@ async function notificationActionRoutes(fastify: FastifyInstance): Promise<void>
       const userIds = await getOmtsRpUsers(supabase, paymentRequestId);
       const filtered = userIds.filter((id) => id !== actorUserId);
 
+      const { data: req } = await supabase
+        .from('payment_requests')
+        .select('request_number')
+        .eq('id', paymentRequestId)
+        .single();
+      const label = req?.request_number ? ` N${req.request_number}` : '';
+
       await insertNotifications(supabase, filtered.map((uid) => ({
         user_id: uid,
         type: 'omts_rp_pending',
         title: 'Заявка на согласовании ОМТС',
-        message: 'Заявка поступила на согласование ОМТС РП',
+        message: `Заявка${label} поступила на согласование ОМТС РП`,
         payment_request_id: paymentRequestId,
       })));
 
@@ -285,11 +299,18 @@ async function notificationActionRoutes(fastify: FastifyInstance): Promise<void>
         return reply.send({ success: true });
       }
 
+      const { data: req } = await supabase
+        .from('payment_requests')
+        .select('request_number')
+        .eq('id', paymentRequestId)
+        .single();
+      const label = req?.request_number ? ` N${req.request_number}` : '';
+
       await insertNotifications(supabase, [{
         user_id: assignedUserId,
         type: 'assigned',
         title: 'Вы назначены ответственным',
-        message: 'Вам назначена заявка на обработку',
+        message: `Вам назначена заявка${label} на обработку`,
         payment_request_id: paymentRequestId,
       }]);
 
@@ -309,11 +330,18 @@ async function notificationActionRoutes(fastify: FastifyInstance): Promise<void>
         supabase, paymentRequestId, actorUserId, recipient,
       );
 
+      const { data: req } = await supabase
+        .from('payment_requests')
+        .select('request_number')
+        .eq('id', paymentRequestId)
+        .single();
+      const label = req?.request_number ? ` N${req.request_number}` : '';
+
       await insertNotifications(supabase, targetIds.map((uid) => ({
         user_id: uid,
         type: 'new_comment',
         title: 'Новый комментарий',
-        message: 'Добавлен комментарий к заявке',
+        message: `Добавлен комментарий к заявке${label}`,
         payment_request_id: paymentRequestId,
       })));
 
@@ -333,11 +361,18 @@ async function notificationActionRoutes(fastify: FastifyInstance): Promise<void>
         supabase, paymentRequestId, actorUserId,
       );
 
+      const { data: req } = await supabase
+        .from('payment_requests')
+        .select('request_number')
+        .eq('id', paymentRequestId)
+        .single();
+      const label = req?.request_number ? ` N${req.request_number}` : '';
+
       await insertNotifications(supabase, targetIds.map((uid) => ({
         user_id: uid,
         type: 'new_file',
         title: 'Новый файл',
-        message: 'Добавлен файл к заявке',
+        message: `Добавлен файл к заявке${label}`,
         payment_request_id: paymentRequestId,
       })));
 
@@ -426,11 +461,18 @@ async function notificationActionRoutes(fastify: FastifyInstance): Promise<void>
         return reply.send({ success: true });
       }
 
+      const { data: req } = await supabase
+        .from('contract_requests')
+        .select('request_number')
+        .eq('id', contractRequestId)
+        .single();
+      const label = req?.request_number ? ` N${req.request_number}` : '';
+
       await insertNotifications(supabase, [{
         user_id: creatorId,
         type: 'contract_status_changed',
         title: 'Изменён статус заявки на договор',
-        message: `Статус заявки на договор изменён на «${statusLabel}»`,
+        message: `Статус заявки на договор${label} изменён на «${statusLabel}»`,
         contract_request_id: contractRequestId,
       }]);
 
@@ -465,11 +507,13 @@ async function notificationActionRoutes(fastify: FastifyInstance): Promise<void>
         }
       }
 
+      const label = info.request_number ? ` N${info.request_number}` : '';
+
       await insertNotifications(supabase, Array.from(recipientIds).map((uid) => ({
         user_id: uid,
         type: 'contract_revision',
         title: 'Заявка на договор — доработка',
-        message: 'Заявка на договор отправлена на доработку',
+        message: `Заявка на договор${label} отправлена на доработку`,
         contract_request_id: contractRequestId,
       })));
 
@@ -489,11 +533,18 @@ async function notificationActionRoutes(fastify: FastifyInstance): Promise<void>
         supabase, contractRequestId, actorUserId, recipient,
       );
 
+      const { data: req } = await supabase
+        .from('contract_requests')
+        .select('request_number')
+        .eq('id', contractRequestId)
+        .single();
+      const label = req?.request_number ? ` N${req.request_number}` : '';
+
       await insertNotifications(supabase, targetIds.map((uid) => ({
         user_id: uid,
         type: 'contract_new_comment',
         title: 'Новый комментарий',
-        message: 'Добавлен комментарий к заявке на договор',
+        message: `Добавлен комментарий к заявке на договор${label}`,
         contract_request_id: contractRequestId,
       })));
 
@@ -513,11 +564,18 @@ async function notificationActionRoutes(fastify: FastifyInstance): Promise<void>
         supabase, contractRequestId, actorUserId,
       );
 
+      const { data: req } = await supabase
+        .from('contract_requests')
+        .select('request_number')
+        .eq('id', contractRequestId)
+        .single();
+      const label = req?.request_number ? ` N${req.request_number}` : '';
+
       await insertNotifications(supabase, targetIds.map((uid) => ({
         user_id: uid,
         type: 'contract_new_file',
         title: 'Новый файл',
-        message: 'Добавлен файл к заявке на договор',
+        message: `Добавлен файл к заявке на договор${label}`,
         contract_request_id: contractRequestId,
       })));
 
