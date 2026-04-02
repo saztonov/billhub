@@ -14,11 +14,15 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-# Этап 2: Продакшн-образ (Alpine для минимального размера)
-FROM node:20-alpine
+# Этап 2: Продакшн-образ (Debian slim — совместимость с node-canvas, собранным на glibc)
+FROM node:20-bookworm-slim
 
-# Нативные зависимости для node-canvas (рендеринг PDF в OCR-процессе)
-RUN apk add --no-cache cairo pango libjpeg-turbo giflib librsvg pixman
+# Рантайм-зависимости для node-canvas (без dev-пакетов)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libcairo2 libpango-1.0-0 libpangocairo-1.0-0 \
+    libjpeg62-turbo libgif7 librsvg2-2 libpixman-1-0 \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
