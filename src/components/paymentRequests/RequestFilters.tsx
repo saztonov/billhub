@@ -119,7 +119,7 @@ const RequestFilters = (props: RequestFiltersProps) => {
                 optionFilterProp="label"
                 popupMatchSelectWidth={false}
                 options={counterparties?.map((c) => ({
-                  label: c.name,
+                  label: c.inn ? `${c.name}, ${c.inn}` : c.name,
                   value: c.id,
                 }))}
               />
@@ -150,7 +150,7 @@ const RequestFilters = (props: RequestFiltersProps) => {
               optionFilterProp="label"
               popupMatchSelectWidth={false}
               options={suppliers?.map((s) => ({
-                label: s.name,
+                label: s.inn ? `${s.name}, ${s.inn}` : s.name,
                 value: s.id,
               }))}
             />

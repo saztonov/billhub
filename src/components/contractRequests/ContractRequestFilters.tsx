@@ -52,7 +52,7 @@ const ContractRequestFilters = ({
   const counterpartyOptions = useMemo(() =>
     counterparties
       .filter((c) => c.isActive !== false)
-      .map((c) => ({ label: c.name, value: c.id })),
+      .map((c) => ({ label: c.inn ? `${c.name}, ${c.inn}` : c.name, value: c.id })),
     [counterparties]
   )
 
@@ -64,7 +64,7 @@ const ContractRequestFilters = ({
   )
 
   const supplierOptions = useMemo(() =>
-    suppliers.map((s) => ({ label: s.name, value: s.id })),
+    suppliers.map((s) => ({ label: s.inn ? `${s.name}, ${s.inn}` : s.name, value: s.id })),
     [suppliers]
   )
 

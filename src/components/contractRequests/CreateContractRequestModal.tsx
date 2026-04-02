@@ -84,7 +84,7 @@ const CreateContractRequestModal = ({ open, onClose, onCreated }: CreateContract
 
   /** Опции контрагентов (только активные) */
   const counterpartyOptions = useMemo(() =>
-    counterparties.filter((c) => c.isActive !== false).map((c) => ({ label: c.name, value: c.id })),
+    counterparties.filter((c) => c.isActive !== false).map((c) => ({ label: c.inn ? `${c.name}, ${c.inn}` : c.name, value: c.id })),
     [counterparties]
   )
 
@@ -96,7 +96,7 @@ const CreateContractRequestModal = ({ open, onClose, onCreated }: CreateContract
 
   /** Опции поставщиков */
   const supplierOptions = useMemo(() =>
-    suppliers.map((s) => ({ label: s.name, value: s.id })),
+    suppliers.map((s) => ({ label: s.inn ? `${s.name}, ${s.inn}` : s.name, value: s.id })),
     [suppliers]
   )
 
@@ -205,6 +205,7 @@ const CreateContractRequestModal = ({ open, onClose, onCreated }: CreateContract
                   placeholder="Выберите подрядчика"
                   showSearch
                   optionFilterProp="label"
+                  popupMatchSelectWidth={false}
                   options={counterpartyOptions}
                 />
               </Form.Item>
@@ -220,6 +221,7 @@ const CreateContractRequestModal = ({ open, onClose, onCreated }: CreateContract
                 placeholder="Выберите поставщика"
                 showSearch
                 optionFilterProp="label"
+                popupMatchSelectWidth={false}
                 options={supplierOptions}
               />
             </Form.Item>

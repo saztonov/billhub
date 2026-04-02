@@ -208,7 +208,9 @@ export interface PaymentRequest {
   costTypeId: string | null // Вид затрат
   // Joined
   counterpartyName?: string
+  counterpartyInn?: string
   supplierName?: string
+  supplierInn?: string
   siteName?: string
   statusName?: string
   statusColor?: string | null
@@ -370,7 +372,9 @@ export interface ContractRequest {
   // Joined
   siteName?: string
   counterpartyName?: string
+  counterpartyInn?: string
   supplierName?: string
+  supplierInn?: string
   statusName?: string
   statusColor?: string | null
   statusCode?: string

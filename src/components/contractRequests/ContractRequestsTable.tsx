@@ -67,6 +67,7 @@ const ContractRequestsTable = ({
       width: 180,
       ellipsis: true,
       sorter: (a: ContractRequest, b: ContractRequest) => (a.counterpartyName ?? '').localeCompare(b.counterpartyName ?? ''),
+      render: (_: string | undefined, record: ContractRequest) => record.counterpartyName ? (record.counterpartyInn ? `${record.counterpartyName}, ${record.counterpartyInn}` : record.counterpartyName) : '—',
     }] : []),
     {
       title: 'Объект',
@@ -83,6 +84,7 @@ const ContractRequestsTable = ({
       width: 180,
       ellipsis: true,
       sorter: (a, b) => (a.supplierName ?? '').localeCompare(b.supplierName ?? ''),
+      render: (_: string | undefined, record: ContractRequest) => record.supplierName ? (record.supplierInn ? `${record.supplierName}, ${record.supplierInn}` : record.supplierName) : '—',
     },
     {
       title: 'Предмет договора',

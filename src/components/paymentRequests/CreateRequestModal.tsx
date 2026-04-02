@@ -75,11 +75,11 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
   // Опции контрагентов (только активные)
   const counterpartyOptions = counterparties
     .filter((c) => c.isActive !== false)
-    .map((c) => ({ label: c.name, value: c.id }))
+    .map((c) => ({ label: c.inn ? `${c.name}, ${c.inn}` : c.name, value: c.id }))
 
   // Опции поставщиков
   const supplierOptions = suppliers
-    .map((s) => ({ label: s.name, value: s.id }))
+    .map((s) => ({ label: s.inn ? `${s.name}, ${s.inn}` : s.name, value: s.id }))
 
   // Опции объектов (только активные)
   const siteOptions = sites
@@ -225,6 +225,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
                     placeholder="Выберите контрагента"
                     showSearch
                     optionFilterProp="label"
+                    popupMatchSelectWidth={false}
                     options={counterpartyOptions}
                   />
                 </Form.Item>
@@ -256,6 +257,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
                   showSearch
                   allowClear
                   optionFilterProp="label"
+                  popupMatchSelectWidth={false}
                   options={supplierOptions}
                 />
               </Form.Item>

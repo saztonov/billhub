@@ -109,7 +109,7 @@ const RequestDetailsSection = ({
           </Col>
           <Col xs={24} sm={12} md={5}>
             <Form.Item name="supplierId" label="Поставщик">
-              <Select placeholder="Выберите поставщика" showSearch allowClear optionFilterProp="label" options={supplierOptions} />
+              <Select placeholder="Выберите поставщика" showSearch allowClear optionFilterProp="label" popupMatchSelectWidth={false} options={supplierOptions} />
             </Form.Item>
           </Col>
           <Col xs={24} sm={12} md={5}>

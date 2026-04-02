@@ -262,8 +262,8 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
 
   // Опции для Select
   const siteOptions = sites.filter((s) => s.isActive).map((s) => ({ label: s.name, value: s.id }))
-  const counterpartyOptions = counterparties.filter((c) => c.isActive !== false).map((c) => ({ label: c.name, value: c.id }))
-  const supplierOptions = suppliers.map((s) => ({ label: s.name, value: s.id }))
+  const counterpartyOptions = counterparties.filter((c) => c.isActive !== false).map((c) => ({ label: c.inn ? `${c.name}, ${c.inn}` : c.name, value: c.id }))
+  const supplierOptions = suppliers.map((s) => ({ label: s.inn ? `${s.name}, ${s.inn}` : s.name, value: s.id }))
 
   // --- Рендер статуса с тегами доработки ---
   const renderStatus = () => (
@@ -527,13 +527,13 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
             </Descriptions>
             <Flex gap={8} wrap="wrap" style={{ marginBottom: 8 }}>
               <Form.Item name="counterpartyId" label="Подрядчик" rules={[{ required: true, message: 'Выберите подрядчика' }]} style={{ flex: 1, minWidth: 200 }}>
-                <Select placeholder="Выберите подрядчика" showSearch optionFilterProp="label" options={counterpartyOptions} />
+                <Select placeholder="Выберите подрядчика" showSearch optionFilterProp="label" popupMatchSelectWidth={false} options={counterpartyOptions} />
               </Form.Item>
               <Form.Item name="siteId" label="Объект" rules={[{ required: true, message: 'Выберите объект' }]} style={{ flex: 1, minWidth: 200 }}>
                 <Select placeholder="Выберите объект" showSearch optionFilterProp="label" options={siteOptions} />
               </Form.Item>
               <Form.Item name="supplierId" label="Поставщик" rules={[{ required: true, message: 'Выберите поставщика' }]} style={{ flex: 1, minWidth: 200 }}>
-                <Select placeholder="Выберите поставщика" showSearch optionFilterProp="label" options={supplierOptions} />
+                <Select placeholder="Выберите поставщика" showSearch optionFilterProp="label" popupMatchSelectWidth={false} options={supplierOptions} />
               </Form.Item>
               <Form.Item name="partiesCount" label="Кол-во сторон" rules={[{ required: true, message: 'Укажите кол-во' }]} style={{ width: 120 }}>
                 <Select options={[{ label: '2', value: 2 }, { label: '3', value: 3 }]} />

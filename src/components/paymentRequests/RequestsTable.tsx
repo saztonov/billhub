@@ -227,7 +227,7 @@ const RequestsTable = (props: RequestsTableProps) => {
       cols.push({
         title: 'Подрядчик', dataIndex: 'counterpartyName', key: 'counterpartyName',
         ellipsis: true,
-        render: (name: string | undefined) => <span style={{ fontSize: 12 }}>{name ?? '—'}</span>,
+        render: (_: string | undefined, record: PaymentRequest) => <span style={{ fontSize: 12 }}>{record.counterpartyName ? (record.counterpartyInn ? `${record.counterpartyName}, ${record.counterpartyInn}` : record.counterpartyName) : '—'}</span>,
       })
     }
 
@@ -308,6 +308,7 @@ const RequestsTable = (props: RequestsTableProps) => {
       cols.push({
         title: 'Подрядчик', dataIndex: 'counterpartyName', key: 'counterpartyName', width: 180, ellipsis: true,
         sorter: (a: PaymentRequest, b: PaymentRequest) => (a.counterpartyName || '').localeCompare(b.counterpartyName || '', 'ru'),
+        render: (_: string | undefined, record: PaymentRequest) => record.counterpartyName ? (record.counterpartyInn ? `${record.counterpartyName}, ${record.counterpartyInn}` : record.counterpartyName) : '—',
       })
     }
 
@@ -320,7 +321,7 @@ const RequestsTable = (props: RequestsTableProps) => {
       {
         title: 'Поставщик', dataIndex: 'supplierName', key: 'supplierName', width: 160,
         sorter: (a: PaymentRequest, b: PaymentRequest) => (a.supplierName || '').localeCompare(b.supplierName || '', 'ru'),
-        render: (name: string | undefined) => name ?? '—',
+        render: (_: string | undefined, record: PaymentRequest) => record.supplierName ? (record.supplierInn ? `${record.supplierName}, ${record.supplierInn}` : record.supplierName) : '—',
       },
       {
         title: 'Статус', key: 'status', width: 150,

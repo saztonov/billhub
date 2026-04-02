@@ -73,8 +73,8 @@ const CR_LIST_SELECT = `
   parties_count, subject_type, subject_detail, status_id,
   revision_targets, created_by, created_at,
   is_deleted, deleted_at, original_received_at, status_history,
-  counterparties(name),
-  suppliers(name),
+  counterparties(name, inn),
+  suppliers(name, inn),
   construction_sites(name),
   statuses!contract_requests_status_id_fkey(name, color, code),
   creator:users!contract_requests_created_by_fkey(full_name)
@@ -94,7 +94,9 @@ function flattenContractRequest(row: Record<string, unknown>): Record<string, un
   delete flat.statuses;
   delete flat.creator;
   flat.counterparty_name = cp?.name ?? null;
+  flat.counterparty_inn = cp?.inn ?? null;
   flat.supplier_name = sup?.name ?? null;
+  flat.supplier_inn = sup?.inn ?? null;
   flat.site_name = site?.name ?? null;
   flat.status_name = status?.name ?? null;
   flat.status_color = status?.color ?? null;

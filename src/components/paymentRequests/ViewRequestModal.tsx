@@ -172,7 +172,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
 
   const shippingOptions = getOptionsByField('shipping_conditions')
   const siteOptions = sites.filter((s) => s.isActive).map((s) => ({ label: s.name, value: s.id }))
-  const supplierOptions = suppliers.map((s) => ({ label: s.name, value: s.id }))
+  const supplierOptions = suppliers.map((s) => ({ label: s.inn ? `${s.name}, ${s.inn}` : s.name, value: s.id }))
 
   const startEditing = () => {
     if (!request) return
