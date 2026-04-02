@@ -119,8 +119,10 @@ async function renderPdfPageToBase64(
   const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
   const { createCanvas } = await import('canvas');
 
-  const uint8 = new Uint8Array(pdfBuffer.buffer, pdfBuffer.byteOffset, pdfBuffer.byteLength);
-  const pdfDoc = await pdfjsLib.getDocument({ data: uint8, useSystemFonts: true }).promise;
+  // Копируем данные в новый ArrayBuffer — pdfjs-dist может detach исходный
+  const dataCopy = new Uint8Array(pdfBuffer.byteLength);
+  dataCopy.set(new Uint8Array(pdfBuffer.buffer, pdfBuffer.byteOffset, pdfBuffer.byteLength));
+  const pdfDoc = await pdfjsLib.getDocument({ data: dataCopy, useSystemFonts: true }).promise;
 
   try {
     const page = await pdfDoc.getPage(pageNum);
@@ -158,8 +160,10 @@ async function renderPdfPageToBase64(
 /** Получает количество страниц в PDF */
 async function getPdfPageCount(pdfBuffer: Buffer): Promise<number> {
   const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
-  const uint8 = new Uint8Array(pdfBuffer.buffer, pdfBuffer.byteOffset, pdfBuffer.byteLength);
-  const pdfDoc = await pdfjsLib.getDocument({ data: uint8 }).promise;
+  // Копируем данные в новый ArrayBuffer — pdfjs-dist может detach исходный
+  const dataCopy = new Uint8Array(pdfBuffer.byteLength);
+  dataCopy.set(new Uint8Array(pdfBuffer.buffer, pdfBuffer.byteOffset, pdfBuffer.byteLength));
+  const pdfDoc = await pdfjsLib.getDocument({ data: dataCopy }).promise;
   const count = pdfDoc.numPages;
   await pdfDoc.destroy();
   return count;
