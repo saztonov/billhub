@@ -167,6 +167,7 @@ const FoundingDocumentFilesModal = ({
   ]
 
   return (
+    <>
     <Modal
       title={`Файлы: ${typeName}`}
       open={open}
@@ -215,6 +216,7 @@ const FoundingDocumentFilesModal = ({
       fileName={previewFile?.fileName ?? ''}
       mimeType={previewFile?.mimeType ?? null}
     />
+    </>
   )
 }
 
