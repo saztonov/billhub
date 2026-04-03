@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Typography, Table, Button, Descriptions, Drawer, Space, Splitter, Select, Tag, Input, Modal, message } from 'antd'
-import { ArrowLeftOutlined, FileSearchOutlined, EyeInvisibleOutlined, SearchOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, FileSearchOutlined, EyeInvisibleOutlined, SearchOutlined, FileExcelOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useMaterialsStore } from '@/store/materialsStore'
@@ -13,6 +13,7 @@ import { getDownloadUrl } from '@/services/s3'
 import { formatDate } from '@/utils/requestFormatters'
 import { logError } from '@/services/errorLogger'
 import InvoiceViewer from '@/components/materials/InvoiceViewer'
+import { exportMaterialsDetailToExcel } from '@/utils/exportMaterialsDetail'
 import { useCostTypeStore } from '@/store/costTypeStore'
 import type { RecognizedMaterial } from '@/types'
 
@@ -241,6 +242,33 @@ const MaterialsDetailPage = () => {
       },
     })
   }, [paymentRequestId, user])
+
+  // Экспорт материалов в Excel
+  const [exporting, setExporting] = useState(false)
+  const handleExport = useCallback(async () => {
+    if (!requestInfo || !materials.length) return
+    setExporting(true)
+    try {
+      await exportMaterialsDetailToExcel({
+        materials,
+        requestNumber: requestInfo.requestNumber,
+        counterpartyName: requestInfo.counterpartyName,
+        supplierName: requestInfo.supplierName,
+        siteName: requestInfo.siteName,
+        approvedAt: requestInfo.approvedAt,
+      })
+    } catch (err) {
+      logError({
+        errorType: 'export_error',
+        errorMessage: err instanceof Error ? err.message : 'Ошибка экспорта материалов заявки',
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'exportMaterialsDetail', paymentRequestId },
+      })
+      message.error('Ошибка при экспорте')
+    } finally {
+      setExporting(false)
+    }
+  }, [requestInfo, materials, paymentRequestId])
 
   // Обработчик изменения «Кол-во смета»
   const handleEstimateChange = useCallback(
@@ -494,6 +522,14 @@ const MaterialsDetailPage = () => {
                   </>
                 )
               })()}
+              <Button
+                icon={<FileExcelOutlined />}
+                onClick={handleExport}
+                loading={exporting}
+                disabled={!materials.length || isLoadingMaterials}
+              >
+                Экспорт в Excel
+              </Button>
               {previewButton}
             </Space>
           </div>
