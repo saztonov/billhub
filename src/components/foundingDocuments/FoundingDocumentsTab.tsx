@@ -41,7 +41,10 @@ const FoundingDocumentsTab = () => {
           optionFilterProp="label"
           allowClear
           style={{ width: 400 }}
-          options={suppliers.map((s) => ({ label: s.name, value: s.id }))}
+          options={suppliers.map((s) => ({
+            label: s.inn ? `${s.name} (ИНН: ${s.inn})` : s.name,
+            value: s.id,
+          }))}
         />
         {isAdmin && (
           <Button
