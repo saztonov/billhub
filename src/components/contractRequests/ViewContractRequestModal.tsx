@@ -73,6 +73,7 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
     isSubmitting,
     fetchRequestFiles,
     toggleFileRejection,
+    setFileSignedContract,
     approveRequest,
     sendToRevision,
     completeRevision,
@@ -308,9 +309,12 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
           key: 'fileName',
           ellipsis: true,
           render: (_: unknown, file: ContractRequestFile) => (
-            <span style={{ fontSize: 12, ...(file.isRejected ? { textDecoration: 'line-through', color: '#999' } : {}) }}>
-              {file.fileName}
-            </span>
+            <Space size={4} wrap>
+              <span style={{ fontSize: 12, ...(file.isRejected ? { textDecoration: 'line-through', color: '#999' } : {}) }}>
+                {file.fileName}
+              </span>
+              {file.isSignedContract && <Tag color="blue">Подписан</Tag>}
+            </Space>
           ),
         },
         {
@@ -351,9 +355,12 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
             key: 'fileName',
             ellipsis: true,
             render: (_: unknown, file: ContractRequestFile) => (
-              <span style={file.isRejected ? { textDecoration: 'line-through', color: '#999' } : undefined}>
-                {file.fileName}
-              </span>
+              <Space size={4}>
+                <span style={file.isRejected ? { textDecoration: 'line-through', color: '#999' } : undefined}>
+                  {file.fileName}
+                </span>
+                {file.isSignedContract && <Tag color="blue">Подписанный договор</Tag>}
+              </Space>
             ),
           },
           {
@@ -382,6 +389,17 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
                       style={file.isRejected ? { color: '#52c41a', borderColor: '#52c41a' } : { color: '#ff4d4f', borderColor: '#ff4d4f' }}
                       onClick={() => user && toggleFileRejection(file.id, user.id)}
                     />
+                  </Tooltip>
+                )}
+                {canRejectFiles && (statusCode === 'approved_waiting' || statusCode === 'concluded') && (
+                  <Tooltip title={file.isSignedContract ? 'Снять отметку «Подписанный договор»' : 'Отметить как подписанный договор'}>
+                    <Button
+                      size="small"
+                      type={file.isSignedContract ? 'primary' : 'default'}
+                      onClick={() => setFileSignedContract(file.id, !file.isSignedContract)}
+                    >
+                      ПД
+                    </Button>
                   </Tooltip>
                 )}
                 <Tooltip title="Просмотр">
@@ -709,6 +727,7 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
         requestId={req.id}
         requestNumber={req.requestNumber}
         counterpartyName={req.counterpartyName ?? ''}
+        statusCode={req.statusCode}
       />
     </>
   )

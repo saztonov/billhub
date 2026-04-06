@@ -5,6 +5,24 @@ import type { ColumnsType } from 'antd/es/table'
 import type { ContractRequest } from '@/types'
 import { CONTRACT_SUBJECT_LABELS, REVISION_TARGET_LABELS } from '@/types'
 import useIsMobile from '@/hooks/useIsMobile'
+import dayjs from 'dayjs'
+
+/** Формат даты создания заявки в столбце "№" */
+function formatShortDate(iso?: string | null): string {
+  if (!iso) return ''
+  const d = dayjs(iso)
+  return d.isValid() ? d.format('DD.MM.YY') : ''
+}
+
+/** Формат блока договора в столбце "Договор" */
+function formatContractCell(num?: string | null, date?: string | null): string {
+  const d = date ? dayjs(date) : null
+  const dateStr = d && d.isValid() ? d.format('DD.MM.YYYY') : ''
+  if (num && dateStr) return `${num} от ${dateStr}`
+  if (num) return num
+  if (dateStr) return `от ${dateStr}`
+  return '—'
+}
 interface ContractRequestsTableProps {
   requests: ContractRequest[]
   isLoading: boolean
@@ -50,8 +68,14 @@ const ContractRequestsTable = ({
       title: '№',
       dataIndex: 'requestNumber',
       key: 'requestNumber',
-      width: 90,
+      width: 110,
       sorter: (a, b) => a.requestNumber.localeCompare(b.requestNumber),
+      render: (_: string, record: ContractRequest) => (
+        <div>
+          <div>{record.requestNumber}</div>
+          <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>{formatShortDate(record.createdAt)}</div>
+        </div>
+      ),
     },
     ...(!isCounterpartyUser ? [{
       title: 'Подрядчик',
@@ -101,6 +125,12 @@ const ContractRequestsTable = ({
           )}
         </div>
       ),
+    },
+    {
+      title: 'Договор',
+      key: 'contract',
+      width: 200,
+      render: (_, record) => formatContractCell(record.contractNumber, record.contractSigningDate),
     },
     {
       title: 'Статус',
@@ -210,7 +240,7 @@ const ContractRequestsTable = ({
           loading={isLoading}
           pagination={false}
           size="small"
-          scroll={isMobile ? undefined : { x: 1230 }}
+          scroll={isMobile ? undefined : { x: 1450 }}
           rowClassName={(record) => record.isDeleted ? 'deleted-row' : ''}
           onRow={(record) => ({
             onClick: (e) => {

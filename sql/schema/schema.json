@@ -487,6 +487,15 @@
               "position": 12,
               "max_length": null,
               "numeric_precision": null
+            },
+            {
+              "name": "is_signed_contract",
+              "type": "boolean",
+              "default": "false",
+              "nullable": false,
+              "position": 13,
+              "max_length": null,
+              "numeric_precision": null
             }
           ]
         },

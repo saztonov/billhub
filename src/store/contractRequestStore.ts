@@ -34,6 +34,7 @@ interface ContractRequestStoreState {
   deleteRequest: (id: string) => Promise<void>
   fetchRequestFiles: (requestId: string) => Promise<void>
   toggleFileRejection: (fileId: string, userId: string) => Promise<void>
+  setFileSignedContract: (fileId: string, isSignedContract: boolean) => Promise<void>
   sendToRevision: (id: string, targets: RevisionTarget[], userId: string) => Promise<void>
   completeRevision: (id: string, target: RevisionTarget, userId: string) => Promise<void>
   approveRequest: (id: string, userId: string) => Promise<void>
@@ -152,6 +153,20 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
       })
     } catch (err) {
       logError({ errorType: 'api_error', errorMessage: err instanceof Error ? err.message : 'Ошибка', errorStack: null, metadata: { action: 'toggleContractFileRejection', fileId } })
+    }
+  },
+
+  setFileSignedContract: async (fileId, isSignedContract) => {
+    const files = get().currentRequestFiles
+    const prev = files
+    set({
+      currentRequestFiles: files.map((f) => (f.id === fileId ? { ...f, isSignedContract } : f)),
+    })
+    try {
+      await api.patch(`/api/contract-requests/files/${fileId}/signed-contract`, { isSignedContract })
+    } catch (err) {
+      set({ currentRequestFiles: prev })
+      logError({ errorType: 'api_error', errorMessage: err instanceof Error ? err.message : 'Ошибка', errorStack: null, metadata: { action: 'setContractFileSignedContract', fileId } })
     }
   },
 

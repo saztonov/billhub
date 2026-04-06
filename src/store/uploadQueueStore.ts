@@ -13,6 +13,7 @@ interface FileToUpload {
   pageCount?: number | null
   isResubmit?: boolean
   isAdditional?: boolean
+  isSignedContract?: boolean
 }
 
 export interface UploadTask {
@@ -217,6 +218,7 @@ async function processQueue(
               mimeType: fileData.file.type || null,
               userId: task.userId,
               isAdditional: fileData.isAdditional ?? false,
+              isSignedContract: fileData.isSignedContract ?? false,
             })
 
             // Обновляем прогресс в очереди

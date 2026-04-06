@@ -1,5 +1,5 @@
 import { useCallback, useRef } from 'react'
-import { Upload, Button, Typography, Flex, App } from 'antd'
+import { Upload, Button, Typography, Flex, App, Checkbox } from 'antd'
 import { InboxOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons'
 import { checkFileMagicBytes } from '@/utils/fileValidation'
 const { Dragger } = Upload
@@ -8,11 +8,14 @@ const { Text } = Typography
 interface FileItem {
   uid: string
   file: File
+  isSignedContract?: boolean
 }
 
 interface ContractFileUploadProps {
   fileList: FileItem[]
   onChange: (files: FileItem[]) => void
+  /** Показывать чек-бокс "Подписанный договор" возле каждого файла */
+  showSignedContractCheckbox?: boolean
 }
 
 /** Допустимые расширения файлов */
@@ -31,7 +34,7 @@ function formatSize(bytes: number): string {
 /** Типы файлов, которые можно предпросмотреть в браузере */
 const PREVIEWABLE_EXTS = ['jpg', 'jpeg', 'png', 'bmp', 'tiff', 'tif', 'pdf']
 
-const ContractFileUpload = ({ fileList, onChange }: ContractFileUploadProps) => {
+const ContractFileUpload = ({ fileList, onChange, showSignedContractCheckbox = false }: ContractFileUploadProps) => {
   const { message } = App.useApp()
   const fileListRef = useRef(fileList)
   fileListRef.current = fileList
@@ -111,6 +114,20 @@ const ContractFileUpload = ({ fileList, onChange }: ContractFileUploadProps) => 
             >
               <Text ellipsis style={{ flex: 1 }}>{item.file.name}</Text>
               <Text type="secondary" style={{ whiteSpace: 'nowrap' }}>{formatSize(item.file.size)}</Text>
+              {showSignedContractCheckbox && (
+                <Checkbox
+                  checked={!!item.isSignedContract}
+                  onChange={(e) =>
+                    onChange(
+                      fileList.map((f) =>
+                        f.uid === item.uid ? { ...f, isSignedContract: e.target.checked } : f,
+                      ),
+                    )
+                  }
+                >
+                  Подписанный договор
+                </Checkbox>
+              )}
               <Button
                 size="small"
                 icon={<EyeOutlined />}

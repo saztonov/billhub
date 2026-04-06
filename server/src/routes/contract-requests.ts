@@ -293,8 +293,23 @@ async function contractRequestRoutes(fastify: FastifyInstance): Promise<void> {
       mimeType: string | null;
       userId: string;
       isAdditional: boolean;
+      isSignedContract?: boolean;
     };
     const supabase = fastify.supabase;
+
+    // Флаг "Подписанный договор" разрешён только на статусах approved_waiting и concluded
+    let isSignedContract = false;
+    if (body.isSignedContract) {
+      const { data: cr } = await supabase
+        .from('contract_requests')
+        .select('status_id, statuses!contract_requests_status_id_fkey(code)')
+        .eq('id', id)
+        .single();
+      const code = (cr?.statuses as { code?: string } | null)?.code;
+      if (code === 'approved_waiting' || code === 'concluded') {
+        isSignedContract = true;
+      }
+    }
 
     const { error } = await supabase
       .from('contract_request_files')
@@ -306,6 +321,7 @@ async function contractRequestRoutes(fastify: FastifyInstance): Promise<void> {
         mime_type: body.mimeType,
         created_by: body.userId,
         is_additional: body.isAdditional ?? false,
+        is_signed_contract: isSignedContract,
       });
     if (error) return reply.status(500).send({ error: error.message });
 
@@ -522,7 +538,7 @@ async function contractRequestRoutes(fastify: FastifyInstance): Promise<void> {
 
     const { data, error } = await supabase
       .from('contract_request_files')
-      .select('id, contract_request_id, file_name, file_key, file_size, mime_type, created_by, created_at, is_additional, is_rejected, rejected_by, rejected_at, users!contract_request_files_created_by_fkey(role, department_id, counterparties(name))')
+      .select('id, contract_request_id, file_name, file_key, file_size, mime_type, created_by, created_at, is_additional, is_rejected, rejected_by, rejected_at, is_signed_contract, users!contract_request_files_created_by_fkey(role, department_id, counterparties(name))')
       .eq('contract_request_id', id)
       .order('created_at', { ascending: true });
     if (error) return reply.status(500).send({ error: error.message });
@@ -600,6 +616,22 @@ async function contractRequestRoutes(fastify: FastifyInstance): Promise<void> {
     if (error) return reply.status(500).send({ error: error.message });
 
     return reply.send({ success: true, isRejected: newRejected });
+  });
+
+  /* ---------- PATCH /api/contract-requests/files/:fileId/signed-contract ---------- */
+  /** Установить/снять флаг "Подписанный договор" у файла */
+  fastify.patch('/api/contract-requests/files/:fileId/signed-contract', adminOrUser, async (request, reply) => {
+    const { fileId } = request.params as { fileId: string };
+    const body = request.body as { isSignedContract: boolean };
+    const supabase = fastify.supabase;
+
+    const { error } = await supabase
+      .from('contract_request_files')
+      .update({ is_signed_contract: !!body.isSignedContract })
+      .eq('id', fileId);
+    if (error) return reply.status(500).send({ error: error.message });
+
+    return reply.send({ success: true, isSignedContract: !!body.isSignedContract });
   });
 }
 

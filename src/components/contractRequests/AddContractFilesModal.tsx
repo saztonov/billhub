@@ -7,6 +7,7 @@ import ContractFileUpload from '@/components/contractRequests/ContractFileUpload
 interface FileItem {
   uid: string
   file: File
+  isSignedContract?: boolean
 }
 
 interface AddContractFilesModalProps {
@@ -15,6 +16,7 @@ interface AddContractFilesModalProps {
   requestId: string
   requestNumber: string
   counterpartyName: string
+  statusCode?: string
 }
 
 const AddContractFilesModal = ({
@@ -23,7 +25,9 @@ const AddContractFilesModal = ({
   requestId,
   requestNumber,
   counterpartyName,
+  statusCode,
 }: AddContractFilesModalProps) => {
+  const showSignedContractCheckbox = statusCode === 'approved_waiting' || statusCode === 'concluded'
   const { message } = App.useApp()
   const [fileList, setFileList] = useState<FileItem[]>([])
   const user = useAuthStore((s) => s.user)
@@ -52,6 +56,7 @@ const AddContractFilesModal = ({
         pageCount: null,
         isResubmit: false,
         isAdditional: true,
+        isSignedContract: showSignedContractCheckbox ? !!f.isSignedContract : false,
       })),
       userId: user!.id,
     })
@@ -71,7 +76,11 @@ const AddContractFilesModal = ({
       width={560}
       destroyOnClose
     >
-      <ContractFileUpload fileList={fileList} onChange={setFileList} />
+      <ContractFileUpload
+        fileList={fileList}
+        onChange={setFileList}
+        showSignedContractCheckbox={showSignedContractCheckbox}
+      />
     </Modal>
   )
 }

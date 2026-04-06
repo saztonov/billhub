@@ -193,7 +193,7 @@ const ContractRequestFilters = ({
             name="requestNumber"
             style={{ marginBottom: 0, width: isMobile ? '100%' : 140 }}
           >
-            <Input placeholder="По номеру" allowClear />
+            <Input placeholder="По номеру заявки или договора" allowClear />
           </Form.Item>
           <Form.Item
             label="Диапазон дат"

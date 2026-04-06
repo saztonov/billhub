@@ -399,6 +399,7 @@ export interface ContractRequestFile {
   isRejected: boolean
   rejectedBy: string | null
   rejectedAt: string | null
+  isSignedContract: boolean
   // Joined
   uploaderRole?: string
   uploaderDepartment?: string | null

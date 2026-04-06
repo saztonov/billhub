@@ -41,21 +41,28 @@ export function useContractRequestFiltering({ requests, filters }: UseContractRe
       filtered = filtered.filter((r) => r.subjectType === filters.subjectType)
     }
     if (filters.requestNumber) {
+      const q = filters.requestNumber.toLowerCase()
       filtered = filtered.filter((r) =>
-        r.requestNumber.toLowerCase().includes(filters.requestNumber!.toLowerCase())
+        r.requestNumber.toLowerCase().includes(q) ||
+        (r.contractNumber ?? '').toLowerCase().includes(q)
       )
     }
-    if (filters.dateFrom) {
-      filtered = filtered.filter((r) =>
-        new Date(r.createdAt) >= new Date(filters.dateFrom!)
-      )
-    }
-    if (filters.dateTo) {
-      const nextDay = new Date(filters.dateTo!)
-      nextDay.setDate(nextDay.getDate() + 1)
-      filtered = filtered.filter((r) =>
-        new Date(r.createdAt) < nextDay
-      )
+    // Фильтр диапазона дат: попадание дат создания заявки ИЛИ даты подписания договора
+    if (filters.dateFrom || filters.dateTo) {
+      const from = filters.dateFrom ? new Date(filters.dateFrom) : null
+      let toExclusive: Date | null = null
+      if (filters.dateTo) {
+        toExclusive = new Date(filters.dateTo)
+        toExclusive.setDate(toExclusive.getDate() + 1)
+      }
+      const inRange = (iso?: string | null) => {
+        if (!iso) return false
+        const d = new Date(iso)
+        if (from && d < from) return false
+        if (toExclusive && d >= toExclusive) return false
+        return true
+      }
+      filtered = filtered.filter((r) => inRange(r.createdAt) || inRange(r.contractSigningDate))
     }
 
     return filtered
