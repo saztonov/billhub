@@ -1,9 +1,28 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { CookieSerializeOptions } from '@fastify/cookie';
+import { decodeJwt } from 'jose';
 import { config } from '../config.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { requireRole } from '../middleware/requireRole.js';
 import type { RequestUser, UserRole } from '../types/index.js';
+
+/**
+ * Извлекает время истечения access_token (unix ms) из самого JWT.
+ * Это даёт точную синхронизацию клиент/сервер — независимо от maxAge куки
+ * и настроек Supabase Auth.
+ */
+function extractAccessTokenExpiresAt(accessToken: string): number {
+  try {
+    const payload = decodeJwt(accessToken);
+    if (typeof payload.exp === 'number') {
+      return payload.exp * 1000;
+    }
+  } catch {
+    /** Фоллбэк ниже */
+  }
+  /** Фоллбэк: maxAge куки (15 минут) */
+  return Date.now() + 900 * 1000;
+}
 
 /* ------------------------------------------------------------------ */
 /*  Типы тел запросов                                                  */
@@ -211,6 +230,9 @@ async function authRoutes(fastify: FastifyInstance): Promise<void> {
       reply.setCookie('access_token', authData.session.access_token, accessTokenCookie());
       reply.setCookie('refresh_token', authData.session.refresh_token, refreshTokenCookie());
 
+      /** Точное время истечения из JWT exp — синхронизировано с бэком и Supabase */
+      const accessTokenExpiresAt = extractAccessTokenExpiresAt(authData.session.access_token);
+
       return {
         user: {
           id: user.id,
@@ -222,6 +244,7 @@ async function authRoutes(fastify: FastifyInstance): Promise<void> {
           allSites: user.allSites,
           isActive: user.isActive,
         },
+        accessTokenExpiresAt,
       };
     }
   );
@@ -251,7 +274,10 @@ async function authRoutes(fastify: FastifyInstance): Promise<void> {
     reply.setCookie('access_token', data.session.access_token, accessTokenCookie());
     reply.setCookie('refresh_token', data.session.refresh_token, refreshTokenCookie());
 
-    return { success: true };
+    /** Точное время истечения из JWT exp нового access_token */
+    const accessTokenExpiresAt = extractAccessTokenExpiresAt(data.session.access_token);
+
+    return { success: true, accessTokenExpiresAt };
   });
 
   /** GET /api/auth/me — текущий пользователь (требует аутентификации) */
@@ -259,7 +285,12 @@ async function authRoutes(fastify: FastifyInstance): Promise<void> {
     '/api/auth/me',
     { preHandler: [authenticate] },
     async (request) => {
-      return { user: request.user };
+      /** Точное время истечения из JWT exp (секунды), извлечённого в authenticate */
+      const exp = request.accessTokenExp;
+      const accessTokenExpiresAt =
+        typeof exp === 'number' ? exp * 1000 : Date.now() + 900 * 1000;
+
+      return { user: request.user, accessTokenExpiresAt };
     }
   );
 

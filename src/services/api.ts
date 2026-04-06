@@ -13,8 +13,23 @@ export class ApiError extends Error {
   }
 }
 
-/** Флаг предотвращения повторного refresh */
-let isRefreshing = false
+/** Single-flight промис refresh — все параллельные 401 ждут один и тот же */
+let refreshPromise: Promise<RefreshResult> | null = null
+
+/** Результат refresh: успех + новое время истечения access_token (ms) */
+interface RefreshResult {
+  ok: boolean
+  accessTokenExpiresAt?: number
+}
+
+/** Коллбэк, вызываемый при успешном refresh (обновляет authStore) */
+type RefreshSuccessHandler = (accessTokenExpiresAt: number) => void
+let onRefreshSuccess: RefreshSuccessHandler | null = null
+
+/** Регистрация обработчика успешного refresh (вызывается из authStore) */
+export function setRefreshSuccessHandler(handler: RefreshSuccessHandler | null): void {
+  onRefreshSuccess = handler
+}
 
 /** Флаг: redirect на логин уже начался, новые запросы блокируются */
 let isRedirecting = false
@@ -33,21 +48,42 @@ function redirectToLogin(): never {
   throw new ApiError(401, 'Требуется авторизация')
 }
 
-/** Попытка обновить токен */
-async function tryRefresh(): Promise<boolean> {
-  if (isRefreshing) return false
-  isRefreshing = true
+/** Внутренняя реализация запроса refresh */
+async function doRefresh(): Promise<RefreshResult> {
   try {
     const res = await fetch(`${BASE_URL}/api/auth/refresh`, {
       method: 'POST',
       credentials: 'include',
     })
-    return res.ok
+    if (!res.ok) return { ok: false }
+    try {
+      const body = (await res.json()) as { accessTokenExpiresAt?: number }
+      const expiresAt = body?.accessTokenExpiresAt
+      if (typeof expiresAt === 'number' && onRefreshSuccess) {
+        onRefreshSuccess(expiresAt)
+      }
+      return { ok: true, accessTokenExpiresAt: expiresAt }
+    } catch {
+      /** Тело не JSON — считаем refresh успешным, но без времени истечения */
+      return { ok: true }
+    }
   } catch {
-    return false
-  } finally {
-    isRefreshing = false
+    return { ok: false }
   }
+}
+
+/**
+ * Обновление access_token с single-flight гарантией:
+ * все параллельные вызовы дожидаются одного и того же запроса.
+ * Экспортируется для использования из проактивного таймера.
+ */
+export function refreshAccessToken(): Promise<RefreshResult> {
+  if (!refreshPromise) {
+    refreshPromise = doRefresh().finally(() => {
+      refreshPromise = null
+    })
+  }
+  return refreshPromise
 }
 
 /** Дополнительные параметры запроса */
@@ -83,8 +119,8 @@ async function apiFetch<T>(url: string, options?: RequestInit, isRetry = false, 
 
   // Обработка 401: попытка refresh и повтор запроса
   if (res.status === 401 && !isRetry) {
-    const refreshed = await tryRefresh()
-    if (refreshed) return apiFetch<T>(url, options, true, fetchOptions)
+    const result = await refreshAccessToken()
+    if (result.ok) return apiFetch<T>(url, options, true, fetchOptions)
     if (fetchOptions?.skipAuthRedirect) {
       throw new ApiError(401, 'Требуется авторизация')
     }

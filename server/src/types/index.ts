@@ -21,6 +21,8 @@ export interface RequestUser {
 declare module 'fastify' {
   interface FastifyRequest {
     user?: RequestUser;
+    /** Unix timestamp (секунды) истечения access_token — заполняется в authenticate */
+    accessTokenExp?: number;
   }
 
   interface FastifyInstance {

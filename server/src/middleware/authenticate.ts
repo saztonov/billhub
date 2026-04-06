@@ -4,10 +4,10 @@ import { config } from '../config.js';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { RequestUser, UserRole } from '../types/index.js';
 
-/** Кеш профилей пользователей (TTL 60 сек, макс. 500 записей) */
+/** Кеш профилей пользователей (TTL 15 сек, макс. 500 записей) */
 const userCache = new LRUCache<string, RequestUser>({
   max: 500,
-  ttl: 60_000,
+  ttl: 15_000,
 });
 
 /** JWKS для верификации JWT (поддерживает ES256 и HS256) */
@@ -39,6 +39,11 @@ export async function authenticate(
     if (!userId) {
       reply.status(401).send({ error: 'Не авторизован' });
       return;
+    }
+
+    /** Сохраняем время истечения токена (секунды) — нужно для проактивного refresh */
+    if (typeof payload.exp === 'number') {
+      request.accessTokenExp = payload.exp;
     }
   } catch {
     reply.status(401).send({ error: 'Не авторизован' });

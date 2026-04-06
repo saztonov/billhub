@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { api, ApiError } from '@/services/api'
+import { api, ApiError, setRefreshSuccessHandler } from '@/services/api'
 import type { User } from '@/types'
 
 /** Ответ API на login и checkAuth */
@@ -14,6 +14,8 @@ interface AuthUserResponse {
     allSites: boolean
     isActive: boolean
   }
+  /** Время истечения access_token в миллисекундах (unix ms) */
+  accessTokenExpiresAt?: number
 }
 
 interface AuthStoreState {
@@ -21,11 +23,14 @@ interface AuthStoreState {
   isAuthenticated: boolean
   isLoading: boolean
   error: string | null
+  /** Время истечения access_token (unix ms) — для проактивного refresh */
+  accessTokenExpiresAt: number | null
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
   checkAuth: () => Promise<void>
   clearError: () => void
   changeOwnPassword: (currentPassword: string, newPassword: string) => Promise<void>
+  setAccessTokenExpiresAt: (expiresAt: number | null) => void
 }
 
 /** Маппинг ответа API в тип User */
@@ -47,6 +52,7 @@ export const useAuthStore = create<AuthStoreState>((set) => ({
   isAuthenticated: false,
   isLoading: false,
   error: null,
+  accessTokenExpiresAt: null,
 
   login: async (email: string, password: string) => {
     set({ isLoading: true, error: null })
@@ -55,11 +61,16 @@ export const useAuthStore = create<AuthStoreState>((set) => ({
       const user = mapResponseToUser(response.user)
 
       if (!user.isActive) {
-        set({ user: null, isAuthenticated: false, isLoading: false, error: 'Ваш аккаунт деактивирован' })
+        set({ user: null, isAuthenticated: false, isLoading: false, error: 'Ваш аккаунт деактивирован', accessTokenExpiresAt: null })
         return
       }
 
-      set({ user, isAuthenticated: true, isLoading: false })
+      set({
+        user,
+        isAuthenticated: true,
+        isLoading: false,
+        accessTokenExpiresAt: response.accessTokenExpiresAt ?? null,
+      })
     } catch (err) {
       const message = err instanceof ApiError ? err.message : 'Ошибка авторизации'
       set({ error: message, isLoading: false })
@@ -73,7 +84,7 @@ export const useAuthStore = create<AuthStoreState>((set) => ({
     } catch {
       // Очищаем состояние даже при ошибке сети
     } finally {
-      set({ user: null, isAuthenticated: false, isLoading: false })
+      set({ user: null, isAuthenticated: false, isLoading: false, accessTokenExpiresAt: null })
     }
   },
 
@@ -85,14 +96,19 @@ export const useAuthStore = create<AuthStoreState>((set) => ({
       const user = mapResponseToUser(response.user)
 
       if (!user.isActive) {
-        set({ user: null, isAuthenticated: false, isLoading: false })
+        set({ user: null, isAuthenticated: false, isLoading: false, accessTokenExpiresAt: null })
         return
       }
 
-      set({ user, isAuthenticated: true, isLoading: false })
+      set({
+        user,
+        isAuthenticated: true,
+        isLoading: false,
+        accessTokenExpiresAt: response.accessTokenExpiresAt ?? null,
+      })
     } catch {
       // Любая ошибка (401, сеть и т.д.) — просто сбрасываем состояние без редиректа
-      set({ user: null, isAuthenticated: false, isLoading: false })
+      set({ user: null, isAuthenticated: false, isLoading: false, accessTokenExpiresAt: null })
     }
   },
 
@@ -104,4 +120,15 @@ export const useAuthStore = create<AuthStoreState>((set) => ({
 
     await api.post('/api/auth/change-password', { currentPassword, newPassword })
   },
+
+  setAccessTokenExpiresAt: (expiresAt) => set({ accessTokenExpiresAt: expiresAt }),
 }))
+
+/**
+ * Регистрируем обработчик: когда apiFetch успешно обновил токен по 401,
+ * он сам знает новое время истечения — обновляем его в сторе,
+ * чтобы проактивный таймер видел актуальное значение.
+ */
+setRefreshSuccessHandler((accessTokenExpiresAt) => {
+  useAuthStore.getState().setAccessTokenExpiresAt(accessTokenExpiresAt)
+})

@@ -18,6 +18,7 @@ import { useNotificationStore } from '@/store/notificationStore'
 import { updateFaviconBadge } from '@/utils/faviconBadge'
 import { useHeaderStore } from '@/store/headerStore'
 import useIsMobile from '@/hooks/useIsMobile'
+import { useAuthRefresh } from '@/hooks/useAuthRefresh'
 import MobileDrawerMenu from '@/components/layout/MobileDrawerMenu'
 import OcrQueueWidget from '@/components/admin/OcrQueueWidget'
 import type { UserRole, AppNotification } from '@/types'
@@ -76,6 +77,9 @@ const MainLayout = () => {
   const location = useLocation()
   const user = useAuthStore((s) => s.user)
   const logout = useAuthStore((s) => s.logout)
+
+  /** Проактивный refresh access_token (устраняет штатные 401 в консоли) */
+  useAuthRefresh()
 
   const {
     notifications,
