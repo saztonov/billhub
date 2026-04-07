@@ -39,6 +39,7 @@ interface ContractRequestStoreState {
   completeRevision: (id: string, target: RevisionTarget, userId: string) => Promise<void>
   approveRequest: (id: string, userId: string) => Promise<void>
   markOriginalReceived: (id: string, userId: string) => Promise<void>
+  revertToWaiting: (id: string, userId: string, comment?: string) => Promise<void>
   assignToMe: (id: string) => Promise<void>
   updateContractDetails: (id: string, data: { contractNumber?: string | null; contractSigningDate?: string | null }) => Promise<void>
 }
@@ -225,6 +226,21 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка подтверждения оригинала'
       logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'markOriginalReceived', id } })
+      set({ error: message, isSubmitting: false })
+      throw err
+    }
+  },
+
+  revertToWaiting: async (id, userId, comment) => {
+    set({ isSubmitting: true, error: null })
+    try {
+      await api.post(`/api/contract-requests/${id}/revert-to-waiting`, { userId, comment: comment ?? null })
+
+      await get().fetchRequests()
+      set({ isSubmitting: false })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Ошибка смены статуса'
+      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'revertContractToWaiting', id } })
       set({ error: message, isSubmitting: false })
       throw err
     }

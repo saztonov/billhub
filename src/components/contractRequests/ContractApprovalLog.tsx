@@ -23,6 +23,7 @@ const EVENT_CONFIG: Record<string, { icon: React.ReactNode; label: string; color
   approved: { icon: <CheckCircleOutlined />, label: 'Согласовано', color: '#52c41a' },
   original_received: { icon: <FileProtectOutlined />, label: 'Оригинал получен', color: '#389e0d' },
   assigned: { icon: <UserOutlined />, label: 'Взято в работу', color: '#1677ff' },
+  reverted_to_waiting: { icon: <EditOutlined />, label: 'Статус изменён на "Согласовано, ожидание оригинала"', color: '#faad14' },
 }
 
 /** Форматирование даты и времени */
@@ -71,6 +72,11 @@ const ContractApprovalLog = ({ statusHistory }: ContractApprovalLogProps) => {
               </div>
               {entry.userFullName && (
                 <Text type="secondary" style={{ fontSize: 12 }}>{entry.userFullName}</Text>
+              )}
+              {entry.comment && (
+                <div style={{ marginTop: 4 }}>
+                  <Text style={{ fontSize: 12, fontStyle: 'italic' }}>«{entry.comment}»</Text>
+                </div>
               )}
               {entry.revisionTargets && entry.revisionTargets.length > 0 && (
                 <div style={{ marginTop: 4 }}>

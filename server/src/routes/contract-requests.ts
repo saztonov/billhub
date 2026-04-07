@@ -531,6 +531,50 @@ async function contractRequestRoutes(fastify: FastifyInstance): Promise<void> {
     return reply.send({ success: true });
   });
 
+  /* ---------- POST /api/contract-requests/:id/revert-to-waiting ---------- */
+  /** Откат статуса "Заключен" -> "Согласовано, ожидание оригинала" (ОМТС/admin) */
+  fastify.post('/api/contract-requests/:id/revert-to-waiting', adminOrUser, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = request.user!;
+    const body = (request.body ?? {}) as { comment?: string | null };
+    const supabase = fastify.supabase;
+
+    // Проверка прав: только ОМТС или admin
+    if (user.role !== 'admin' && user.department !== 'omts') {
+      return reply.status(403).send({ error: 'Недостаточно прав' });
+    }
+
+    // Проверка текущего статуса — должен быть concluded
+    const { data: current, error: fetchErr } = await supabase
+      .from('contract_requests')
+      .select('status_id, statuses!contract_requests_status_id_fkey(code)')
+      .eq('id', id)
+      .single();
+    if (fetchErr) return reply.status(404).send({ error: 'Заявка не найдена' });
+    const currentCode = (current?.statuses as { code?: string } | null)?.code;
+    if (currentCode !== 'concluded') {
+      return reply.status(400).send({ error: 'Смена статуса доступна только для заявок со статусом "Заключен"' });
+    }
+
+    const statusId = await getStatusId(supabase, 'contract_request', 'approved_waiting');
+
+    const { error } = await supabase
+      .from('contract_requests')
+      .update({ status_id: statusId, original_received_at: null })
+      .eq('id', id);
+    if (error) return reply.status(500).send({ error: error.message });
+
+    const comment = body.comment?.trim() || null;
+    await appendContractStatusHistory(
+      supabase,
+      id,
+      { event: 'reverted_to_waiting', ...(comment ? { comment } : {}) },
+      user.id,
+    );
+
+    return reply.send({ success: true });
+  });
+
   /* ---------- GET /api/contract-requests/:id/files ---------- */
   fastify.get('/api/contract-requests/:id/files', auth, async (request, reply) => {
     const { id } = request.params as { id: string };

@@ -343,12 +343,13 @@ export const REVISION_TARGET_LABELS: Record<RevisionTarget, string> = {
 
 /** Запись в истории статусов заявки на договор */
 export interface ContractStatusHistoryEntry {
-  event: 'created' | 'revision' | 'revision_complete' | 'approved' | 'original_received' | 'assigned'
+  event: 'created' | 'revision' | 'revision_complete' | 'approved' | 'original_received' | 'assigned' | 'reverted_to_waiting'
   at: string
   userFullName?: string
   userEmail?: string
   revisionTargets?: string[]
   revisionTarget?: string
+  comment?: string
 }
 
 /** Заявка на согласование договора */

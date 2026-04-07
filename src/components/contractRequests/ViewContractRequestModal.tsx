@@ -78,6 +78,7 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
     sendToRevision,
     completeRevision,
     markOriginalReceived,
+    revertToWaiting,
     deleteRequest,
     updateRequest,
     updateContractDetails,
@@ -93,6 +94,8 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
   const [downloading, setDownloading] = useState<string | null>(null)
   const [addFilesModalOpen, setAddFilesModalOpen] = useState(false)
   const [revisionModalOpen, setRevisionModalOpen] = useState(false)
+  const [revertModalOpen, setRevertModalOpen] = useState(false)
+  const [revertComment, setRevertComment] = useState('')
   const [isEditing, setIsEditing] = useState(false)
   const [editForm] = Form.useForm()
   const [previewFile, setPreviewFile] = useState<{
@@ -125,6 +128,8 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
       setIsEditing(false)
       setAddFilesModalOpen(false)
       setRevisionModalOpen(false)
+      setRevertModalOpen(false)
+      setRevertComment('')
       setPreviewFile(null)
     }
   }, [open])
@@ -213,6 +218,20 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
     }
   }, [request, user, markOriginalReceived, message, onClose])
 
+  /** Смена статуса "Заключен" -> "Согласовано, ожидание оригинала" (ОМТС/admin) */
+  const handleRevertToWaiting = useCallback(async () => {
+    if (!request || !user) return
+    try {
+      await revertToWaiting(request.id, user.id, revertComment.trim() || undefined)
+      message.success('Статус изменён')
+      setRevertModalOpen(false)
+      setRevertComment('')
+      onClose()
+    } catch {
+      message.error('Ошибка смены статуса')
+    }
+  }, [request, user, revertToWaiting, revertComment, message, onClose])
+
   /** Удаление заявки (admin) */
   const handleDelete = useCallback(async () => {
     if (!request) return
@@ -273,6 +292,8 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
   const canOmtsActions = (isOmts || isAdmin) && statusCode === 'approv_omts'
   // ОМТС или admin могут подтвердить получение оригинала
   const canMarkOriginal = (isOmts || isAdmin) && statusCode === 'approved_waiting'
+  // ОМТС или admin могут откатить статус "Заключен" -> "Согласовано, ожидание оригинала"
+  const canRevertToWaiting = (isOmts || isAdmin) && statusCode === 'concluded'
   // Штаб может завершить доработку, если в targets есть 'shtab'
   const canShtabComplete = isShtab && statusCode === 'on_revision' && (req.revisionTargets ?? []).includes('shtab')
   // Подрядчик может завершить доработку, если в targets есть 'counterparty'
@@ -518,6 +539,15 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
             </Button>
           </Popconfirm>
         )}
+        {/* ОМТС / admin: сменить статус "Заключен" -> "Согласовано, ожидание оригинала" */}
+        {canRevertToWaiting && (
+          <Button
+            icon={<EditOutlined />}
+            onClick={() => setRevertModalOpen(true)}
+          >
+            Сменить статус
+          </Button>
+        )}
         {/* Admin: редактирование */}
         {isAdmin && !isEditing && (
           <Button icon={<EditOutlined />} onClick={startEditing}>Редактировать</Button>
@@ -709,6 +739,35 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
         fileName={previewFile?.fileName ?? ''}
         mimeType={previewFile?.mimeType ?? null}
       />
+
+      {/* Модалка смены статуса "Заключен" -> "Согласовано, ожидание оригинала" */}
+      <Modal
+        title="Сменить статус"
+        open={revertModalOpen}
+        onCancel={() => {
+          setRevertModalOpen(false)
+          setRevertComment('')
+        }}
+        onOk={handleRevertToWaiting}
+        okText="Сменить"
+        cancelText="Отмена"
+        confirmLoading={isSubmitting}
+        destroyOnClose
+      >
+        <p>Статус будет изменён на «Согласовано, ожидание оригинала».</p>
+        <Form layout="vertical">
+          <Form.Item label="Комментарий (необязательно)">
+            <Input.TextArea
+              rows={3}
+              value={revertComment}
+              onChange={(e) => setRevertComment(e.target.value)}
+              placeholder="Укажите причину смены статуса"
+              maxLength={500}
+              showCount
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
 
       {/* Модалка отправки на доработку */}
       <ContractRevisionModal
