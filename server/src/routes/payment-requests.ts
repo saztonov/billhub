@@ -279,10 +279,10 @@ async function paymentRequestRoutes(fastify: FastifyInstance): Promise<void> {
     const body = request.body as Record<string, unknown>;
     const supabase = fastify.supabase;
 
-    // Получаем текущие значения
+    // Получаем текущие значения (в т.ч. историю сумм — при amount_change пополняем её)
     const { data: current, error: fetchErr } = await supabase
       .from('payment_requests')
-      .select('delivery_days, delivery_days_type, shipping_condition_id, site_id, comment, invoice_amount, total_files, supplier_id, counterparty_id')
+      .select('delivery_days, delivery_days_type, shipping_condition_id, site_id, comment, invoice_amount, invoice_amount_history, total_files, supplier_id, counterparty_id')
       .eq('id', id)
       .single();
     if (fetchErr) return reply.status(404).send({ error: 'Заявка не найдена' });
@@ -315,6 +315,19 @@ async function paymentRequestRoutes(fastify: FastifyInstance): Promise<void> {
       }
     }
 
+    // Если сумма счёта изменилась и причина — фактическое изменение суммы счёта,
+    // старое значение пушим в invoice_amount_history (в том же формате, что и при resubmit)
+    const invoiceAmountReason = body.invoiceAmountReason as 'error' | 'amount_change' | undefined;
+    if (
+      updates.invoice_amount !== undefined &&
+      invoiceAmountReason === 'amount_change' &&
+      cur.invoice_amount != null
+    ) {
+      const history = (cur.invoice_amount_history as { amount: number; changedAt: string }[]) ?? [];
+      history.push({ amount: cur.invoice_amount as number, changedAt: new Date().toISOString() });
+      updates.invoice_amount_history = history;
+    }
+
     const newFilesCount = body.newFilesCount as number | undefined;
     if (newFilesCount && newFilesCount > 0) {
       updates.total_files = ((cur.total_files as number) ?? 0) + newFilesCount;
@@ -327,11 +340,15 @@ async function paymentRequestRoutes(fastify: FastifyInstance): Promise<void> {
 
     // Логируем изменения
     if (changes.length > 0) {
+      const details: Record<string, unknown> = { changes };
+      if (invoiceAmountReason && updates.invoice_amount !== undefined) {
+        details.invoiceAmountReason = invoiceAmountReason;
+      }
       await supabase.from('payment_request_logs').insert({
         payment_request_id: id,
         user_id: user.id,
         action: 'edit',
-        details: { changes },
+        details,
       });
     }
 

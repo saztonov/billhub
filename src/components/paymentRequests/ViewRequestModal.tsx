@@ -104,6 +104,8 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   const [revisionCompleteModalOpen, setRevisionCompleteModalOpen] = useState(false)
   const [addFilesModalOpen, setAddFilesModalOpen] = useState(false)
   const [dpModalOpen, setDpModalOpen] = useState(false)
+  // Модалка выбора причины изменения суммы (открывается для админа при смене invoiceAmount)
+  const [amountReasonModalOpen, setAmountReasonModalOpen] = useState(false)
 
   // Режим редактирования
   const [isEditing, setIsEditing] = useState(false)
@@ -150,6 +152,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       setRevisionModalOpen(false)
       setAddFilesModalOpen(false)
       setDpModalOpen(false)
+      setAmountReasonModalOpen(false)
     }
   }, [open, resubmitForm])
 
@@ -195,6 +198,30 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
     setIsEditing(true)
   }
 
+  // Парсит значения формы редактирования и возвращает payload для onEdit
+  const buildEditPayload = (values: Record<string, unknown>, reason?: 'error' | 'amount_change'): EditRequestData => {
+    const rawAmount = values.invoiceAmount as string | number | null | undefined
+    const invoiceAmount = rawAmount
+      ? Number(String(rawAmount).replace(/\s/g, ''))
+      : (rawAmount as number | null | undefined)
+    const payload: EditRequestData = {
+      ...(values as EditRequestData),
+      invoiceAmount: invoiceAmount ?? null,
+    }
+    if (reason) payload.invoiceAmountReason = reason
+    return payload
+  }
+
+  // Завершает редактирование: отправляет данные на сервер и сбрасывает состояние модалки
+  const finishEdit = (payload: EditRequestData) => {
+    if (!request || !onEdit) return
+    onEdit(request.id, payload, editFileList)
+    setIsEditing(false)
+    setEditFileList([])
+    setShowEditFileValidation(false)
+    setAmountReasonModalOpen(false)
+  }
+
   const handleEditSave = async () => {
     if (!request || !onEdit) return
     try {
@@ -207,16 +234,28 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
           return
         }
       }
-      const parsedValues = {
-        ...values,
-        invoiceAmount: values.invoiceAmount
-          ? Number(String(values.invoiceAmount).replace(/\s/g, ''))
-          : values.invoiceAmount,
+      // Для администратора при смене суммы счёта запрашиваем причину изменения
+      const rawAmount = values.invoiceAmount as string | number | null | undefined
+      const newAmount = rawAmount
+        ? Number(String(rawAmount).replace(/\s/g, ''))
+        : null
+      const oldAmount = request.invoiceAmount ?? null
+      const amountChanged = newAmount !== oldAmount
+      if (user?.role === 'admin' && amountChanged) {
+        setAmountReasonModalOpen(true)
+        return
       }
-      onEdit(request.id, parsedValues as EditRequestData, editFileList)
-      setIsEditing(false)
-      setEditFileList([])
-      setShowEditFileValidation(false)
+      finishEdit(buildEditPayload(values))
+    } catch {
+      // Ошибки валидации формы
+    }
+  }
+
+  // Выбор причины изменения суммы в подтверждающей модалке
+  const handleSelectAmountReason = async (reason: 'error' | 'amount_change') => {
+    try {
+      const values = await editForm.validateFields()
+      finishEdit(buildEditPayload(values, reason))
     } catch {
       // Ошибки валидации формы
     }
@@ -615,6 +654,28 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
         }}
         onCancel={() => setRejectModalOpen(false)}
       />
+
+      {/* Выбор причины изменения суммы (только при редактировании админом со сменой суммы) */}
+      <Modal
+        open={amountReasonModalOpen}
+        onCancel={() => setAmountReasonModalOpen(false)}
+        footer={null}
+        title="Сумма редактируется из-за:"
+        width={isMobile ? '100%' : 480}
+        destroyOnClose
+      >
+        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          <Text type="secondary">
+            Выберите причину изменения суммы счёта. При «Изменении суммы счёта» старая сумма попадёт в историю сумм заявки.
+          </Text>
+          <Space wrap>
+            <Button onClick={() => handleSelectAmountReason('error')}>Ошибки</Button>
+            <Button type="primary" onClick={() => handleSelectAmountReason('amount_change')}>
+              Изменения суммы счёта
+            </Button>
+          </Space>
+        </Space>
+      </Modal>
 
       {/* Модалки доработки */}
       <RevisionModals

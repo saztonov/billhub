@@ -22,6 +22,9 @@ export interface EditRequestData {
   comment?: string
   invoiceAmount?: number | null
   supplierId?: string | null
+  // Причина изменения суммы: 'error' — сумма менялась по ошибке (история не пополняется),
+  // 'amount_change' — изменилась сумма счёта (старое значение пушится в invoice_amount_history)
+  invoiceAmountReason?: 'error' | 'amount_change'
 }
 
 interface PaymentRequestStoreState {
