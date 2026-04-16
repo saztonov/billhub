@@ -22,6 +22,8 @@ interface AuthStoreState {
   user: User | null
   isAuthenticated: boolean
   isLoading: boolean
+  /** Признак завершения первичной проверки сессии после старта приложения */
+  isInitialized: boolean
   error: string | null
   /** Время истечения access_token (unix ms) — для проактивного refresh */
   accessTokenExpiresAt: number | null
@@ -51,6 +53,7 @@ export const useAuthStore = create<AuthStoreState>((set) => ({
   user: null,
   isAuthenticated: false,
   isLoading: false,
+  isInitialized: false,
   error: null,
   accessTokenExpiresAt: null,
 
@@ -96,7 +99,7 @@ export const useAuthStore = create<AuthStoreState>((set) => ({
       const user = mapResponseToUser(response.user)
 
       if (!user.isActive) {
-        set({ user: null, isAuthenticated: false, isLoading: false, accessTokenExpiresAt: null })
+        set({ user: null, isAuthenticated: false, isLoading: false, isInitialized: true, accessTokenExpiresAt: null })
         return
       }
 
@@ -104,11 +107,12 @@ export const useAuthStore = create<AuthStoreState>((set) => ({
         user,
         isAuthenticated: true,
         isLoading: false,
+        isInitialized: true,
         accessTokenExpiresAt: response.accessTokenExpiresAt ?? null,
       })
     } catch {
       // Любая ошибка (401, сеть и т.д.) — просто сбрасываем состояние без редиректа
-      set({ user: null, isAuthenticated: false, isLoading: false, accessTokenExpiresAt: null })
+      set({ user: null, isAuthenticated: false, isLoading: false, isInitialized: true, accessTokenExpiresAt: null })
     }
   },
 

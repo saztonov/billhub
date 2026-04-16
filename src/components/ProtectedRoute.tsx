@@ -5,10 +5,12 @@ import { useAuthStore } from '@/store/authStore'
 /** Защита маршрутов от неавторизованных пользователей. Редирект на /login с сохранением returnUrl. */
 const ProtectedRoute = () => {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
-  const isLoading = useAuthStore((s) => s.isLoading)
+  const isInitialized = useAuthStore((s) => s.isInitialized)
   const location = useLocation()
 
-  if (isLoading) {
+  // Ждём завершения первичной проверки сессии, чтобы не сбрасывать
+  // уже авторизованного пользователя на /login во время фонового checkAuth.
+  if (!isInitialized) {
     return (
       <Flex align="center" justify="center" style={{ minHeight: '100vh' }}>
         <Spin size="large" />

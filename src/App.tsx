@@ -1,4 +1,4 @@
-import { useEffect, useState, lazy, Suspense } from 'react'
+import { useEffect, lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { Spin, Flex, App as AntdApp } from 'antd'
 import MainLayout from '@/layout/MainLayout'
@@ -19,31 +19,17 @@ const MaterialsPage = lazy(() => import('@/pages/MaterialsPage'))
 const MaterialsDetailPage = lazy(() => import('@/pages/MaterialsDetailPage'))
 const ProfilePage = lazy(() => import('@/pages/ProfilePage'))
 
-/** Инициализация сессии при загрузке приложения */
-const AppInitializer = ({ children }: { children: React.ReactNode }) => {
+const App = () => {
+  // Фоновая проверка сессии при старте — не блокирует рендер публичных маршрутов.
+  // ProtectedRoute сам подождёт завершения через флаг isInitialized.
   const checkAuth = useAuthStore((s) => s.checkAuth)
-  const [isReady, setIsReady] = useState(false)
-
   useEffect(() => {
-    checkAuth().finally(() => setIsReady(true))
+    checkAuth()
   }, [checkAuth])
 
-  if (!isReady) {
-    return (
-      <Flex align="center" justify="center" style={{ minHeight: '100vh' }}>
-        <Spin size="large" />
-      </Flex>
-    )
-  }
-
-  return <>{children}</>
-}
-
-const App = () => {
   return (
     <AntdApp>
-      <AppInitializer>
-        <Routes>
+      <Routes>
         {/* Авторизация и регистрация */}
         <Route element={<AuthLayout />}>
           <Route path="/login" element={<LoginPage />} />
@@ -113,7 +99,6 @@ const App = () => {
         {/* Редирект для неизвестных роутов */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-      </AppInitializer>
     </AntdApp>
   )
 }

@@ -11,7 +11,6 @@
   },
   "dependencies": {
     "@ant-design/icons": "^6.1.0",
-    "@supabase/supabase-js": "^2.95.3",
     "antd": "^6.3.0",
     "dayjs": "^1.11.19",
     "exceljs": "^4.4.0",
