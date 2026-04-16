@@ -16,9 +16,10 @@ interface ExportRegistryModalProps {
   isShtabUser: boolean
 }
 
-/** Ответ API: привязка пользователя к объектам */
-interface UserSiteMapping {
-  construction_site_id: string
+/** Ответ API: доступ пользователя к объектам */
+interface UserSiteIds {
+  allSites: boolean
+  siteIds: string[]
 }
 
 /** Ответ API: статус оплаты */
@@ -33,36 +34,47 @@ const ExportRegistryModal = (props: ExportRegistryModalProps) => {
 
   const [selectedSiteId, setSelectedSiteId] = useState<string | undefined>(undefined)
   const [loading, setLoading] = useState(false)
+  const [shtabSiteIds, setShtabSiteIds] = useState<string[] | null>(null)
+  const [shtabAllSites, setShtabAllSites] = useState(false)
 
-  // Для Штаб -- загрузить привязанные объекты и предвыбрать
+  // Для Штаб -- загрузить доступные объекты и предвыбрать первый
   useEffect(() => {
     if (!open) return
     if (!isShtabUser) {
       setSelectedSiteId(undefined)
+      setShtabSiteIds(null)
+      setShtabAllSites(false)
       return
     }
 
-    const loadShtabSite = async () => {
+    const loadShtabSites = async () => {
       try {
-        const data = await api.get<UserSiteMapping[]>(
-          `/api/users/${userId}/construction-sites`,
-        )
+        const data = await api.get<UserSiteIds>(`/api/users/${userId}/site-ids`)
+        const allSites = data?.allSites ?? false
+        const siteIds = data?.siteIds ?? []
 
-        if (data && data.length > 0) {
-          setSelectedSiteId(data[0].construction_site_id)
+        setShtabAllSites(allSites)
+        setShtabSiteIds(siteIds)
+
+        // По умолчанию -- первый объект из доступных
+        const availableSites = allSites
+          ? sites
+          : sites.filter(s => siteIds.includes(s.id))
+        if (availableSites.length > 0) {
+          setSelectedSiteId(availableSites[0].id)
         }
       } catch (err) {
         logError({
           errorType: 'api_error',
           errorMessage: err instanceof Error ? err.message : 'Ошибка загрузки объектов пользователя',
           errorStack: err instanceof Error ? err.stack : null,
-          metadata: { action: 'loadShtabSiteForExport' },
+          metadata: { action: 'loadShtabSitesForExport' },
         })
       }
     }
 
-    loadShtabSite()
-  }, [open, isShtabUser, userId])
+    loadShtabSites()
+  }, [open, isShtabUser, userId, sites])
 
   const handleOk = async () => {
     if (!selectedSiteId) {
@@ -136,10 +148,12 @@ const ExportRegistryModal = (props: ExportRegistryModalProps) => {
           onChange={setSelectedSiteId}
           placeholder="Выберите объект"
           style={{ width: '100%' }}
-          disabled={isShtabUser}
           showSearch
           optionFilterProp="label"
-          options={sites.map(s => ({ value: s.id, label: s.name }))}
+          options={(isShtabUser && !shtabAllSites && shtabSiteIds
+            ? sites.filter(s => shtabSiteIds.includes(s.id))
+            : sites
+          ).map(s => ({ value: s.id, label: s.name }))}
         />
       </div>
     </Modal>
