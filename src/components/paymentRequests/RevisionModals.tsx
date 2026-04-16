@@ -30,9 +30,11 @@ interface RevisionModalsProps {
     deliveryDaysType: string
     shippingConditionId: string
     invoiceAmount: number
+    supplierId?: string | null
   }) => void
   setRevisionCompleteModalOpen: (open: boolean) => void
   shippingOptions: { id: string; value: string }[]
+  supplierOptions: { label: string; value: string }[]
 }
 
 const RevisionModals = ({
@@ -48,6 +50,7 @@ const RevisionModals = ({
   handleCompleteRevision,
   setRevisionCompleteModalOpen,
   shippingOptions,
+  supplierOptions,
 }: RevisionModalsProps) => {
   const shippingSelectOptions = shippingOptions.map((o) => ({ label: o.value, value: o.id }))
 
@@ -91,6 +94,7 @@ const RevisionModals = ({
               deliveryDays: request.deliveryDays,
               deliveryDaysType: request.deliveryDaysType || 'working',
               shippingConditionId: request.shippingConditionId,
+              supplierId: request.supplierId ?? undefined,
               invoiceAmount: request.invoiceAmount != null
                 ? request.invoiceAmount.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                 : '',
@@ -108,9 +112,20 @@ const RevisionModals = ({
               deliveryDaysType: values.deliveryDaysType,
               shippingConditionId: values.shippingConditionId,
               invoiceAmount: amount,
+              supplierId: values.supplierId ?? null,
             })
           }}
         >
+          <Form.Item name="supplierId" label="Поставщик">
+            <Select
+              placeholder="Выберите поставщика"
+              showSearch
+              allowClear
+              optionFilterProp="label"
+              popupMatchSelectWidth={false}
+              options={supplierOptions}
+            />
+          </Form.Item>
           <Row gutter={16}>
             <Col xs={24} sm={12}>
               <Form.Item label="Срок поставки, дней" required style={{ marginBottom: 12 }}>

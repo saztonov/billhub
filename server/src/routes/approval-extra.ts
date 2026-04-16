@@ -49,6 +49,7 @@ async function approvalExtraRoutes(fastify: FastifyInstance): Promise<void> {
       deliveryDaysType: string;
       shippingConditionId: string;
       invoiceAmount: number;
+      supplierId?: string | null;
     };
 
     const result = await handleCompleteRevision(fastify.supabase, paymentRequestId, user.id, body);

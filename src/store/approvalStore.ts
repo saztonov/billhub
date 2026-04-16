@@ -49,6 +49,7 @@ interface ApprovalStoreState {
     deliveryDaysType: string
     shippingConditionId: string
     invoiceAmount: number
+    supplierId?: string | null
   }) => Promise<void>
 
   // Очистка текущих решений/логов

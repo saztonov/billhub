@@ -120,11 +120,11 @@ export async function handleCompleteRevision(
   supabase: FastifyInstance['supabase'],
   paymentRequestId: string,
   userId: string,
-  fieldUpdates: { deliveryDays: number; deliveryDaysType: string; shippingConditionId: string; invoiceAmount: number },
+  fieldUpdates: { deliveryDays: number; deliveryDaysType: string; shippingConditionId: string; invoiceAmount: number; supplierId?: string | null },
 ): Promise<{ success: boolean; error?: string; status?: number }> {
   const { data: cur, error: curErr } = await supabase
     .from('payment_requests')
-    .select('previous_status_id, current_stage, invoice_amount, invoice_amount_history')
+    .select('previous_status_id, current_stage, invoice_amount, invoice_amount_history, supplier_id')
     .eq('id', paymentRequestId)
     .single();
   if (curErr) return { success: false, error: 'Заявка не найдена', status: 404 };
@@ -148,17 +148,49 @@ export async function handleCompleteRevision(
     updateData.invoice_amount_history = history;
   }
 
+  // Смена поставщика: обновляем поле, готовим данные для журнала
+  const supplierProvided = fieldUpdates.supplierId !== undefined;
+  const newSupplierId = (fieldUpdates.supplierId ?? null) as string | null;
+  const oldSupplierId = (cur.supplier_id ?? null) as string | null;
+  const supplierChanged = supplierProvided && newSupplierId !== oldSupplierId;
+  if (supplierProvided) updateData.supplier_id = newSupplierId;
+
   const { error: updErr } = await supabase
     .from('payment_requests').update(updateData).eq('id', paymentRequestId);
   if (updErr) return { success: false, error: updErr.message, status: 500 };
 
   const userInfo = await getUserInfo(supabase, userId);
+
+  // Если поставщик сменился — отдельным логом фиксируем смену с именами/ИНН для читаемости
+  if (supplierChanged) {
+    const ids = [oldSupplierId, newSupplierId].filter(Boolean) as string[];
+    let oldName: string | null = null, oldInn: string | null = null, newName: string | null = null, newInn: string | null = null;
+    if (ids.length > 0) {
+      const { data: sup } = await supabase.from('suppliers').select('id, name, inn').in('id', ids);
+      const map = new Map<string, { name?: string; inn?: string }>();
+      (sup ?? []).forEach((s: Record<string, unknown>) => map.set(s.id as string, { name: s.name as string | undefined, inn: s.inn as string | undefined }));
+      if (oldSupplierId) { oldName = map.get(oldSupplierId)?.name ?? null; oldInn = map.get(oldSupplierId)?.inn ?? null; }
+      if (newSupplierId) { newName = map.get(newSupplierId)?.name ?? null; newInn = map.get(newSupplierId)?.inn ?? null; }
+    }
+    await supabase.from('payment_request_logs').insert({
+      payment_request_id: paymentRequestId,
+      user_id: userId,
+      action: 'supplier_changed',
+      details: {
+        oldSupplierId, newSupplierId,
+        oldSupplierName: oldName, oldSupplierInn: oldInn,
+        newSupplierName: newName, newSupplierInn: newInn,
+      },
+    });
+  }
+
   await supabase.from('payment_request_logs').insert({
     payment_request_id: paymentRequestId, user_id: userId, action: 'revision_complete', details: null,
   });
   await appendStageHistory(supabase, paymentRequestId, {
     stage: (cur.current_stage as number) ?? 2, department: 'omts', event: 'revision_complete',
     userEmail: userInfo.email, userFullName: userInfo.fullName,
+    ...(supplierChanged ? { supplierChanged: true } : {}),
   });
 
   return { success: true };

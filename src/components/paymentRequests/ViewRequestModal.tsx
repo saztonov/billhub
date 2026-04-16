@@ -421,6 +421,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
     deliveryDaysType: string
     shippingConditionId: string
     invoiceAmount: number
+    supplierId?: string | null
   }) => {
     if (!request) return
     try {
@@ -691,6 +692,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
         handleCompleteRevision={handleCompleteRevision}
         setRevisionCompleteModalOpen={setRevisionCompleteModalOpen}
         shippingOptions={shippingOptions}
+        supplierOptions={supplierOptions}
       />
     </>
   )

@@ -122,7 +122,7 @@ async function approvalRoutes(fastify: FastifyInstance): Promise<void> {
     const user = request.user!;
     const body = request.body as {
       paymentRequestId: string;
-      fieldUpdates: { deliveryDays: number; deliveryDaysType: string; shippingConditionId: string; invoiceAmount: number };
+      fieldUpdates: { deliveryDays: number; deliveryDaysType: string; shippingConditionId: string; invoiceAmount: number; supplierId?: string | null };
     };
 
     const result = await handleCompleteRevision(fastify.supabase, body.paymentRequestId, user.id, body.fieldUpdates);
