@@ -6,7 +6,7 @@ import { useNativeDropZone } from '@/hooks/useNativeDropZone'
 const { TextArea } = Input
 const { Dragger } = Upload
 
-const ACCEPT_EXTENSIONS = '.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.tiff,.tif,.bmp,.pdf,.dwg'
+const ACCEPT_EXTENSIONS = '.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.tiff,.tif,.bmp,.pdf,.dwg,.rtf'
 
 interface RejectModalProps {
   open: boolean

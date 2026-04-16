@@ -200,7 +200,7 @@ const FoundingDocumentFilesModal = ({
             handleUpload(file)
             return false
           }}
-          accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.tiff,.tif,.bmp"
+          accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.tiff,.tif,.bmp,.rtf"
         >
           <Button icon={<UploadOutlined />} loading={uploading} type="primary">
             Загрузить

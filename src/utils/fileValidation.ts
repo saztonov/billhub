@@ -27,6 +27,8 @@ const SIGNATURES: Record<string, MagicSignature[]> = {
   ole: [{ offset: 0, bytes: [0xD0, 0xCF, 0x11, 0xE0] }],
   // AutoCAD DWG: все версии начинаются с "AC1" (41 43 31)
   dwg: [{ offset: 0, bytes: [0x41, 0x43, 0x31] }],
+  // RTF: {\rtf (7B 5C 72 74 66)
+  rtf: [{ offset: 0, bytes: [0x7B, 0x5C, 0x72, 0x74, 0x66] }],
 }
 
 // Маппинг расширений к допустимым типам сигнатур
@@ -43,6 +45,7 @@ const EXT_TO_SIGNATURES: Record<string, string[]> = {
   docx: ['zip'],
   xlsx: ['zip'],
   dwg: ['dwg'],
+  rtf: ['rtf'],
 }
 
 /** Максимальное количество байт для чтения заголовка */
