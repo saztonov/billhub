@@ -22,10 +22,11 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
+          // Крупный редко меняющийся React-блок — отдельный долгоживущий чанк
           'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          'vendor-antd': ['antd'],
-          'vendor-antd-icons': ['@ant-design/icons'],
-          'vendor-zustand': ['zustand'],
+          // Ant Design + иконки всегда используются вместе — один чанк, меньше параллельных HTTP-запросов
+          'vendor-antd': ['antd', '@ant-design/icons'],
+          // zustand крошечный (~660 байт) — пусть лежит в общем бандле приложения, отдельный чанк не оправдан
         },
       },
     },

@@ -28,6 +28,7 @@ const ERROR_TYPE_CONFIG: Record<ErrorLogType, { label: string; color: string }> 
   react_error: { label: 'React', color: 'volcano' },
   api_error: { label: 'API', color: 'blue' },
   export_error: { label: 'Экспорт', color: 'purple' },
+  chunk_load_error: { label: 'Загрузка чанка', color: 'gold' },
 }
 
 const ERROR_TYPE_OPTIONS = Object.entries(ERROR_TYPE_CONFIG).map(([value, config]) => ({

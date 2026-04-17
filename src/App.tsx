@@ -1,4 +1,4 @@
-import { useEffect, lazy, Suspense } from 'react'
+import { useEffect, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { Spin, Flex, App as AntdApp } from 'antd'
 import MainLayout from '@/layout/MainLayout'
@@ -7,17 +7,18 @@ import ProtectedRoute from '@/components/ProtectedRoute'
 import RoleGuard from '@/components/RoleGuard'
 import LoginPage from '@/pages/LoginPage'
 import { useAuthStore } from '@/store/authStore'
+import { lazyWithRetry } from '@/utils/lazyWithRetry'
 
-// Ленивая загрузка страниц для code-splitting
-const PaymentRequestsPage = lazy(() => import('@/pages/PaymentRequestsPage'))
-const ContractRequestsPage = lazy(() => import('@/pages/ContractRequestsPage'))
-const DistributionLettersPage = lazy(() => import('@/pages/DistributionLettersPage'))
-const EmployeesPage = lazy(() => import('@/pages/EmployeesPage'))
-const ReferencesPage = lazy(() => import('@/pages/ReferencesPage'))
-const AdminPage = lazy(() => import('@/pages/AdminPage'))
-const MaterialsPage = lazy(() => import('@/pages/MaterialsPage'))
-const MaterialsDetailPage = lazy(() => import('@/pages/MaterialsDetailPage'))
-const ProfilePage = lazy(() => import('@/pages/ProfilePage'))
+// Ленивая загрузка страниц с retry при сетевых сбоях
+const PaymentRequestsPage = lazyWithRetry(() => import('@/pages/PaymentRequestsPage'))
+const ContractRequestsPage = lazyWithRetry(() => import('@/pages/ContractRequestsPage'))
+const DistributionLettersPage = lazyWithRetry(() => import('@/pages/DistributionLettersPage'))
+const EmployeesPage = lazyWithRetry(() => import('@/pages/EmployeesPage'))
+const ReferencesPage = lazyWithRetry(() => import('@/pages/ReferencesPage'))
+const AdminPage = lazyWithRetry(() => import('@/pages/AdminPage'))
+const MaterialsPage = lazyWithRetry(() => import('@/pages/MaterialsPage'))
+const MaterialsDetailPage = lazyWithRetry(() => import('@/pages/MaterialsDetailPage'))
+const ProfilePage = lazyWithRetry(() => import('@/pages/ProfilePage'))
 
 const App = () => {
   // Фоновая проверка сессии при старте — не блокирует рендер публичных маршрутов.

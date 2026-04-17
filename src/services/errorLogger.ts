@@ -1,6 +1,7 @@
 import { api } from '@/services/api'
 import { useAuthStore } from '@/store/authStore'
 import type { ErrorLogType } from '@/types'
+import { isChunkLoadError, handleChunkLoadError } from '@/utils/chunkLoadRecovery'
 
 interface LogErrorParams {
   errorType: ErrorLogType
@@ -61,9 +62,17 @@ export const setupGlobalErrorHandlers = (): void => {
     colno?: number,
     error?: Error,
   ) => {
+    const messageStr = typeof message === 'string' ? message : 'Unknown error'
+
+    // Ошибка загрузки чанка — одноразовый reload (логирование внутри)
+    if (isChunkLoadError(error) || isChunkLoadError(messageStr)) {
+      handleChunkLoadError(error ?? messageStr)
+      return false
+    }
+
     logError({
       errorType: 'js_error',
-      errorMessage: typeof message === 'string' ? message : 'Unknown error',
+      errorMessage: messageStr,
       errorStack: error?.stack ?? null,
       metadata: source ? { source, lineno, colno } : null,
     })
@@ -73,6 +82,13 @@ export const setupGlobalErrorHandlers = (): void => {
   // Перехват необработанных Promise rejection
   window.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
     const error = event.reason
+
+    // Ошибка загрузки чанка в dynamic import — одноразовый reload
+    if (isChunkLoadError(error)) {
+      handleChunkLoadError(error)
+      return
+    }
+
     logError({
       errorType: 'unhandled_rejection',
       errorMessage: error instanceof Error ? error.message : String(error),

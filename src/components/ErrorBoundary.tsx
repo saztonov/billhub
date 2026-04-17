@@ -1,6 +1,7 @@
 import React from 'react'
 import { Button, Result } from 'antd'
 import { logError } from '@/services/errorLogger'
+import { isChunkLoadError, handleChunkLoadError } from '@/utils/chunkLoadRecovery'
 
 interface Props {
   children: React.ReactNode
@@ -22,6 +23,12 @@ class ErrorBoundary extends React.Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
+    // Ошибка загрузки чанка — одноразовый автоматический reload с логированием внутри
+    if (isChunkLoadError(error)) {
+      handleChunkLoadError(error, errorInfo.componentStack ?? null)
+      return
+    }
+
     logError({
       errorType: 'react_error',
       errorMessage: error.message,

@@ -627,7 +627,7 @@ export interface AppNotification {
 }
 
 /** Тип ошибки в логах */
-export type ErrorLogType = 'js_error' | 'unhandled_rejection' | 'react_error' | 'api_error' | 'export_error'
+export type ErrorLogType = 'js_error' | 'unhandled_rejection' | 'react_error' | 'api_error' | 'export_error' | 'chunk_load_error'
 
 /** Запись лога ошибки */
 export interface ErrorLog {
