@@ -67,14 +67,21 @@ interface AdminChangePasswordBody {
 
 const isProduction = config.nodeEnv === 'production';
 
-/** Опции куки для access_token (15 минут) */
-function accessTokenCookie(): CookieSerializeOptions {
+/**
+ * Опции куки для access_token.
+ * maxAge синхронизирован с JWT exp — cookie живёт ровно столько, сколько сам
+ * токен внутри неё. Иначе cookie может пропасть раньше JWT, и проактивный
+ * refresh (который ориентируется на exp) не успеет сработать вовремя —
+ * polling-запросы начнут ловить 401.
+ */
+function accessTokenCookie(accessTokenExpiresAtMs: number): CookieSerializeOptions {
+  const secondsLeft = Math.max(0, Math.floor((accessTokenExpiresAtMs - Date.now()) / 1000));
   return {
     httpOnly: true,
     secure: isProduction,
     sameSite: 'strict',
     path: '/',
-    maxAge: 900,
+    maxAge: secondsLeft,
   };
 }
 
@@ -227,11 +234,11 @@ async function authRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(403).send({ error: 'Учётная запись деактивирована' });
       }
 
-      reply.setCookie('access_token', authData.session.access_token, accessTokenCookie());
-      reply.setCookie('refresh_token', authData.session.refresh_token, refreshTokenCookie());
-
       /** Точное время истечения из JWT exp — синхронизировано с бэком и Supabase */
       const accessTokenExpiresAt = extractAccessTokenExpiresAt(authData.session.access_token);
+
+      reply.setCookie('access_token', authData.session.access_token, accessTokenCookie(accessTokenExpiresAt));
+      reply.setCookie('refresh_token', authData.session.refresh_token, refreshTokenCookie());
 
       return {
         user: {
@@ -271,11 +278,11 @@ async function authRoutes(fastify: FastifyInstance): Promise<void> {
       return reply.status(401).send({ error: 'Не удалось обновить сессию' });
     }
 
-    reply.setCookie('access_token', data.session.access_token, accessTokenCookie());
-    reply.setCookie('refresh_token', data.session.refresh_token, refreshTokenCookie());
-
     /** Точное время истечения из JWT exp нового access_token */
     const accessTokenExpiresAt = extractAccessTokenExpiresAt(data.session.access_token);
+
+    reply.setCookie('access_token', data.session.access_token, accessTokenCookie(accessTokenExpiresAt));
+    reply.setCookie('refresh_token', data.session.refresh_token, refreshTokenCookie());
 
     return { success: true, accessTokenExpiresAt };
   });
