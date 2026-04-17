@@ -108,7 +108,7 @@ async function supplierRoutes(fastify: FastifyInstance): Promise<void> {
   /** POST /api/references/suppliers — создание поставщика */
   fastify.post<{ Body: SupplierBody }>(
     '/',
-    { schema: supplierSchema, preHandler: [authenticate, requireRole('admin')] },
+    { schema: supplierSchema, preHandler: [authenticate, requireRole('admin', 'user')] },
     async (request, reply) => {
       const { name, inn, alternativeNames } = request.body;
       const { data, error } = await request.server.supabase
@@ -124,7 +124,7 @@ async function supplierRoutes(fastify: FastifyInstance): Promise<void> {
   /** PUT /api/references/suppliers/:id — обновление поставщика */
   fastify.put<{ Params: IdParams; Body: SupplierBody }>(
     '/:id',
-    { schema: { ...idParamsSchema, ...supplierSchema }, preHandler: [authenticate, requireRole('admin')] },
+    { schema: { ...idParamsSchema, ...supplierSchema }, preHandler: [authenticate, requireRole('admin', 'user')] },
     async (request, reply) => {
       const { id } = request.params;
       const { name, inn, alternativeNames } = request.body;
@@ -142,7 +142,7 @@ async function supplierRoutes(fastify: FastifyInstance): Promise<void> {
   /** DELETE /api/references/suppliers/:id — удаление поставщика */
   fastify.delete<{ Params: IdParams }>(
     '/:id',
-    { schema: idParamsSchema, preHandler: [authenticate, requireRole('admin')] },
+    { schema: idParamsSchema, preHandler: [authenticate, requireRole('admin', 'user')] },
     async (request, reply) => {
       const { id } = request.params;
       const { error } = await request.server.supabase
@@ -157,7 +157,7 @@ async function supplierRoutes(fastify: FastifyInstance): Promise<void> {
   /** POST /api/references/suppliers/batch-import — пакетный импорт */
   fastify.post<{ Body: BatchImportBody }>(
     '/batch-import',
-    { schema: batchImportSchema, preHandler: [authenticate, requireRole('admin')] },
+    { schema: batchImportSchema, preHandler: [authenticate, requireRole('admin', 'user')] },
     async (request, reply) => {
       const { rows } = request.body;
       const BATCH_SIZE = 20;

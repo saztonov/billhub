@@ -114,7 +114,7 @@ const CounterpartiesPage = () => {
           style={{ marginBottom: 16 }}
         />
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 16 }}>
-          {user?.role === 'admin' && (
+          {(user?.role === 'admin' || user?.role === 'user') && (
             <Button icon={<UploadOutlined />} onClick={() => setIsImportModalOpen(true)}>
               Импорт из Excel
             </Button>

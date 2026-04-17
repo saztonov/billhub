@@ -105,7 +105,7 @@ async function counterpartyRoutes(fastify: FastifyInstance): Promise<void> {
   /** POST /api/references/counterparties — создание контрагента */
   fastify.post<{ Body: CounterpartyBody }>(
     '/',
-    { schema: counterpartySchema, preHandler: [authenticate, requireRole('admin')] },
+    { schema: counterpartySchema, preHandler: [authenticate, requireRole('admin', 'user')] },
     async (request, reply) => {
       const { name, inn, address, alternativeNames } = request.body;
       const { data, error } = await request.server.supabase
@@ -121,7 +121,7 @@ async function counterpartyRoutes(fastify: FastifyInstance): Promise<void> {
   /** PUT /api/references/counterparties/:id — обновление контрагента */
   fastify.put<{ Params: IdParams; Body: CounterpartyBody }>(
     '/:id',
-    { schema: { ...idParamsSchema, ...counterpartySchema }, preHandler: [authenticate, requireRole('admin')] },
+    { schema: { ...idParamsSchema, ...counterpartySchema }, preHandler: [authenticate, requireRole('admin', 'user')] },
     async (request, reply) => {
       const { id } = request.params;
       const { name, inn, address, alternativeNames } = request.body;
@@ -139,7 +139,7 @@ async function counterpartyRoutes(fastify: FastifyInstance): Promise<void> {
   /** DELETE /api/references/counterparties/:id — удаление контрагента */
   fastify.delete<{ Params: IdParams }>(
     '/:id',
-    { schema: idParamsSchema, preHandler: [authenticate, requireRole('admin')] },
+    { schema: idParamsSchema, preHandler: [authenticate, requireRole('admin', 'user')] },
     async (request, reply) => {
       const { id } = request.params;
       const { error } = await request.server.supabase
@@ -155,7 +155,7 @@ async function counterpartyRoutes(fastify: FastifyInstance): Promise<void> {
   /** Принимает { items: [...] } (фронтенд) или { rows: [...] } (оригинальный) */
   fastify.post(
     '/batch-import',
-    { preHandler: [authenticate, requireRole('admin')] },
+    { preHandler: [authenticate, requireRole('admin', 'user')] },
     async (request, reply) => {
       const body = request.body as Record<string, unknown>;
       // Фронтенд отправляет items, бэкенд ожидает rows — поддерживаем оба
