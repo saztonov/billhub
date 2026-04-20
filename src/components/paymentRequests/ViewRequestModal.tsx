@@ -661,18 +661,15 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
         open={amountReasonModalOpen}
         onCancel={() => setAmountReasonModalOpen(false)}
         footer={null}
-        title="Сумма редактируется из-за:"
+        title="Нужно ли сохранять изменение в истории суммы заявки?"
         width={isMobile ? '100%' : 480}
         destroyOnClose
       >
         <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-          <Text type="secondary">
-            Выберите причину изменения суммы счёта. При «Изменении суммы счёта» старая сумма попадёт в историю сумм заявки.
-          </Text>
           <Space wrap>
-            <Button onClick={() => handleSelectAmountReason('error')}>Ошибки</Button>
+            <Button onClick={() => handleSelectAmountReason('error')}>Без сохранения в истории</Button>
             <Button type="primary" onClick={() => handleSelectAmountReason('amount_change')}>
-              Изменения суммы счёта
+              С сохранением в истории
             </Button>
           </Space>
         </Space>
