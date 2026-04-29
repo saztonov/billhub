@@ -38,6 +38,7 @@ import type { ContractRequest, ContractRequestFile, RevisionTarget } from '@/typ
 import { formatSize, formatDate } from '@/utils/requestFormatters'
 import useIsMobile from '@/hooks/useIsMobile'
 import ContractCommentsChat from '@/components/contractRequests/ContractCommentsChat'
+import { PARTIES_OPTIONS } from '@/components/contractRequests/constants'
 import ContractApprovalLog from '@/components/contractRequests/ContractApprovalLog'
 import ContractRevisionModal from '@/components/contractRequests/ContractRevisionModal'
 import AddContractFilesModal from '@/components/contractRequests/AddContractFilesModal'
@@ -605,7 +606,7 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
                 <Select placeholder="Выберите поставщика" showSearch optionFilterProp="label" popupMatchSelectWidth={false} options={supplierOptions} />
               </Form.Item>
               <Form.Item name="partiesCount" label="Кол-во сторон" rules={[{ required: true, message: 'Укажите кол-во' }]} style={{ width: 120 }}>
-                <Select options={[{ label: '2', value: 2 }, { label: '3', value: 3 }]} />
+                <Select options={PARTIES_OPTIONS} />
               </Form.Item>
             </Flex>
             <Flex gap={8} wrap="wrap">

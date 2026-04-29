@@ -10,6 +10,7 @@ import { useUploadQueueStore } from '@/store/uploadQueueStore'
 import { CONTRACT_SUBJECT_LABELS, type ContractSubjectType } from '@/types'
 import useIsMobile from '@/hooks/useIsMobile'
 import ContractFileUpload from '@/components/contractRequests/ContractFileUpload'
+import { PARTIES_OPTIONS } from '@/components/contractRequests/constants'
 import { notifyContractNewRequest } from '@/utils/contractNotificationService'
 
 interface FileItem {
@@ -26,13 +27,6 @@ interface CreateContractRequestModalProps {
 /** Опции предмета договора из справочника */
 const subjectOptions = (Object.entries(CONTRACT_SUBJECT_LABELS) as [ContractSubjectType, string][])
   .map(([value, label]) => ({ value, label }))
-
-/** Опции количества сторон */
-const partiesOptions = [
-  { value: 2, label: '2' },
-  { value: 3, label: '3' },
-  { value: 4, label: '4' },
-]
 
 /** Зелёная галочка для заполненных полей */
 const fieldLabel = (label: string, filled: boolean) => (
@@ -232,7 +226,7 @@ const CreateContractRequestModal = ({ open, onClose, onCreated }: CreateContract
               name="partiesCount"
               rules={[{ required: true, message: 'Выберите количество сторон' }]}
             >
-              <Select placeholder="Выберите" options={partiesOptions} />
+              <Select placeholder="Выберите" options={PARTIES_OPTIONS} />
             </Form.Item>
           </Col>
           <Col xs={24} sm={12}>
