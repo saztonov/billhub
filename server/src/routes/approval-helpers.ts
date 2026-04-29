@@ -199,10 +199,13 @@ export async function handleCompleteRevision(
 /** Общий select для payment_requests с join-ами */
 export const PR_SELECT = `
   *,
-  counterparties(name),
+  counterparties(name, inn),
+  suppliers(name, inn),
   construction_sites(name),
   statuses!payment_requests_status_id_fkey(name, color),
+  paid_statuses:statuses!payment_requests_paid_status_id_fkey(name, color),
   shipping:payment_request_field_options!payment_requests_shipping_condition_id_fkey(value),
+  cost_types(name),
   current_assignment:payment_request_assignments!left(
     assigned_user_id,
     is_current,
@@ -234,7 +237,9 @@ export function flattenPaymentRequest(row: Record<string, unknown>): Record<stri
   delete flat.current_assignment;
 
   flat.counterparty_name = cp?.name ?? null;
+  flat.counterparty_inn = cp?.inn ?? null;
   flat.supplier_name = sup?.name ?? null;
+  flat.supplier_inn = sup?.inn ?? null;
   flat.site_name = site?.name ?? null;
   flat.status_name = status?.name ?? null;
   flat.status_color = status?.color ?? null;
