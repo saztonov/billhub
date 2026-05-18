@@ -299,6 +299,10 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
   const canShtabComplete = isShtab && statusCode === 'on_revision' && (req.revisionTargets ?? []).includes('shtab')
   // Подрядчик может завершить доработку, если в targets есть 'counterparty'
   const canCounterpartyComplete = isCounterpartyUser && statusCode === 'on_revision' && (req.revisionTargets ?? []).includes('counterparty')
+  // Админ может закрыть доработку за Штаб
+  const canAdminCloseShtab = isAdmin && statusCode === 'on_revision' && (req.revisionTargets ?? []).includes('shtab')
+  // Админ может закрыть доработку за Подрядчика
+  const canAdminCloseCounterparty = isAdmin && statusCode === 'on_revision' && (req.revisionTargets ?? []).includes('counterparty')
   // Право на отклонение/подтверждение файлов (ОМТС и admin)
   const canRejectFiles = isOmts || isAdmin
   // Право на добавление файлов (подрядчик или ОМТС/admin)
@@ -537,6 +541,34 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
           >
             <Button style={{ borderColor: '#52c41a', color: '#52c41a' }} icon={<CheckOutlined />} loading={isSubmitting}>
               Выполнено
+            </Button>
+          </Popconfirm>
+        )}
+        {/* Admin: закрыть доработку за Штаб */}
+        {canAdminCloseShtab && (
+          <Popconfirm
+            title="Закрыть доработку за Штаб?"
+            description="Действие будет записано в историю от вашего имени"
+            onConfirm={() => handleCompleteRevision('shtab')}
+            okText="Закрыть"
+            cancelText="Отмена"
+          >
+            <Button style={{ borderColor: '#52c41a', color: '#52c41a' }} icon={<CheckOutlined />} loading={isSubmitting}>
+              Закрыть доработку Штаба
+            </Button>
+          </Popconfirm>
+        )}
+        {/* Admin: закрыть доработку за Подрядчика */}
+        {canAdminCloseCounterparty && (
+          <Popconfirm
+            title="Закрыть доработку за Подрядчика?"
+            description="Действие будет записано в историю от вашего имени"
+            onConfirm={() => handleCompleteRevision('counterparty')}
+            okText="Закрыть"
+            cancelText="Отмена"
+          >
+            <Button style={{ borderColor: '#52c41a', color: '#52c41a' }} icon={<CheckOutlined />} loading={isSubmitting}>
+              Закрыть доработку Подрядчика
             </Button>
           </Popconfirm>
         )}
