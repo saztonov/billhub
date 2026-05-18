@@ -9,7 +9,7 @@ import {
   Modal,
   Form,
   DatePicker,
-  InputNumber,
+  Input,
   Upload,
   App,
   Tag,
@@ -29,6 +29,8 @@ import { uploadPaymentFile, downloadFileBlob } from '@/services/s3'
 import { checkFileMagicBytes } from '@/utils/fileValidation'
 import { useNativeDropZone } from '@/hooks/useNativeDropZone'
 import FilePreviewModal from '@/components/paymentRequests/FilePreviewModal'
+import LocalFilePreviewModal from '@/components/paymentRequests/LocalFilePreviewModal'
+import { invoiceAmountMask, invoiceAmountValidator } from '@/components/paymentRequests/RequestDetailsSection'
 import type { PaymentPayment, PaymentPaymentFile } from '@/types'
 
 const { Text } = Typography
@@ -54,6 +56,7 @@ interface PaymentsTableProps {
   paymentRequestId: string
   counterpartyName: string
   canManage: boolean
+  requestAmount: number | null
   onTotalChanged?: () => void
 }
 
@@ -62,7 +65,19 @@ interface PendingFile {
   file: File
 }
 
-const PaymentsTable = ({ paymentRequestId, counterpartyName, canManage, onTotalChanged }: PaymentsTableProps) => {
+// Форматирование числа в строку формата маски: "1234.56" -> "1 234.56"
+const formatAmountForInput = (num: number): string => {
+  const parts = String(num).split('.')
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
+  return parts.join('.')
+}
+
+// Парсинг строки маски в число: "1 234,56" -> 1234.56
+const parseAmountFromInput = (str: unknown): number => {
+  return Number(String(str ?? '').replace(/\s/g, '').replace(',', '.'))
+}
+
+const PaymentsTable = ({ paymentRequestId, counterpartyName, canManage, requestAmount, onTotalChanged }: PaymentsTableProps) => {
   const { message } = App.useApp()
   const { payments, isLoading, isSubmitting, createPayment, updatePayment, deletePayment, addPaymentFile, removePaymentFile, fetchPayments } = usePaymentPaymentStore()
   const user = useAuthStore((s) => s.user)
@@ -79,12 +94,20 @@ const PaymentsTable = ({ paymentRequestId, counterpartyName, canManage, onTotalC
   }, [])
   const { ref: dropZoneRef, isDragOver } = useNativeDropZone(handleNativeDrop)
   const [previewFile, setPreviewFile] = useState<{ fileKey: string; fileName: string; mimeType: string | null } | null>(null)
+  const [localPreviewFile, setLocalPreviewFile] = useState<{ file: File; fileName: string } | null>(null)
 
   const totalPaid = useMemo(() => payments.filter(p => p.isExecuted).reduce((sum, p) => sum + p.amount, 0), [payments])
 
   const handleAdd = () => {
     setEditingPayment(null)
     form.resetFields()
+    // Подставляем остаток к оплате (сумма заявки минус уже исполненные оплаты)
+    if (requestAmount != null) {
+      const remaining = requestAmount - totalPaid
+      if (remaining > 0) {
+        form.setFieldsValue({ amount: formatAmountForInput(remaining) })
+      }
+    }
     setPendingFiles([])
     setModalOpen(true)
   }
@@ -93,7 +116,7 @@ const PaymentsTable = ({ paymentRequestId, counterpartyName, canManage, onTotalC
     setEditingPayment(payment)
     form.setFieldsValue({
       paymentDate: dayjs(payment.paymentDate),
-      amount: payment.amount,
+      amount: formatAmountForInput(payment.amount),
     })
     setPendingFiles([])
     setModalOpen(true)
@@ -104,11 +127,12 @@ const PaymentsTable = ({ paymentRequestId, counterpartyName, canManage, onTotalC
     try {
       const values = await form.validateFields()
       const paymentDate = values.paymentDate.format('YYYY-MM-DD')
+      const amount = parseAmountFromInput(values.amount)
 
       if (editingPayment) {
         await updatePayment(editingPayment.id, {
           paymentDate,
-          amount: values.amount,
+          amount,
         }, user.id)
 
         // Загружаем новые файлы
@@ -126,7 +150,7 @@ const PaymentsTable = ({ paymentRequestId, counterpartyName, canManage, onTotalC
       } else {
         const paymentId = await createPayment(paymentRequestId, {
           paymentDate,
-          amount: values.amount,
+          amount,
         }, user.id)
 
         // Загружаем файлы
@@ -320,8 +344,13 @@ const PaymentsTable = ({ paymentRequestId, counterpartyName, canManage, onTotalC
           <Form.Item name="paymentDate" label="Дата оплаты" rules={[{ required: true, message: 'Укажите дату' }]}>
             <DatePicker format="DD.MM.YYYY" style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item name="amount" label="Сумма" rules={[{ required: true, message: 'Укажите сумму' }, { type: 'number', min: 0.01, message: 'Сумма должна быть больше 0' }]}>
-            <InputNumber min={0.01} step={0.01} style={{ width: '100%' }} suffix="₽" precision={2} />
+          <Form.Item
+            name="amount"
+            label="Сумма"
+            getValueFromEvent={invoiceAmountMask}
+            rules={[{ required: true, message: 'Укажите сумму' }, { validator: invoiceAmountValidator }]}
+          >
+            <Input suffix="₽" style={{ width: '100%' }} inputMode="decimal" />
           </Form.Item>
         </Form>
 
@@ -361,6 +390,14 @@ const PaymentsTable = ({ paymentRequestId, counterpartyName, canManage, onTotalC
               {pendingFiles.map((pf) => (
                 <div key={pf.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                   <Text style={{ flex: 1 }} ellipsis>{pf.file.name}</Text>
+                  <Tooltip title="Просмотр">
+                    <Button
+                      icon={<EyeOutlined />}
+                      size="small"
+                      type="text"
+                      onClick={() => setLocalPreviewFile({ file: pf.file, fileName: pf.file.name })}
+                    />
+                  </Tooltip>
                   <Button icon={<DeleteOutlined />} size="small" type="text" danger onClick={() => setPendingFiles((prev) => prev.filter((f) => f.id !== pf.id))} />
                 </div>
               ))}
@@ -375,6 +412,13 @@ const PaymentsTable = ({ paymentRequestId, counterpartyName, canManage, onTotalC
         fileKey={previewFile?.fileKey ?? null}
         fileName={previewFile?.fileName ?? ''}
         mimeType={previewFile?.mimeType ?? null}
+      />
+
+      <LocalFilePreviewModal
+        open={!!localPreviewFile}
+        onClose={() => setLocalPreviewFile(null)}
+        file={localPreviewFile?.file ?? null}
+        fileName={localPreviewFile?.fileName ?? ''}
       />
     </div>
   )

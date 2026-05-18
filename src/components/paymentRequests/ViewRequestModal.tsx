@@ -592,6 +592,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
                   paymentRequestId={request.id}
                   counterpartyName={request.counterpartyName ?? ''}
                   canManage={!!canManagePayments}
+                  requestAmount={request.invoiceAmount}
                   onTotalChanged={() => fetchRequests()}
                 />
               ),

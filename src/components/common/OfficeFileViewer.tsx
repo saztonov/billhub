@@ -225,8 +225,11 @@ const OfficeFileViewer = ({ source, fileName, height = '70vh' }: OfficeFileViewe
           // mammoth подгружается лениво для уменьшения начального бандла
           const mammothMod = await import('mammoth')
           if (cancelled) return
-          const mammoth = (mammothMod as { default?: typeof mammothMod }).default ?? mammothMod
-          const r = await mammoth.convertToHtml({ arrayBuffer: buffer })
+          // Vite оборачивает CJS-экспорт mammoth — namespace содержит convertToHtml как named-экспорт,
+          // fallback на default — на случай других вариантов CJS/ESM-обёрток
+          const convertToHtml = mammothMod.convertToHtml
+            ?? (mammothMod as unknown as { default: typeof mammothMod }).default.convertToHtml
+          const r = await convertToHtml({ arrayBuffer: buffer })
           setDocxHtml(r.value || '')
         }
       } catch (err) {
