@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
-import { Modal, Form, Input, DatePicker, Upload, Button, App } from 'antd'
-import { UploadOutlined } from '@ant-design/icons'
+import { Modal, Form, Input, DatePicker, Upload, Button, App, Space, Tooltip } from 'antd'
+import { UploadOutlined, EyeOutlined } from '@ant-design/icons'
 import type { UploadFile } from 'antd/es/upload'
 import dayjs from 'dayjs'
 import { uploadRequestFile } from '@/services/s3'
 import { usePaymentRequestStore } from '@/store/paymentRequestStore'
 import { logError } from '@/services/errorLogger'
+import LocalFilePreviewModal from './LocalFilePreviewModal'
+import FilePreviewModal from './FilePreviewModal'
+import { getMimeFromFileName } from '@/utils/mimeFromExtension'
 
 interface DpInitialData {
   dpNumber: string
@@ -22,26 +25,39 @@ interface DpFillModalProps {
   requestNumber: string
   counterpartyName: string
   initialData?: DpInitialData | null
+  defaultAmount?: number | null
 }
 
-const DpFillModal = ({ open, onClose, requestId, requestNumber, counterpartyName, initialData }: DpFillModalProps) => {
+// Форматирование числа с разделителями тысяч (для предзаполнения)
+const formatAmount = (n: number) =>
+  n.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
+
+const DpFillModal = ({ open, onClose, requestId, requestNumber, counterpartyName, initialData, defaultAmount }: DpFillModalProps) => {
   const { message } = App.useApp()
   const updateDpData = usePaymentRequestStore((s) => s.updateDpData)
   const [form] = Form.useForm()
   const [fileList, setFileList] = useState<UploadFile[]>([])
   const [submitting, setSubmitting] = useState(false)
+  const [localPreview, setLocalPreview] = useState<File | null>(null)
+  const [remotePreviewOpen, setRemotePreviewOpen] = useState(false)
   const isEditMode = !!initialData
 
-  // Предзаполнение формы при редактировании
+  // Предзаполнение формы при открытии
   useEffect(() => {
-    if (open && initialData) {
+    if (!open) return
+    if (initialData) {
       form.setFieldsValue({
         dpNumber: initialData.dpNumber,
         dpDate: dayjs(initialData.dpDate),
-        dpAmount: initialData.dpAmount.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 }),
+        dpAmount: formatAmount(initialData.dpAmount),
+      })
+    } else if (defaultAmount != null) {
+      // Создание РП — подставляем согласованную сумму заявки (редактируемое)
+      form.setFieldsValue({
+        dpAmount: formatAmount(defaultAmount),
       })
     }
-  }, [open, initialData, form])
+  }, [open, initialData, defaultAmount, form])
 
   const handleOk = async () => {
     let values: { dpNumber: string; dpDate: dayjs.Dayjs; dpAmount: string }
@@ -114,39 +130,84 @@ const DpFillModal = ({ open, onClose, requestId, requestNumber, counterpartyName
     return Promise.resolve()
   }
 
+  // Файл для предпросмотра: либо вновь выбранный, либо существующий (через ключ)
+  const selectedFile = fileList[0]?.originFileObj as File | undefined
+  const hasExistingFile = isEditMode && initialData?.dpFileKey && fileList.length === 0
+  const existingFileName = initialData?.dpFileName ?? ''
+
   return (
-    <Modal
-      title={isEditMode ? 'Редактировать данные РП' : 'Заполнить данные РП'}
-      open={open}
-      onOk={handleOk}
-      onCancel={handleCancel}
-      okText="Сохранить"
-      cancelText="Отмена"
-      confirmLoading={submitting}
-      destroyOnHidden
-    >
-      <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-        <Form.Item name="dpNumber" label="Номер РП" rules={[{ required: true, message: 'Введите номер РП' }]}>
-          <Input placeholder="Например: 145821" />
-        </Form.Item>
-        <Form.Item name="dpDate" label="Дата РП" rules={[{ required: true, message: 'Выберите дату РП' }]}>
-          <DatePicker format="DD.MM.YYYY" style={{ width: '100%' }} placeholder="Выберите дату" />
-        </Form.Item>
-        <Form.Item name="dpAmount" label="Сумма РП" rules={[{ validator: amountValidator }]} getValueFromEvent={amountMask}>
-          <Input suffix="₽" placeholder="Сумма" />
-        </Form.Item>
-        <Form.Item label="Файл РП" required>
-          <Upload
-            fileList={fileList}
-            beforeUpload={() => false}
-            onChange={({ fileList: fl }) => setFileList(fl.slice(-1))}
-            maxCount={1}
-          >
-            <Button icon={<UploadOutlined />}>Выбрать файл</Button>
-          </Upload>
-        </Form.Item>
-      </Form>
-    </Modal>
+    <>
+      <Modal
+        title={isEditMode ? 'Редактировать данные РП' : 'Заполнить данные РП'}
+        open={open}
+        onOk={handleOk}
+        onCancel={handleCancel}
+        okText="Сохранить"
+        cancelText="Отмена"
+        confirmLoading={submitting}
+        destroyOnHidden
+      >
+        <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item name="dpNumber" label="Номер РП" rules={[{ required: true, message: 'Введите номер РП' }]}>
+            <Input placeholder="Например: 145821" />
+          </Form.Item>
+          <Form.Item name="dpDate" label="Дата РП" rules={[{ required: true, message: 'Выберите дату РП' }]}>
+            <DatePicker format="DD.MM.YYYY" style={{ width: '100%' }} placeholder="Выберите дату" />
+          </Form.Item>
+          <Form.Item name="dpAmount" label="Сумма РП" rules={[{ validator: amountValidator }]} getValueFromEvent={amountMask}>
+            <Input suffix="₽" placeholder="Сумма" />
+          </Form.Item>
+          <Form.Item label="Файл РП" required>
+            <Space wrap>
+              <Upload
+                fileList={fileList}
+                beforeUpload={() => false}
+                onChange={({ fileList: fl }) => setFileList(fl.slice(-1))}
+                maxCount={1}
+                showUploadList={{ showPreviewIcon: false, showRemoveIcon: true }}
+              >
+                <Button icon={<UploadOutlined />}>Выбрать файл</Button>
+              </Upload>
+              {selectedFile && (
+                <Tooltip title="Предпросмотр выбранного файла">
+                  <Button
+                    icon={<EyeOutlined />}
+                    onClick={() => setLocalPreview(selectedFile)}
+                  />
+                </Tooltip>
+              )}
+              {hasExistingFile && (
+                <Tooltip title="Просмотр загруженного файла">
+                  <Button
+                    icon={<EyeOutlined />}
+                    onClick={() => setRemotePreviewOpen(true)}
+                  >
+                    {existingFileName}
+                  </Button>
+                </Tooltip>
+              )}
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <LocalFilePreviewModal
+        open={!!localPreview}
+        onClose={() => setLocalPreview(null)}
+        file={localPreview}
+        fileName={localPreview?.name ?? ''}
+      />
+
+      {isEditMode && initialData?.dpFileKey && (
+        <FilePreviewModal
+          open={remotePreviewOpen}
+          onClose={() => setRemotePreviewOpen(false)}
+          fileKey={initialData.dpFileKey}
+          fileName={initialData.dpFileName ?? 'rp-file'}
+          mimeType={getMimeFromFileName(initialData.dpFileName)}
+        />
+      )}
+    </>
   )
 }
 

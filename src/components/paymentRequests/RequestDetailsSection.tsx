@@ -23,6 +23,7 @@ import FileUploadList from './FileUploadList'
 import type { FileItem } from './FileUploadList'
 import DeliveryCalculation from './DeliveryCalculation'
 import { formatDate, extractRequestNumber } from '@/utils/requestFormatters'
+import { getMimeFromFileName } from '@/utils/mimeFromExtension'
 import type { PaymentRequest } from '@/types'
 
 const { Text } = Typography
@@ -252,7 +253,7 @@ const RequestDetailsSection = ({
             {actualRequest.dpFileKey && (
               <>
                 <Tooltip title="Просмотр файла РП">
-                  <Button icon={<EyeOutlined />} size="small" onClick={() => setPreviewFile({ fileKey: actualRequest.dpFileKey!, fileName: actualRequest.dpFileName ?? 'rp-file', mimeType: null })} />
+                  <Button icon={<EyeOutlined />} size="small" onClick={() => setPreviewFile({ fileKey: actualRequest.dpFileKey!, fileName: actualRequest.dpFileName ?? 'rp-file', mimeType: getMimeFromFileName(actualRequest.dpFileName) })} />
                 </Tooltip>
                 <Tooltip title="Скачать файл РП">
                   <Button icon={<DownloadOutlined />} size="small" loading={downloading === actualRequest.dpFileKey} onClick={() => handleDownload(actualRequest.dpFileKey!, actualRequest.dpFileName ?? 'rp-file')} />

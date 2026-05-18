@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback } from 'react'
 import { Modal, Spin, Typography, Flex, Button, Tooltip } from 'antd'
 import { ZoomInOutlined, ZoomOutOutlined, ExpandOutlined } from '@ant-design/icons'
 import { getDownloadUrl } from '@/services/s3'
+import OfficeFileViewer from '@/components/common/OfficeFileViewer'
+import { isImageMime, isPdfMime, isOfficeMime } from '@/utils/mimeFromExtension'
 
 const { Text } = Typography
 
@@ -11,27 +13,6 @@ interface FilePreviewModalProps {
   fileKey: string | null
   fileName: string
   mimeType: string | null
-}
-
-/** Проверяет, является ли MIME-тип изображением */
-function isImage(mime: string | null): boolean {
-  return !!mime && mime.startsWith('image/')
-}
-
-/** Проверяет, является ли MIME-тип PDF */
-function isPdf(mime: string | null): boolean {
-  return mime === 'application/pdf'
-}
-
-/** Проверяет, является ли MIME-тип Office-документом */
-function isOffice(mime: string | null): boolean {
-  if (!mime) return false
-  return [
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.ms-excel',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  ].includes(mime)
 }
 
 /** Шаги зума */
@@ -44,16 +25,21 @@ const FilePreviewModal = ({ open, onClose, fileKey, fileName, mimeType }: FilePr
   const [zoomIndex, setZoomIndex] = useState(DEFAULT_ZOOM_INDEX)
 
   useEffect(() => {
-    if (!open || !fileKey) {
-      setUrl(null)
-      setZoomIndex(DEFAULT_ZOOM_INDEX)
-      return
-    }
+    if (!open || !fileKey) return
+    // Для офисных файлов URL не нужен — рендеринг идёт через OfficeFileViewer (скачивание blob внутри)
+    if (isOfficeMime(mimeType)) return
+    let cancelled = false
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true)
     getDownloadUrl(fileKey)
-      .then((u) => setUrl(u))
-      .finally(() => setLoading(false))
-  }, [open, fileKey])
+      .then((u) => { if (!cancelled) setUrl(u) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => {
+      cancelled = true
+      setUrl(null)
+      setZoomIndex(DEFAULT_ZOOM_INDEX)
+    }
+  }, [open, fileKey, mimeType])
 
   const zoomIn = useCallback(() => {
     setZoomIndex((i) => Math.min(i + 1, ZOOM_STEPS.length - 1))
@@ -69,10 +55,21 @@ const FilePreviewModal = ({ open, onClose, fileKey, fileName, mimeType }: FilePr
 
   const zoom = ZOOM_STEPS[zoomIndex]
   const zoomPercent = Math.round(zoom * 100)
-  const showZoomControls = isImage(mimeType) && !loading && url
+  const showZoomControls = isImageMime(mimeType) && !loading && url
 
   /** Рендер содержимого по типу файла */
   const renderContent = () => {
+    if (isOfficeMime(mimeType)) {
+      if (!fileKey) {
+        return (
+          <div style={{ textAlign: 'center', padding: 40 }}>
+            <Text type="secondary">Файл не найден</Text>
+          </div>
+        )
+      }
+      return <OfficeFileViewer source={{ type: 'key', fileKey }} fileName={fileName} height="80vh" />
+    }
+
     if (loading || !url) {
       return (
         <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
@@ -81,7 +78,7 @@ const FilePreviewModal = ({ open, onClose, fileKey, fileName, mimeType }: FilePr
       )
     }
 
-    if (isImage(mimeType)) {
+    if (isImageMime(mimeType)) {
       return (
         <div style={{ overflow: 'auto', maxHeight: '75vh', textAlign: 'center' }}>
           <img
@@ -99,21 +96,10 @@ const FilePreviewModal = ({ open, onClose, fileKey, fileName, mimeType }: FilePr
       )
     }
 
-    if (isPdf(mimeType)) {
+    if (isPdfMime(mimeType)) {
       return (
         <iframe
           src={url}
-          title={fileName}
-          style={{ width: '100%', height: '80vh', border: 'none' }}
-        />
-      )
-    }
-
-    if (isOffice(mimeType)) {
-      const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(url)}`
-      return (
-        <iframe
-          src={viewerUrl}
           title={fileName}
           style={{ width: '100%', height: '80vh', border: 'none' }}
         />

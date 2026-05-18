@@ -645,6 +645,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
           dpFileKey: actualRequest.dpFileKey!,
           dpFileName: actualRequest.dpFileName!,
         } : null}
+        defaultAmount={actualRequest?.invoiceAmount ?? request.invoiceAmount ?? null}
       />
 
       <RejectModal

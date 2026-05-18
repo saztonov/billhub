@@ -1,5 +1,7 @@
 import { Modal } from 'antd'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo } from 'react'
+import OfficeFileViewer from '@/components/common/OfficeFileViewer'
+import { getMimeFromFileName, isOfficeMime } from '@/utils/mimeFromExtension'
 
 interface LocalFilePreviewModalProps {
   open: boolean
@@ -10,52 +12,42 @@ interface LocalFilePreviewModalProps {
 
 /**
  * Компонент для предпросмотра локальных файлов до загрузки на S3
- * Использует URL.createObjectURL для создания временного blob URL
+ * Изображения и PDF — через URL.createObjectURL, Office-документы — через OfficeFileViewer
  */
 function LocalFilePreviewModal(props: LocalFilePreviewModalProps) {
   const { open, onClose, file, fileName } = props
-  const [objectUrl, setObjectUrl] = useState<string | null>(null)
 
-  // Создаем и освобождаем blob URL
+  // mime: либо из самого File, либо вычисляем по расширению (бывают пустые file.type)
+  const mime = file?.type || getMimeFromFileName(fileName)
+  const isImage = mime?.startsWith('image/') ?? false
+  const isPdf = mime === 'application/pdf'
+  const isOffice = isOfficeMime(mime)
+
+  // Blob URL только для image/pdf — office рендерится из ArrayBuffer без URL
+  const objectUrl = useMemo(() => {
+    if (!file || !open) return null
+    if (!isImage && !isPdf) return null
+    return URL.createObjectURL(file)
+  }, [file, open, isImage, isPdf])
+
+  // Освобождаем blob URL при размонтировании или смене файла
   useEffect(() => {
-    if (!file || !open) {
-      setObjectUrl(null)
-      return
-    }
-
-    // Создаем временный URL для файла
-    const url = URL.createObjectURL(file)
-    setObjectUrl(url)
-
-    // Cleanup: освобождаем память при размонтировании или закрытии
+    if (!objectUrl) return
     return () => {
-      URL.revokeObjectURL(url)
-      setObjectUrl(null)
+      URL.revokeObjectURL(objectUrl)
     }
-  }, [file, open])
+  }, [objectUrl])
 
   const handleClose = () => {
-    // Освобождаем URL перед закрытием
-    if (objectUrl) {
-      URL.revokeObjectURL(objectUrl)
-      setObjectUrl(null)
-    }
     onClose()
   }
 
-  // Определяем тип файла для рендеринга
-  const isImage = (mimeType: string) => mimeType.startsWith('image/')
-  const isPdf = (mimeType: string) => mimeType === 'application/pdf'
-
   const renderPreview = () => {
-    if (!objectUrl || !file) {
+    if (!file) {
       return <div style={{ padding: 20, textAlign: 'center' }}>Загрузка...</div>
     }
 
-    const mimeType = file.type
-
-    // Изображения
-    if (isImage(mimeType)) {
+    if (isImage && objectUrl) {
       return (
         <div style={{ textAlign: 'center', maxHeight: '70vh', overflow: 'auto' }}>
           <img
@@ -67,8 +59,7 @@ function LocalFilePreviewModal(props: LocalFilePreviewModalProps) {
       )
     }
 
-    // PDF
-    if (isPdf(mimeType)) {
+    if (isPdf && objectUrl) {
       return (
         <iframe
           src={objectUrl}
@@ -78,13 +69,13 @@ function LocalFilePreviewModal(props: LocalFilePreviewModalProps) {
       )
     }
 
-    // Office документы и другие файлы
+    if (isOffice) {
+      return <OfficeFileViewer source={{ type: 'file', file }} fileName={fileName} height="70vh" />
+    }
+
     return (
       <div style={{ padding: 40, textAlign: 'center', color: '#8c8c8c' }}>
         <p>Предпросмотр недоступен для этого типа файла</p>
-        <p style={{ fontSize: 12, marginTop: 8 }}>
-          Файлы Word, Excel и другие документы можно просмотреть только после загрузки на сервер
-        </p>
       </div>
     )
   }
