@@ -194,6 +194,7 @@ const OfficeFileViewer = ({ source, fileName, height = '70vh' }: OfficeFileViewe
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sheets, setSheets] = useState<RenderedSheet[] | null>(null)
+  const [xlsHtmlSheets, setXlsHtmlSheets] = useState<Array<{ name: string; html: string }> | null>(null)
   const [docxHtml, setDocxHtml] = useState<string | null>(null)
 
   const ext = useMemo(() => getExtension(fileName), [fileName])
@@ -201,6 +202,7 @@ const OfficeFileViewer = ({ source, fileName, height = '70vh' }: OfficeFileViewe
   useEffect(() => {
     let cancelled = false
     setSheets(null)
+    setXlsHtmlSheets(null)
     setDocxHtml(null)
     setError(null)
 
@@ -215,12 +217,25 @@ const OfficeFileViewer = ({ source, fileName, height = '70vh' }: OfficeFileViewe
         const buffer = await getArrayBuffer(source)
         if (cancelled) return
 
-        if (ext === 'xlsx' || ext === 'xls') {
+        if (ext === 'xlsx') {
+          // OOXML — рендер через ExcelJS с богатым форматированием
           const wb = new ExcelJS.Workbook()
           await wb.xlsx.load(buffer)
           if (cancelled) return
           const result = workbookToSheets(wb)
           setSheets(result)
+        } else if (ext === 'xls') {
+          // Старый бинарный BIFF — ExcelJS не умеет, используем SheetJS с lazy-import.
+          // SheetJS также читает HTML-таблицы, сохранённые как .xls (часто из 1С/Excel).
+          const xlsxMod = await import('xlsx')
+          if (cancelled) return
+          const XLSX = (xlsxMod as { default?: typeof xlsxMod }).default ?? xlsxMod
+          const wb = XLSX.read(new Uint8Array(buffer), { type: 'array' })
+          const htmlSheets = wb.SheetNames.map((name) => ({
+            name,
+            html: XLSX.utils.sheet_to_html(wb.Sheets[name], { editable: false }),
+          }))
+          setXlsHtmlSheets(htmlSheets)
         } else if (ext === 'docx') {
           // mammoth подгружается лениво для уменьшения начального бандла
           const mammothMod = await import('mammoth')
@@ -290,6 +305,34 @@ const OfficeFileViewer = ({ source, fileName, height = '70vh' }: OfficeFileViewe
           key: String(i),
           label: s.name,
           children: <ExcelSheetTable sheet={s} height={height} />,
+        }))}
+      />
+    )
+  }
+
+  if (xlsHtmlSheets && xlsHtmlSheets.length > 0) {
+    const renderXlsSheet = (html: string) => (
+      <div
+        style={{
+          overflow: 'auto',
+          maxHeight: height,
+          border: '1px solid #f0f0f0',
+          padding: 8,
+          fontSize: 13,
+          fontFamily: 'Calibri, Arial, sans-serif',
+        }}
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
+    )
+    if (xlsHtmlSheets.length === 1) {
+      return renderXlsSheet(xlsHtmlSheets[0].html)
+    }
+    return (
+      <Tabs
+        items={xlsHtmlSheets.map((s, i) => ({
+          key: String(i),
+          label: s.name,
+          children: renderXlsSheet(s.html),
         }))}
       />
     )
