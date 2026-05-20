@@ -368,15 +368,12 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   const hasPendingOmtsOrOmtsRpDecision = currentDecisions.some(
     (d) => d.status === 'pending' && (d.department === 'omts' || d.isOmtsRp)
   )
-  const canSendToRevision = !request.rejectedAt && (
-    ((isAdmin || isOmtsUser || isOmtsRpResponsible) && hasPendingOmtsOrOmtsRpDecision)
+  const canSendToRevision = ((isAdmin || isOmtsUser || isOmtsRpResponsible) && hasPendingOmtsOrOmtsRpDecision)
     || (!!canEdit && isApprovedRequest)
-  )
 
-  // Заявка отклонена — финальный статус, цикл доработки запрещён
-  const isRejected = !!request.rejectedAt
-  // Заявка в статусе "На доработку" (previous_status_id заполнен) и не отклонена
-  const isRevisionStatus = !!request.previousStatusId && !isRejected
+  // Заявка в статусе "На доработку" — previous_status_id заполнен. После корректного
+  // отклонения сервер обнуляет previous_status_id, поэтому отдельной проверки rejectedAt не нужно.
+  const isRevisionStatus = !!request.previousStatusId
 
   // Обработчик нажатия «Согласовать» с проверкой количества действующих счетов
   const handleApproveClick = () => {

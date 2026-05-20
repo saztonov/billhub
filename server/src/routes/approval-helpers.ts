@@ -79,15 +79,15 @@ export async function handleSendToRevision(
   const revisionStatusId = await getStatusId(supabase, 'payment_request', 'revision');
   const { data: currentReq, error: reqErr } = await supabase
     .from('payment_requests')
-    .select('status_id, current_stage, approved_at, rejected_at')
+    .select('status_id, current_stage, approved_at')
     .eq('id', paymentRequestId)
     .single();
   if (reqErr) return { success: false, error: 'Заявка не найдена', status: 404 };
 
-  // Запрет запуска цикла доработки из финальных статусов (отклонено и т.п.)
+  // Запрет запуска цикла доработки из финальных статусов (опираемся на код статуса, не на rejected_at)
   const { data: curStatus } = await supabase
     .from('statuses').select('code').eq('id', currentReq.status_id as string).single();
-  if (curStatus?.code === 'rejected' || currentReq.rejected_at) {
+  if (curStatus?.code === 'rejected') {
     return { success: false, error: 'Нельзя отправить на доработку отклонённую заявку', status: 400 };
   }
 
@@ -131,16 +131,16 @@ export async function handleCompleteRevision(
 ): Promise<{ success: boolean; error?: string; status?: number }> {
   const { data: cur, error: curErr } = await supabase
     .from('payment_requests')
-    .select('status_id, previous_status_id, current_stage, invoice_amount, invoice_amount_history, supplier_id, rejected_at')
+    .select('status_id, previous_status_id, current_stage, invoice_amount, invoice_amount_history, supplier_id')
     .eq('id', paymentRequestId)
     .single();
   if (curErr) return { success: false, error: 'Заявка не найдена', status: 404 };
   if (!cur.previous_status_id) return { success: false, error: 'Нет предыдущего статуса', status: 400 };
 
-  // Запрет завершения доработки на отклонённой заявке (защита от обхода через старый previous_status_id)
+  // Запрет завершения доработки на отклонённой заявке (по коду текущего статуса)
   const { data: curStatus } = await supabase
     .from('statuses').select('code').eq('id', cur.status_id as string).single();
-  if (curStatus?.code === 'rejected' || cur.rejected_at) {
+  if (curStatus?.code === 'rejected') {
     return { success: false, error: 'Нельзя завершить доработку на отклонённой заявке', status: 400 };
   }
 

@@ -103,11 +103,13 @@ async function approvalRoutes(fastify: FastifyInstance): Promise<void> {
     if (body.action === 'approve') {
       return await handleApprove(fastify, reply, body, user.id, currentStage, siteId, userInfo);
     } else {
-      // Запрет повторного отклонения уже отклонённой заявки
-      if (pr.rejected_at) return reply.status(400).send({ error: 'Заявка уже отклонена' });
-      // Проверка финального статуса (нельзя отклонить согласованную)
+      // Финальные статусы — повторно отклонять нельзя. "Финальность" определяется кодом статуса,
+      // а не флагом rejected_at (rejected_at может остаться от старого отклонения у реанимированной заявки).
       const { data: curStatus } = await supabase
         .from('statuses').select('code').eq('id', pr.status_id as string).single();
+      if (curStatus?.code === 'rejected') {
+        return reply.status(400).send({ error: 'Заявка уже отклонена' });
+      }
       if (curStatus?.code === 'approved') {
         return reply.status(400).send({ error: 'Нельзя отклонить согласованную заявку' });
       }

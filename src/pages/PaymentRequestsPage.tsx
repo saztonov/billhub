@@ -530,7 +530,7 @@ const PaymentRequestsPage = () => {
         onEdit={handleEdit}
         canApprove={userDeptInChain && !!viewRecord && (pendingRequests.some((r) => r.id === viewRecord.id) || omtsRpPendingRequests.some((r) => r.id === viewRecord.id))}
         canReject={
-          !!viewRecord && !viewRecord.rejectedAt && !viewRecord.approvedAt && (
+          !!viewRecord && !viewRecord.approvedAt && (
             isAdmin
               ? true
               : userDeptInChain && (pendingRequests.some((r) => r.id === viewRecord.id) || omtsRpPendingRequests.some((r) => r.id === viewRecord.id))
