@@ -120,8 +120,11 @@ export function useContractRequestsData({ showDeleted }: UseContractRequestsData
   // Проверка прав на редактирование
   const canEditRequest = useCallback((record: { statusCode?: string } | null): boolean => {
     if (!record) return false
-    if (isCounterpartyUser) return false // Подрядчик не может редактировать
     if (isAdmin) return true
+    // Подрядчик может редактировать шапку до перехода в "Согласовано. Ожидание оригинала" / "Заключен"
+    if (isCounterpartyUser) {
+      return record.statusCode !== 'approved_waiting' && record.statusCode !== 'concluded'
+    }
     if (isOmtsUser) return true
     return false
   }, [isAdmin, isCounterpartyUser, isOmtsUser])

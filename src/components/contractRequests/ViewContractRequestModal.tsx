@@ -114,6 +114,13 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
   // Право на редактирование номера договора и даты подписания
   const canEditContractDetails = isAdmin || isOmts
 
+  // Право подрядчика на редактирование шапки своей заявки:
+  // разрешено до перехода в статусы approved_waiting / concluded
+  const canCounterpartyEditHeader =
+    isCounterpartyUser &&
+    actualRequest?.statusCode !== 'approved_waiting' &&
+    actualRequest?.statusCode !== 'concluded'
+
   // Загрузка данных при открытии
   useEffect(() => {
     if (open && request) {
@@ -267,12 +274,15 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
     try {
       const values = await editForm.validateFields()
       const data: EditContractRequestData = {
-        counterpartyId: values.counterpartyId,
         siteId: values.siteId,
         supplierId: values.supplierId,
         partiesCount: values.partiesCount,
         subjectType: values.subjectType,
         subjectDetail: values.subjectDetail?.trim() || null,
+      }
+      // Подрядчику запрещено менять контрагента заявки — не отправляем поле
+      if (!isCounterpartyUser) {
+        data.counterpartyId = values.counterpartyId
       }
       await updateRequest(request.id, data, user.id)
       message.success('Заявка обновлена')
@@ -280,7 +290,7 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
     } catch {
       // Ошибки валидации формы или API
     }
-  }, [request, user, editForm, updateRequest, message])
+  }, [request, user, editForm, updateRequest, message, isCounterpartyUser])
 
   if (!request) return null
 
@@ -581,8 +591,8 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
             Сменить статус
           </Button>
         )}
-        {/* Admin: редактирование */}
-        {isAdmin && !isEditing && (
+        {/* Admin / Подрядчик (до approved_waiting): редактирование шапки */}
+        {(isAdmin || canCounterpartyEditHeader) && !isEditing && (
           <Button icon={<EditOutlined />} onClick={startEditing}>Редактировать</Button>
         )}
         {/* Admin: удаление */}
@@ -629,7 +639,7 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
             </Descriptions>
             <Flex gap={8} wrap="wrap" style={{ marginBottom: 8 }}>
               <Form.Item name="counterpartyId" label="Подрядчик" rules={[{ required: true, message: 'Выберите подрядчика' }]} style={{ flex: 1, minWidth: 200 }}>
-                <Select placeholder="Выберите подрядчика" showSearch optionFilterProp="label" popupMatchSelectWidth={false} options={counterpartyOptions} />
+                <Select placeholder="Выберите подрядчика" showSearch optionFilterProp="label" popupMatchSelectWidth={false} options={counterpartyOptions} disabled={isCounterpartyUser} />
               </Form.Item>
               <Form.Item name="siteId" label="Объект" rules={[{ required: true, message: 'Выберите объект' }]} style={{ flex: 1, minWidth: 200 }}>
                 <Select placeholder="Выберите объект" showSearch optionFilterProp="label" options={siteOptions} />

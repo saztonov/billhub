@@ -243,6 +243,32 @@ async function contractRequestRoutes(fastify: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     const body = request.body as Record<string, unknown>;
     const supabase = fastify.supabase;
+    const user = request.user!;
+
+    // Загружаем текущую заявку для проверки прав
+    const { data: current, error: loadErr } = await supabase
+      .from('contract_requests')
+      .select('counterparty_id, statuses!contract_requests_status_id_fkey(code)')
+      .eq('id', id)
+      .single();
+    if (loadErr || !current) {
+      return reply.status(404).send({ error: 'Заявка не найдена' });
+    }
+
+    const statusCode = (current.statuses as { code?: string } | null)?.code;
+    const isCounterpartyUser = user.role === 'counterparty_user';
+
+    // Подрядчик: только своя заявка и только до статуса "Согласовано. Ожидание оригинала"
+    if (isCounterpartyUser) {
+      if (current.counterparty_id !== user.counterpartyId) {
+        return reply.status(403).send({ error: 'Нет доступа к заявке' });
+      }
+      if (statusCode === 'approved_waiting' || statusCode === 'concluded') {
+        return reply.status(403).send({ error: 'Редактирование запрещено в текущем статусе' });
+      }
+    } else if (user.role !== 'admin' && user.role !== 'user') {
+      return reply.status(403).send({ error: 'Нет прав на редактирование' });
+    }
 
     const updateData: Record<string, unknown> = {};
     const fieldMap: Record<string, string> = {
@@ -256,6 +282,11 @@ async function contractRequestRoutes(fastify: FastifyInstance): Promise<void> {
 
     for (const [camel, snake] of Object.entries(fieldMap)) {
       if (body[camel] !== undefined) updateData[snake] = body[camel];
+    }
+
+    // Подрядчик не может менять контрагента заявки
+    if (isCounterpartyUser) {
+      delete updateData.counterparty_id;
     }
 
     if (Object.keys(updateData).length === 0) {
