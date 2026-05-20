@@ -66,12 +66,13 @@ interface ViewRequestModalProps {
   canEdit?: boolean
   onEdit?: (id: string, data: EditRequestData, files: FileItem[]) => void
   canApprove?: boolean
+  canReject?: boolean
   onApprove?: (requestId: string, comment: string) => void
   onReject?: (requestId: string, comment: string, files?: { id: string; file: File }[]) => void
   onRevisionComplete?: () => void
 }
 
-const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, canEdit, onEdit, canApprove, onApprove, onReject, onRevisionComplete }: ViewRequestModalProps) => {
+const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, canEdit, onEdit, canApprove, canReject, onApprove, onReject, onRevisionComplete }: ViewRequestModalProps) => {
   const { message } = App.useApp()
   const isMobile = useIsMobile()
   const { requests, currentRequestFiles, fetchRequestFiles, fetchRequests, isLoading, isSubmitting, toggleFileRejection } = usePaymentRequestStore()
@@ -367,11 +368,15 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   const hasPendingOmtsOrOmtsRpDecision = currentDecisions.some(
     (d) => d.status === 'pending' && (d.department === 'omts' || d.isOmtsRp)
   )
-  const canSendToRevision = ((isAdmin || isOmtsUser || isOmtsRpResponsible) && hasPendingOmtsOrOmtsRpDecision)
+  const canSendToRevision = !request.rejectedAt && (
+    ((isAdmin || isOmtsUser || isOmtsRpResponsible) && hasPendingOmtsOrOmtsRpDecision)
     || (!!canEdit && isApprovedRequest)
+  )
 
-  // Заявка в статусе "На доработку" (previous_status_id заполнен)
-  const isRevisionStatus = !!request.previousStatusId
+  // Заявка отклонена — финальный статус, цикл доработки запрещён
+  const isRejected = !!request.rejectedAt
+  // Заявка в статусе "На доработку" (previous_status_id заполнен) и не отклонена
+  const isRevisionStatus = !!request.previousStatusId && !isRejected
 
   // Обработчик нажатия «Согласовать» с проверкой количества действующих счетов
   const handleApproveClick = () => {
@@ -461,7 +466,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
         {canApprove && (
           <Button type="primary" icon={<CheckOutlined />} onClick={handleApproveClick}>Согласовать</Button>
         )}
-        {canApprove && <Button danger icon={<StopOutlined />} onClick={() => setRejectModalOpen(true)}>Отклонить</Button>}
+        {(canReject ?? canApprove) && <Button danger icon={<StopOutlined />} onClick={() => setRejectModalOpen(true)}>Отклонить</Button>}
         {isRevisionStatus && isCounterpartyUser && <Button style={{ borderColor: '#52c41a', color: '#52c41a' }} icon={<CheckOutlined />} onClick={() => setRevisionCompleteModalOpen(true)}>Доработано</Button>}
         <Button onClick={onClose}>Закрыть</Button>
       </Space>

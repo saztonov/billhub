@@ -529,6 +529,13 @@ const PaymentRequestsPage = () => {
         canEdit={canEditRequest(viewRecord)}
         onEdit={handleEdit}
         canApprove={userDeptInChain && !!viewRecord && (pendingRequests.some((r) => r.id === viewRecord.id) || omtsRpPendingRequests.some((r) => r.id === viewRecord.id))}
+        canReject={
+          !!viewRecord && !viewRecord.rejectedAt && !viewRecord.approvedAt && (
+            isAdmin
+              ? true
+              : userDeptInChain && (pendingRequests.some((r) => r.id === viewRecord.id) || omtsRpPendingRequests.some((r) => r.id === viewRecord.id))
+          )
+        }
         onApprove={(requestId, comment) => {
           handleApprove(requestId, comment)
           setViewRecord(null)

@@ -90,7 +90,7 @@ async function approvalRoutes(fastify: FastifyInstance): Promise<void> {
 
     const { data: pr, error: prError } = await supabase
       .from('payment_requests')
-      .select('current_stage, site_id, withdrawn_at')
+      .select('current_stage, site_id, withdrawn_at, rejected_at, rejected_stage, status_id')
       .eq('id', body.paymentRequestId)
       .single();
     if (prError) return reply.status(404).send({ error: 'Заявка не найдена' });
@@ -103,7 +103,16 @@ async function approvalRoutes(fastify: FastifyInstance): Promise<void> {
     if (body.action === 'approve') {
       return await handleApprove(fastify, reply, body, user.id, currentStage, siteId, userInfo);
     } else {
-      return await handleReject(fastify, reply, body, user.id, currentStage, userInfo);
+      // Запрет повторного отклонения уже отклонённой заявки
+      if (pr.rejected_at) return reply.status(400).send({ error: 'Заявка уже отклонена' });
+      // Проверка финального статуса (нельзя отклонить согласованную)
+      const { data: curStatus } = await supabase
+        .from('statuses').select('code').eq('id', pr.status_id as string).single();
+      if (curStatus?.code === 'approved') {
+        return reply.status(400).send({ error: 'Нельзя отклонить согласованную заявку' });
+      }
+      const isAdmin = user.role === 'admin';
+      return await handleReject(fastify, reply, body, user.id, currentStage, userInfo, isAdmin);
     }
   });
 
@@ -417,21 +426,71 @@ async function handleReject(
   userId: string,
   currentStage: number,
   userInfo: { email?: string; fullName?: string },
+  isAdmin: boolean,
 ) {
   const supabase = fastify.supabase;
 
-  const { data: decisionData, error: updErr } = await supabase
-    .from('approval_decisions').update({
-      status: 'rejected', user_id: userId, comment: body.comment, decided_at: new Date().toISOString(),
-    })
+  // Пытаемся найти pending-решение по этапу и отделу — штатный путь согласующего
+  const { data: pendingDecision } = await supabase
+    .from('approval_decisions')
+    .select('id, stage_order, department_id')
     .eq('payment_request_id', body.paymentRequestId)
     .eq('stage_order', currentStage).eq('department_id', body.department).eq('status', 'pending')
-    .select('id').single();
-  if (updErr) return reply.status(500).send({ error: updErr.message });
+    .maybeSingle();
+
+  let decisionId: string | null = null;
+  let effectiveStage: number | null = currentStage ?? null;
+  let effectiveDepartment: string = body.department;
+
+  if (pendingDecision) {
+    const { data: upd, error: updErr } = await supabase
+      .from('approval_decisions').update({
+        status: 'rejected', user_id: userId, comment: body.comment, decided_at: new Date().toISOString(),
+      })
+      .eq('id', pendingDecision.id as string)
+      .select('id').single();
+    if (updErr) return reply.status(500).send({ error: updErr.message });
+    decisionId = upd.id as string;
+  } else {
+    // Зависшая заявка: pending-решения нет.
+    // Админу разрешаем отклонить напрямую, остальным — ошибка как раньше.
+    if (!isAdmin) return reply.status(404).send({ error: 'Решение не найдено' });
+
+    // Закрываем все оставшиеся pending-решения этой заявки как rejected
+    const { data: pendingList } = await supabase
+      .from('approval_decisions')
+      .select('id, stage_order, department_id')
+      .eq('payment_request_id', body.paymentRequestId).eq('status', 'pending');
+    if (pendingList && pendingList.length > 0) {
+      await supabase.from('approval_decisions').update({
+        status: 'rejected', user_id: userId, comment: body.comment, decided_at: new Date().toISOString(),
+      }).eq('payment_request_id', body.paymentRequestId).eq('status', 'pending');
+      decisionId = (pendingList[0] as Record<string, unknown>).id as string;
+      effectiveStage = ((pendingList[0] as Record<string, unknown>).stage_order as number) ?? effectiveStage;
+      effectiveDepartment = ((pendingList[0] as Record<string, unknown>).department_id as string) ?? effectiveDepartment;
+    } else {
+      // Никаких pending — берём последнюю стадию из истории (rejected_stage сохранён ранее, либо макс stage_order из decisions)
+      const { data: lastDec } = await supabase
+        .from('approval_decisions')
+        .select('id, stage_order, department_id')
+        .eq('payment_request_id', body.paymentRequestId)
+        .order('stage_order', { ascending: false }).limit(1).maybeSingle();
+      if (lastDec) {
+        decisionId = (lastDec as Record<string, unknown>).id as string;
+        effectiveStage = ((lastDec as Record<string, unknown>).stage_order as number) ?? effectiveStage;
+        effectiveDepartment = ((lastDec as Record<string, unknown>).department_id as string) ?? effectiveDepartment;
+      }
+    }
+  }
 
   const rejectedStatusId = await getStatusId(supabase, 'payment_request', 'rejected');
   await supabase.from('payment_requests').update({
-    status_id: rejectedStatusId, rejected_stage: currentStage, current_stage: null, rejected_at: new Date().toISOString(),
+    status_id: rejectedStatusId,
+    rejected_stage: effectiveStage,
+    current_stage: null,
+    rejected_at: new Date().toISOString(),
+    // Сбрасываем previous_status_id, чтобы контрагент не мог реанимировать заявку через "Доработано"
+    previous_status_id: null,
   }).eq('id', body.paymentRequestId);
 
   // Получаем номер заявки для ответа (нужен фронтенду для очереди загрузки файлов)
@@ -439,12 +498,14 @@ async function handleReject(
     .from('payment_requests').select('request_number').eq('id', body.paymentRequestId).single();
 
   await appendStageHistory(supabase, body.paymentRequestId, {
-    stage: currentStage, department: body.department, event: 'rejected',
+    stage: effectiveStage ?? currentStage,
+    department: effectiveDepartment,
+    event: 'rejected',
     userEmail: userInfo.email, userFullName: userInfo.fullName,
     comment: body.comment || undefined,
   });
 
-  return reply.send({ success: true, decisionId: decisionData.id, requestNumber: prData?.request_number ?? '' });
+  return reply.send({ success: true, decisionId, requestNumber: prData?.request_number ?? '' });
 }
 
 export default approvalRoutes;
