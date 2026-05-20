@@ -229,7 +229,7 @@ const OfficeFileViewer = ({ source, fileName, height = '70vh' }: OfficeFileViewe
           // SheetJS также читает HTML-таблицы, сохранённые как .xls (часто из 1С/Excel).
           const xlsxMod = await import('xlsx')
           if (cancelled) return
-          const XLSX = (xlsxMod as { default?: typeof xlsxMod }).default ?? xlsxMod
+          const XLSX = (xlsxMod as unknown as { default?: typeof xlsxMod }).default ?? xlsxMod
           const wb = XLSX.read(new Uint8Array(buffer), { type: 'array' })
           const htmlSheets = wb.SheetNames.map((name) => ({
             name,
