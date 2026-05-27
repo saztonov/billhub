@@ -32,9 +32,15 @@ const counterpartyMenuItems: MenuProps['items'] = [
   { key: '/contract-requests', icon: <AuditOutlined />, label: 'Договора' },
 ]
 
+/** Меню для роли security (только справочники) */
+const securityMenuItems: MenuProps['items'] = [
+  { key: '/references', icon: <FolderOutlined />, label: 'Справочники' },
+]
+
 /** Возвращает меню для указанной роли и отдела */
 function getMenuItems(role: UserRole, department?: string | null): MenuProps['items'] {
   if (role === 'counterparty_user') return counterpartyMenuItems
+  if (role === 'security') return securityMenuItems
 
   const items: MenuProps['items'] = [
     { key: '/payment-requests', icon: <FileTextOutlined />, label: 'Заявки на оплату' },
@@ -64,6 +70,8 @@ function getRoleLabel(role: UserRole): string {
       return 'Пользователь'
     case 'counterparty_user':
       return 'Подрядчик'
+    case 'security':
+      return 'Отдел СБ'
   }
 }
 
@@ -123,7 +131,11 @@ const MainLayout = () => {
     }
     setNotifOpen(false)
     setMobileNotifOpen(false)
-    if (notif.contractRequestId) {
+    if (notif.counterpartyId) {
+      navigate('/references', {
+        state: { openCounterpartyId: notif.counterpartyId },
+      })
+    } else if (notif.contractRequestId) {
       navigate('/contract-requests', {
         state: { openContractRequestId: notif.contractRequestId },
       })

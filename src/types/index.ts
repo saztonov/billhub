@@ -30,6 +30,23 @@ export interface Counterparty {
   registrationToken: string | null
   isActive?: boolean
   createdAt: string
+  // Агрегаты по проверке отделом СБ
+  lastSecurityCheck?: { status: 'approved' | 'rejected'; createdAt: string } | null
+  hasPendingRequest?: boolean
+}
+
+/** Тип события проверки контрагента отделом СБ */
+export type SecurityCheckEventType = 'requested' | 'approved' | 'rejected'
+
+/** Событие проверки контрагента (запрос или решение) */
+export interface CounterpartySecurityCheck {
+  id: string
+  counterpartyId: string
+  authorId: string
+  authorFullName: string
+  eventType: SecurityCheckEventType
+  comment: string | null
+  createdAt: string
 }
 
 /** Поставщик */
@@ -589,7 +606,7 @@ export interface OcrParsedItem {
 // Аутентификация
 
 /** Роль пользователя */
-export type UserRole = 'admin' | 'user' | 'counterparty_user'
+export type UserRole = 'admin' | 'user' | 'counterparty_user' | 'security'
 
 /** Пользователь системы */
 export interface User {
@@ -604,7 +621,7 @@ export interface User {
 }
 
 /** Тип уведомления */
-export type NotificationType = 'missing_specialist' | 'info' | 'error' | 'status_changed' | 'new_request_pending' | 'request_assigned' | 'new_comment' | 'new_file'
+export type NotificationType = 'missing_specialist' | 'info' | 'error' | 'status_changed' | 'new_request_pending' | 'request_assigned' | 'new_comment' | 'new_file' | 'sb_review_requested' | 'sb_review_decided'
 
 /** Уведомление */
 export interface AppNotification {
@@ -616,6 +633,7 @@ export interface AppNotification {
   isRead: boolean
   paymentRequestId: string | null
   contractRequestId: string | null
+  counterpartyId: string | null
   department: Department | null
   siteId: string | null
   resolved: boolean
@@ -624,6 +642,7 @@ export interface AppNotification {
   siteName?: string
   requestNumber?: string
   contractRequestNumber?: string
+  counterpartyName?: string
 }
 
 /** Тип ошибки в логах */

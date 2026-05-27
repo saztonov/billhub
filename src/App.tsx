@@ -9,6 +9,12 @@ import LoginPage from '@/pages/LoginPage'
 import { useAuthStore } from '@/store/authStore'
 import { lazyWithRetry } from '@/utils/lazyWithRetry'
 
+/** Корневой редирект: security уходит в справочники, остальные — в заявки на оплату */
+const RootRedirect = () => {
+  const role = useAuthStore((s) => s.user?.role)
+  return <Navigate to={role === 'security' ? '/references' : '/payment-requests'} replace />
+}
+
 // Ленивая загрузка страниц с retry при сетевых сбоях
 const PaymentRequestsPage = lazyWithRetry(() => import('@/pages/PaymentRequestsPage'))
 const ContractRequestsPage = lazyWithRetry(() => import('@/pages/ContractRequestsPage'))
@@ -39,23 +45,26 @@ const App = () => {
         {/* Основное приложение (защищено авторизацией) */}
         <Route element={<ProtectedRoute />}>
           <Route element={<MainLayout />}>
-            <Route path="/" element={<Navigate to="/payment-requests" replace />} />
-            {/* Suspense-обёртка для ленивых страниц */}
-            <Route path="/payment-requests" element={
-              <Suspense fallback={<Flex align="center" justify="center" style={{ padding: 48 }}><Spin size="large" /></Flex>}>
-                <PaymentRequestsPage />
-              </Suspense>
-            } />
-            <Route path="/contract-requests" element={
-              <Suspense fallback={<Flex align="center" justify="center" style={{ padding: 48 }}><Spin size="large" /></Flex>}>
-                <ContractRequestsPage />
-              </Suspense>
-            } />
+            <Route path="/" element={<RootRedirect />} />
             <Route path="/profile" element={
               <Suspense fallback={<Flex align="center" justify="center" style={{ padding: 48 }}><Spin size="large" /></Flex>}>
                 <ProfilePage />
               </Suspense>
             } />
+
+            {/* Заявки видны всем кроме security */}
+            <Route element={<RoleGuard allowedRoles={['admin', 'user', 'counterparty_user']} />}>
+              <Route path="/payment-requests" element={
+                <Suspense fallback={<Flex align="center" justify="center" style={{ padding: 48 }}><Spin size="large" /></Flex>}>
+                  <PaymentRequestsPage />
+                </Suspense>
+              } />
+              <Route path="/contract-requests" element={
+                <Suspense fallback={<Flex align="center" justify="center" style={{ padding: 48 }}><Spin size="large" /></Flex>}>
+                  <ContractRequestsPage />
+                </Suspense>
+              } />
+            </Route>
 
             {/* Только admin и user (внутренние сотрудники) */}
             <Route element={<RoleGuard allowedRoles={['admin', 'user']} />}>
@@ -69,11 +78,6 @@ const App = () => {
                   <EmployeesPage />
                 </Suspense>
               } />
-              <Route path="/references" element={
-                <Suspense fallback={<Flex align="center" justify="center" style={{ padding: 48 }}><Spin size="large" /></Flex>}>
-                  <ReferencesPage />
-                </Suspense>
-              } />
               <Route path="/materials" element={
                 <Suspense fallback={<Flex align="center" justify="center" style={{ padding: 48 }}><Spin size="large" /></Flex>}>
                   <MaterialsPage />
@@ -82,6 +86,15 @@ const App = () => {
               <Route path="/materials/:paymentRequestId" element={
                 <Suspense fallback={<Flex align="center" justify="center" style={{ padding: 48 }}><Spin size="large" /></Flex>}>
                   <MaterialsDetailPage />
+                </Suspense>
+              } />
+            </Route>
+
+            {/* Справочники — admin, user, security */}
+            <Route element={<RoleGuard allowedRoles={['admin', 'user', 'security']} />}>
+              <Route path="/references" element={
+                <Suspense fallback={<Flex align="center" justify="center" style={{ padding: 48 }}><Spin size="large" /></Flex>}>
+                  <ReferencesPage />
                 </Suspense>
               } />
             </Route>

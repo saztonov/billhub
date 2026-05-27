@@ -32,22 +32,24 @@ const CreateUserModal = ({ open, onClose, onSuccess }: CreateUserModalProps) => 
   const { sites } = useConstructionSiteStore()
 
   const activeSites = sites.filter((s) => s.isActive)
-  const showSiteFields = selectedRole !== 'counterparty_user'
+  const isLimitedRole = selectedRole === 'counterparty_user' || selectedRole === 'security'
+  const showSiteFields = !isLimitedRole
   const isShtab = selectedDepartment === 'shtab'
 
   const handleSubmit = async () => {
     const values = await form.validateFields()
     setIsSubmitting(true)
     try {
+      const valuesLimited = values.role === 'counterparty_user' || values.role === 'security'
       await createUser({
         email: values.email,
         password: values.password,
         full_name: values.full_name,
         role: values.role,
         counterparty_id: values.role === 'counterparty_user' ? values.counterparty_id : null,
-        department: values.department || null,
-        all_sites: values.role === 'counterparty_user' ? false : (values.all_sites ?? false),
-        site_ids: values.role === 'counterparty_user' ? [] : (values.site_ids ?? []),
+        department: values.role === 'security' ? null : (values.department || null),
+        all_sites: valuesLimited ? false : (values.all_sites ?? false),
+        site_ids: valuesLimited ? [] : (values.site_ids ?? []),
       })
       message.success('Пользователь создан')
       form.resetFields()
@@ -134,7 +136,7 @@ const CreateUserModal = ({ open, onClose, onSuccess }: CreateUserModalProps) => 
         >
           <Select onChange={(value: UserRole) => {
             setSelectedRole(value)
-            if (value === 'counterparty_user') {
+            if (value === 'counterparty_user' || value === 'security') {
               setAllSitesChecked(false)
               setSelectedDepartment(null)
               form.setFieldsValue({ all_sites: false, site_ids: [], department: undefined })
@@ -143,6 +145,7 @@ const CreateUserModal = ({ open, onClose, onSuccess }: CreateUserModalProps) => 
             <Select.Option value="admin">Администратор</Select.Option>
             <Select.Option value="user">Пользователь</Select.Option>
             <Select.Option value="counterparty_user">Подрядчик</Select.Option>
+            <Select.Option value="security">Отдел СБ</Select.Option>
           </Select>
         </Form.Item>
         {selectedRole === 'counterparty_user' && (
@@ -164,7 +167,7 @@ const CreateUserModal = ({ open, onClose, onSuccess }: CreateUserModalProps) => 
             </Select>
           </Form.Item>
         )}
-        {selectedRole !== 'counterparty_user' && (
+        {selectedRole !== 'counterparty_user' && selectedRole !== 'security' && (
           <Form.Item name="department" label="Подразделение">
             <Select
               placeholder="Выберите подразделение"

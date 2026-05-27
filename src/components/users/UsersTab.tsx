@@ -31,6 +31,7 @@ const roleLabels: Record<UserRole, string> = {
   admin: 'Администратор',
   user: 'Пользователь',
   counterparty_user: 'Подрядчик',
+  security: 'Отдел СБ',
 }
 
 /** Цвета тегов ролей */
@@ -38,6 +39,7 @@ const roleColors: Record<UserRole, string> = {
   admin: 'red',
   user: 'blue',
   counterparty_user: 'green',
+  security: 'orange',
 }
 
 const UsersTab = () => {
@@ -89,13 +91,14 @@ const UsersTab = () => {
   const handleSubmit = async () => {
     const values = await form.validateFields()
     if (!editingRecord) return
+    const isLimitedRole = values.role === 'counterparty_user' || values.role === 'security'
     await updateUser(editingRecord.id, {
       full_name: values.full_name ?? '',
       role: values.role,
       counterparty_id: values.role === 'counterparty_user' ? values.counterparty_id : null,
-      department: values.department || null,
-      all_sites: values.role === 'counterparty_user' ? false : (values.all_sites ?? false),
-      site_ids: values.role === 'counterparty_user' ? [] : (values.site_ids ?? []),
+      department: values.role === 'security' ? null : (values.department || null),
+      all_sites: isLimitedRole ? false : (values.all_sites ?? false),
+      site_ids: isLimitedRole ? [] : (values.site_ids ?? []),
     })
     message.success('Пользователь обновлён')
     setIsEditModalOpen(false)
@@ -214,6 +217,7 @@ const UsersTab = () => {
         { text: 'Администратор', value: 'admin' },
         { text: 'Пользователь', value: 'user' },
         { text: 'Подрядчик', value: 'counterparty_user' },
+        { text: 'Отдел СБ', value: 'security' },
       ],
       onFilter: (value: boolean | Key, record: UserRecord) => record.role === value,
       render: (role: UserRole) => (
@@ -317,7 +321,7 @@ const UsersTab = () => {
   // Только активные объекты в селекте
   const activeSites = sites.filter((s) => s.isActive)
 
-  const showSiteFields = selectedRole !== 'counterparty_user'
+  const showSiteFields = selectedRole !== 'counterparty_user' && selectedRole !== 'security'
   const isShtab = selectedDepartment === 'shtab'
 
   const { containerRef, scrollY } = useTableScrollY([filteredUsers.length])
@@ -449,7 +453,7 @@ const UsersTab = () => {
           >
             <Select onChange={(value: UserRole) => {
               setSelectedRole(value)
-              if (value === 'counterparty_user') {
+              if (value === 'counterparty_user' || value === 'security') {
                 setAllSitesChecked(false)
                 setSelectedDepartment(null)
                 form.setFieldsValue({ all_sites: false, site_ids: [], department: undefined })
@@ -458,6 +462,7 @@ const UsersTab = () => {
               <Select.Option value="admin">Администратор</Select.Option>
               <Select.Option value="user">Пользователь</Select.Option>
               <Select.Option value="counterparty_user">Подрядчик</Select.Option>
+              <Select.Option value="security">Отдел СБ</Select.Option>
             </Select>
           </Form.Item>
           {selectedRole === 'counterparty_user' && (
@@ -479,7 +484,7 @@ const UsersTab = () => {
               </Select>
             </Form.Item>
           )}
-          {selectedRole !== 'counterparty_user' && (
+          {selectedRole !== 'counterparty_user' && selectedRole !== 'security' && (
             <Form.Item name="department" label="Подразделение">
               <Select
                 placeholder="Выберите подразделение"

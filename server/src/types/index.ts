@@ -3,7 +3,7 @@ import type { S3Client } from '@aws-sdk/client-s3';
 import type IORedis from 'ioredis';
 
 /** Роли пользователей системы */
-export type UserRole = 'admin' | 'user' | 'counterparty_user';
+export type UserRole = 'admin' | 'user' | 'counterparty_user' | 'security';
 
 /** Профиль пользователя, прикрепляемый к запросу после аутентификации */
 export interface RequestUser {

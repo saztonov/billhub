@@ -41,16 +41,19 @@ const ReferencesPage = () => {
     setSearchParams({ tab: key }, { replace: true })
   }
 
-  const items = [
-    { key: 'counterparties', label: 'Подрядчики', children: <CounterpartiesPage /> },
-    { key: 'suppliers', label: 'Поставщики', children: <SuppliersPage /> },
-    { key: 'sites', label: 'Объекты строительства', children: <ConstructionSitesPage /> },
-    { key: 'document-types', label: 'Типы документов', children: <DocumentTypesPage /> },
-    { key: 'cost-types', label: 'Виды затрат', children: <CostTypesPage canEdit={canEditCostTypes} /> },
-    ...(canSeeFoundingDocs
-      ? [{ key: 'founding-documents', label: 'Учредительные документы', children: <FoundingDocumentsTab /> }]
-      : []),
-  ]
+  // Для роли «Отдел СБ» доступна только вкладка «Подрядчики»
+  const items = user?.role === 'security'
+    ? [{ key: 'counterparties', label: 'Подрядчики', children: <CounterpartiesPage /> }]
+    : [
+        { key: 'counterparties', label: 'Подрядчики', children: <CounterpartiesPage /> },
+        { key: 'suppliers', label: 'Поставщики', children: <SuppliersPage /> },
+        { key: 'sites', label: 'Объекты строительства', children: <ConstructionSitesPage /> },
+        { key: 'document-types', label: 'Типы документов', children: <DocumentTypesPage /> },
+        { key: 'cost-types', label: 'Виды затрат', children: <CostTypesPage canEdit={canEditCostTypes} /> },
+        ...(canSeeFoundingDocs
+          ? [{ key: 'founding-documents', label: 'Учредительные документы', children: <FoundingDocumentsTab /> }]
+          : []),
+      ]
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px - 1px - 32px)', overflow: 'hidden' }}>
