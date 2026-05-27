@@ -182,7 +182,7 @@ const createUserSchema = {
       email: { type: 'string' as const, format: 'email' },
       password: { type: 'string' as const, minLength: 6 },
       fullName: { type: 'string' as const, minLength: 1 },
-      role: { type: 'string' as const, enum: ['admin', 'user', 'counterparty_user'] },
+      role: { type: 'string' as const, enum: ['admin', 'user', 'counterparty_user', 'security'] },
       counterpartyId: { type: 'string' as const },
       departmentId: { type: 'string' as const },
       allSites: { type: 'boolean' as const },

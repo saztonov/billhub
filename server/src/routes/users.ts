@@ -49,7 +49,7 @@ const updateUserSchema = {
     required: ['full_name', 'role', 'all_sites', 'site_ids'],
     properties: {
       full_name: { type: 'string' as const, minLength: 1 },
-      role: { type: 'string' as const, enum: ['admin', 'user', 'counterparty_user'] },
+      role: { type: 'string' as const, enum: ['admin', 'user', 'counterparty_user', 'security'] },
       counterparty_id: { type: ['string', 'null'] as const },
       department: { type: ['string', 'null'] as const },
       all_sites: { type: 'boolean' as const },
