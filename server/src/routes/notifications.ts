@@ -10,16 +10,16 @@ function flattenNotification(row: Record<string, unknown>): Record<string, unkno
   const site = row.construction_sites as Record<string, unknown> | null;
   const pr = row.payment_requests as Record<string, unknown> | null;
   const cr = row.contract_requests as Record<string, unknown> | null;
-  const cp = row.counterparties as Record<string, unknown> | null;
+  const sup = row.suppliers as Record<string, unknown> | null;
   const flat = { ...row };
   delete flat.construction_sites;
   delete flat.payment_requests;
   delete flat.contract_requests;
-  delete flat.counterparties;
+  delete flat.suppliers;
   flat.site_name = site?.name ?? null;
   flat.request_number = pr?.request_number ?? null;
   flat.contract_request_number = cr?.request_number ?? null;
-  flat.counterparty_name = cp?.name ?? null;
+  flat.supplier_name = sup?.name ?? null;
   return flat;
 }
 
@@ -35,11 +35,11 @@ async function notificationRoutes(fastify: FastifyInstance): Promise<void> {
       .from('notifications')
       .select(`
         id, type, title, message, user_id, is_read, payment_request_id,
-        contract_request_id, counterparty_id, department_id, site_id, resolved, resolved_at, created_at,
+        contract_request_id, supplier_id, department_id, site_id, resolved, resolved_at, created_at,
         construction_sites(name),
         payment_requests(request_number),
         contract_requests(request_number),
-        counterparties(name)
+        suppliers(name)
       `)
       .eq('user_id', user.id)
       .eq('is_read', false)

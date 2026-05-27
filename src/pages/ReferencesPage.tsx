@@ -12,12 +12,12 @@ import { useEffect } from 'react'
 
 const { Title } = Typography
 
-const DEFAULT_TAB = 'counterparties'
-
 const ReferencesPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
-  const activeTab = searchParams.get('tab') ?? DEFAULT_TAB
   const user = useAuthStore((s) => s.user)
+  // Дефолтная вкладка зависит от роли: security видит только «Поставщики»
+  const defaultTab = user?.role === 'security' ? 'suppliers' : 'counterparties'
+  const activeTab = searchParams.get('tab') ?? defaultTab
   const responsibleUserId = useOmtsRpStore((s) => s.responsibleUserId)
   const fetchOmtsRpConfig = useOmtsRpStore((s) => s.fetchConfig)
 
@@ -41,9 +41,9 @@ const ReferencesPage = () => {
     setSearchParams({ tab: key }, { replace: true })
   }
 
-  // Для роли «Отдел СБ» доступна только вкладка «Подрядчики»
+  // Для роли «Отдел СБ» доступна только вкладка «Поставщики»
   const items = user?.role === 'security'
-    ? [{ key: 'counterparties', label: 'Подрядчики', children: <CounterpartiesPage /> }]
+    ? [{ key: 'suppliers', label: 'Поставщики', children: <SuppliersPage /> }]
     : [
         { key: 'counterparties', label: 'Подрядчики', children: <CounterpartiesPage /> },
         { key: 'suppliers', label: 'Поставщики', children: <SuppliersPage /> },

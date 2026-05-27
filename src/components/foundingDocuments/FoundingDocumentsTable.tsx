@@ -150,7 +150,12 @@ const FoundingDocumentsTable = ({ supplierId }: Props) => {
           rowKey="typeId"
           loading={isLoading}
           scroll={{ x: 800, y: scrollY }}
-          pagination={false}
+          pagination={{
+            defaultPageSize: 20,
+            showSizeChanger: true,
+            pageSizeOptions: ['10', '20', '50', '100'],
+            showTotal: (total, range) => `${range[0]}-${range[1]} из ${total}`,
+          }}
           size="small"
           locale={{ emptyText: 'Нет видов учредительных документов. Добавьте их в Администрировании -> Типы документов' }}
         />

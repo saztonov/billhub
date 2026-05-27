@@ -9,10 +9,10 @@ import LoginPage from '@/pages/LoginPage'
 import { useAuthStore } from '@/store/authStore'
 import { lazyWithRetry } from '@/utils/lazyWithRetry'
 
-/** Корневой редирект: security уходит в справочники, остальные — в заявки на оплату */
+/** Корневой редирект: security уходит на вкладку «Поставщики», остальные — в заявки на оплату */
 const RootRedirect = () => {
   const role = useAuthStore((s) => s.user?.role)
-  return <Navigate to={role === 'security' ? '/references' : '/payment-requests'} replace />
+  return <Navigate to={role === 'security' ? '/references?tab=suppliers' : '/payment-requests'} replace />
 }
 
 // Ленивая загрузка страниц с retry при сетевых сбоях

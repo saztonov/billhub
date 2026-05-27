@@ -1546,6 +1546,15 @@
               "position": 14,
               "max_length": null,
               "numeric_precision": null
+            },
+            {
+              "name": "supplier_id",
+              "type": "uuid",
+              "default": null,
+              "nullable": true,
+              "position": 15,
+              "max_length": null,
+              "numeric_precision": null
             }
           ]
         },
@@ -3431,6 +3440,65 @@
               "numeric_precision": null
             }
           ]
+        },
+        {
+          "name": "supplier_security_checks",
+          "columns": [
+            {
+              "name": "id",
+              "type": "uuid",
+              "default": "gen_random_uuid()",
+              "nullable": false,
+              "position": 1,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "supplier_id",
+              "type": "uuid",
+              "default": null,
+              "nullable": false,
+              "position": 2,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "author_id",
+              "type": "uuid",
+              "default": null,
+              "nullable": false,
+              "position": 3,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "event_type",
+              "type": "text",
+              "default": null,
+              "nullable": false,
+              "position": 4,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "comment",
+              "type": "text",
+              "default": null,
+              "nullable": true,
+              "position": 5,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "created_at",
+              "type": "timestamp with time zone",
+              "default": "now()",
+              "nullable": false,
+              "position": 6,
+              "max_length": null,
+              "numeric_precision": null
+            }
+          ]
         }
       ],
       "indexes": [
@@ -4003,6 +4071,26 @@
           "name": "idx_notifications_counterparty",
           "definition": "CREATE INDEX idx_notifications_counterparty ON public.notifications USING btree (counterparty_id)",
           "table_name": "notifications"
+        },
+        {
+          "name": "supplier_security_checks_pkey",
+          "definition": "CREATE UNIQUE INDEX supplier_security_checks_pkey ON public.supplier_security_checks USING btree (id)",
+          "table_name": "supplier_security_checks"
+        },
+        {
+          "name": "idx_sup_sb_checks_supplier_created",
+          "definition": "CREATE INDEX idx_sup_sb_checks_supplier_created ON public.supplier_security_checks USING btree (supplier_id, created_at DESC)",
+          "table_name": "supplier_security_checks"
+        },
+        {
+          "name": "idx_sup_sb_checks_author",
+          "definition": "CREATE INDEX idx_sup_sb_checks_author ON public.supplier_security_checks USING btree (author_id)",
+          "table_name": "supplier_security_checks"
+        },
+        {
+          "name": "idx_notifications_supplier",
+          "definition": "CREATE INDEX idx_notifications_supplier ON public.notifications USING btree (supplier_id)",
+          "table_name": "notifications"
         }
       ],
       "policies": [],
@@ -4043,6 +4131,15 @@
           "arguments": "p_search text, p_sb_filter text, p_page integer, p_page_size integer, p_cutoff_date date, p_only_counterparty_id uuid DEFAULT NULL::uuid",
           "volatility": "STABLE",
           "return_type": "TABLE(id uuid, name text, inn text, address text, alternative_names jsonb, registration_token uuid, created_at timestamp with time zone, last_security_status text, last_security_at timestamp with time zone, has_pending_request boolean, total_count bigint)"
+        },
+        {
+          "name": "list_suppliers_with_sb",
+          "source": "  WITH base AS (\n    SELECT s.id, s.name, s.inn, s.alternative_names, s.created_at,\n      ld.event_type AS last_security_status, ld.created_at AS last_security_at,\n      (lr.created_at IS NOT NULL AND (ld.created_at IS NULL OR lr.created_at > ld.created_at)) AS has_pending_request\n    FROM public.suppliers s\n    LEFT JOIN LATERAL (SELECT event_type, created_at FROM public.supplier_security_checks WHERE supplier_id = s.id AND event_type IN ('approved','rejected') ORDER BY created_at DESC LIMIT 1) ld ON true\n    LEFT JOIN LATERAL (SELECT created_at FROM public.supplier_security_checks WHERE supplier_id = s.id AND event_type = 'requested' ORDER BY created_at DESC LIMIT 1) lr ON true\n    WHERE (p_only_supplier_id IS NULL OR s.id = p_only_supplier_id)\n      AND (p_search IS NULL OR p_search = '' OR s.name ILIKE '%' || p_search || '%' OR s.inn ILIKE '%' || p_search || '%' OR EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(s.alternative_names, '[]'::jsonb)) alt WHERE alt ILIKE '%' || p_search || '%'))\n      AND (p_sb_filter <> 'pending' OR ((s.created_at >= p_cutoff_date AND ld.created_at IS NULL) OR (lr.created_at IS NOT NULL AND (ld.created_at IS NULL OR lr.created_at > ld.created_at))))\n  ), counted AS (SELECT COUNT(*) AS total_count FROM base)\n  SELECT b.id, b.name, b.inn, b.alternative_names, b.created_at, b.last_security_status, b.last_security_at, b.has_pending_request, (SELECT total_count FROM counted) AS total_count FROM base b ORDER BY b.created_at DESC LIMIT p_page_size OFFSET ((p_page - 1) * p_page_size);\n",
+          "language": "sql",
+          "security": "INVOKER",
+          "arguments": "p_search text, p_sb_filter text, p_page integer, p_page_size integer, p_cutoff_date date, p_only_supplier_id uuid DEFAULT NULL::uuid",
+          "volatility": "STABLE",
+          "return_type": "TABLE(id uuid, name text, inn text, alternative_names jsonb, created_at timestamp with time zone, last_security_status text, last_security_at timestamp with time zone, has_pending_request boolean, total_count bigint)"
         }
       ],
       "sequences": [
@@ -4900,6 +4997,39 @@
           "references_columns": [
             "id"
           ]
+        },
+        {
+          "columns": [
+            "supplier_id"
+          ],
+          "table_name": "supplier_security_checks",
+          "constraint_name": "supplier_security_checks_supplier_id_fkey",
+          "references_table": "suppliers",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "author_id"
+          ],
+          "table_name": "supplier_security_checks",
+          "constraint_name": "supplier_security_checks_author_id_fkey",
+          "references_table": "users",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "supplier_id"
+          ],
+          "table_name": "notifications",
+          "constraint_name": "notifications_supplier_id_fkey",
+          "references_table": "suppliers",
+          "references_columns": [
+            "id"
+          ]
         }
       ],
       "generated_at": "2026-04-02T13:22:06.747388+00:00",
@@ -5190,6 +5320,13 @@
           ],
           "table_name": "counterparty_security_checks",
           "constraint_name": "counterparty_security_checks_pkey"
+        },
+        {
+          "columns": [
+            "id"
+          ],
+          "table_name": "supplier_security_checks",
+          "constraint_name": "supplier_security_checks_pkey"
         }
       ],
       "check_constraints": [
@@ -6507,6 +6644,11 @@
           "table_name": "counterparty_security_checks",
           "check_clause": "(event_type = ANY (ARRAY['requested'::text, 'approved'::text, 'rejected'::text]))",
           "constraint_name": "counterparty_security_checks_event_type_check"
+        },
+        {
+          "table_name": "supplier_security_checks",
+          "check_clause": "(event_type = ANY (ARRAY['requested'::text, 'approved'::text, 'rejected'::text]))",
+          "constraint_name": "supplier_security_checks_event_type_check"
         }
       ],
       "unique_constraints": [

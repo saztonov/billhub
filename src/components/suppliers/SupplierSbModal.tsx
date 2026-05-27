@@ -4,16 +4,16 @@ import { useAuthStore } from '@/store/authStore'
 import {
   fetchSecurityChecks,
   submitSecurityDecision,
-} from '@/services/counterpartySecurityCheckService'
+} from '@/services/supplierSecurityCheckService'
 import { logError } from '@/services/errorLogger'
-import type { Counterparty, CounterpartySecurityCheck, SecurityCheckEventType } from '@/types'
+import type { Supplier, SupplierSecurityCheck, SecurityCheckEventType } from '@/types'
 
 const { Text } = Typography
 const { TextArea } = Input
 
-interface CounterpartySbModalProps {
+interface SupplierSbModalProps {
   open: boolean
-  counterparty: Counterparty | null
+  supplier: Supplier | null
   onClose: () => void
   /** Вызывается после успешного создания решения СБ — для перезагрузки списка */
   onDecisionSubmitted?: () => void
@@ -36,12 +36,12 @@ function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString('ru-RU')
 }
 
-const CounterpartySbModal = ({ open, counterparty, onClose, onDecisionSubmitted }: CounterpartySbModalProps) => {
+const SupplierSbModal = ({ open, supplier, onClose, onDecisionSubmitted }: SupplierSbModalProps) => {
   const { message } = App.useApp()
   const role = useAuthStore((s) => s.user?.role)
   const isSecurity = role === 'security'
 
-  const [history, setHistory] = useState<CounterpartySecurityCheck[]>([])
+  const [history, setHistory] = useState<SupplierSecurityCheck[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [comment, setComment] = useState('')
   const [submitting, setSubmitting] = useState<'approved' | 'rejected' | null>(null)
@@ -49,15 +49,15 @@ const CounterpartySbModal = ({ open, counterparty, onClose, onDecisionSubmitted 
 
   // Загрузка истории при открытии
   useEffect(() => {
-    if (!open || !counterparty) return
+    if (!open || !supplier) return
     let cancelled = false
     setIsLoading(true)
-    fetchSecurityChecks(counterparty.id)
+    fetchSecurityChecks(supplier.id)
       .then((data) => {
         if (!cancelled) setHistory(data)
       })
       .catch((err) => {
-        logError({ errorType: 'api_error', errorMessage: err instanceof Error ? err.message : String(err), component: 'CounterpartySbModal' })
+        logError({ errorType: 'api_error', errorMessage: err instanceof Error ? err.message : String(err), component: 'SupplierSbModal' })
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false)
@@ -65,7 +65,7 @@ const CounterpartySbModal = ({ open, counterparty, onClose, onDecisionSubmitted 
     return () => {
       cancelled = true
     }
-  }, [open, counterparty])
+  }, [open, supplier])
 
   // Сброс полей при закрытии
   useEffect(() => {
@@ -77,7 +77,7 @@ const CounterpartySbModal = ({ open, counterparty, onClose, onDecisionSubmitted 
   }, [open])
 
   const handleDecision = async (decision: 'approved' | 'rejected') => {
-    if (!counterparty) return
+    if (!supplier) return
     const trimmed = comment.trim()
     if (decision === 'rejected' && trimmed.length < 3) {
       setCommentError('Комментарий обязателен (минимум 3 символа)')
@@ -86,14 +86,14 @@ const CounterpartySbModal = ({ open, counterparty, onClose, onDecisionSubmitted 
     setCommentError(null)
     setSubmitting(decision)
     try {
-      await submitSecurityDecision(counterparty.id, decision, trimmed)
+      await submitSecurityDecision(supplier.id, decision, trimmed)
       message.success(decision === 'approved' ? 'Поставщик согласован' : 'Поставщик отклонён')
       onDecisionSubmitted?.()
       onClose()
     } catch (err) {
       const text = err instanceof Error ? err.message : 'Ошибка сохранения решения'
       message.error(text)
-      logError({ errorType: 'api_error', errorMessage: text, component: 'CounterpartySbModal' })
+      logError({ errorType: 'api_error', errorMessage: text, component: 'SupplierSbModal' })
     } finally {
       setSubmitting(null)
     }
@@ -134,17 +134,17 @@ const CounterpartySbModal = ({ open, counterparty, onClose, onDecisionSubmitted 
       width={640}
       destroyOnClose
     >
-      {counterparty && (
+      {supplier && (
         <>
           {/* Шапка */}
           <div style={{ marginBottom: 16 }}>
-            <Text strong style={{ fontSize: 16 }}>{counterparty.name}</Text>
+            <Text strong style={{ fontSize: 16 }}>{supplier.name}</Text>
             <div>
-              <Text type="secondary">ИНН: {counterparty.inn || '—'}</Text>
+              <Text type="secondary">ИНН: {supplier.inn || '—'}</Text>
             </div>
-            {counterparty.alternativeNames && counterparty.alternativeNames.length > 0 && (
+            {supplier.alternativeNames && supplier.alternativeNames.length > 0 && (
               <div>
-                <Text type="secondary">Альтернативные наименования: {counterparty.alternativeNames.join('; ')}</Text>
+                <Text type="secondary">Альтернативные наименования: {supplier.alternativeNames.join('; ')}</Text>
               </div>
             )}
           </div>
@@ -210,4 +210,4 @@ const CounterpartySbModal = ({ open, counterparty, onClose, onDecisionSubmitted 
   )
 }
 
-export default CounterpartySbModal
+export default SupplierSbModal

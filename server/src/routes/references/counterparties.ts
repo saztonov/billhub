@@ -1,10 +1,9 @@
 import type { FastifyInstance } from 'fastify';
 import { authenticate } from '../../middleware/authenticate.js';
 import { requireRole } from '../../middleware/requireRole.js';
-import { SB_REVIEW_CUTOFF_DATE } from '../../config/sbReview.js';
 
 /* ------------------------------------------------------------------ */
-/*  Типы тел запросов и параметров                                     */
+/*  Типы тел запросов                                                  */
 /* ------------------------------------------------------------------ */
 
 interface CounterpartyBody {
@@ -16,53 +15,6 @@ interface CounterpartyBody {
 
 interface IdParams {
   id: string;
-}
-
-interface ListQuery {
-  page?: string;
-  pageSize?: string;
-  search?: string;
-  sbFilter?: 'all' | 'pending';
-}
-
-interface SbDecisionBody {
-  decision: 'approved' | 'rejected';
-  comment?: string;
-}
-
-/* ------------------------------------------------------------------ */
-/*  Тип строки из RPC                                                  */
-/* ------------------------------------------------------------------ */
-
-interface SbRpcRow {
-  id: string;
-  name: string;
-  inn: string;
-  address: string;
-  alternative_names: string[];
-  registration_token: string | null;
-  created_at: string;
-  last_security_status: 'approved' | 'rejected' | null;
-  last_security_at: string | null;
-  has_pending_request: boolean;
-  total_count: number;
-}
-
-/** Маппинг snake_case RPC-строки в camelCase ответ API */
-function mapCounterpartyRow(row: SbRpcRow) {
-  return {
-    id: row.id,
-    name: row.name,
-    inn: row.inn,
-    address: row.address,
-    alternativeNames: row.alternative_names ?? [],
-    registrationToken: row.registration_token,
-    createdAt: row.created_at,
-    lastSecurityCheck: row.last_security_status && row.last_security_at
-      ? { status: row.last_security_status, createdAt: row.last_security_at }
-      : null,
-    hasPendingRequest: !!row.has_pending_request,
-  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -91,18 +43,6 @@ const idParamsSchema = {
   },
 };
 
-const sbDecisionSchema = {
-  body: {
-    type: 'object' as const,
-    required: ['decision'],
-    properties: {
-      decision: { type: 'string' as const, enum: ['approved', 'rejected'] },
-      comment: { type: 'string' as const },
-    },
-    additionalProperties: false,
-  },
-};
-
 /* ------------------------------------------------------------------ */
 /*  Плагин маршрутов контрагентов                                      */
 /* ------------------------------------------------------------------ */
@@ -110,65 +50,32 @@ const sbDecisionSchema = {
 async function counterpartyRoutes(fastify: FastifyInstance): Promise<void> {
   const SELECT_FIELDS = 'id, name, inn, address, alternative_names, registration_token, created_at';
 
-  /** GET /api/references/counterparties — список контрагентов
-   *  Без query.page возвращается обратно-совместимый плоский массив без SB-агрегатов.
-   *  При наличии query.page включается серверная пагинация, поиск и фильтр sbFilter с SB-агрегатами. */
-  fastify.get<{ Querystring: ListQuery }>(
+  /** GET /api/references/counterparties — список контрагентов */
+  fastify.get(
     '/',
     { preHandler: [authenticate] },
     async (request, reply) => {
       const user = request.user!;
-      const { page: pageRaw, pageSize: pageSizeRaw, search, sbFilter } = request.query;
-      const isPaginated = pageRaw !== undefined;
 
-      // Без пагинации — старое поведение для совместимости (список для селектов и т.п.)
-      if (!isPaginated) {
-        if (user.role === 'counterparty_user') {
-          if (!user.counterpartyId) {
-            return reply.status(403).send({ error: 'Контрагент не привязан' });
-          }
-          const { data, error } = await request.server.supabase
-            .from('counterparties')
-            .select(SELECT_FIELDS)
-            .eq('id', user.counterpartyId);
-          if (error) return reply.status(500).send({ error: error.message });
-          return data;
-        }
-        const { data, error } = await request.server.supabase
-          .from('counterparties')
-          .select(SELECT_FIELDS)
-          .order('created_at', { ascending: false });
-        if (error) return reply.status(500).send({ error: error.message });
-        return data;
-      }
-
-      // Пагинированный путь через RPC с SB-агрегатами
-      const page = Math.max(1, parseInt(pageRaw ?? '1', 10) || 1);
-      const pageSize = Math.min(200, Math.max(1, parseInt(pageSizeRaw ?? '20', 10) || 20));
-      const filter: 'all' | 'pending' = sbFilter === 'pending' ? 'pending' : 'all';
-
-      let onlyId: string | null = null;
+      // counterparty_user видит только своего контрагента
       if (user.role === 'counterparty_user') {
         if (!user.counterpartyId) {
           return reply.status(403).send({ error: 'Контрагент не привязан' });
         }
-        onlyId = user.counterpartyId;
+        const { data, error } = await request.server.supabase
+          .from('counterparties')
+          .select(SELECT_FIELDS)
+          .eq('id', user.counterpartyId);
+        if (error) return reply.status(500).send({ error: error.message });
+        return data;
       }
 
-      const { data, error } = await request.server.supabase.rpc('list_counterparties_with_sb', {
-        p_search: search ?? null,
-        p_sb_filter: filter,
-        p_page: page,
-        p_page_size: pageSize,
-        p_cutoff_date: SB_REVIEW_CUTOFF_DATE,
-        p_only_counterparty_id: onlyId,
-      });
-
+      const { data, error } = await request.server.supabase
+        .from('counterparties')
+        .select(SELECT_FIELDS)
+        .order('created_at', { ascending: false });
       if (error) return reply.status(500).send({ error: error.message });
-
-      const rows = (data ?? []) as SbRpcRow[];
-      const total = rows.length > 0 ? Number(rows[0]!.total_count) : 0;
-      return { items: rows.map(mapCounterpartyRow), total, page, pageSize };
+      return data;
     }
   );
 
@@ -245,11 +152,13 @@ async function counterpartyRoutes(fastify: FastifyInstance): Promise<void> {
   );
 
   /** POST /api/references/counterparties/batch-import — пакетный импорт */
+  /** Принимает { items: [...] } (фронтенд) или { rows: [...] } (оригинальный) */
   fastify.post(
     '/batch-import',
     { preHandler: [authenticate, requireRole('admin', 'user')] },
     async (request, reply) => {
       const body = request.body as Record<string, unknown>;
+      // Фронтенд отправляет items, бэкенд ожидает rows — поддерживаем оба
       const rows = (body.items ?? body.rows) as { name: string; inn: string }[];
       if (!rows || !Array.isArray(rows) || rows.length === 0) {
         return reply.status(400).send({ error: 'Нет данных для импорта' });
@@ -270,180 +179,6 @@ async function counterpartyRoutes(fastify: FastifyInstance): Promise<void> {
       }
 
       return { created };
-    }
-  );
-
-  /* ---------------------------------------------------------------- */
-  /*  Проверки СБ: история событий и создание новых                    */
-  /* ---------------------------------------------------------------- */
-
-  /** GET /api/references/counterparties/:id/security-checks — история событий по поставщику */
-  fastify.get<{ Params: IdParams }>(
-    '/:id/security-checks',
-    { schema: idParamsSchema, preHandler: [authenticate, requireRole('admin', 'user', 'security')] },
-    async (request, reply) => {
-      const { id } = request.params;
-      const { data, error } = await request.server.supabase
-        .from('counterparty_security_checks')
-        .select('id, counterparty_id, author_id, event_type, comment, created_at, users(full_name)')
-        .eq('counterparty_id', id)
-        .order('created_at', { ascending: false });
-      if (error) return reply.status(500).send({ error: error.message });
-      const items = (data ?? []).map((row: Record<string, unknown>) => {
-        const author = row.users as { full_name?: string } | null;
-        return {
-          id: row.id,
-          counterpartyId: row.counterparty_id,
-          authorId: row.author_id,
-          authorFullName: author?.full_name ?? '',
-          eventType: row.event_type,
-          comment: row.comment,
-          createdAt: row.created_at,
-        };
-      });
-      return items;
-    }
-  );
-
-  /** POST /api/references/counterparties/:id/security-checks/request — отправка на проверку (admin/user) */
-  fastify.post<{ Params: IdParams }>(
-    '/:id/security-checks/request',
-    { schema: idParamsSchema, preHandler: [authenticate, requireRole('admin', 'user')] },
-    async (request, reply) => {
-      const user = request.user!;
-      const { id: counterpartyId } = request.params;
-      const supabase = request.server.supabase;
-
-      // Проверяем существование поставщика
-      const { data: cp, error: cpErr } = await supabase
-        .from('counterparties')
-        .select('id, name')
-        .eq('id', counterpartyId)
-        .single();
-      if (cpErr || !cp) return reply.status(404).send({ error: 'Поставщик не найден' });
-
-      // Защита от дубликата: последнее событие — открытый requested
-      const { data: lastEvent } = await supabase
-        .from('counterparty_security_checks')
-        .select('event_type')
-        .eq('counterparty_id', counterpartyId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (lastEvent && lastEvent.event_type === 'requested') {
-        return reply.status(409).send({ error: 'Поставщик уже на проверке' });
-      }
-
-      // Создаём событие requested
-      const { data: created, error: insErr } = await supabase
-        .from('counterparty_security_checks')
-        .insert({ counterparty_id: counterpartyId, author_id: user.id, event_type: 'requested', comment: null })
-        .select('id, counterparty_id, author_id, event_type, comment, created_at')
-        .single();
-      if (insErr) return reply.status(400).send({ error: insErr.message });
-
-      // Создаём уведомления для всех активных пользователей с ролью security
-      const { data: sbUsers } = await supabase
-        .from('users')
-        .select('id')
-        .eq('role', 'security')
-        .eq('is_active', true);
-      if (sbUsers && sbUsers.length > 0) {
-        const notifications = sbUsers.map((u: { id: string }) => ({
-          type: 'sb_review_requested',
-          title: 'Новый запрос на проверку контрагента',
-          message: `${user.fullName} отправил поставщика «${cp.name}» на проверку СБ`,
-          user_id: u.id,
-          counterparty_id: counterpartyId,
-        }));
-        await supabase.from('notifications').insert(notifications);
-      }
-
-      return reply.send(created);
-    }
-  );
-
-  /** POST /api/references/counterparties/:id/security-checks/decision — решение СБ (security) */
-  fastify.post<{ Params: IdParams; Body: SbDecisionBody }>(
-    '/:id/security-checks/decision',
-    { schema: { ...idParamsSchema, ...sbDecisionSchema }, preHandler: [authenticate, requireRole('security')] },
-    async (request, reply) => {
-      const user = request.user!;
-      const { id: counterpartyId } = request.params;
-      const { decision, comment } = request.body;
-      const supabase = request.server.supabase;
-
-      // Валидация: при rejected комментарий обязателен (минимум 3 символа)
-      if (decision === 'rejected') {
-        if (!comment || comment.trim().length < 3) {
-          return reply.status(400).send({ error: 'Комментарий обязателен при отклонении (минимум 3 символа)' });
-        }
-      }
-
-      // Проверяем существование поставщика
-      const { data: cp, error: cpErr } = await supabase
-        .from('counterparties')
-        .select('id, name')
-        .eq('id', counterpartyId)
-        .single();
-      if (cpErr || !cp) return reply.status(404).send({ error: 'Поставщик не найден' });
-
-      // Находим инициаторов запросов, по которым ещё нет решения — для обратного уведомления
-      const { data: lastDecision } = await supabase
-        .from('counterparty_security_checks')
-        .select('created_at')
-        .eq('counterparty_id', counterpartyId)
-        .in('event_type', ['approved', 'rejected'])
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      let openRequests: { author_id: string }[] = [];
-      if (lastDecision?.created_at) {
-        const { data: rs } = await supabase
-          .from('counterparty_security_checks')
-          .select('author_id')
-          .eq('counterparty_id', counterpartyId)
-          .eq('event_type', 'requested')
-          .gt('created_at', lastDecision.created_at);
-        openRequests = rs ?? [];
-      } else {
-        const { data: rs } = await supabase
-          .from('counterparty_security_checks')
-          .select('author_id')
-          .eq('counterparty_id', counterpartyId)
-          .eq('event_type', 'requested');
-        openRequests = rs ?? [];
-      }
-
-      // Создаём событие решения
-      const { data: created, error: insErr } = await supabase
-        .from('counterparty_security_checks')
-        .insert({
-          counterparty_id: counterpartyId,
-          author_id: user.id,
-          event_type: decision,
-          comment: comment?.trim() || null,
-        })
-        .select('id, counterparty_id, author_id, event_type, comment, created_at')
-        .single();
-      if (insErr) return reply.status(400).send({ error: insErr.message });
-
-      // Уведомляем уникальных инициаторов запросов
-      const initiatorIds = Array.from(new Set(openRequests.map((r) => r.author_id))).filter((uid) => uid !== user.id);
-      if (initiatorIds.length > 0) {
-        const decisionLabel = decision === 'approved' ? 'согласован' : 'отклонён';
-        const notifications = initiatorIds.map((uid) => ({
-          type: 'sb_review_decided',
-          title: 'Решение по проверке контрагента',
-          message: `Поставщик «${cp.name}» ${decisionLabel} отделом СБ`,
-          user_id: uid,
-          counterparty_id: counterpartyId,
-        }));
-        await supabase.from('notifications').insert(notifications);
-      }
-
-      return reply.send(created);
     }
   );
 }

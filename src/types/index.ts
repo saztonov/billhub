@@ -20,7 +20,7 @@ export interface SortParams {
 
 // Справочники
 
-/** Контрагент (поставщик) */
+/** Контрагент (подрядчик) */
 export interface Counterparty {
   id: string
   name: string
@@ -30,18 +30,15 @@ export interface Counterparty {
   registrationToken: string | null
   isActive?: boolean
   createdAt: string
-  // Агрегаты по проверке отделом СБ
-  lastSecurityCheck?: { status: 'approved' | 'rejected'; createdAt: string } | null
-  hasPendingRequest?: boolean
 }
 
-/** Тип события проверки контрагента отделом СБ */
+/** Тип события проверки поставщика отделом СБ */
 export type SecurityCheckEventType = 'requested' | 'approved' | 'rejected'
 
-/** Событие проверки контрагента (запрос или решение) */
-export interface CounterpartySecurityCheck {
+/** Событие проверки поставщика (запрос или решение) */
+export interface SupplierSecurityCheck {
   id: string
-  counterpartyId: string
+  supplierId: string
   authorId: string
   authorFullName: string
   eventType: SecurityCheckEventType
@@ -56,6 +53,9 @@ export interface Supplier {
   inn: string
   alternativeNames: string[]
   createdAt: string
+  // Агрегаты по проверке отделом СБ
+  lastSecurityCheck?: { status: 'approved' | 'rejected'; createdAt: string } | null
+  hasPendingRequest?: boolean
 }
 
 /** Строка импорта поставщика */
@@ -633,7 +633,7 @@ export interface AppNotification {
   isRead: boolean
   paymentRequestId: string | null
   contractRequestId: string | null
-  counterpartyId: string | null
+  supplierId: string | null
   department: Department | null
   siteId: string | null
   resolved: boolean
@@ -642,7 +642,7 @@ export interface AppNotification {
   siteName?: string
   requestNumber?: string
   contractRequestNumber?: string
-  counterpartyName?: string
+  supplierName?: string
 }
 
 /** Тип ошибки в логах */

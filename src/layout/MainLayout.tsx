@@ -131,9 +131,9 @@ const MainLayout = () => {
     }
     setNotifOpen(false)
     setMobileNotifOpen(false)
-    if (notif.counterpartyId) {
-      navigate('/references', {
-        state: { openCounterpartyId: notif.counterpartyId },
+    if (notif.supplierId) {
+      navigate('/references?tab=suppliers', {
+        state: { openSupplierId: notif.supplierId },
       })
     } else if (notif.contractRequestId) {
       navigate('/contract-requests', {
