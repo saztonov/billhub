@@ -25,6 +25,8 @@ function getRoleLabel(role: UserRole): string {
       return 'Пользователь'
     case 'counterparty_user':
       return 'Подрядчик'
+    case 'security':
+      return 'Отдел СБ'
   }
 }
 

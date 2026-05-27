@@ -10,6 +10,7 @@ const roleLabels: Record<UserRole, string> = {
   admin: 'Администратор',
   user: 'Пользователь',
   counterparty_user: 'Подрядчик',
+  security: 'Отдел СБ',
 }
 
 const ProfilePage = () => {
