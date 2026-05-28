@@ -18,7 +18,6 @@ import {
   DeleteOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
-  RollbackOutlined,
   CheckOutlined,
   StopOutlined,
   RedoOutlined,
@@ -26,7 +25,6 @@ import {
   MoreOutlined,
 } from '@ant-design/icons'
 import RejectModal from './RejectModal'
-import WithdrawModal from './WithdrawModal'
 import { formatDateShort, extractRequestNumber, calculateDays } from '@/utils/requestFormatters'
 import { useTableScrollY } from '@/hooks/useTableScrollY'
 import { applyColumnConfig } from '@/hooks/useColumnConfig'
@@ -62,7 +60,6 @@ export interface RequestsTableProps {
   isLoading: boolean
   onView: (record: PaymentRequest) => void
   isCounterpartyUser?: boolean
-  onWithdraw?: (id: string, comment: string) => void
   hideCounterpartyColumn?: boolean
   statusOptions?: { label: string; value: string }[]
   onStatusChange?: (id: string, statusId: string) => void
@@ -168,13 +165,6 @@ function buildMobileActions(
     })
   }
 
-  if (props.isCounterpartyUser && props.onWithdraw && !record.withdrawnAt) {
-    items.push({
-      key: 'withdraw', label: 'Отозвать', icon: <RollbackOutlined />, danger: true,
-      onClick: () => {}, // обрабатывается через setWithdrawModalId
-    })
-  }
-
   if (props.isCounterpartyUser && props.onResubmit && record.rejectedAt) {
     items.push({
       key: 'resubmit', label: 'Отправить повторно', icon: <RedoOutlined />,
@@ -195,7 +185,7 @@ function buildMobileActions(
 const RequestsTable = (props: RequestsTableProps) => {
   const { message: _message } = App.useApp()
   const {
-    requests, isLoading, onView, isCounterpartyUser, onWithdraw, hideCounterpartyColumn,
+    requests, isLoading, onView, isCounterpartyUser, hideCounterpartyColumn,
     statusOptions, onStatusChange, statusChangingId, isAdmin, onDelete, uploadTasks,
     showApprovalActions, onApprove, onReject, showApprovedDate, showRejectedDate,
     totalStages, showDepartmentFilter, rejectionDepartments, onResubmit,
@@ -204,7 +194,6 @@ const RequestsTable = (props: RequestsTableProps) => {
   } = props
 
   const [rejectModalId, setRejectModalId] = useState<string | null>(null)
-  const [withdrawModalId, setWithdrawModalId] = useState<string | null>(null)
 
   const filteredRequests = useMemo(() => {
     if (responsibleFilter === 'assigned') return requests.filter(r => r.assignedUserId !== null)
@@ -271,8 +260,6 @@ const RequestsTable = (props: RequestsTableProps) => {
                   onClick: () => {
                     if (item.key === 'reject') {
                       setRejectModalId(record.id)
-                    } else if (item.key === 'withdraw') {
-                      setWithdrawModalId(record.id)
                     } else {
                       item.onClick()
                     }
@@ -535,9 +522,6 @@ const RequestsTable = (props: RequestsTableProps) => {
               <Tooltip title="Отклонить"><Button danger icon={<StopOutlined />} size="small" onClick={() => setRejectModalId(record.id)} /></Tooltip>
             </>
           )}
-          {isCounterpartyUser && onWithdraw && !record.withdrawnAt && (
-            <Tooltip title="Отозвать"><Button icon={<RollbackOutlined />} danger size="small" onClick={() => setWithdrawModalId(record.id)} /></Tooltip>
-          )}
           {isCounterpartyUser && onResubmit && record.rejectedAt && (
             <Tooltip title="Отправить повторно"><Button icon={<RedoOutlined />} type="primary" size="small" onClick={() => onResubmit(record)} /></Tooltip>
           )}
@@ -559,7 +543,7 @@ const RequestsTable = (props: RequestsTableProps) => {
     showResponsibleColumn, canAssignResponsible, omtsUsers, onAssignResponsible,
     showOmtsDays, showApprovedDate, showRejectedDate, showDepartmentFilter, rejectionDepartments,
     isCounterpartyUser, totalStages, uploadTasks, showApprovalActions,
-    onView, onApprove, onWithdraw, onResubmit, onDelete, isAdmin, statusOptions, onStatusChange, statusChangingId, onReject,
+    onView, onApprove, onResubmit, onDelete, isAdmin, statusOptions, onStatusChange, statusChangingId, onReject,
   ])
 
   // Применяем пользовательский конфиг к десктопным столбцам
@@ -639,15 +623,6 @@ const RequestsTable = (props: RequestsTableProps) => {
           setRejectModalId(null)
         }}
         onCancel={() => setRejectModalId(null)}
-      />
-
-      <WithdrawModal
-        open={!!withdrawModalId}
-        onConfirm={(comment) => {
-          if (withdrawModalId) onWithdraw?.(withdrawModalId, comment)
-          setWithdrawModalId(null)
-        }}
-        onCancel={() => setWithdrawModalId(null)}
       />
     </div>
   )

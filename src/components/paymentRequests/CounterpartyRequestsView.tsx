@@ -32,7 +32,6 @@ interface CounterpartyRequestsViewProps {
   onTabChange: (key: string) => void
   onTabClick: (key: string) => void
   onView: (record: PaymentRequest) => void
-  onWithdraw: (id: string, comment: string) => Promise<void>
   onResubmit: (record: PaymentRequest) => void
   onCreateOpen: () => void
   uploadTasks: Record<string, UploadTask>
@@ -69,7 +68,6 @@ const CounterpartyRequestsView = ({
   onTabChange,
   onTabClick,
   onView,
-  onWithdraw,
   onResubmit,
   onCreateOpen,
   uploadTasks,
@@ -147,7 +145,6 @@ const CounterpartyRequestsView = ({
           onView={onView}
           isCounterpartyUser
           hideCounterpartyColumn
-          onWithdraw={onWithdraw}
           onResubmit={onResubmit}
           uploadTasks={uploadTasks}
           totalStages={totalStages}
@@ -187,7 +184,6 @@ const CounterpartyRequestsView = ({
           onView={onView}
           isCounterpartyUser
           hideCounterpartyColumn
-          onWithdraw={onWithdraw}
           uploadTasks={uploadTasks}
           totalStages={totalStages}
           unreadCounts={unreadCounts}

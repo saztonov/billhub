@@ -170,7 +170,6 @@ const PaymentRequestsPage = () => {
   // Обработчики действий
   const {
     handleEdit,
-    handleWithdraw,
     handleDelete,
     handleApprove,
     handleReject,
@@ -240,7 +239,6 @@ const PaymentRequestsPage = () => {
           totalPaidAll={totalCounterpartyPaidAll}
           unreadCounts={unreadCounts}
           onView={setViewRecord}
-          onWithdraw={handleWithdraw}
           onResubmit={setResubmitRecord}
           onCreateOpen={() => setIsCreateOpen(true)}
           uploadTasks={uploadTasks}
