@@ -3157,6 +3157,15 @@
               "position": 5,
               "max_length": null,
               "numeric_precision": null
+            },
+            {
+              "name": "founding_documents_comment",
+              "type": "text",
+              "default": null,
+              "nullable": true,
+              "position": 6,
+              "max_length": null,
+              "numeric_precision": null
             }
           ]
         },

@@ -6,6 +6,7 @@ import type { FoundingDocumentRow, FoundingDocumentFile } from '@/types'
 interface FoundingDocumentStoreState {
   documents: FoundingDocumentRow[]
   files: FoundingDocumentFile[]
+  generalComment: string
   isLoading: boolean
   isFilesLoading: boolean
   error: string | null
@@ -18,11 +19,14 @@ interface FoundingDocumentStoreState {
   ) => Promise<void>
   fetchFiles: (supplierId: string, typeId: string) => Promise<void>
   deleteFile: (fileId: string) => Promise<void>
+  fetchGeneralComment: (supplierId: string) => Promise<void>
+  updateGeneralComment: (supplierId: string, value: string) => Promise<void>
 }
 
 export const useFoundingDocumentStore = create<FoundingDocumentStoreState>((set, get) => ({
   documents: [],
   files: [],
+  generalComment: '',
   isLoading: false,
   isFilesLoading: false,
   error: null,
@@ -95,6 +99,42 @@ export const useFoundingDocumentStore = create<FoundingDocumentStoreState>((set,
         metadata: { action: 'deleteFoundingDocumentFile' },
       })
       set({ error: message })
+      throw err
+    }
+  },
+
+  fetchGeneralComment: async (supplierId) => {
+    try {
+      const data = await api.get<{ comment: string | null }>(
+        `/api/founding-documents/${supplierId}/general-comment`
+      )
+      set({ generalComment: data?.comment ?? '' })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Ошибка загрузки общего комментария'
+      logError({
+        errorType: 'api_error',
+        errorMessage: message,
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'fetchFoundingGeneralComment' },
+      })
+      set({ generalComment: '' })
+    }
+  },
+
+  updateGeneralComment: async (supplierId, value) => {
+    try {
+      await api.put(`/api/founding-documents/${supplierId}/general-comment`, {
+        comment: value === '' ? null : value,
+      })
+      set({ generalComment: value })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Ошибка сохранения общего комментария'
+      logError({
+        errorType: 'api_error',
+        errorMessage: message,
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'updateFoundingGeneralComment' },
+      })
       throw err
     }
   },

@@ -60,6 +60,7 @@ const ContractRequestsPage = () => {
     isCounterpartyUser, isAdmin,
     requests, isLoading,
     counterparties, sites, suppliers, statuses,
+    unreadCounts,
     loadRequests, deleteRequest,
   } = useContractRequestsData({ showDeleted })
 
@@ -141,6 +142,7 @@ const ContractRequestsPage = () => {
         onDelete={handleDelete}
         isAdmin={isAdmin}
         isCounterpartyUser={isCounterpartyUser}
+        unreadCounts={unreadCounts}
       />
 
       <CreateContractRequestModal

@@ -25,6 +25,10 @@ interface UpdateBody {
   comment?: string;
 }
 
+interface GeneralCommentBody {
+  comment: string | null;
+}
+
 /* ------------------------------------------------------------------ */
 /*  JSON-схемы валидации                                               */
 /* ------------------------------------------------------------------ */
@@ -68,6 +72,17 @@ const fileIdSchema = {
     properties: {
       fileId: { type: 'string' as const, format: 'uuid' },
     },
+  },
+};
+
+const generalCommentBodySchema = {
+  body: {
+    type: 'object' as const,
+    required: ['comment'],
+    properties: {
+      comment: { type: ['string', 'null'] as const },
+    },
+    additionalProperties: false,
   },
 };
 
@@ -246,6 +261,60 @@ async function foundingDocumentRoutes(fastify: FastifyInstance): Promise<void> {
         if (error) return reply.status(500).send({ error: error.message });
         return { id: (data as Record<string, unknown>).id, created: true };
       }
+    }
+  );
+
+  /**
+   * GET /api/founding-documents/:supplierId/general-comment
+   * Получение общего комментария по учредительным документам поставщика
+   */
+  fastify.get<{ Params: SupplierIdParams }>(
+    '/:supplierId/general-comment',
+    { schema: supplierIdSchema, preHandler },
+    async (request, reply) => {
+      const { supplierId } = request.params;
+
+      const { data, error } = await fastify.supabase
+        .from('suppliers')
+        .select('founding_documents_comment')
+        .eq('id', supplierId)
+        .maybeSingle();
+
+      if (error) {
+        return reply.status(500).send({ error: error.message });
+      }
+
+      if (!data) {
+        return reply.status(404).send({ error: 'Поставщик не найден' });
+      }
+
+      return {
+        comment: (data as Record<string, unknown>).founding_documents_comment as string | null,
+      };
+    }
+  );
+
+  /**
+   * PUT /api/founding-documents/:supplierId/general-comment
+   * Обновление общего комментария по учредительным документам поставщика
+   */
+  fastify.put<{ Params: SupplierIdParams; Body: GeneralCommentBody }>(
+    '/:supplierId/general-comment',
+    { schema: { ...supplierIdSchema, ...generalCommentBodySchema }, preHandler },
+    async (request, reply) => {
+      const { supplierId } = request.params;
+      const { comment } = request.body;
+
+      const { error } = await fastify.supabase
+        .from('suppliers')
+        .update({ founding_documents_comment: comment })
+        .eq('id', supplierId);
+
+      if (error) {
+        return reply.status(500).send({ error: error.message });
+      }
+
+      return { success: true };
     }
   );
 

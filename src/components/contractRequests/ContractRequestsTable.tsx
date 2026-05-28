@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
-import { Table, Tag, Button, Dropdown, Pagination, Flex, Popconfirm } from 'antd'
-import { EyeOutlined, DeleteOutlined, MoreOutlined } from '@ant-design/icons'
+import { Table, Tag, Button, Dropdown, Pagination, Flex, Popconfirm, Badge } from 'antd'
+import { EyeOutlined, DeleteOutlined, MoreOutlined, MessageOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { ContractRequest } from '@/types'
 import { CONTRACT_SUBJECT_LABELS, REVISION_TARGET_LABELS } from '@/types'
@@ -30,6 +30,7 @@ interface ContractRequestsTableProps {
   onDelete: (id: string) => Promise<void>
   isAdmin: boolean
   isCounterpartyUser: boolean
+  unreadCounts?: Record<string, number>
 }
 
 const ContractRequestsTable = ({
@@ -39,6 +40,7 @@ const ContractRequestsTable = ({
   onDelete,
   isAdmin,
   isCounterpartyUser,
+  unreadCounts,
 }: ContractRequestsTableProps) => {
   const isMobile = useIsMobile()
   const [currentPage, setCurrentPage] = useState(1)
@@ -63,7 +65,7 @@ const ContractRequestsTable = ({
     return <Tag color={record.statusColor || undefined} style={{ whiteSpace: 'normal' }}>{record.statusName}</Tag>
   }
 
-  const desktopColumns: ColumnsType<ContractRequest> = [
+  const desktopColumns = useMemo<ColumnsType<ContractRequest>>(() => [
     {
       title: '№',
       dataIndex: 'requestNumber',
@@ -132,6 +134,24 @@ const ContractRequestsTable = ({
       width: 200,
       render: (_, record) => formatContractCell(record.contractNumber, record.contractSigningDate),
     },
+    ...(unreadCounts ? [{
+      title: (
+        <div style={{ textAlign: 'center', lineHeight: 1.3 }}>
+          <div>Новые</div>
+          <MessageOutlined style={{ fontSize: 14 }} />
+        </div>
+      ),
+      key: 'unreadComments',
+      width: 65,
+      align: 'center' as const,
+      sorter: (a: ContractRequest, b: ContractRequest) =>
+        (unreadCounts[a.id] || 0) - (unreadCounts[b.id] || 0),
+      render: (_: unknown, record: ContractRequest) => {
+        const count = unreadCounts[record.id] || 0
+        if (count === 0) return null
+        return <Badge count={count} style={{ backgroundColor: '#1677ff' }} />
+      },
+    }] : []),
     {
       title: 'Статус',
       key: 'status',
@@ -174,7 +194,7 @@ const ContractRequestsTable = ({
         </Flex>
       ),
     },
-  ]
+  ], [isCounterpartyUser, isAdmin, unreadCounts, onView, onDelete])
 
   const mobileColumns: ColumnsType<ContractRequest> = [
     {
@@ -240,7 +260,7 @@ const ContractRequestsTable = ({
           loading={isLoading}
           pagination={false}
           size="small"
-          scroll={isMobile ? undefined : { x: 1450 }}
+          scroll={isMobile ? undefined : { x: unreadCounts ? 1515 : 1450 }}
           rowClassName={(record) => record.isDeleted ? 'deleted-row' : ''}
           onRow={(record) => ({
             onClick: (e) => {

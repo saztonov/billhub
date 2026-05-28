@@ -10,7 +10,12 @@ interface Props {
   supplierId: string
 }
 
-/** Ячейка комментария с локальным состоянием — сохраняет по onBlur */
+/**
+ * Ячейка комментария с локальным состоянием — сохраняет по onBlur.
+ * Синхронизируется с initialValue при внешнем обновлении (fetchDocuments)
+ * через паттерн «adjust state during render», чтобы значение из одной
+ * строки не «протекало» в другие при перерендере.
+ */
 const CommentCell = ({
   initialValue,
   onSave,
@@ -19,12 +24,24 @@ const CommentCell = ({
   onSave: (value: string) => void
 }) => {
   const [value, setValue] = useState(initialValue)
+  const [prevInitial, setPrevInitial] = useState(initialValue)
+  const [isFocused, setIsFocused] = useState(false)
+
+  // Синхронизация со внешним значением во время рендера, только если не редактируем
+  if (initialValue !== prevInitial) {
+    setPrevInitial(initialValue)
+    if (!isFocused) {
+      setValue(initialValue)
+    }
+  }
 
   return (
     <Input.TextArea
       value={value}
       onChange={(e) => setValue(e.target.value)}
+      onFocus={() => setIsFocused(true)}
       onBlur={() => {
+        setIsFocused(false)
         if (value !== initialValue) onSave(value)
       }}
       rows={1}
@@ -131,7 +148,7 @@ const FoundingDocumentsTable = ({ supplierId }: Props) => {
       key: 'comment',
       render: (_: unknown, record: FoundingDocumentRow) => (
         <CommentCell
-          key={`${record.typeId}-${record.comment}`}
+          key={record.typeId}
           initialValue={record.comment}
           onSave={(val) => handleCommentSave(record.typeId, val)}
         />
