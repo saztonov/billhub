@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Button, Switch, Flex, App } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
+import { api } from '@/services/api'
 import { useHeaderStore } from '@/store/headerStore'
 import useIsMobile from '@/hooks/useIsMobile'
 import { useContractRequestsData } from '@/hooks/useContractRequestsData'
@@ -26,6 +27,9 @@ const ContractRequestsPage = () => {
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [viewRecord, setViewRecord] = useState<ContractRequest | null>(null)
   const [showDeleted, setShowDeleted] = useState(false)
+
+  // Счётчики статусов для виджета в шапке
+  const [statusCounts, setStatusCounts] = useState<{ approvOmts: number; onRevision: number; concluded: number } | null>(null)
 
   // Фильтры с сохранением в localStorage
   const [filters, setFiltersState] = useState<ContractFilterValues>(() => {
@@ -67,6 +71,15 @@ const ContractRequestsPage = () => {
   // Фильтрация
   const { filteredRequests } = useContractRequestFiltering({ requests, filters })
 
+  // Загрузка счётчиков статусов (обновляются при изменении набора заявок)
+  useEffect(() => {
+    let cancelled = false
+    api.get<{ approvOmts: number; onRevision: number; concluded: number }>('/api/contract-requests/status-counts')
+      .then((data) => { if (!cancelled && data) setStatusCounts(data) })
+      .catch(() => { /* счётчики некритичны для работы страницы */ })
+    return () => { cancelled = true }
+  }, [requests])
+
   // Открытие заявки по навигации (из уведомлений)
   useEffect(() => {
     const state = location.state as { openContractRequestId?: string } | null
@@ -94,8 +107,23 @@ const ContractRequestsPage = () => {
         </Button>
       </Flex>
     )
-    setHeader('Договора', null, actions)
-  }, [setHeader, isAdmin, showDeleted, isMobile])
+
+    // Виджет-счётчик статусов (только на десктопе)
+    const extra = !isMobile && statusCounts ? (
+      <div style={{ padding: '4px 12px', border: '1px solid #d9d9d9', borderRadius: 6, backgroundColor: '#fafafa', whiteSpace: 'nowrap', fontSize: 13 }}>
+        <span style={{ color: '#8c8c8c', marginRight: 6 }}>Согласование ОМТС:</span>
+        <span style={{ fontWeight: 500 }}>{statusCounts.approvOmts}</span>
+        <span style={{ color: '#d9d9d9', margin: '0 8px' }}>|</span>
+        <span style={{ color: '#8c8c8c', marginRight: 6 }}>На доработке:</span>
+        <span style={{ fontWeight: 500 }}>{statusCounts.onRevision}</span>
+        <span style={{ color: '#d9d9d9', margin: '0 8px' }}>|</span>
+        <span style={{ color: '#8c8c8c', marginRight: 6 }}>Заключено:</span>
+        <span style={{ fontWeight: 500 }}>{statusCounts.concluded}</span>
+      </div>
+    ) : null
+
+    setHeader('Договора', extra, actions)
+  }, [setHeader, isAdmin, showDeleted, isMobile, statusCounts])
 
   // Очистка заголовка при размонтировании
   useEffect(() => {

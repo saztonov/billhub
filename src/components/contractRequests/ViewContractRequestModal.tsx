@@ -14,6 +14,7 @@ import {
   Collapse,
   Space,
   Tooltip,
+  Alert,
 } from 'antd'
 import {
   FileAddOutlined,
@@ -322,11 +323,14 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
 
   const req = actualRequest ?? request
   const statusCode = req.statusCode
+  // Поставщик отклонён СБ — продвижение запрещено, доступна только отмена
+  const supplierSbRejected = req.supplierLastSecurityStatus === 'rejected'
 
   // --- Определение доступных действий ---
 
   // ОМТС или admin могут согласовать / отправить на доработку при статусе "Согласование ОМТС"
-  const canOmtsActions = (isOmts || isAdmin) && statusCode === 'approv_omts'
+  // (если поставщик не отклонён СБ)
+  const canOmtsActions = (isOmts || isAdmin) && statusCode === 'approv_omts' && !supplierSbRejected
   // ОМТС или admin могут подтвердить получение оригинала
   const canMarkOriginal = (isOmts || isAdmin) && statusCode === 'approved_waiting'
   // Код предыдущего этапа для текущего статуса (если есть)
@@ -675,6 +679,17 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
         }}
         destroyOnClose
       >
+        {/* Предупреждение: поставщик отклонён СБ */}
+        {supplierSbRejected && statusCode === 'approv_omts' && (
+          <Alert
+            type="error"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message="Поставщик отклонён службой безопасности"
+            description="Согласование и продвижение заявки недоступны. Заявку можно только отклонить."
+          />
+        )}
+
         {/* Реквизиты заявки */}
         {isEditing ? (
           <Form form={editForm} layout="vertical" style={{ marginBottom: 16 }}>

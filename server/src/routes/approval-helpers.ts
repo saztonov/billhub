@@ -222,7 +222,7 @@ export async function handleCompleteRevision(
 export const PR_SELECT = `
   *,
   counterparties(name, inn),
-  suppliers(name, inn),
+  suppliers(name, inn, last_security_status),
   construction_sites(name),
   statuses!payment_requests_status_id_fkey(name, color),
   paid_statuses:statuses!payment_requests_paid_status_id_fkey(name, color),
@@ -262,6 +262,7 @@ export function flattenPaymentRequest(row: Record<string, unknown>): Record<stri
   flat.counterparty_inn = cp?.inn ?? null;
   flat.supplier_name = sup?.name ?? null;
   flat.supplier_inn = sup?.inn ?? null;
+  flat.supplier_last_security_status = sup?.last_security_status ?? null;
   flat.site_name = site?.name ?? null;
   flat.status_name = status?.name ?? null;
   flat.status_color = status?.color ?? null;

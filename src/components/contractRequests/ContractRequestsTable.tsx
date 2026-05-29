@@ -5,6 +5,7 @@ import type { ColumnsType } from 'antd/es/table'
 import type { ContractRequest } from '@/types'
 import { CONTRACT_SUBJECT_LABELS, REVISION_TARGET_LABELS } from '@/types'
 import useIsMobile from '@/hooks/useIsMobile'
+import { SB_REJECTED_STRIKE_STYLE, renderSbBadge } from '@/utils/supplierSb'
 import dayjs from 'dayjs'
 
 /** Формат даты создания заявки в столбце "№" */
@@ -106,12 +107,23 @@ const ContractRequestsTable = ({
       key: 'supplierName',
       width: 180,
       sorter: (a, b) => (a.supplierName ?? '').localeCompare(b.supplierName ?? ''),
-      render: (_: string | undefined, record: ContractRequest) => record.supplierName ? (
-        <div>
-          <div>{record.supplierName}</div>
-          {record.supplierInn && <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>{record.supplierInn}</div>}
-        </div>
-      ) : '—',
+      render: (_: string | undefined, record: ContractRequest) => {
+        if (!record.supplierName) return '—'
+        const rejected = record.supplierLastSecurityStatus === 'rejected'
+        return (
+          <div>
+            <div>
+              <span style={rejected ? SB_REJECTED_STRIKE_STYLE : undefined}>{record.supplierName}</span>
+              {rejected && renderSbBadge()}
+            </div>
+            {record.supplierInn && (
+              <div style={{ fontSize: 11, color: '#888', marginTop: 2, ...(rejected ? SB_REJECTED_STRIKE_STYLE : {}) }}>
+                {record.supplierInn}
+              </div>
+            )}
+          </div>
+        )
+      },
     },
     {
       title: 'Предмет договора',

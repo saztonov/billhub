@@ -16,7 +16,11 @@
       "Bash(node -e:*)",
       "Bash(npm audit:*)",
       "Bash(ls node_modules/pdfjs-dist/build/pdf.worker*)",
-      "Bash(ls node_modules/pdfjs-dist/legacy/build/pdf.worker*)"
+      "Bash(ls node_modules/pdfjs-dist/legacy/build/pdf.worker*)",
+      "PowerShell(npm run lint 2>&1)",
+      "PowerShell(npm run build 2>&1)",
+      "PowerShell(npx tsc --noEmit -p server\\\\tsconfig.json 2>&1 | Select-Object -Last 40; \"SERVER_TSC_EXIT=$LASTEXITCODE\")",
+      "PowerShell(npx eslint src/utils/supplierSb.tsx src/components/contractRequests/ContractRequestsTable.tsx src/components/paymentRequests/RequestsTable.tsx src/components/contractRequests/CreateContractRequestModal.tsx src/components/paymentRequests/CreateRequestModal.tsx src/components/contractRequests/ViewContractRequestModal.tsx src/components/paymentRequests/ViewRequestModal.tsx 2>&1 | Select-Object -Last 40; \"ESLINT_EXIT=$LASTEXITCODE\")"
     ]
   }
 }

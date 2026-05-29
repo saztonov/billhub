@@ -32,6 +32,7 @@ import type { ColumnConfig } from '@/hooks/useColumnConfig'
 import type { ColumnRegistryItem } from './ColumnConfigPopover'
 import type { PaymentRequest, StageHistoryEntry } from '@/types'
 import { DEPARTMENT_LABELS } from '@/types'
+import { SB_REJECTED_STRIKE_STYLE, renderSbBadge } from '@/utils/supplierSb'
 
 /** Реестр всех возможных десктопных столбцов (без "Действия") */
 export const DESKTOP_COLUMN_REGISTRY: ColumnRegistryItem[] = [
@@ -308,7 +309,17 @@ const RequestsTable = (props: RequestsTableProps) => {
       {
         title: 'Поставщик', dataIndex: 'supplierName', key: 'supplierName', width: 160,
         sorter: (a: PaymentRequest, b: PaymentRequest) => (a.supplierName || '').localeCompare(b.supplierName || '', 'ru'),
-        render: (_: string | undefined, record: PaymentRequest) => record.supplierName ? (record.supplierInn ? `${record.supplierName}, ${record.supplierInn}` : record.supplierName) : '—',
+        render: (_: string | undefined, record: PaymentRequest) => {
+          if (!record.supplierName) return '—'
+          const text = record.supplierInn ? `${record.supplierName}, ${record.supplierInn}` : record.supplierName
+          if (record.supplierLastSecurityStatus !== 'rejected') return text
+          return (
+            <span>
+              <span style={SB_REJECTED_STRIKE_STYLE}>{text}</span>
+              {renderSbBadge()}
+            </span>
+          )
+        },
       },
       {
         title: 'Статус', key: 'status', width: 150,

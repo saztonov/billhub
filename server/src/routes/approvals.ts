@@ -16,6 +16,7 @@ import {
   getPaymentRequestCreator,
   insertNotifications,
 } from '../services/notification-helpers.js';
+import { isSupplierSbRejected } from '../services/supplierSecurity.js';
 
 /* ------------------------------------------------------------------ */
 /*  Плагин маршрутов согласований                                      */
@@ -90,7 +91,7 @@ async function approvalRoutes(fastify: FastifyInstance): Promise<void> {
 
     const { data: pr, error: prError } = await supabase
       .from('payment_requests')
-      .select('current_stage, site_id, withdrawn_at, rejected_at, rejected_stage, status_id')
+      .select('current_stage, site_id, withdrawn_at, rejected_at, rejected_stage, status_id, supplier_id')
       .eq('id', body.paymentRequestId)
       .single();
     if (prError) return reply.status(404).send({ error: 'Заявка не найдена' });
@@ -101,6 +102,10 @@ async function approvalRoutes(fastify: FastifyInstance): Promise<void> {
     const userInfo = await getUserInfo(supabase, user.id);
 
     if (body.action === 'approve') {
+      // Запрет продвижения заявки, если поставщик отклонён СБ (доступно только отклонение)
+      if (await isSupplierSbRejected(supabase, pr.supplier_id as string | null)) {
+        return reply.status(403).send({ error: 'Поставщик отклонён службой безопасности — согласование невозможно' });
+      }
       return await handleApprove(fastify, reply, body, user.id, currentStage, siteId, userInfo);
     } else {
       // Финальные статусы — повторно отклонять нельзя. "Финальность" определяется кодом статуса,

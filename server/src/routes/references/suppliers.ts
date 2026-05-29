@@ -125,7 +125,7 @@ const sbDecisionSchema = {
 /* ------------------------------------------------------------------ */
 
 async function supplierRoutes(fastify: FastifyInstance): Promise<void> {
-  const SELECT_FIELDS = 'id, name, inn, alternative_names, created_at';
+  const SELECT_FIELDS = 'id, name, inn, alternative_names, created_at, last_security_status';
 
   /** GET /api/references/suppliers — список поставщиков
    *  Без query.page возвращается обратно-совместимый массив без SB-агрегатов.
@@ -411,6 +411,12 @@ async function supplierRoutes(fastify: FastifyInstance): Promise<void> {
         .select('id, supplier_id, author_id, event_type, comment, created_at')
         .single();
       if (insErr) return reply.status(400).send({ error: insErr.message });
+
+      // Денормализуем последний статус решения СБ в suppliers (для блокировок и подсветки)
+      await supabase
+        .from('suppliers')
+        .update({ last_security_status: decision })
+        .eq('id', supplierId);
 
       // Уведомляем уникальных инициаторов запросов
       const initiatorIds = Array.from(new Set(openRequests.map((r) => r.author_id))).filter((uid) => uid !== user.id);

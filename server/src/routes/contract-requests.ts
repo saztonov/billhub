@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { authenticate } from '../middleware/authenticate.js';
 import { requireRole } from '../middleware/requireRole.js';
+import { isSupplierSbRejected } from '../services/supplierSecurity.js';
 
 /* ------------------------------------------------------------------ */
 /*  Вспомогательные функции                                            */
@@ -83,7 +84,7 @@ const CR_LIST_SELECT = `
   is_deleted, deleted_at, original_received_at, status_history,
   responsible_user_id, contract_number, contract_signing_date,
   counterparties(name, inn),
-  suppliers(name, inn),
+  suppliers(name, inn, last_security_status),
   construction_sites(name),
   statuses!contract_requests_status_id_fkey(name, color, code),
   creator:users!contract_requests_created_by_fkey(full_name),
@@ -109,6 +110,7 @@ function flattenContractRequest(row: Record<string, unknown>): Record<string, un
   flat.counterparty_inn = cp?.inn ?? null;
   flat.supplier_name = sup?.name ?? null;
   flat.supplier_inn = sup?.inn ?? null;
+  flat.supplier_last_security_status = sup?.last_security_status ?? null;
   flat.site_name = site?.name ?? null;
   flat.status_name = status?.name ?? null;
   flat.status_color = status?.color ?? null;
@@ -183,6 +185,64 @@ async function contractRequestRoutes(fastify: FastifyInstance): Promise<void> {
     return reply.send((data ?? []).map((r: Record<string, unknown>) => flattenContractRequest(r)));
   });
 
+  /* ---------- GET /api/contract-requests/status-counts ---------- */
+  /** Счётчики заявок по статусам для виджета в шапке (с учётом видимости пользователя) */
+  fastify.get('/api/contract-requests/status-counts', auth, async (request, reply) => {
+    const user = request.user!;
+    const query = request.query as Record<string, string | undefined>;
+    const supabase = fastify.supabase;
+
+    // id статусов договоров по нужным кодам
+    const { data: statusRows, error: stErr } = await supabase
+      .from('statuses')
+      .select('id, code')
+      .eq('entity_type', 'contract_request')
+      .in('code', ['approv_omts', 'on_revision', 'concluded']);
+    if (stErr) return reply.status(500).send({ error: stErr.message });
+
+    const idByCode: Record<string, string> = {};
+    for (const row of statusRows ?? []) {
+      idByCode[(row as Record<string, unknown>).code as string] = (row as Record<string, unknown>).id as string;
+    }
+
+    // Фильтр по объектам для роли user без all_sites (как в списке)
+    let siteIds: string[] | null = null;
+    if (user.role === 'user' && !user.allSites) {
+      siteIds = await getUserSiteIds(supabase, user.id);
+      if (siteIds.length === 0) return reply.send({ approv_omts: 0, on_revision: 0, concluded: 0 });
+    }
+
+    const countByCode = async (code: string): Promise<number> => {
+      const statusId = idByCode[code];
+      if (!statusId) return 0;
+      let q = supabase
+        .from('contract_requests')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_deleted', false)
+        .eq('status_id', statusId);
+      if (user.role === 'counterparty_user' && user.counterpartyId) {
+        q = q.eq('counterparty_id', user.counterpartyId);
+      } else if (query.counterpartyId) {
+        q = q.eq('counterparty_id', query.counterpartyId);
+      }
+      if (siteIds) q = q.in('site_id', siteIds);
+      const { count, error } = await q;
+      if (error) throw new Error(error.message);
+      return count ?? 0;
+    };
+
+    try {
+      const [approvOmts, onRevision, concluded] = await Promise.all([
+        countByCode('approv_omts'),
+        countByCode('on_revision'),
+        countByCode('concluded'),
+      ]);
+      return reply.send({ approv_omts: approvOmts, on_revision: onRevision, concluded });
+    } catch (e) {
+      return reply.status(500).send({ error: e instanceof Error ? e.message : 'Ошибка подсчёта' });
+    }
+  });
+
   /* ---------- GET /api/contract-requests/:id ---------- */
   fastify.get('/api/contract-requests/:id', auth, async (request, reply) => {
     const { id } = request.params as { id: string };
@@ -218,6 +278,11 @@ async function contractRequestRoutes(fastify: FastifyInstance): Promise<void> {
       totalFiles: number;
     };
     const supabase = fastify.supabase;
+
+    // Запрет создания заявки по поставщику, отклонённому СБ
+    if (await isSupplierSbRejected(supabase, body.supplierId)) {
+      return reply.status(403).send({ error: 'Поставщик отклонён службой безопасности — создание заявки невозможно' });
+    }
 
     const statusId = await getStatusId(supabase, 'contract_request', 'approv_omts');
 
@@ -537,6 +602,16 @@ async function contractRequestRoutes(fastify: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     const user = request.user!;
     const supabase = fastify.supabase;
+
+    // Запрет продвижения заявки, если поставщик отклонён СБ (доступна только отмена)
+    const { data: cr } = await supabase
+      .from('contract_requests')
+      .select('supplier_id')
+      .eq('id', id)
+      .single();
+    if (await isSupplierSbRejected(supabase, cr?.supplier_id as string | null)) {
+      return reply.status(403).send({ error: 'Поставщик отклонён службой безопасности — согласование невозможно' });
+    }
 
     const statusId = await getStatusId(supabase, 'contract_request', 'approved_waiting');
 

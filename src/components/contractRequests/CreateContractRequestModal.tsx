@@ -8,6 +8,7 @@ import { useConstructionSiteStore } from '@/store/constructionSiteStore'
 import { useSupplierStore } from '@/store/supplierStore'
 import { useUploadQueueStore } from '@/store/uploadQueueStore'
 import { CONTRACT_SUBJECT_LABELS, type ContractSubjectType } from '@/types'
+import { buildSupplierOptions, renderSupplierOption } from '@/utils/supplierSb'
 import useIsMobile from '@/hooks/useIsMobile'
 import ContractFileUpload from '@/components/contractRequests/ContractFileUpload'
 import { PARTIES_OPTIONS } from '@/components/contractRequests/constants'
@@ -88,11 +89,8 @@ const CreateContractRequestModal = ({ open, onClose, onCreated }: CreateContract
     [sites]
   )
 
-  /** Опции поставщиков */
-  const supplierOptions = useMemo(() =>
-    suppliers.map((s) => ({ label: s.inn ? `${s.name}, ${s.inn}` : s.name, value: s.id })),
-    [suppliers]
-  )
+  /** Опции поставщиков (отклонённые СБ — недоступны для выбора) */
+  const supplierOptions = useMemo(() => buildSupplierOptions(suppliers), [suppliers])
 
   /** Обработка изменения значений формы */
   const handleValuesChange = useCallback((_: unknown, allValues: Record<string, unknown>) => {
@@ -217,6 +215,7 @@ const CreateContractRequestModal = ({ open, onClose, onCreated }: CreateContract
                 optionFilterProp="label"
                 popupMatchSelectWidth={false}
                 options={supplierOptions}
+                optionRender={renderSupplierOption}
               />
             </Form.Item>
           </Col>

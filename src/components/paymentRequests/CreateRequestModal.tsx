@@ -24,6 +24,7 @@ import { useCounterpartyStore } from '@/store/counterpartyStore'
 import { useSupplierStore } from '@/store/supplierStore'
 import { useConstructionSiteStore } from '@/store/constructionSiteStore'
 import { useUploadQueueStore } from '@/store/uploadQueueStore'
+import { buildSupplierOptions, renderSupplierOption } from '@/utils/supplierSb'
 
 
 interface CreateRequestModalProps {
@@ -77,9 +78,8 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
     .filter((c) => c.isActive !== false)
     .map((c) => ({ label: c.inn ? `${c.name}, ${c.inn}` : c.name, value: c.id }))
 
-  // Опции поставщиков
-  const supplierOptions = suppliers
-    .map((s) => ({ label: s.inn ? `${s.name}, ${s.inn}` : s.name, value: s.id }))
+  // Опции поставщиков (отклонённые СБ — недоступны для выбора)
+  const supplierOptions = buildSupplierOptions(suppliers)
 
   // Опции объектов (только активные)
   const siteOptions = sites
@@ -259,6 +259,7 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
                   optionFilterProp="label"
                   popupMatchSelectWidth={false}
                   options={supplierOptions}
+                  optionRender={renderSupplierOption}
                 />
               </Form.Item>
             </Col>

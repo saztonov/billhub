@@ -56,6 +56,8 @@ export interface Supplier {
   // Агрегаты по проверке отделом СБ
   lastSecurityCheck?: { status: 'approved' | 'rejected'; createdAt: string } | null
   hasPendingRequest?: boolean
+  // Денормализованный статус последнего решения СБ (из suppliers.last_security_status)
+  lastSecurityStatus?: 'approved' | 'rejected' | null
 }
 
 /** Строка импорта поставщика */
@@ -228,6 +230,7 @@ export interface PaymentRequest {
   counterpartyInn?: string
   supplierName?: string
   supplierInn?: string
+  supplierLastSecurityStatus?: 'approved' | 'rejected' | null
   siteName?: string
   statusName?: string
   statusColor?: string | null
@@ -415,6 +418,7 @@ export interface ContractRequest {
   counterpartyInn?: string
   supplierName?: string
   supplierInn?: string
+  supplierLastSecurityStatus?: 'approved' | 'rejected' | null
   statusName?: string
   statusColor?: string | null
   statusCode?: string

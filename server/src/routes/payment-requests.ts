@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { authenticate } from '../middleware/authenticate.js';
 import { requireRole } from '../middleware/requireRole.js';
+import { isSupplierSbRejected } from '../services/supplierSecurity.js';
 
 /* ------------------------------------------------------------------ */
 /*  Вспомогательные функции                                            */
@@ -57,7 +58,7 @@ async function appendStageHistory(
 const PR_LIST_SELECT = `
   *,
   counterparties(name, inn),
-  suppliers(name, inn),
+  suppliers(name, inn, last_security_status),
   construction_sites(name),
   statuses!payment_requests_status_id_fkey(name, color),
   paid_statuses:statuses!payment_requests_paid_status_id_fkey(name, color),
@@ -99,6 +100,7 @@ function flattenPaymentRequest(row: Record<string, unknown>): Record<string, unk
   flat.counterparty_inn = cp?.inn ?? null;
   flat.supplier_name = sup?.name ?? null;
   flat.supplier_inn = sup?.inn ?? null;
+  flat.supplier_last_security_status = sup?.last_security_status ?? null;
   flat.site_name = site?.name ?? null;
   flat.status_name = status?.name ?? null;
   flat.status_color = status?.color ?? null;
@@ -221,6 +223,11 @@ async function paymentRequestRoutes(fastify: FastifyInstance): Promise<void> {
 
     if (!counterpartyId) {
       return reply.status(400).send({ error: 'counterpartyId обязателен' });
+    }
+
+    // Запрет создания заявки по поставщику, отклонённому СБ
+    if (await isSupplierSbRejected(supabase, body.supplierId)) {
+      return reply.status(403).send({ error: 'Поставщик отклонён службой безопасности — создание заявки невозможно' });
     }
 
     // Статус "Согласование Штаб"

@@ -8,6 +8,7 @@ import {
   Form,
   App,
   Collapse,
+  Alert,
 } from 'antd'
 import {
   SendOutlined,
@@ -358,6 +359,8 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
 
   // Согласованная заявка (не на доработке)
   const isApprovedRequest = !!request.approvedAt && !request.previousStatusId
+  // Поставщик отклонён СБ — продвижение запрещено, доступна только отмена (согласованные не трогаем)
+  const supplierSbRejected = request.supplierLastSecurityStatus === 'rejected' && !isApprovedRequest
   // Разрешение на отклонение файлов: согласующие ИЛИ редактирование согласованной заявки
   const canRejectFiles = canApprove || (isEditing && isApprovedRequest)
 
@@ -460,7 +463,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
         {isRevisionStatus && isAdmin && <Button style={{ borderColor: '#52c41a', color: '#52c41a' }} icon={<CheckOutlined />} onClick={() => setRevisionCompleteModalOpen(true)}>Доработано</Button>}
         {canSendToRevision && <Button icon={<EditOutlined />} style={{ borderColor: '#faad14', color: '#faad14' }} onClick={() => setRevisionModalOpen(true)}>На доработку</Button>}
         {canEdit && !isCounterpartyUser && <Button icon={<EditOutlined />} onClick={startEditing}>Редактировать</Button>}
-        {canApprove && (
+        {canApprove && !supplierSbRejected && (
           <Button type="primary" icon={<CheckOutlined />} onClick={handleApproveClick}>Согласовать</Button>
         )}
         {(canReject ?? canApprove) && <Button danger icon={<StopOutlined />} onClick={() => setRejectModalOpen(true)}>Отклонить</Button>}
@@ -489,6 +492,17 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
             : { maxHeight: 'calc(85vh - 120px)', overflowY: 'auto', overflowX: 'hidden' },
         }}
       >
+        {/* Предупреждение: поставщик отклонён СБ */}
+        {supplierSbRejected && !isEditing && !resubmitMode && (
+          <Alert
+            type="error"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message="Поставщик отклонён службой безопасности"
+            description="Согласование и продвижение заявки недоступны. Заявку можно только отклонить."
+          />
+        )}
+
         {/* Реквизиты */}
         <RequestDetailsSection
           request={request}
