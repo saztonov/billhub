@@ -426,6 +426,10 @@ async function paymentRequestRoutes(fastify: FastifyInstance): Promise<void> {
       current_stage: 1,
       resubmit_comment: body.comment || null,
       resubmit_count: newCount,
+      // Заявка возвращается в работу — снимаем флаг отзыва, иначе она выпадет
+      // из pending-списков согласования (фильтр withdrawn_at IS NULL)
+      withdrawn_at: null,
+      withdrawal_comment: null,
     };
 
     if (body.fieldUpdates) {

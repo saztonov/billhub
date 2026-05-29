@@ -358,15 +358,34 @@ export const REVISION_TARGET_LABELS: Record<RevisionTarget, string> = {
   counterparty: 'На доработку Подрядчику',
 }
 
+/** Карта возврата заявки на договор на предыдущий этап (code -> code предыдущего) */
+export const CONTRACT_PREVIOUS_STATUS_CODE: Record<string, string> = {
+  on_revision: 'approv_omts',
+  approved_waiting: 'approv_omts',
+  concluded: 'approved_waiting',
+  rejected: 'approv_omts',
+}
+
+/** Резервные названия статусов договора (если статус не загружен из справочника) */
+export const CONTRACT_STATUS_FALLBACK_LABELS: Record<string, string> = {
+  approv_omts: 'Согласование ОМТС',
+  on_revision: 'На доработке',
+  approved_waiting: 'Согласовано, ожидание оригинала',
+  concluded: 'Заключен',
+  rejected: 'Отклонено',
+}
+
 /** Запись в истории статусов заявки на договор */
 export interface ContractStatusHistoryEntry {
-  event: 'created' | 'revision' | 'revision_complete' | 'approved' | 'original_received' | 'assigned' | 'reverted_to_waiting'
+  event: 'created' | 'revision' | 'revision_complete' | 'approved' | 'original_received' | 'assigned' | 'reverted_to_waiting' | 'status_reverted' | 'rejected'
   at: string
   userFullName?: string
   userEmail?: string
   revisionTargets?: string[]
   revisionTarget?: string
   comment?: string
+  /** Имя целевого статуса для события status_reverted */
+  toStatusName?: string
 }
 
 /** Заявка на согласование договора */

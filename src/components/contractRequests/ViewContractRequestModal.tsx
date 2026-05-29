@@ -32,8 +32,9 @@ import { useContractCommentStore } from '@/store/contractCommentStore'
 import { useConstructionSiteStore } from '@/store/constructionSiteStore'
 import { useCounterpartyStore } from '@/store/counterpartyStore'
 import { useSupplierStore } from '@/store/supplierStore'
+import { useStatusStore } from '@/store/statusStore'
 import { downloadFileBlob } from '@/services/s3'
-import { CONTRACT_SUBJECT_LABELS, REVISION_TARGET_LABELS, DEPARTMENT_LABELS, type Department } from '@/types'
+import { CONTRACT_SUBJECT_LABELS, REVISION_TARGET_LABELS, DEPARTMENT_LABELS, CONTRACT_PREVIOUS_STATUS_CODE, CONTRACT_STATUS_FALLBACK_LABELS, type Department } from '@/types'
 import type { ContractRequest, ContractRequestFile, RevisionTarget } from '@/types'
 import { formatSize, formatDate } from '@/utils/requestFormatters'
 import useIsMobile from '@/hooks/useIsMobile'
@@ -79,7 +80,8 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
     sendToRevision,
     completeRevision,
     markOriginalReceived,
-    revertToWaiting,
+    revertToPreviousStatus,
+    rejectRequest,
     deleteRequest,
     updateRequest,
     updateContractDetails,
@@ -87,6 +89,7 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
   } = useContractRequestStore()
 
   const markAsRead = useContractCommentStore((s) => s.markAsRead)
+  const contractStatuses = useStatusStore((s) => s.statuses)
   const { sites, fetchSites } = useConstructionSiteStore()
   const { counterparties, fetchCounterparties } = useCounterpartyStore()
   const { suppliers, fetchSuppliers } = useSupplierStore()
@@ -97,6 +100,8 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
   const [revisionModalOpen, setRevisionModalOpen] = useState(false)
   const [revertModalOpen, setRevertModalOpen] = useState(false)
   const [revertComment, setRevertComment] = useState('')
+  const [rejectModalOpen, setRejectModalOpen] = useState(false)
+  const [rejectComment, setRejectComment] = useState('')
   const [isEditing, setIsEditing] = useState(false)
   const [editForm] = Form.useForm()
   const [previewFile, setPreviewFile] = useState<{
@@ -138,6 +143,8 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
       setRevisionModalOpen(false)
       setRevertModalOpen(false)
       setRevertComment('')
+      setRejectModalOpen(false)
+      setRejectComment('')
       setPreviewFile(null)
     }
   }, [open])
@@ -226,11 +233,11 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
     }
   }, [request, user, markOriginalReceived, message, onClose])
 
-  /** Смена статуса "Заключен" -> "Согласовано, ожидание оригинала" (ОМТС/admin) */
-  const handleRevertToWaiting = useCallback(async () => {
+  /** Возврат заявки на предыдущий этап (ОМТС/admin) */
+  const handleRevertToPreviousStatus = useCallback(async () => {
     if (!request || !user) return
     try {
-      await revertToWaiting(request.id, user.id, revertComment.trim() || undefined)
+      await revertToPreviousStatus(request.id, user.id, revertComment.trim() || undefined)
       message.success('Статус изменён')
       setRevertModalOpen(false)
       setRevertComment('')
@@ -238,7 +245,26 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
     } catch {
       message.error('Ошибка смены статуса')
     }
-  }, [request, user, revertToWaiting, revertComment, message, onClose])
+  }, [request, user, revertToPreviousStatus, revertComment, message, onClose])
+
+  /** Отклонение заявки с обязательной причиной (ОМТС/admin) */
+  const handleReject = useCallback(async () => {
+    if (!request || !user) return
+    const comment = rejectComment.trim()
+    if (!comment) {
+      message.error('Укажите причину отклонения')
+      return
+    }
+    try {
+      await rejectRequest(request.id, user.id, comment)
+      message.success('Заявка отклонена')
+      setRejectModalOpen(false)
+      setRejectComment('')
+      onClose()
+    } catch {
+      message.error('Ошибка отклонения заявки')
+    }
+  }, [request, user, rejectRequest, rejectComment, message, onClose])
 
   /** Удаление заявки (admin) */
   const handleDelete = useCallback(async () => {
@@ -303,8 +329,18 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
   const canOmtsActions = (isOmts || isAdmin) && statusCode === 'approv_omts'
   // ОМТС или admin могут подтвердить получение оригинала
   const canMarkOriginal = (isOmts || isAdmin) && statusCode === 'approved_waiting'
-  // ОМТС или admin могут откатить статус "Заключен" -> "Согласовано, ожидание оригинала"
-  const canRevertToWaiting = (isOmts || isAdmin) && statusCode === 'concluded'
+  // Код предыдущего этапа для текущего статуса (если есть)
+  const revertTargetCode = statusCode ? CONTRACT_PREVIOUS_STATUS_CODE[statusCode] : undefined
+  // ОМТС или admin могут вернуть заявку на предыдущий этап (если он есть)
+  const canRevertStatus = (isOmts || isAdmin) && !!revertTargetCode
+  // Имя целевого статуса для модалки (из справочника, иначе резервная подпись)
+  const revertTargetName = revertTargetCode
+    ? (contractStatuses.find((s) => s.code === revertTargetCode)?.name
+        ?? CONTRACT_STATUS_FALLBACK_LABELS[revertTargetCode]
+        ?? revertTargetCode)
+    : ''
+  // ОМТС или admin могут отклонить заявку на любом этапе кроме "Заключен" и уже "Отклонено"
+  const canReject = (isOmts || isAdmin) && !!statusCode && statusCode !== 'concluded' && statusCode !== 'rejected'
   // Штаб может завершить доработку, если в targets есть 'shtab'
   const canShtabComplete = isShtab && statusCode === 'on_revision' && (req.revisionTargets ?? []).includes('shtab')
   // Подрядчик может завершить доработку, если в targets есть 'counterparty'
@@ -582,13 +618,23 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
             </Button>
           </Popconfirm>
         )}
-        {/* ОМТС / admin: сменить статус "Заключен" -> "Согласовано, ожидание оригинала" */}
-        {canRevertToWaiting && (
+        {/* ОМТС / admin: вернуть заявку на предыдущий этап */}
+        {canRevertStatus && (
           <Button
             icon={<EditOutlined />}
             onClick={() => setRevertModalOpen(true)}
           >
             Сменить статус
+          </Button>
+        )}
+        {/* ОМТС / admin: отклонить заявку (кроме статуса "Заключен") */}
+        {canReject && (
+          <Button
+            danger
+            icon={<CloseCircleOutlined />}
+            onClick={() => setRejectModalOpen(true)}
+          >
+            Отклонить
           </Button>
         )}
         {/* Admin / Подрядчик (до approved_waiting): редактирование шапки */}
@@ -783,7 +829,7 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
         mimeType={previewFile?.mimeType ?? null}
       />
 
-      {/* Модалка смены статуса "Заключен" -> "Согласовано, ожидание оригинала" */}
+      {/* Модалка возврата заявки на предыдущий этап */}
       <Modal
         title="Сменить статус"
         open={revertModalOpen}
@@ -791,13 +837,13 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
           setRevertModalOpen(false)
           setRevertComment('')
         }}
-        onOk={handleRevertToWaiting}
+        onOk={handleRevertToPreviousStatus}
         okText="Сменить"
         cancelText="Отмена"
         confirmLoading={isSubmitting}
         destroyOnClose
       >
-        <p>Статус будет изменён на «Согласовано, ожидание оригинала».</p>
+        <p>Статус будет изменён на «{revertTargetName}».</p>
         <Form layout="vertical">
           <Form.Item label="Комментарий (необязательно)">
             <Input.TextArea
@@ -805,6 +851,36 @@ const ViewContractRequestModal = ({ open, request, onClose }: ViewContractReques
               value={revertComment}
               onChange={(e) => setRevertComment(e.target.value)}
               placeholder="Укажите причину смены статуса"
+              maxLength={500}
+              showCount
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Модалка отклонения заявки */}
+      <Modal
+        title="Отклонить заявку"
+        open={rejectModalOpen}
+        onCancel={() => {
+          setRejectModalOpen(false)
+          setRejectComment('')
+        }}
+        onOk={handleReject}
+        okText="Отклонить"
+        okButtonProps={{ danger: true }}
+        cancelText="Отмена"
+        confirmLoading={isSubmitting}
+        destroyOnClose
+      >
+        <p>Статус будет изменён на «Отклонено».</p>
+        <Form layout="vertical">
+          <Form.Item label="Причина отклонения" required>
+            <Input.TextArea
+              rows={3}
+              value={rejectComment}
+              onChange={(e) => setRejectComment(e.target.value)}
+              placeholder="Укажите причину отклонения"
               maxLength={500}
               showCount
             />

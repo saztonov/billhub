@@ -158,6 +158,10 @@ export async function handleCompleteRevision(
     delivery_days_type: fieldUpdates.deliveryDaysType,
     shipping_condition_id: fieldUpdates.shippingConditionId,
     invoice_amount: fieldUpdates.invoiceAmount,
+    // Заявка возвращается в работу — снимаем флаг отзыва, иначе она выпадет
+    // из pending-списков согласования (фильтр withdrawn_at IS NULL)
+    withdrawn_at: null,
+    withdrawal_comment: null,
   };
   if (wasApproved) updateData.approved_at = new Date().toISOString();
   if (cur.invoice_amount != null && cur.invoice_amount !== fieldUpdates.invoiceAmount) {

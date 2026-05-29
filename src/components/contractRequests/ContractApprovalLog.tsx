@@ -5,6 +5,8 @@ import {
   EditOutlined,
   FileProtectOutlined,
   UserOutlined,
+  RollbackOutlined,
+  CloseCircleOutlined,
 } from '@ant-design/icons'
 import type { ContractStatusHistoryEntry } from '@/types'
 import { REVISION_TARGET_LABELS, type RevisionTarget } from '@/types'
@@ -24,6 +26,8 @@ const EVENT_CONFIG: Record<string, { icon: React.ReactNode; label: string; color
   original_received: { icon: <FileProtectOutlined />, label: 'Оригинал получен', color: '#389e0d' },
   assigned: { icon: <UserOutlined />, label: 'Взято в работу', color: '#1677ff' },
   reverted_to_waiting: { icon: <EditOutlined />, label: 'Статус изменён на "Согласовано, ожидание оригинала"', color: '#faad14' },
+  status_reverted: { icon: <RollbackOutlined />, label: 'Статус изменён', color: '#faad14' },
+  rejected: { icon: <CloseCircleOutlined />, label: 'Отклонено', color: '#ff4d4f' },
 }
 
 /** Форматирование даты и времени */
@@ -64,7 +68,9 @@ const ContractApprovalLog = ({ statusHistory }: ContractApprovalLogProps) => {
                     ? 'Согласовано штабом'
                     : entry.event === 'revision_complete' && entry.revisionTarget === 'counterparty'
                       ? 'Доработано подрядчиком'
-                      : config.label}
+                      : entry.event === 'status_reverted' && entry.toStatusName
+                        ? `Статус изменён на «${entry.toStatusName}»`
+                        : config.label}
                 </Text>
                 <Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>
                   {formatDateTime(entry.at)}

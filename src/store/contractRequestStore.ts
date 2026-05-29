@@ -39,7 +39,8 @@ interface ContractRequestStoreState {
   completeRevision: (id: string, target: RevisionTarget, userId: string) => Promise<void>
   approveRequest: (id: string, userId: string) => Promise<void>
   markOriginalReceived: (id: string, userId: string) => Promise<void>
-  revertToWaiting: (id: string, userId: string, comment?: string) => Promise<void>
+  revertToPreviousStatus: (id: string, userId: string, comment?: string) => Promise<void>
+  rejectRequest: (id: string, userId: string, comment: string) => Promise<void>
   assignToMe: (id: string) => Promise<void>
   updateContractDetails: (id: string, data: { contractNumber?: string | null; contractSigningDate?: string | null }) => Promise<void>
 }
@@ -231,16 +232,31 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
     }
   },
 
-  revertToWaiting: async (id, userId, comment) => {
+  revertToPreviousStatus: async (id, userId, comment) => {
     set({ isSubmitting: true, error: null })
     try {
-      await api.post(`/api/contract-requests/${id}/revert-to-waiting`, { userId, comment: comment ?? null })
+      await api.post(`/api/contract-requests/${id}/revert-to-previous`, { userId, comment: comment ?? null })
 
       await get().fetchRequests()
       set({ isSubmitting: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка смены статуса'
-      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'revertContractToWaiting', id } })
+      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'revertContractToPreviousStatus', id } })
+      set({ error: message, isSubmitting: false })
+      throw err
+    }
+  },
+
+  rejectRequest: async (id, userId, comment) => {
+    set({ isSubmitting: true, error: null })
+    try {
+      await api.post(`/api/contract-requests/${id}/reject`, { userId, comment })
+
+      await get().fetchRequests()
+      set({ isSubmitting: false })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Ошибка отклонения заявки'
+      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'rejectContractRequest', id } })
       set({ error: message, isSubmitting: false })
       throw err
     }

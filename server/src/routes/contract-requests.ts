@@ -67,6 +67,14 @@ async function appendContractStatusHistory(
     .eq('id', contractRequestId);
 }
 
+/** Карта возврата заявки на договор на предыдущий этап (code -> code предыдущего) */
+const CONTRACT_PREVIOUS_STATUS: Record<string, string> = {
+  on_revision: 'approv_omts',
+  approved_waiting: 'approv_omts',
+  concluded: 'approved_waiting',
+  rejected: 'approv_omts',
+};
+
 /** Select-строка для списка заявок на договор */
 const CR_LIST_SELECT = `
   id, request_number, site_id, counterparty_id, supplier_id,
@@ -562,9 +570,9 @@ async function contractRequestRoutes(fastify: FastifyInstance): Promise<void> {
     return reply.send({ success: true });
   });
 
-  /* ---------- POST /api/contract-requests/:id/revert-to-waiting ---------- */
-  /** Откат статуса "Заключен" -> "Согласовано, ожидание оригинала" (ОМТС/admin) */
-  fastify.post('/api/contract-requests/:id/revert-to-waiting', adminOrUser, async (request, reply) => {
+  /* ---------- POST /api/contract-requests/:id/revert-to-previous ---------- */
+  /** Вернуть заявку на предыдущий этап (ОМТС/admin) */
+  fastify.post('/api/contract-requests/:id/revert-to-previous', adminOrUser, async (request, reply) => {
     const { id } = request.params as { id: string };
     const user = request.user!;
     const body = (request.body ?? {}) as { comment?: string | null };
@@ -575,7 +583,7 @@ async function contractRequestRoutes(fastify: FastifyInstance): Promise<void> {
       return reply.status(403).send({ error: 'Недостаточно прав' });
     }
 
-    // Проверка текущего статуса — должен быть concluded
+    // Текущий статус заявки
     const { data: current, error: fetchErr } = await supabase
       .from('contract_requests')
       .select('status_id, statuses!contract_requests_status_id_fkey(code)')
@@ -583,15 +591,32 @@ async function contractRequestRoutes(fastify: FastifyInstance): Promise<void> {
       .single();
     if (fetchErr) return reply.status(404).send({ error: 'Заявка не найдена' });
     const currentCode = (current?.statuses as { code?: string } | null)?.code;
-    if (currentCode !== 'concluded') {
-      return reply.status(400).send({ error: 'Смена статуса доступна только для заявок со статусом "Заключен"' });
+
+    // Целевой (предыдущий) статус по карте переходов
+    const targetCode = currentCode ? CONTRACT_PREVIOUS_STATUS[currentCode] : undefined;
+    if (!targetCode) {
+      return reply.status(400).send({ error: 'Для текущего статуса нет предыдущего этапа' });
     }
 
-    const statusId = await getStatusId(supabase, 'contract_request', 'approved_waiting');
+    const statusId = await getStatusId(supabase, 'contract_request', targetCode);
+
+    // Имя целевого статуса для записи в историю
+    const { data: targetStatus } = await supabase
+      .from('statuses')
+      .select('name')
+      .eq('entity_type', 'contract_request')
+      .eq('code', targetCode)
+      .single();
+    const toStatusName = (targetStatus?.name as string | undefined) ?? targetCode;
+
+    // Побочные эффекты в зависимости от направления перехода
+    const updateData: Record<string, unknown> = { status_id: statusId };
+    if (currentCode === 'concluded') updateData.original_received_at = null;
+    if (targetCode === 'approv_omts') updateData.revision_targets = [];
 
     const { error } = await supabase
       .from('contract_requests')
-      .update({ status_id: statusId, original_received_at: null })
+      .update(updateData)
       .eq('id', id);
     if (error) return reply.status(500).send({ error: error.message });
 
@@ -599,9 +624,53 @@ async function contractRequestRoutes(fastify: FastifyInstance): Promise<void> {
     await appendContractStatusHistory(
       supabase,
       id,
-      { event: 'reverted_to_waiting', ...(comment ? { comment } : {}) },
+      { event: 'status_reverted', toStatusName, ...(comment ? { comment } : {}) },
       user.id,
     );
+
+    return reply.send({ success: true });
+  });
+
+  /* ---------- POST /api/contract-requests/:id/reject ---------- */
+  /** Отклонить заявку (ОМТС/admin) — перевод в статус "Отклонено" с обязательной причиной */
+  fastify.post('/api/contract-requests/:id/reject', adminOrUser, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = request.user!;
+    const body = (request.body ?? {}) as { comment?: string | null };
+    const supabase = fastify.supabase;
+
+    // Проверка прав: только ОМТС или admin
+    if (user.role !== 'admin' && user.department !== 'omts') {
+      return reply.status(403).send({ error: 'Недостаточно прав' });
+    }
+
+    // Причина отклонения обязательна
+    const comment = body.comment?.trim();
+    if (!comment) {
+      return reply.status(400).send({ error: 'Укажите причину отклонения' });
+    }
+
+    // Текущий статус — нельзя отклонять "Заключен" и уже "Отклонено"
+    const { data: current, error: fetchErr } = await supabase
+      .from('contract_requests')
+      .select('status_id, statuses!contract_requests_status_id_fkey(code)')
+      .eq('id', id)
+      .single();
+    if (fetchErr) return reply.status(404).send({ error: 'Заявка не найдена' });
+    const currentCode = (current?.statuses as { code?: string } | null)?.code;
+    if (currentCode === 'concluded' || currentCode === 'rejected') {
+      return reply.status(400).send({ error: 'Заявку в этом статусе нельзя отклонить' });
+    }
+
+    const statusId = await getStatusId(supabase, 'contract_request', 'rejected');
+
+    const { error } = await supabase
+      .from('contract_requests')
+      .update({ status_id: statusId })
+      .eq('id', id);
+    if (error) return reply.status(500).send({ error: error.message });
+
+    await appendContractStatusHistory(supabase, id, { event: 'rejected', comment }, user.id);
 
     return reply.send({ success: true });
   });
