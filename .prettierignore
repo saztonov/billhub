@@ -1,0 +1,40 @@
+# Сборка
+dist
+build
+coverage
+
+# Зависимости
+node_modules
+
+# Lock-файлы
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Сгенерированные артефакты
+sql/schema/schema.json
+*.min.js
+*.min.css
+
+# Логи
+*.log
+
+# Окружение
+.env
+.env.*
+
+# Хранилища данных
+data
+*.dump
+
+# IDE
+.vscode/*.code-snippets
+
+# Документация (markdown сохраняет авторское форматирование)
+docs
+
+# Внешний контекст
+temp
+
+# Git
+.git

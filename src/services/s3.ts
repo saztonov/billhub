@@ -111,7 +111,7 @@ async function chunkedUpload(file: File, options: UploadOptions): Promise<{ key:
   const { uploadId, fileKey, totalParts } = initData
 
   /** 2. Определяем какие чанки уже загружены (для resume) */
-  let uploadedSet = new Set<number>()
+  const uploadedSet = new Set<number>()
 
   /** 3. Загрузка чанков последовательно */
   for (let partNumber = 1; partNumber <= totalParts; partNumber++) {
@@ -122,10 +122,7 @@ async function chunkedUpload(file: File, options: UploadOptions): Promise<{ key:
     const chunk = file.slice(start, end)
 
     await withRetry(async () => {
-      await api.putBinary<PartResponse>(
-        `/api/files/upload/${uploadId}/part/${partNumber}`,
-        chunk,
-      )
+      await api.putBinary<PartResponse>(`/api/files/upload/${uploadId}/part/${partNumber}`, chunk)
     })
   }
 
@@ -152,10 +149,7 @@ export async function getUploadStatus(uploadId: string): Promise<StatusResponse 
 /* ------------------------------------------------------------------ */
 
 /** Загружает файл в папку контрагента */
-export async function uploadFile(
-  counterpartyName: string,
-  file: File,
-): Promise<{ key: string }> {
+export async function uploadFile(counterpartyName: string, file: File): Promise<{ key: string }> {
   return chunkedUpload(file, { context: 'general', counterpartyName })
 }
 
@@ -169,18 +163,12 @@ export async function uploadRequestFile(
 }
 
 /** Загружает файл решения об отклонении */
-export async function uploadDecisionFile(
-  decisionId: string,
-  file: File,
-): Promise<{ key: string }> {
+export async function uploadDecisionFile(decisionId: string, file: File): Promise<{ key: string }> {
   return chunkedUpload(file, { context: 'decision', entityId: decisionId })
 }
 
 /** Загружает файл учредительного документа */
-export async function uploadFoundingFile(
-  entityId: string,
-  file: File,
-): Promise<{ key: string }> {
+export async function uploadFoundingFile(entityId: string, file: File): Promise<{ key: string }> {
   return chunkedUpload(file, { context: 'founding', entityId })
 }
 
@@ -199,7 +187,8 @@ export async function uploadPaymentFile(
 
 /** Возвращает URL для скачивания файла через proxy */
 export function getProxyDownloadUrl(key: string, fileName?: string): string {
-  const base = (import.meta.env.VITE_API_URL || '') + `/api/files/download/${encodeURIComponent(key)}`
+  const base =
+    (import.meta.env.VITE_API_URL || '') + `/api/files/download/${encodeURIComponent(key)}`
   if (fileName) return `${base}?fileName=${encodeURIComponent(fileName)}`
   return base
 }

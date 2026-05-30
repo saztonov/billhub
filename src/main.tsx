@@ -12,7 +12,13 @@ import '@/index.css'
 // Установка глобальных обработчиков ошибок до рендера приложения
 setupGlobalErrorHandlers()
 
-// Подавление предупреждения Multiple GoTrueClient в dev режиме
+/**
+ * Подавление шумного предупреждения "Multiple GoTrueClient instances" от Supabase в dev.
+ * Это не error-логирование (CLAUDE.md правило про logError не применимо), а перехватчик
+ * console.warn для конкретного сообщения от стороннего SDK.
+ *
+ * TODO(iteration-6): после удаления Supabase Auth (standalone auth раздел 13) этот блок снимается.
+ */
 if (import.meta.env.DEV) {
   const originalWarn = console.warn
   console.warn = (...args: unknown[]) => {

@@ -3166,6 +3166,23 @@
               "position": 6,
               "max_length": null,
               "numeric_precision": null
+            },
+            {
+              "name": "last_security_status",
+              "type": "text",
+              "default": null,
+              "nullable": true,
+              "position": 7,
+              "max_length": null,
+              "numeric_precision": null,
+              "description": "Последнее решение СБ: approved | rejected | NULL (миграция 006)"
+            }
+          ],
+          "constraints": [
+            {
+              "name": "suppliers_last_security_status_check",
+              "type": "CHECK",
+              "definition": "CHECK (last_security_status = ANY (ARRAY['approved'::text, 'rejected'::text]))"
             }
           ]
         },

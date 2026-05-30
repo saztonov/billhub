@@ -16,7 +16,7 @@ export function addCalendarDays(startDate: Date, days: number): Date {
  * Не учитывает праздники
  */
 export function addWorkingDays(startDate: Date, days: number): Date {
-  let currentDate = new Date(startDate)
+  const currentDate = new Date(startDate)
   let remainingDays = days
 
   while (remainingDays > 0) {
@@ -41,7 +41,7 @@ export function addWorkingDays(startDate: Date, days: number): Date {
 export function calculateDeliveryDate(
   deliveryDays: number,
   deliveryDaysType: 'working' | 'calendar',
-  includePaymentPeriod: boolean = true
+  includePaymentPeriod: boolean = true,
 ): Date {
   // Начинаем с завтрашнего дня
   const tomorrow = new Date()
@@ -52,9 +52,7 @@ export function calculateDeliveryDate(
   const afterApproval = addWorkingDays(tomorrow, 3)
 
   // Этап 2: +14 календарных дней (оплата) — только при предоплате
-  const afterPayment = includePaymentPeriod
-    ? addCalendarDays(afterApproval, 14)
-    : afterApproval
+  const afterPayment = includePaymentPeriod ? addCalendarDays(afterApproval, 14) : afterApproval
 
   // Этап 3: +deliveryDays (с учетом типа)
   const finalDate =

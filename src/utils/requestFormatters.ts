@@ -63,9 +63,5 @@ export function calculateDays(fromDate: string, toDate: string | null): number {
 
 /** Санитизация имени файла (защита от path traversal / ZipSlip) */
 export function sanitizeFileName(name: string): string {
-  return name
-    .replace(/\.\./g, '')
-    .replace(/[\\\/]/g, '_')
-    .replace(/^_+/, '')
-    || 'file'
+  return name.replace(/\.\./g, '').replace(/[\\/]/g, '_').replace(/^_+/, '') || 'file'
 }

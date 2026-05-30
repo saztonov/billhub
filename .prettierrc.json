@@ -1,0 +1,19 @@
+{
+  "printWidth": 100,
+  "tabWidth": 2,
+  "useTabs": false,
+  "singleQuote": true,
+  "trailingComma": "all",
+  "arrowParens": "always",
+  "bracketSpacing": true,
+  "endOfLine": "lf",
+  "semi": false,
+  "overrides": [
+    {
+      "files": ["server/**/*.ts", "server/**/*.js"],
+      "options": {
+        "semi": true
+      }
+    }
+  ]
+}
