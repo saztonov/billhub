@@ -71,3 +71,39 @@ export const listUsersQuerySchema = paginationSchema.extend({
   search: z.string().optional(),
 });
 export type ListUsersQuery = z.infer<typeof listUsersQuerySchema>;
+
+/** Расширенный DTO пользователя для admin-таблицы (имя контрагента + привязанные объекты) */
+export const userDetailSchema = z.object({
+  id: z.string(),
+  email: z.string(),
+  fullName: z.string(),
+  role: z.string(),
+  counterpartyId: z.string().nullable(),
+  counterpartyName: z.string().nullable(),
+  department: z.string().nullable(),
+  allSites: z.boolean(),
+  isActive: z.boolean(),
+  siteIds: z.array(z.string()),
+  siteNames: z.array(z.string()),
+  createdAt: z.string().optional(),
+});
+export type UserDetail = z.infer<typeof userDetailSchema>;
+
+/**
+ * Тело PUT /api/users/:id — исторически в snake_case (фронтенд отправляет full_name/site_ids).
+ */
+export const updateUserWithSitesBodySchema = z.object({
+  full_name: nonEmptyString.max(255),
+  role: userRoleSchema,
+  counterparty_id: z.string().nullable().optional(),
+  department: z.string().nullable().optional(),
+  all_sites: z.boolean(),
+  site_ids: z.array(z.string()),
+});
+export type UpdateUserWithSitesBody = z.infer<typeof updateUserWithSitesBodySchema>;
+
+/** Тело PUT /api/users/:id/sites */
+export const updateUserSitesBodySchema = z.object({
+  siteIds: z.array(z.string()),
+});
+export type UpdateUserSitesBody = z.infer<typeof updateUserSitesBodySchema>;

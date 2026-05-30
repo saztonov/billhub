@@ -9,7 +9,11 @@ import type {
   SupplierApiListQuery,
   Actor,
 } from '../../repositories/supplier.repository.js';
-import type { UserRepository } from '../../repositories/user.repository.js';
+import type {
+  UserRepository,
+  UserSitesUpdate,
+  CounterpartyUserRecord,
+} from '../../repositories/user.repository.js';
 import {
   NotFoundError,
   UniqueConstraintError,
@@ -32,7 +36,13 @@ import type {
   SupplierSecurityCheck,
   SupplierSecurityDecisionBody,
 } from '../../schemas/supplier.js';
-import type { User, CreateUserBody, UpdateUserBody, ListUsersQuery } from '../../schemas/user.js';
+import type {
+  User,
+  CreateUserBody,
+  UpdateUserBody,
+  ListUsersQuery,
+  UserDetail,
+} from '../../schemas/user.js';
 
 function makeId(): string {
   return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 10)}`;
@@ -337,9 +347,11 @@ export class InMemorySupplierRepository implements SupplierRepository {
 
 export class InMemoryUserRepository implements UserRepository {
   private items: User[] = [];
+  private siteMappings = new Map<string, string[]>();
 
   reset(): void {
     this.items = [];
+    this.siteMappings.clear();
   }
 
   seed(items: User[]): void {
@@ -423,5 +435,87 @@ export class InMemoryUserRepository implements UserRepository {
 
   async setActive(id: string, isActive: boolean): Promise<User> {
     return this.update(id, { isActive });
+  }
+
+  private toDetail(u: User): UserDetail {
+    const siteIds = this.siteMappings.get(u.id) ?? [];
+    return {
+      id: u.id,
+      email: u.email,
+      fullName: u.fullName,
+      role: u.role,
+      counterpartyId: u.counterpartyId,
+      counterpartyName: null,
+      department: u.department,
+      allSites: u.allSites,
+      isActive: u.isActive,
+      siteIds,
+      siteNames: siteIds.map(() => ''),
+      createdAt: u.createdAt,
+    };
+  }
+
+  async listWithDetails(): Promise<UserDetail[]> {
+    return this.items.map((u) => this.toDetail(u));
+  }
+
+  async getWithDetails(id: string): Promise<UserDetail> {
+    const u = this.items.find((x) => x.id === id);
+    if (!u) throw new NotFoundError('User', id);
+    return this.toDetail(u);
+  }
+
+  async getSiteAccess(id: string): Promise<{ allSites: boolean; siteIds: string[] }> {
+    const u = this.items.find((x) => x.id === id);
+    if (!u) throw new NotFoundError('User', id);
+    return { allSites: u.allSites, siteIds: this.siteMappings.get(id) ?? [] };
+  }
+
+  async getSiteMappingIds(id: string): Promise<{ constructionSiteId: string }[]> {
+    return (this.siteMappings.get(id) ?? []).map((constructionSiteId) => ({ constructionSiteId }));
+  }
+
+  async updateWithSites(id: string, input: UserSitesUpdate): Promise<void> {
+    if (input.department === 'shtab' && !input.allSites) {
+      if (input.siteIds.length === 0) {
+        throw new ValidationError('Для подразделения Штаб необходимо выбрать хотя бы один объект');
+      }
+      if (input.siteIds.length > 2) {
+        throw new ValidationError('Для подразделения Штаб можно выбрать не более 2 объектов');
+      }
+    }
+    const idx = this.items.findIndex((x) => x.id === id);
+    if (idx === -1) throw new NotFoundError('User', id);
+    const u = this.items[idx]!;
+    u.fullName = input.fullName;
+    u.role = input.role;
+    u.counterpartyId = input.role === 'counterparty_user' ? input.counterpartyId : null;
+    u.department =
+      input.role !== 'counterparty_user' ? (input.department as User['department']) : null;
+    u.allSites = input.role === 'counterparty_user' ? false : input.allSites;
+    if (!u.allSites && input.role !== 'counterparty_user') {
+      this.siteMappings.set(id, [...input.siteIds]);
+    } else {
+      this.siteMappings.delete(id);
+    }
+  }
+
+  async setSiteMappings(id: string, siteIds: string[]): Promise<void> {
+    if (siteIds.length > 0) this.siteMappings.set(id, [...siteIds]);
+    else this.siteMappings.delete(id);
+  }
+
+  async createCounterpartyUserRecord(input: CounterpartyUserRecord): Promise<void> {
+    this.items.push({
+      id: input.id,
+      email: input.email,
+      fullName: input.fullName,
+      role: 'counterparty_user',
+      counterpartyId: input.counterpartyId,
+      department: null,
+      allSites: false,
+      isActive: true,
+      createdAt: nowIso(),
+    });
   }
 }

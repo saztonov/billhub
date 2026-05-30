@@ -12,13 +12,30 @@ import { randomUUID } from 'node:crypto';
 import { and, desc, eq, ilike, or, sql, type SQL } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import * as schema from '../../db/schema/index.js';
-import { users } from '../../db/schema/index.js';
-import type { UserRepository } from '../user.repository.js';
-import type { User, CreateUserBody, UpdateUserBody, ListUsersQuery } from '../../schemas/user.js';
+import {
+  users,
+  userConstructionSitesMapping,
+  counterparties,
+  constructionSites,
+  notifications,
+} from '../../db/schema/index.js';
+import type {
+  UserRepository,
+  UserSitesUpdate,
+  CounterpartyUserRecord,
+} from '../user.repository.js';
+import type {
+  User,
+  CreateUserBody,
+  UpdateUserBody,
+  ListUsersQuery,
+  UserDetail,
+} from '../../schemas/user.js';
 import {
   NotFoundError,
   UniqueConstraintError,
   ForeignKeyConstraintError,
+  ValidationError,
   type PaginatedResult,
 } from '../types.js';
 import { getPgErrorCode, PG_UNIQUE_VIOLATION, PG_FOREIGN_KEY_VIOLATION } from './errors.js';
@@ -160,5 +177,225 @@ export class DrizzleUserRepository implements UserRepository {
 
   async setActive(id: string, isActive: boolean): Promise<User> {
     return this.update(id, { isActive });
+  }
+
+  async listWithDetails(): Promise<UserDetail[]> {
+    const rows = await this.db
+      .select({
+        id: users.id,
+        email: users.email,
+        fullName: users.fullName,
+        role: users.role,
+        counterpartyId: users.counterpartyId,
+        counterpartyName: counterparties.name,
+        department: users.departmentId,
+        allSites: users.allSites,
+        isActive: users.isActive,
+        createdAt: users.createdAt,
+      })
+      .from(users)
+      .leftJoin(counterparties, eq(counterparties.id, users.counterpartyId))
+      .orderBy(desc(users.createdAt));
+
+    const mappings = await this.db
+      .select({
+        userId: userConstructionSitesMapping.userId,
+        siteId: userConstructionSitesMapping.constructionSiteId,
+        siteName: constructionSites.name,
+      })
+      .from(userConstructionSitesMapping)
+      .leftJoin(
+        constructionSites,
+        eq(constructionSites.id, userConstructionSitesMapping.constructionSiteId),
+      );
+
+    const byUser = new Map<string, { ids: string[]; names: string[] }>();
+    for (const m of mappings) {
+      if (!byUser.has(m.userId)) byUser.set(m.userId, { ids: [], names: [] });
+      const e = byUser.get(m.userId)!;
+      e.ids.push(m.siteId);
+      e.names.push(m.siteName ?? '');
+    }
+
+    return rows.map((r) => {
+      const sites = byUser.get(r.id) ?? { ids: [], names: [] };
+      return {
+        id: r.id,
+        email: r.email,
+        fullName: r.fullName,
+        role: r.role,
+        counterpartyId: r.counterpartyId,
+        counterpartyName: r.counterpartyName ?? null,
+        department: r.department ?? null,
+        allSites: r.allSites,
+        isActive: r.isActive,
+        siteIds: sites.ids,
+        siteNames: sites.names,
+        createdAt: r.createdAt,
+      };
+    });
+  }
+
+  async getWithDetails(id: string): Promise<UserDetail> {
+    const [r] = await this.db
+      .select({
+        id: users.id,
+        email: users.email,
+        fullName: users.fullName,
+        role: users.role,
+        counterpartyId: users.counterpartyId,
+        counterpartyName: counterparties.name,
+        department: users.departmentId,
+        allSites: users.allSites,
+        isActive: users.isActive,
+        createdAt: users.createdAt,
+      })
+      .from(users)
+      .leftJoin(counterparties, eq(counterparties.id, users.counterpartyId))
+      .where(eq(users.id, id))
+      .limit(1);
+    if (!r) throw new NotFoundError('User', id);
+
+    const mappings = await this.db
+      .select({
+        siteId: userConstructionSitesMapping.constructionSiteId,
+        siteName: constructionSites.name,
+      })
+      .from(userConstructionSitesMapping)
+      .leftJoin(
+        constructionSites,
+        eq(constructionSites.id, userConstructionSitesMapping.constructionSiteId),
+      )
+      .where(eq(userConstructionSitesMapping.userId, id));
+
+    return {
+      id: r.id,
+      email: r.email,
+      fullName: r.fullName,
+      role: r.role,
+      counterpartyId: r.counterpartyId,
+      counterpartyName: r.counterpartyName ?? null,
+      department: r.department ?? null,
+      allSites: r.allSites,
+      isActive: r.isActive,
+      siteIds: mappings.map((m) => m.siteId),
+      siteNames: mappings.map((m) => m.siteName ?? ''),
+      createdAt: r.createdAt,
+    };
+  }
+
+  async getSiteAccess(id: string): Promise<{ allSites: boolean; siteIds: string[] }> {
+    const [u] = await this.db
+      .select({ allSites: users.allSites })
+      .from(users)
+      .where(eq(users.id, id))
+      .limit(1);
+    if (!u) throw new NotFoundError('User', id);
+    const mappings = await this.db
+      .select({ siteId: userConstructionSitesMapping.constructionSiteId })
+      .from(userConstructionSitesMapping)
+      .where(eq(userConstructionSitesMapping.userId, id));
+    return { allSites: u.allSites, siteIds: mappings.map((m) => m.siteId) };
+  }
+
+  async getSiteMappingIds(id: string): Promise<{ constructionSiteId: string }[]> {
+    const rows = await this.db
+      .select({ constructionSiteId: userConstructionSitesMapping.constructionSiteId })
+      .from(userConstructionSitesMapping)
+      .where(eq(userConstructionSitesMapping.userId, id));
+    return rows;
+  }
+
+  async updateWithSites(id: string, input: UserSitesUpdate): Promise<void> {
+    const { fullName, role, counterpartyId, department, allSites, siteIds } = input;
+    if (department === 'shtab' && !allSites) {
+      if (siteIds.length === 0) {
+        throw new ValidationError('Для подразделения Штаб необходимо выбрать хотя бы один объект');
+      }
+      if (siteIds.length > 2) {
+        throw new ValidationError('Для подразделения Штаб можно выбрать не более 2 объектов');
+      }
+    }
+
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(users)
+        .set({
+          fullName,
+          role,
+          counterpartyId: role === 'counterparty_user' ? counterpartyId : null,
+          departmentId: role !== 'counterparty_user' ? (department as Department) : null,
+          allSites: role === 'counterparty_user' ? false : allSites,
+        })
+        .where(eq(users.id, id));
+
+      await tx
+        .delete(userConstructionSitesMapping)
+        .where(eq(userConstructionSitesMapping.userId, id));
+
+      if (!allSites && role !== 'counterparty_user' && siteIds.length > 0) {
+        await tx
+          .insert(userConstructionSitesMapping)
+          .values(siteIds.map((siteId) => ({ userId: id, constructionSiteId: siteId })));
+      }
+
+      if (department && role !== 'counterparty_user') {
+        const dep = department as Exclude<Department, null>;
+        const notifs = await tx
+          .select({ siteId: notifications.siteId })
+          .from(notifications)
+          .where(
+            and(
+              eq(notifications.type, 'missing_specialist'),
+              eq(notifications.resolved, false),
+              eq(notifications.departmentId, dep),
+            ),
+          );
+        const now = new Date().toISOString();
+        for (const n of notifs) {
+          const matches = allSites || (n.siteId !== null && siteIds.includes(n.siteId));
+          // site_id IS NULL никогда не совпадает по равенству (как .eq в исходном коде) — пропускаем.
+          if (matches && n.siteId !== null) {
+            await tx
+              .update(notifications)
+              .set({ resolved: true, resolvedAt: now })
+              .where(
+                and(
+                  eq(notifications.type, 'missing_specialist'),
+                  eq(notifications.resolved, false),
+                  eq(notifications.departmentId, dep),
+                  eq(notifications.siteId, n.siteId),
+                ),
+              );
+          }
+        }
+      }
+    });
+  }
+
+  async setSiteMappings(id: string, siteIds: string[]): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      await tx
+        .delete(userConstructionSitesMapping)
+        .where(eq(userConstructionSitesMapping.userId, id));
+      if (siteIds.length > 0) {
+        await tx
+          .insert(userConstructionSitesMapping)
+          .values(siteIds.map((siteId) => ({ userId: id, constructionSiteId: siteId })));
+      }
+    });
+  }
+
+  async createCounterpartyUserRecord(input: CounterpartyUserRecord): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      await tx.insert(users).values({
+        id: input.id,
+        email: input.email,
+        fullName: input.fullName,
+        role: 'counterparty_user',
+        counterpartyId: input.counterpartyId,
+        allSites: false,
+      });
+    });
   }
 }
