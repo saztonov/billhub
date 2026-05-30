@@ -6,7 +6,13 @@
 import { asc, desc, eq } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import * as schema from '../../db/schema/index.js';
-import { constructionSites, costTypes, documentTypes, statuses } from '../../db/schema/index.js';
+import {
+  constructionSites,
+  costTypes,
+  documentTypes,
+  statuses,
+  paymentRequestFieldOptions,
+} from '../../db/schema/index.js';
 import type { ReferenceRepository } from '../reference.repository.js';
 import type {
   ConstructionSite,
@@ -21,6 +27,9 @@ import type {
   Status,
   CreateStatusBody,
   UpdateStatusBody,
+  FieldOption,
+  CreateFieldOptionBody,
+  UpdateFieldOptionBody,
 } from '../../schemas/reference.js';
 import { NotFoundError, ForeignKeyConstraintError } from '../types.js';
 import { getPgErrorCode, PG_FOREIGN_KEY_VIOLATION } from './errors.js';
@@ -46,6 +55,16 @@ function statusToDto(r: typeof statuses.$inferSelect): Status {
     isActive: r.isActive,
     displayOrder: r.displayOrder,
     visibleRoles: r.visibleRoles,
+    createdAt: r.createdAt,
+  };
+}
+function fieldOptionToDto(r: typeof paymentRequestFieldOptions.$inferSelect): FieldOption {
+  return {
+    id: r.id,
+    fieldCode: r.fieldCode,
+    value: r.value,
+    isActive: r.isActive,
+    displayOrder: r.displayOrder,
     createdAt: r.createdAt,
   };
 }
@@ -302,6 +321,82 @@ export class DrizzleReferenceRepository implements ReferenceRepository {
         if (err instanceof NotFoundError) throw err;
         if (getPgErrorCode(err) === PG_FOREIGN_KEY_VIOLATION) {
           throw new ForeignKeyConstraintError('Status', 'связанные заявки');
+        }
+        throw err;
+      }
+    });
+  }
+
+  /* --------------------------------- Опции полей --------------------------------- */
+
+  async listFieldOptions(fieldCode?: string): Promise<FieldOption[]> {
+    const base = this.db.select().from(paymentRequestFieldOptions);
+    const rows = fieldCode
+      ? await base
+          .where(eq(paymentRequestFieldOptions.fieldCode, fieldCode))
+          .orderBy(
+            asc(paymentRequestFieldOptions.fieldCode),
+            asc(paymentRequestFieldOptions.displayOrder),
+          )
+      : await base.orderBy(
+          asc(paymentRequestFieldOptions.fieldCode),
+          asc(paymentRequestFieldOptions.displayOrder),
+        );
+    return rows.map(fieldOptionToDto);
+  }
+
+  async createFieldOption(body: CreateFieldOptionBody): Promise<FieldOption> {
+    return this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(paymentRequestFieldOptions)
+        .values({
+          fieldCode: body.fieldCode,
+          value: body.value,
+          isActive: body.isActive ?? true,
+          displayOrder: body.displayOrder ?? 0,
+        })
+        .returning();
+      return fieldOptionToDto(row!);
+    });
+  }
+
+  async updateFieldOption(id: string, body: UpdateFieldOptionBody): Promise<FieldOption> {
+    const patch: Partial<typeof paymentRequestFieldOptions.$inferInsert> = {};
+    if (body.value !== undefined) patch.value = body.value;
+    if (body.isActive !== undefined) patch.isActive = body.isActive;
+    if (body.displayOrder !== undefined) patch.displayOrder = body.displayOrder;
+    if (Object.keys(patch).length === 0) {
+      const [row] = await this.db
+        .select()
+        .from(paymentRequestFieldOptions)
+        .where(eq(paymentRequestFieldOptions.id, id))
+        .limit(1);
+      if (!row) throw new NotFoundError('FieldOption', id);
+      return fieldOptionToDto(row);
+    }
+    return this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(paymentRequestFieldOptions)
+        .set(patch)
+        .where(eq(paymentRequestFieldOptions.id, id))
+        .returning();
+      if (!row) throw new NotFoundError('FieldOption', id);
+      return fieldOptionToDto(row);
+    });
+  }
+
+  async deleteFieldOption(id: string): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      try {
+        const deleted = await tx
+          .delete(paymentRequestFieldOptions)
+          .where(eq(paymentRequestFieldOptions.id, id))
+          .returning({ id: paymentRequestFieldOptions.id });
+        if (deleted.length === 0) throw new NotFoundError('FieldOption', id);
+      } catch (err) {
+        if (err instanceof NotFoundError) throw err;
+        if (getPgErrorCode(err) === PG_FOREIGN_KEY_VIOLATION) {
+          throw new ForeignKeyConstraintError('FieldOption', 'связанные заявки');
         }
         throw err;
       }

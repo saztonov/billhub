@@ -109,3 +109,30 @@ export const updateStatusBodySchema = z.object({
   visibleRoles: z.array(z.string()).optional(),
 });
 export type UpdateStatusBody = z.infer<typeof updateStatusBodySchema>;
+
+/* -------------------- Опции полей заявок (payment_request_field_options) -------------------- */
+
+export const fieldOptionSchema = z.object({
+  id: uuidSchema,
+  fieldCode: nonEmptyString,
+  value: nonEmptyString,
+  isActive: z.boolean(),
+  displayOrder: z.number().int(),
+  createdAt: z.iso.datetime({ offset: true }),
+});
+export type FieldOption = z.infer<typeof fieldOptionSchema>;
+
+export const createFieldOptionBodySchema = z.object({
+  fieldCode: nonEmptyString,
+  value: nonEmptyString,
+  isActive: z.boolean().optional(),
+  displayOrder: z.number().int().optional(),
+});
+export type CreateFieldOptionBody = z.infer<typeof createFieldOptionBodySchema>;
+
+export const updateFieldOptionBodySchema = z.object({
+  value: nonEmptyString.optional(),
+  isActive: z.boolean().optional(),
+  displayOrder: z.number().int().optional(),
+});
+export type UpdateFieldOptionBody = z.infer<typeof updateFieldOptionBodySchema>;

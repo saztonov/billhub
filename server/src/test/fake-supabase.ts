@@ -191,12 +191,14 @@ class FakeBuilder implements PromiseLike<QueryResult> {
           ? { data: null, error: { code: 'PGRST116', message: 'no rows' } }
           : { data: [], error: null };
       }
-      const target = matched[0]!;
-      const candidate = { ...target, ...this.payload };
-      const dup = this.db.findUniqueViolation(this.table, candidate, target);
+      const patch = Array.isArray(this.payload) ? {} : (this.payload ?? {});
+      // unique-проверка по первой совпавшей строке (мульти-row update не меняет unique-поля)
+      const candidate = { ...matched[0]!, ...patch };
+      const dup = this.db.findUniqueViolation(this.table, candidate, matched[0]!);
       if (dup) return { data: null, error: { code: '23505', message: 'unique violation' } };
-      Object.assign(target, this.payload);
-      return this.singleMode ? { data: target, error: null } : { data: [target], error: null };
+      // real Supabase обновляет ВСЕ совпавшие строки
+      for (const row of matched) Object.assign(row, patch);
+      return this.singleMode ? { data: matched[0], error: null } : { data: matched, error: null };
     }
 
     // delete: .select() возвращает удалённые строки (как PostgREST). Пусто = не найдено.

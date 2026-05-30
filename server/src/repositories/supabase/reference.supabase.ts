@@ -16,6 +16,9 @@ import type {
   Status,
   CreateStatusBody,
   UpdateStatusBody,
+  FieldOption,
+  CreateFieldOptionBody,
+  UpdateFieldOptionBody,
 } from '../../schemas/reference.js';
 import { NotFoundError, ForeignKeyConstraintError } from '../types.js';
 
@@ -24,6 +27,26 @@ const COST_FIELDS = 'id, name, is_active, created_at';
 const DOC_FIELDS = 'id, name, category, created_at';
 const STATUS_FIELDS =
   'id, entity_type, code, name, color, is_active, display_order, visible_roles, created_at';
+const FIELD_OPTION_FIELDS = 'id, field_code, value, is_active, display_order, created_at';
+
+interface FieldOptionRow {
+  id: string;
+  field_code: string;
+  value: string;
+  is_active: boolean;
+  display_order: number;
+  created_at: string;
+}
+function fieldOptionToDto(r: FieldOptionRow): FieldOption {
+  return {
+    id: r.id,
+    fieldCode: r.field_code,
+    value: r.value,
+    isActive: r.is_active,
+    displayOrder: r.display_order,
+    createdAt: r.created_at,
+  };
+}
 
 interface SiteRow {
   id: string;
@@ -325,5 +348,67 @@ export class SupabaseReferenceRepository implements ReferenceRepository {
       throw error;
     }
     if (!data || data.length === 0) throw new NotFoundError('Status', id);
+  }
+
+  /* --------------------------------- Опции полей --------------------------------- */
+
+  async listFieldOptions(fieldCode?: string): Promise<FieldOption[]> {
+    let query = this.supabase
+      .from('payment_request_field_options')
+      .select(FIELD_OPTION_FIELDS)
+      .order('field_code', { ascending: true })
+      .order('display_order', { ascending: true });
+    if (fieldCode) query = query.eq('field_code', fieldCode);
+    const { data, error } = await query;
+    if (error) throw error;
+    return (data as FieldOptionRow[]).map(fieldOptionToDto);
+  }
+
+  async createFieldOption(body: CreateFieldOptionBody): Promise<FieldOption> {
+    const { data, error } = await this.supabase
+      .from('payment_request_field_options')
+      .insert({
+        field_code: body.fieldCode,
+        value: body.value,
+        is_active: body.isActive ?? true,
+        display_order: body.displayOrder ?? 0,
+      })
+      .select(FIELD_OPTION_FIELDS)
+      .single();
+    if (error) throw error;
+    return fieldOptionToDto(data as FieldOptionRow);
+  }
+
+  async updateFieldOption(id: string, body: UpdateFieldOptionBody): Promise<FieldOption> {
+    const patch: Record<string, unknown> = {};
+    if (body.value !== undefined) patch.value = body.value;
+    if (body.isActive !== undefined) patch.is_active = body.isActive;
+    if (body.displayOrder !== undefined) patch.display_order = body.displayOrder;
+    const { data, error } = await this.supabase
+      .from('payment_request_field_options')
+      .update(patch)
+      .eq('id', id)
+      .select(FIELD_OPTION_FIELDS)
+      .single();
+    if (error) {
+      if (code(error) === 'PGRST116') throw new NotFoundError('FieldOption', id);
+      throw error;
+    }
+    return fieldOptionToDto(data as FieldOptionRow);
+  }
+
+  async deleteFieldOption(id: string): Promise<void> {
+    const { data, error } = await this.supabase
+      .from('payment_request_field_options')
+      .delete()
+      .eq('id', id)
+      .select('id');
+    if (error) {
+      if (code(error) === '23503') {
+        throw new ForeignKeyConstraintError('FieldOption', 'связанные заявки');
+      }
+      throw error;
+    }
+    if (!data || data.length === 0) throw new NotFoundError('FieldOption', id);
   }
 }

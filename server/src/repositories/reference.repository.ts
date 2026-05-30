@@ -16,6 +16,9 @@ import type {
   Status,
   CreateStatusBody,
   UpdateStatusBody,
+  FieldOption,
+  CreateFieldOptionBody,
+  UpdateFieldOptionBody,
 } from '../schemas/reference.js';
 
 export interface ReferenceRepository {
@@ -45,4 +48,10 @@ export interface ReferenceRepository {
   createStatus(body: CreateStatusBody): Promise<Status>;
   updateStatus(id: string, body: UpdateStatusBody): Promise<Status>;
   deleteStatus(id: string): Promise<void>;
+
+  /* --- Опции полей заявок на оплату --- */
+  listFieldOptions(fieldCode?: string): Promise<FieldOption[]>;
+  createFieldOption(body: CreateFieldOptionBody): Promise<FieldOption>;
+  updateFieldOption(id: string, body: UpdateFieldOptionBody): Promise<FieldOption>;
+  deleteFieldOption(id: string): Promise<void>;
 }

@@ -21,6 +21,7 @@ export type { CounterpartyRepository } from './counterparty.repository.js';
 export type { SupplierRepository } from './supplier.repository.js';
 export type { UserRepository } from './user.repository.js';
 export type { ReferenceRepository } from './reference.repository.js';
+export type { NotificationRepository } from './notification.repository.js';
 
 /**
  * Контейнер всех репозиториев, декорирующий FastifyInstance как `fastify.repos`.
@@ -31,4 +32,5 @@ export interface Repositories {
   suppliers: import('./supplier.repository.js').SupplierRepository;
   users: import('./user.repository.js').UserRepository;
   references: import('./reference.repository.js').ReferenceRepository;
+  notifications: import('./notification.repository.js').NotificationRepository;
 }
