@@ -58,7 +58,7 @@ function ilikeMatch(value: unknown, pattern: string): boolean {
 }
 
 class FakeBuilder implements PromiseLike<QueryResult> {
-  private filters: { col: string; op: 'eq' | 'in' | 'gt'; val: unknown }[] = [];
+  private filters: { col: string; op: 'eq' | 'neq' | 'in' | 'gt'; val: unknown }[] = [];
   private orExpr: string | null = null;
   private rangeBounds: [number, number] | null = null;
   private orderSpec: { col: string; asc: boolean } | null = null;
@@ -80,6 +80,10 @@ class FakeBuilder implements PromiseLike<QueryResult> {
   }
   eq(col: string, val: unknown): this {
     this.filters.push({ col, op: 'eq', val });
+    return this;
+  }
+  neq(col: string, val: unknown): this {
+    this.filters.push({ col, op: 'neq', val });
     return this;
   }
   in(col: string, vals: unknown[]): this {
@@ -122,9 +126,13 @@ class FakeBuilder implements PromiseLike<QueryResult> {
     return Promise.resolve(this.exec()).then(onfulfilled, onrejected);
   }
 
-  private matchFilter(r: Row, f: { col: string; op: 'eq' | 'in' | 'gt'; val: unknown }): boolean {
+  private matchFilter(
+    r: Row,
+    f: { col: string; op: 'eq' | 'neq' | 'in' | 'gt'; val: unknown },
+  ): boolean {
     if (f.op === 'in') return Array.isArray(f.val) && f.val.includes(r[f.col]);
     if (f.op === 'gt') return String(r[f.col] ?? '') > String(f.val ?? '');
+    if (f.op === 'neq') return r[f.col] !== f.val;
     return r[f.col] === f.val;
   }
 

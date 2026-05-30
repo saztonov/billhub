@@ -9,3 +9,5 @@ export * from './counterparty.js';
 export * from './supplier.js';
 export * from './user.js';
 export * from './reference.js';
+export * from './notification.js';
+export * from './comment.js';
