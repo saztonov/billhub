@@ -1,54 +1,17 @@
 import type { FastifyInstance } from 'fastify';
+import { z } from 'zod';
 import { authenticate } from '../../middleware/authenticate.js';
 import { requireRole } from '../../middleware/requireRole.js';
+import { createCostTypeBodySchema, updateCostTypeBodySchema } from '../../schemas/reference.js';
+import { nonEmptyString } from '../../schemas/common.js';
 
 /* ------------------------------------------------------------------ */
-/*  Типы тел запросов                                                  */
+/*  Параметры пути и тела                                              */
 /* ------------------------------------------------------------------ */
-
-interface CostTypeBody {
-  name: string;
-  isActive?: boolean;
-}
-
-interface BatchImportBody {
-  names: string[];
-}
 
 interface IdParams {
   id: string;
 }
-
-/* ------------------------------------------------------------------ */
-/*  JSON-схемы валидации                                               */
-/* ------------------------------------------------------------------ */
-
-const costTypeSchema = {
-  body: {
-    type: 'object' as const,
-    required: ['name'],
-    properties: {
-      name: { type: 'string' as const, minLength: 1 },
-      isActive: { type: 'boolean' as const },
-    },
-    additionalProperties: false,
-  },
-};
-
-const batchImportSchema = {
-  body: {
-    type: 'object' as const,
-    required: ['names'],
-    properties: {
-      names: {
-        type: 'array' as const,
-        items: { type: 'string' as const, minLength: 1 },
-        minItems: 1,
-      },
-    },
-    additionalProperties: false,
-  },
-};
 
 const idParamsSchema = {
   params: {
@@ -58,94 +21,57 @@ const idParamsSchema = {
   },
 };
 
+const batchImportBodySchema = z.object({ names: z.array(nonEmptyString).min(1) });
+
 /* ------------------------------------------------------------------ */
-/*  Плагин маршрутов видов затрат                                      */
+/*  Плагин маршрутов видов затрат (через fastify.repos)                */
 /* ------------------------------------------------------------------ */
 
 async function costTypeRoutes(fastify: FastifyInstance): Promise<void> {
-  const SELECT_FIELDS = 'id, name, is_active, created_at';
-
   /** GET /api/references/cost-types — список видов затрат */
   fastify.get(
     '/',
     { preHandler: [authenticate, requireRole('admin', 'user')] },
-    async (request, reply) => {
-      const { data, error } = await request.server.supabase
-        .from('cost_types')
-        .select(SELECT_FIELDS)
-        .order('name', { ascending: true });
-      if (error) return reply.status(500).send({ error: error.message });
-      return data;
-    }
+    async (request) => {
+      return request.server.repos.references.listCostTypes();
+    },
   );
 
   /** POST /api/references/cost-types — создание вида затрат */
-  fastify.post<{ Body: CostTypeBody }>(
-    '/',
-    { schema: costTypeSchema, preHandler: [authenticate, requireRole('admin')] },
-    async (request, reply) => {
-      const { name } = request.body;
-      const { data, error } = await request.server.supabase
-        .from('cost_types')
-        .insert({ name })
-        .select(SELECT_FIELDS)
-        .single();
-      if (error) return reply.status(400).send({ error: error.message });
-      return data;
-    }
-  );
+  fastify.post('/', { preHandler: [authenticate, requireRole('admin')] }, async (request) => {
+    const body = createCostTypeBodySchema.parse(request.body);
+    return request.server.repos.references.createCostType(body);
+  });
 
   /** PUT /api/references/cost-types/:id — обновление вида затрат */
-  fastify.put<{ Params: IdParams; Body: CostTypeBody }>(
+  fastify.put<{ Params: IdParams }>(
     '/:id',
-    { schema: { ...idParamsSchema, ...costTypeSchema }, preHandler: [authenticate, requireRole('admin')] },
-    async (request, reply) => {
-      const { id } = request.params;
-      const { name, isActive } = request.body;
-      const { data, error } = await request.server.supabase
-        .from('cost_types')
-        .update({ name, is_active: isActive })
-        .eq('id', id)
-        .select(SELECT_FIELDS)
-        .single();
-      if (error) return reply.status(400).send({ error: error.message });
-      return data;
-    }
+    { schema: idParamsSchema, preHandler: [authenticate, requireRole('admin')] },
+    async (request) => {
+      const body = updateCostTypeBodySchema.parse(request.body);
+      return request.server.repos.references.updateCostType(request.params.id, body);
+    },
   );
 
   /** DELETE /api/references/cost-types/:id — удаление вида затрат */
   fastify.delete<{ Params: IdParams }>(
     '/:id',
     { schema: idParamsSchema, preHandler: [authenticate, requireRole('admin')] },
-    async (request, reply) => {
-      const { id } = request.params;
-      const { error } = await request.server.supabase
-        .from('cost_types')
-        .delete()
-        .eq('id', id);
-      if (error) return reply.status(400).send({ error: error.message });
+    async (request) => {
+      await request.server.repos.references.deleteCostType(request.params.id);
       return { success: true };
-    }
+    },
   );
 
   /** POST /api/references/cost-types/batch-import — пакетный импорт */
-  fastify.post<{ Body: BatchImportBody }>(
+  fastify.post(
     '/batch-import',
-    { schema: batchImportSchema, preHandler: [authenticate, requireRole('admin')] },
-    async (request, reply) => {
-      const { names } = request.body;
-      const BATCH_SIZE = 20;
-      let created = 0;
-
-      for (let i = 0; i < names.length; i += BATCH_SIZE) {
-        const batch = names.slice(i, i + BATCH_SIZE).map((name) => ({ name }));
-        const { error } = await request.server.supabase.from('cost_types').insert(batch);
-        if (error) return reply.status(400).send({ error: error.message });
-        created += batch.length;
-      }
-
+    { preHandler: [authenticate, requireRole('admin')] },
+    async (request) => {
+      const { names } = batchImportBodySchema.parse(request.body);
+      const created = await request.server.repos.references.batchCreateCostTypes(names);
       return { created };
-    }
+    },
   );
 }
 

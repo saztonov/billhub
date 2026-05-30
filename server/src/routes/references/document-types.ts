@@ -1,15 +1,14 @@
 import type { FastifyInstance } from 'fastify';
 import { authenticate } from '../../middleware/authenticate.js';
 import { requireRole } from '../../middleware/requireRole.js';
+import {
+  createDocumentTypeBodySchema,
+  updateDocumentTypeBodySchema,
+} from '../../schemas/reference.js';
 
 /* ------------------------------------------------------------------ */
-/*  Типы тел запросов                                                  */
+/*  Параметры пути и query                                             */
 /* ------------------------------------------------------------------ */
-
-interface DocumentTypeBody {
-  name: string;
-  category?: string;
-}
 
 interface DocumentTypeQuery {
   category?: string;
@@ -18,22 +17,6 @@ interface DocumentTypeQuery {
 interface IdParams {
   id: string;
 }
-
-/* ------------------------------------------------------------------ */
-/*  JSON-схемы валидации                                               */
-/* ------------------------------------------------------------------ */
-
-const documentTypeSchema = {
-  body: {
-    type: 'object' as const,
-    required: ['name'],
-    properties: {
-      name: { type: 'string' as const, minLength: 1 },
-      category: { type: 'string' as const, enum: ['operational', 'founding'], nullable: true },
-    },
-    additionalProperties: false,
-  },
-};
 
 const idParamsSchema = {
   params: {
@@ -44,83 +27,43 @@ const idParamsSchema = {
 };
 
 /* ------------------------------------------------------------------ */
-/*  Плагин маршрутов типов документов                                  */
+/*  Плагин маршрутов типов документов (через fastify.repos)            */
 /* ------------------------------------------------------------------ */
 
 async function documentTypeRoutes(fastify: FastifyInstance): Promise<void> {
-  const SELECT_FIELDS = 'id, name, category, created_at';
-
   /** GET /api/references/document-types — список типов документов */
   fastify.get<{ Querystring: DocumentTypeQuery }>(
     '/',
     { preHandler: [authenticate, requireRole('admin', 'user', 'counterparty_user')] },
-    async (request, reply) => {
-      const { category } = request.query as DocumentTypeQuery;
-      let query = request.server.supabase
-        .from('document_types')
-        .select(SELECT_FIELDS);
-
-      if (category) {
-        query = query.eq('category', category);
-      }
-
-      const { data, error } = await query.order('created_at', { ascending: false });
-      if (error) return reply.status(500).send({ error: error.message });
-      return data;
-    }
+    async (request) => {
+      return request.server.repos.references.listDocumentTypes(request.query.category);
+    },
   );
 
   /** POST /api/references/document-types — создание типа документа */
-  fastify.post<{ Body: DocumentTypeBody }>(
-    '/',
-    { schema: documentTypeSchema, preHandler: [authenticate, requireRole('admin')] },
-    async (request, reply) => {
-      const { name, category } = request.body;
-      const insertData: Record<string, unknown> = { name };
-      if (category) insertData['category'] = category;
-      const { data, error } = await request.server.supabase
-        .from('document_types')
-        .insert(insertData)
-        .select(SELECT_FIELDS)
-        .single();
-      if (error) return reply.status(400).send({ error: error.message });
-      return data;
-    }
-  );
+  fastify.post('/', { preHandler: [authenticate, requireRole('admin')] }, async (request) => {
+    const body = createDocumentTypeBodySchema.parse(request.body);
+    return request.server.repos.references.createDocumentType(body);
+  });
 
   /** PUT /api/references/document-types/:id — обновление типа документа */
-  fastify.put<{ Params: IdParams; Body: DocumentTypeBody }>(
+  fastify.put<{ Params: IdParams }>(
     '/:id',
-    { schema: { ...idParamsSchema, ...documentTypeSchema }, preHandler: [authenticate, requireRole('admin')] },
-    async (request, reply) => {
-      const { id } = request.params;
-      const { name, category } = request.body;
-      const updateData: Record<string, unknown> = { name };
-      if (category) updateData['category'] = category;
-      const { data, error } = await request.server.supabase
-        .from('document_types')
-        .update(updateData)
-        .eq('id', id)
-        .select(SELECT_FIELDS)
-        .single();
-      if (error) return reply.status(400).send({ error: error.message });
-      return data;
-    }
+    { schema: idParamsSchema, preHandler: [authenticate, requireRole('admin')] },
+    async (request) => {
+      const body = updateDocumentTypeBodySchema.parse(request.body);
+      return request.server.repos.references.updateDocumentType(request.params.id, body);
+    },
   );
 
   /** DELETE /api/references/document-types/:id — удаление типа документа */
   fastify.delete<{ Params: IdParams }>(
     '/:id',
     { schema: idParamsSchema, preHandler: [authenticate, requireRole('admin')] },
-    async (request, reply) => {
-      const { id } = request.params;
-      const { error } = await request.server.supabase
-        .from('document_types')
-        .delete()
-        .eq('id', id);
-      if (error) return reply.status(400).send({ error: error.message });
+    async (request) => {
+      await request.server.repos.references.deleteDocumentType(request.params.id);
       return { success: true };
-    }
+    },
   );
 }
 

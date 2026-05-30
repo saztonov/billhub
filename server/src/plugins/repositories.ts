@@ -16,9 +16,11 @@ import type { Repositories } from '../repositories/index.js';
 import { SupabaseCounterpartyRepository } from '../repositories/supabase/counterparty.supabase.js';
 import { SupabaseSupplierRepository } from '../repositories/supabase/supplier.supabase.js';
 import { SupabaseUserRepository } from '../repositories/supabase/user.supabase.js';
+import { SupabaseReferenceRepository } from '../repositories/supabase/reference.supabase.js';
 import { DrizzleCounterpartyRepository } from '../repositories/drizzle/counterparty.drizzle.js';
 import { DrizzleSupplierRepository } from '../repositories/drizzle/supplier.drizzle.js';
 import { DrizzleUserRepository } from '../repositories/drizzle/user.drizzle.js';
+import { DrizzleReferenceRepository } from '../repositories/drizzle/reference.drizzle.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -71,6 +73,7 @@ async function repositoriesPlugin(fastify: FastifyInstance): Promise<void> {
       counterparties: new DrizzleCounterpartyRepository(db),
       suppliers: new DrizzleSupplierRepository(db),
       users: new DrizzleUserRepository(db),
+      references: new DrizzleReferenceRepository(db),
     };
     fastify.decorate('repos', repos);
     fastify.log.info({ dbProvider: provider }, 'Repositories registered (Drizzle)');
@@ -89,6 +92,7 @@ async function repositoriesPlugin(fastify: FastifyInstance): Promise<void> {
     counterparties: new SupabaseCounterpartyRepository(supabase),
     suppliers: new SupabaseSupplierRepository(supabase),
     users: new SupabaseUserRepository(supabase),
+    references: new SupabaseReferenceRepository(supabase),
   };
 
   fastify.decorate('repos', repos);

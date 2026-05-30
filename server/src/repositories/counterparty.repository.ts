@@ -50,4 +50,15 @@ export interface CounterpartyRepository {
    * Бросает ForeignKeyConstraintError если есть связанные заявки/файлы.
    */
   delete(id: string): Promise<void>;
+
+  /**
+   * Все контрагенты без пагинации (для справочников/выпадающих списков),
+   * отсортированные по created_at DESC. Без СБ-агрегатов.
+   */
+  listAll(): Promise<Counterparty[]>;
+
+  /**
+   * Пакетный импорт контрагентов по {name, inn}; возвращает число созданных.
+   */
+  batchCreate(rows: { name: string; inn: string }[]): Promise<number>;
 }

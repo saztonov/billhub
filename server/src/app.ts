@@ -1,10 +1,22 @@
-import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
+import Fastify, {
+  type FastifyError,
+  type FastifyInstance,
+  type FastifyServerOptions,
+} from 'fastify';
 import cors from '@fastify/cors';
 import cookie from '@fastify/cookie';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
+import { ZodError } from 'zod';
 import { config } from './config.js';
 import { toCamelCase } from './utils/caseTransform.js';
+import {
+  NotFoundError,
+  UniqueConstraintError,
+  ForeignKeyConstraintError,
+  ConflictError,
+  ValidationError,
+} from './repositories/index.js';
 
 /** Плагины инфраструктуры */
 import databasePlugin from './plugins/database.js';
@@ -148,6 +160,43 @@ export async function createApp(opts: CreateAppOptions = {}): Promise<FastifyIns
       return toCamelCase(payload);
     }
     return payload;
+  });
+
+  /**
+   * Централизованный обработчик ошибок.
+   * Доменные ошибки репозиториев (Strangler Fig) и zod-валидация маппятся на HTTP-коды,
+   * чтобы роуты, переведённые на fastify.repos, оставались тонкими (Iteration 5).
+   */
+  fastify.setErrorHandler((error: FastifyError, request, reply) => {
+    // Ошибка валидации схемы Fastify (params/querystring/body через JSON-schema)
+    if (error.validation) {
+      return reply.status(400).send({ error: error.message });
+    }
+    // Ошибка zod-валидации тела запроса (.parse())
+    if (error instanceof ZodError) {
+      return reply.status(400).send({ error: 'Ошибка валидации', details: error.issues });
+    }
+    if (error instanceof ValidationError) {
+      return reply.status(400).send({ error: error.message });
+    }
+    if (error instanceof NotFoundError) {
+      return reply.status(404).send({ error: error.message });
+    }
+    if (
+      error instanceof UniqueConstraintError ||
+      error instanceof ForeignKeyConstraintError ||
+      error instanceof ConflictError
+    ) {
+      return reply.status(409).send({ error: error.message });
+    }
+    // Явный клиентский статус (rate-limit 429 и т.п.)
+    const statusCode = error.statusCode;
+    if (statusCode && statusCode >= 400 && statusCode < 500) {
+      return reply.status(statusCode).send({ error: error.message });
+    }
+    // Прочее — внутренняя ошибка (детали только в лог, не клиенту)
+    request.log.error(error);
+    return reply.status(500).send({ error: 'Внутренняя ошибка сервера' });
   });
 
   /** Плагины инфраструктуры */

@@ -58,10 +58,11 @@ function ilikeMatch(value: unknown, pattern: string): boolean {
 }
 
 class FakeBuilder implements PromiseLike<QueryResult> {
-  private filters: { col: string; val: unknown }[] = [];
+  private filters: { col: string; op: 'eq' | 'in' | 'gt'; val: unknown }[] = [];
   private orExpr: string | null = null;
   private rangeBounds: [number, number] | null = null;
   private orderSpec: { col: string; asc: boolean } | null = null;
+  private limitN: number | null = null;
   private singleMode = false;
   private maybeMode = false;
   private wantCount = false;
@@ -70,7 +71,7 @@ class FakeBuilder implements PromiseLike<QueryResult> {
     private readonly db: FakeSupabase,
     private readonly table: string,
     private readonly op: 'select' | 'insert' | 'update' | 'delete',
-    private readonly payload?: Row,
+    private readonly payload?: Row | Row[],
   ) {}
 
   select(_fields?: string, opts?: { count?: string }): this {
@@ -78,7 +79,19 @@ class FakeBuilder implements PromiseLike<QueryResult> {
     return this;
   }
   eq(col: string, val: unknown): this {
-    this.filters.push({ col, val });
+    this.filters.push({ col, op: 'eq', val });
+    return this;
+  }
+  in(col: string, vals: unknown[]): this {
+    this.filters.push({ col, op: 'in', val: vals });
+    return this;
+  }
+  gt(col: string, val: unknown): this {
+    this.filters.push({ col, op: 'gt', val });
+    return this;
+  }
+  limit(n: number): this {
+    this.limitN = n;
     return this;
   }
   or(expr: string): this {
@@ -109,8 +122,14 @@ class FakeBuilder implements PromiseLike<QueryResult> {
     return Promise.resolve(this.exec()).then(onfulfilled, onrejected);
   }
 
+  private matchFilter(r: Row, f: { col: string; op: 'eq' | 'in' | 'gt'; val: unknown }): boolean {
+    if (f.op === 'in') return Array.isArray(f.val) && f.val.includes(r[f.col]);
+    if (f.op === 'gt') return String(r[f.col] ?? '') > String(f.val ?? '');
+    return r[f.col] === f.val;
+  }
+
   private applyFilters(rows: Row[]): Row[] {
-    let result = rows.filter((r) => this.filters.every((f) => r[f.col] === f.val));
+    let result = rows.filter((r) => this.filters.every((f) => this.matchFilter(r, f)));
     if (this.orExpr) {
       const parts = this.orExpr.split(',').map((p) => p.trim());
       result = result.filter((r) =>
@@ -139,6 +158,7 @@ class FakeBuilder implements PromiseLike<QueryResult> {
         });
       }
       if (this.rangeBounds) rows = rows.slice(this.rangeBounds[0], this.rangeBounds[1] + 1);
+      if (this.limitN !== null) rows = rows.slice(0, this.limitN);
       if (this.maybeMode) return { data: rows[0] ?? null, error: null };
       if (this.singleMode) {
         return rows.length === 1
@@ -149,13 +169,19 @@ class FakeBuilder implements PromiseLike<QueryResult> {
     }
 
     if (this.op === 'insert') {
-      const row = (DEFAULTS[this.table] ?? ((r: Row) => ({ id: randomUUID(), ...r })))(
-        this.payload ?? {},
-      );
-      const dup = this.db.findUniqueViolation(this.table, row, null);
-      if (dup) return { data: null, error: { code: '23505', message: 'unique violation' } };
-      store.push(row);
-      return this.singleMode ? { data: row, error: null } : { data: [row], error: null };
+      const defaults = DEFAULTS[this.table] ?? ((r: Row) => ({ id: randomUUID(), ...r }));
+      const inputs: Row[] = Array.isArray(this.payload) ? this.payload : [this.payload ?? {}];
+      const inserted: Row[] = [];
+      for (const inp of inputs) {
+        const row = defaults(inp);
+        const dup = this.db.findUniqueViolation(this.table, row, null);
+        if (dup) return { data: null, error: { code: '23505', message: 'unique violation' } };
+        store.push(row);
+        inserted.push(row);
+      }
+      return this.singleMode
+        ? { data: inserted[0] ?? null, error: null }
+        : { data: inserted, error: null };
     }
 
     if (this.op === 'update') {
@@ -237,7 +263,7 @@ export class FakeSupabase {
     return {
       select: (fields?: string, opts?: { count?: string }) =>
         new FakeBuilder(this, table, 'select').select(fields, opts),
-      insert: (payload: Row) => new FakeBuilder(this, table, 'insert', payload),
+      insert: (payload: Row | Row[]) => new FakeBuilder(this, table, 'insert', payload),
       update: (payload: Row) => new FakeBuilder(this, table, 'update', payload),
       delete: () => new FakeBuilder(this, table, 'delete'),
     };

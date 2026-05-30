@@ -1,39 +1,20 @@
 import type { FastifyInstance } from 'fastify';
+import { z } from 'zod';
 import { authenticate } from '../../middleware/authenticate.js';
 import { requireRole } from '../../middleware/requireRole.js';
+import {
+  createCounterpartyBodySchema,
+  updateCounterpartyBodySchema,
+} from '../../schemas/counterparty.js';
+import { nonEmptyString } from '../../schemas/common.js';
 
 /* ------------------------------------------------------------------ */
-/*  Типы тел запросов                                                  */
+/*  Параметры пути и тела                                              */
 /* ------------------------------------------------------------------ */
-
-interface CounterpartyBody {
-  name: string;
-  inn: string;
-  address?: string;
-  alternativeNames?: string[];
-}
 
 interface IdParams {
   id: string;
 }
-
-/* ------------------------------------------------------------------ */
-/*  JSON-схемы валидации                                               */
-/* ------------------------------------------------------------------ */
-
-const counterpartySchema = {
-  body: {
-    type: 'object' as const,
-    required: ['name', 'inn'],
-    properties: {
-      name: { type: 'string' as const, minLength: 1 },
-      inn: { type: 'string' as const, minLength: 1 },
-      address: { type: 'string' as const },
-      alternativeNames: { type: 'array' as const, items: { type: 'string' as const } },
-    },
-    additionalProperties: false,
-  },
-};
 
 const idParamsSchema = {
   params: {
@@ -43,41 +24,34 @@ const idParamsSchema = {
   },
 };
 
+/** Импорт: фронтенд отправляет items, бэкенд исторически принимал rows — поддерживаем оба */
+const batchRowSchema = z.object({ name: nonEmptyString, inn: nonEmptyString });
+const batchImportBodySchema = z.object({
+  items: z.array(batchRowSchema).optional(),
+  rows: z.array(batchRowSchema).optional(),
+});
+
 /* ------------------------------------------------------------------ */
-/*  Плагин маршрутов контрагентов                                      */
+/*  Плагин маршрутов контрагентов (через fastify.repos)                */
 /* ------------------------------------------------------------------ */
 
 async function counterpartyRoutes(fastify: FastifyInstance): Promise<void> {
-  const SELECT_FIELDS = 'id, name, inn, address, alternative_names, registration_token, created_at';
-
   /** GET /api/references/counterparties — список контрагентов */
-  fastify.get(
-    '/',
-    { preHandler: [authenticate] },
-    async (request, reply) => {
-      const user = request.user!;
+  fastify.get('/', { preHandler: [authenticate] }, async (request, reply) => {
+    const user = request.user!;
+    const repo = request.server.repos.counterparties;
 
-      // counterparty_user видит только своего контрагента
-      if (user.role === 'counterparty_user') {
-        if (!user.counterpartyId) {
-          return reply.status(403).send({ error: 'Контрагент не привязан' });
-        }
-        const { data, error } = await request.server.supabase
-          .from('counterparties')
-          .select(SELECT_FIELDS)
-          .eq('id', user.counterpartyId);
-        if (error) return reply.status(500).send({ error: error.message });
-        return data;
+    // counterparty_user видит только своего контрагента
+    if (user.role === 'counterparty_user') {
+      if (!user.counterpartyId) {
+        return reply.status(403).send({ error: 'Контрагент не привязан' });
       }
-
-      const { data, error } = await request.server.supabase
-        .from('counterparties')
-        .select(SELECT_FIELDS)
-        .order('created_at', { ascending: false });
-      if (error) return reply.status(500).send({ error: error.message });
-      return data;
+      const cp = await repo.findById(user.counterpartyId);
+      return cp ? [cp] : [];
     }
-  );
+
+    return repo.listAll();
+  });
 
   /** GET /api/references/counterparties/:id — один контрагент */
   fastify.get<{ Params: IdParams }>(
@@ -86,100 +60,57 @@ async function counterpartyRoutes(fastify: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const user = request.user!;
       const { id } = request.params;
-
       // counterparty_user видит только своего контрагента
       if (user.role === 'counterparty_user' && user.counterpartyId !== id) {
         return reply.status(403).send({ error: 'Доступ запрещён' });
       }
-
-      const { data, error } = await request.server.supabase
-        .from('counterparties')
-        .select(SELECT_FIELDS)
-        .eq('id', id)
-        .single();
-      if (error) return reply.status(404).send({ error: 'Контрагент не найден' });
-      return data;
-    }
+      return request.server.repos.counterparties.getById(id);
+    },
   );
 
   /** POST /api/references/counterparties — создание контрагента */
-  fastify.post<{ Body: CounterpartyBody }>(
+  fastify.post(
     '/',
-    { schema: counterpartySchema, preHandler: [authenticate, requireRole('admin', 'user')] },
-    async (request, reply) => {
-      const { name, inn, address, alternativeNames } = request.body;
-      const { data, error } = await request.server.supabase
-        .from('counterparties')
-        .insert({ name, inn, address: address || '', alternative_names: alternativeNames ?? [] })
-        .select(SELECT_FIELDS)
-        .single();
-      if (error) return reply.status(400).send({ error: error.message });
-      return data;
-    }
+    { preHandler: [authenticate, requireRole('admin', 'user')] },
+    async (request) => {
+      const body = createCounterpartyBodySchema.parse(request.body);
+      return request.server.repos.counterparties.create(body);
+    },
   );
 
   /** PUT /api/references/counterparties/:id — обновление контрагента */
-  fastify.put<{ Params: IdParams; Body: CounterpartyBody }>(
+  fastify.put<{ Params: IdParams }>(
     '/:id',
-    { schema: { ...idParamsSchema, ...counterpartySchema }, preHandler: [authenticate, requireRole('admin', 'user')] },
-    async (request, reply) => {
-      const { id } = request.params;
-      const { name, inn, address, alternativeNames } = request.body;
-      const { data, error } = await request.server.supabase
-        .from('counterparties')
-        .update({ name, inn, address, alternative_names: alternativeNames })
-        .eq('id', id)
-        .select(SELECT_FIELDS)
-        .single();
-      if (error) return reply.status(400).send({ error: error.message });
-      return data;
-    }
+    { schema: idParamsSchema, preHandler: [authenticate, requireRole('admin', 'user')] },
+    async (request) => {
+      const body = updateCounterpartyBodySchema.parse(request.body);
+      return request.server.repos.counterparties.update(request.params.id, body);
+    },
   );
 
   /** DELETE /api/references/counterparties/:id — удаление контрагента */
   fastify.delete<{ Params: IdParams }>(
     '/:id',
     { schema: idParamsSchema, preHandler: [authenticate, requireRole('admin', 'user')] },
-    async (request, reply) => {
-      const { id } = request.params;
-      const { error } = await request.server.supabase
-        .from('counterparties')
-        .delete()
-        .eq('id', id);
-      if (error) return reply.status(400).send({ error: error.message });
+    async (request) => {
+      await request.server.repos.counterparties.delete(request.params.id);
       return { success: true };
-    }
+    },
   );
 
   /** POST /api/references/counterparties/batch-import — пакетный импорт */
-  /** Принимает { items: [...] } (фронтенд) или { rows: [...] } (оригинальный) */
   fastify.post(
     '/batch-import',
     { preHandler: [authenticate, requireRole('admin', 'user')] },
     async (request, reply) => {
-      const body = request.body as Record<string, unknown>;
-      // Фронтенд отправляет items, бэкенд ожидает rows — поддерживаем оба
-      const rows = (body.items ?? body.rows) as { name: string; inn: string }[];
-      if (!rows || !Array.isArray(rows) || rows.length === 0) {
+      const parsed = batchImportBodySchema.parse(request.body);
+      const rows = parsed.items ?? parsed.rows ?? [];
+      if (rows.length === 0) {
         return reply.status(400).send({ error: 'Нет данных для импорта' });
       }
-      const BATCH_SIZE = 20;
-      let created = 0;
-
-      for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-        const batch = rows.slice(i, i + BATCH_SIZE).map((r) => ({
-          name: r.name,
-          inn: r.inn,
-          address: '',
-          alternative_names: [] as string[],
-        }));
-        const { error } = await request.server.supabase.from('counterparties').insert(batch);
-        if (error) return reply.status(400).send({ error: error.message });
-        created += batch.length;
-      }
-
+      const created = await request.server.repos.counterparties.batchCreate(rows);
       return { created };
-    }
+    },
   );
 }
 

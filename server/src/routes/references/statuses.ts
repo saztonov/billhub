@@ -1,81 +1,25 @@
 import type { FastifyInstance } from 'fastify';
 import { authenticate } from '../../middleware/authenticate.js';
 import { requireRole } from '../../middleware/requireRole.js';
+import { createStatusBodySchema, updateStatusBodySchema } from '../../schemas/reference.js';
 
 /* ------------------------------------------------------------------ */
-/*  Типы                                                               */
+/*  Параметры пути и query                                             */
 /* ------------------------------------------------------------------ */
 
 interface StatusQuery {
   entityType: string;
 }
 
-interface StatusBody {
-  entityType: string;
-  code: string;
-  name: string;
-  color?: string;
-  isActive?: boolean;
-  displayOrder?: number;
-  visibleRoles?: string[];
-}
-
-interface StatusUpdateBody {
-  code?: string;
-  name?: string;
-  color?: string;
-  isActive?: boolean;
-  displayOrder?: number;
-  visibleRoles?: string[];
-}
-
 interface IdParams {
   id: string;
 }
-
-/* ------------------------------------------------------------------ */
-/*  JSON-схемы валидации                                               */
-/* ------------------------------------------------------------------ */
 
 const querySchema = {
   querystring: {
     type: 'object' as const,
     required: ['entityType'],
-    properties: {
-      entityType: { type: 'string' as const, minLength: 1 },
-    },
-  },
-};
-
-const statusCreateSchema = {
-  body: {
-    type: 'object' as const,
-    required: ['entityType', 'code', 'name'],
-    properties: {
-      entityType: { type: 'string' as const, minLength: 1 },
-      code: { type: 'string' as const, minLength: 1 },
-      name: { type: 'string' as const, minLength: 1 },
-      color: { type: 'string' as const },
-      isActive: { type: 'boolean' as const },
-      displayOrder: { type: 'number' as const },
-      visibleRoles: { type: 'array' as const, items: { type: 'string' as const } },
-    },
-    additionalProperties: false,
-  },
-};
-
-const statusUpdateSchema = {
-  body: {
-    type: 'object' as const,
-    properties: {
-      code: { type: 'string' as const },
-      name: { type: 'string' as const },
-      color: { type: 'string' as const },
-      isActive: { type: 'boolean' as const },
-      displayOrder: { type: 'number' as const },
-      visibleRoles: { type: 'array' as const, items: { type: 'string' as const } },
-    },
-    additionalProperties: false,
+    properties: { entityType: { type: 'string' as const, minLength: 1 } },
   },
 };
 
@@ -88,93 +32,46 @@ const idParamsSchema = {
 };
 
 /* ------------------------------------------------------------------ */
-/*  Плагин маршрутов статусов                                          */
+/*  Плагин маршрутов статусов (через fastify.repos)                    */
 /* ------------------------------------------------------------------ */
 
 async function statusRoutes(fastify: FastifyInstance): Promise<void> {
-  const SELECT_FIELDS = 'id, entity_type, code, name, color, is_active, display_order, visible_roles, created_at';
-
   /** GET /api/references/statuses?entityType=xxx — статусы по типу сущности */
   fastify.get<{ Querystring: StatusQuery }>(
     '/',
-    { schema: querySchema, preHandler: [authenticate, requireRole('admin', 'user', 'counterparty_user')] },
-    async (request, reply) => {
-      const { entityType } = request.query;
-      const { data, error } = await request.server.supabase
-        .from('statuses')
-        .select(SELECT_FIELDS)
-        .eq('entity_type', entityType)
-        .order('display_order', { ascending: true });
-      if (error) return reply.status(500).send({ error: error.message });
-      return data;
-    }
+    {
+      schema: querySchema,
+      preHandler: [authenticate, requireRole('admin', 'user', 'counterparty_user')],
+    },
+    async (request) => {
+      return request.server.repos.references.listStatuses(request.query.entityType);
+    },
   );
 
   /** POST /api/references/statuses — создание статуса */
-  fastify.post<{ Body: StatusBody }>(
-    '/',
-    { schema: statusCreateSchema, preHandler: [authenticate, requireRole('admin')] },
-    async (request, reply) => {
-      const { entityType, code, name, color, isActive, displayOrder, visibleRoles } = request.body;
-      const { data, error } = await request.server.supabase
-        .from('statuses')
-        .insert({
-          entity_type: entityType,
-          code,
-          name,
-          color: color ?? null,
-          is_active: isActive ?? true,
-          display_order: displayOrder ?? 0,
-          visible_roles: visibleRoles ?? [],
-        })
-        .select(SELECT_FIELDS)
-        .single();
-      if (error) return reply.status(400).send({ error: error.message });
-      return data;
-    }
-  );
+  fastify.post('/', { preHandler: [authenticate, requireRole('admin')] }, async (request) => {
+    const body = createStatusBodySchema.parse(request.body);
+    return request.server.repos.references.createStatus(body);
+  });
 
   /** PUT /api/references/statuses/:id — обновление статуса */
-  fastify.put<{ Params: IdParams; Body: StatusUpdateBody }>(
+  fastify.put<{ Params: IdParams }>(
     '/:id',
-    { schema: { ...idParamsSchema, ...statusUpdateSchema }, preHandler: [authenticate, requireRole('admin')] },
-    async (request, reply) => {
-      const { id } = request.params;
-      const { code, name, color, isActive, displayOrder, visibleRoles } = request.body;
-
-      // Формируем объект обновления только из переданных полей
-      const updateData: Record<string, unknown> = {};
-      if (code !== undefined) updateData.code = code;
-      if (name !== undefined) updateData.name = name;
-      if (color !== undefined) updateData.color = color;
-      if (isActive !== undefined) updateData.is_active = isActive;
-      if (displayOrder !== undefined) updateData.display_order = displayOrder;
-      if (visibleRoles !== undefined) updateData.visible_roles = visibleRoles;
-
-      const { data, error } = await request.server.supabase
-        .from('statuses')
-        .update(updateData)
-        .eq('id', id)
-        .select(SELECT_FIELDS)
-        .single();
-      if (error) return reply.status(400).send({ error: error.message });
-      return data;
-    }
+    { schema: idParamsSchema, preHandler: [authenticate, requireRole('admin')] },
+    async (request) => {
+      const body = updateStatusBodySchema.parse(request.body);
+      return request.server.repos.references.updateStatus(request.params.id, body);
+    },
   );
 
   /** DELETE /api/references/statuses/:id — удаление статуса */
   fastify.delete<{ Params: IdParams }>(
     '/:id',
     { schema: idParamsSchema, preHandler: [authenticate, requireRole('admin')] },
-    async (request, reply) => {
-      const { id } = request.params;
-      const { error } = await request.server.supabase
-        .from('statuses')
-        .delete()
-        .eq('id', id);
-      if (error) return reply.status(400).send({ error: error.message });
+    async (request) => {
+      await request.server.repos.references.deleteStatus(request.params.id);
       return { success: true };
-    }
+    },
   );
 }
 

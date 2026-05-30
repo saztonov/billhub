@@ -60,3 +60,45 @@ export type ListSuppliersQuery = z.infer<typeof listSuppliersQuerySchema>;
 
 export const listSuppliersResponseSchema = paginatedResponseSchema(supplierSchema);
 export type ListSuppliersResponse = z.infer<typeof listSuppliersResponseSchema>;
+
+/* ----------------------- Проверки СБ поставщика (миграция 002/006) ----------------------- */
+
+/** Тип события в истории проверок СБ */
+export const supplierSecurityEventTypeSchema = z.enum(['requested', 'approved', 'rejected']);
+export type SupplierSecurityEventType = z.infer<typeof supplierSecurityEventTypeSchema>;
+
+/** Событие истории проверок СБ (response) */
+export const supplierSecurityCheckSchema = z.object({
+  id: uuidSchema,
+  supplierId: uuidSchema,
+  authorId: uuidSchema,
+  authorFullName: z.string(),
+  eventType: supplierSecurityEventTypeSchema,
+  comment: z.string().nullable(),
+  createdAt: z.iso.datetime({ offset: true }),
+});
+export type SupplierSecurityCheck = z.infer<typeof supplierSecurityCheckSchema>;
+
+/** Решение СБ (request body) */
+export const supplierSecurityDecisionBodySchema = z.object({
+  decision: z.enum(['approved', 'rejected']),
+  comment: z.string().optional(),
+});
+export type SupplierSecurityDecisionBody = z.infer<typeof supplierSecurityDecisionBodySchema>;
+
+/** Элемент списка поставщиков с агрегатами СБ (response роута GET /suppliers?page=) */
+export const supplierListItemSchema = z.object({
+  id: uuidSchema,
+  name: z.string(),
+  inn: z.string(),
+  alternativeNames: z.array(z.string()),
+  createdAt: z.iso.datetime({ offset: true }),
+  lastSecurityCheck: z
+    .object({
+      status: supplierSecurityStatusSchema,
+      createdAt: z.iso.datetime({ offset: true }),
+    })
+    .nullable(),
+  hasPendingRequest: z.boolean(),
+});
+export type SupplierListItem = z.infer<typeof supplierListItemSchema>;

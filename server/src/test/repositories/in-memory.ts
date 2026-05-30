@@ -4,11 +4,17 @@
  * чтобы не поднимать реальный Supabase/Drizzle.
  */
 import type { CounterpartyRepository } from '../../repositories/counterparty.repository.js';
-import type { SupplierRepository } from '../../repositories/supplier.repository.js';
+import type {
+  SupplierRepository,
+  SupplierApiListQuery,
+  Actor,
+} from '../../repositories/supplier.repository.js';
 import type { UserRepository } from '../../repositories/user.repository.js';
 import {
   NotFoundError,
   UniqueConstraintError,
+  ConflictError,
+  ValidationError,
   type PaginatedResult,
 } from '../../repositories/types.js';
 import type {
@@ -22,6 +28,9 @@ import type {
   CreateSupplierBody,
   UpdateSupplierBody,
   ListSuppliersQuery,
+  SupplierListItem,
+  SupplierSecurityCheck,
+  SupplierSecurityDecisionBody,
 } from '../../schemas/supplier.js';
 import type { User, CreateUserBody, UpdateUserBody, ListUsersQuery } from '../../schemas/user.js';
 
@@ -118,13 +127,34 @@ export class InMemoryCounterpartyRepository implements CounterpartyRepository {
     if (idx === -1) throw new NotFoundError('Counterparty', id);
     this.items.splice(idx, 1);
   }
+
+  async listAll(): Promise<Counterparty[]> {
+    return [...this.items].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  }
+
+  async batchCreate(rows: { name: string; inn: string }[]): Promise<number> {
+    for (const r of rows) {
+      this.items.push({
+        id: makeId(),
+        name: r.name,
+        inn: r.inn,
+        address: '',
+        alternativeNames: [],
+        registrationToken: null,
+        createdAt: nowIso(),
+      });
+    }
+    return rows.length;
+  }
 }
 
 export class InMemorySupplierRepository implements SupplierRepository {
   private items: Supplier[] = [];
+  private checks: SupplierSecurityCheck[] = [];
 
   reset(): void {
     this.items = [];
+    this.checks = [];
   }
 
   seed(items: Supplier[]): void {
@@ -202,6 +232,106 @@ export class InMemorySupplierRepository implements SupplierRepository {
     const idx = this.items.findIndex((s) => s.id === id);
     if (idx === -1) throw new NotFoundError('Supplier', id);
     this.items.splice(idx, 1);
+  }
+
+  async listAll(): Promise<Supplier[]> {
+    return [...this.items].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  }
+
+  async batchCreate(rows: { name: string; inn: string }[]): Promise<number> {
+    for (const r of rows) {
+      this.items.push({
+        id: makeId(),
+        name: r.name,
+        inn: r.inn,
+        alternativeNames: [],
+        createdAt: nowIso(),
+        foundingDocumentsComment: null,
+        lastSecurityStatus: null,
+      });
+    }
+    return rows.length;
+  }
+
+  async listForApi(
+    query: SupplierApiListQuery,
+  ): Promise<{ items: SupplierListItem[]; total: number }> {
+    let filtered = this.items;
+    if (query.search) {
+      const term = query.search.toLowerCase();
+      filtered = filtered.filter(
+        (s) => s.name.toLowerCase().includes(term) || s.inn.includes(query.search ?? ''),
+      );
+    }
+    if (query.sbFilter === 'pending') {
+      filtered = filtered.filter((s) => s.hasPendingRequest === true);
+    }
+    const total = filtered.length;
+    const from = (query.page - 1) * query.pageSize;
+    const items: SupplierListItem[] = filtered.slice(from, from + query.pageSize).map((s) => ({
+      id: s.id,
+      name: s.name,
+      inn: s.inn,
+      alternativeNames: s.alternativeNames,
+      createdAt: s.createdAt,
+      lastSecurityCheck: s.lastSecurityStatus
+        ? { status: s.lastSecurityStatus, createdAt: s.createdAt }
+        : null,
+      hasPendingRequest: s.hasPendingRequest ?? false,
+    }));
+    return { items, total };
+  }
+
+  async getSecurityHistory(supplierId: string): Promise<SupplierSecurityCheck[]> {
+    return this.checks
+      .filter((c) => c.supplierId === supplierId)
+      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  }
+
+  async requestSecurityCheck(supplierId: string, actor: Actor): Promise<SupplierSecurityCheck> {
+    const sup = this.items.find((s) => s.id === supplierId);
+    if (!sup) throw new NotFoundError('Supplier', supplierId);
+    const last = this.checks
+      .filter((c) => c.supplierId === supplierId)
+      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))[0];
+    if (last?.eventType === 'requested') {
+      throw new ConflictError('Поставщик уже на проверке');
+    }
+    const created: SupplierSecurityCheck = {
+      id: makeId(),
+      supplierId,
+      authorId: actor.id,
+      authorFullName: actor.fullName,
+      eventType: 'requested',
+      comment: null,
+      createdAt: nowIso(),
+    };
+    this.checks.push(created);
+    return created;
+  }
+
+  async decideSecurityCheck(
+    supplierId: string,
+    actor: Actor,
+    body: SupplierSecurityDecisionBody,
+  ): Promise<SupplierSecurityCheck> {
+    if (body.decision === 'rejected' && (!body.comment || body.comment.trim().length < 3)) {
+      throw new ValidationError('Комментарий обязателен при отклонении (минимум 3 символа)');
+    }
+    const sup = this.items.find((s) => s.id === supplierId);
+    if (!sup) throw new NotFoundError('Supplier', supplierId);
+    const created: SupplierSecurityCheck = {
+      id: makeId(),
+      supplierId,
+      authorId: actor.id,
+      authorFullName: actor.fullName,
+      eventType: body.decision,
+      comment: body.comment?.trim() || null,
+      createdAt: nowIso(),
+    };
+    this.checks.push(created);
+    sup.lastSecurityStatus = body.decision;
+    return created;
   }
 }
 

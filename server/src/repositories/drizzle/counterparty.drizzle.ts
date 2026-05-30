@@ -6,7 +6,7 @@
  * явные имена колонок), поэтому маппинг тривиален. list() вызывает SQL-функцию
  * list_counterparties_with_sb через db.execute (RPC-эквивалент, ADR-0002).
  */
-import { eq, sql } from 'drizzle-orm';
+import { desc, eq, sql } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import * as schema from '../../db/schema/index.js';
 import { counterparties } from '../../db/schema/index.js';
@@ -171,5 +171,23 @@ export class DrizzleCounterpartyRepository implements CounterpartyRepository {
       }
       throw err;
     }
+  }
+
+  async listAll(): Promise<Counterparty[]> {
+    const rows = await this.db
+      .select()
+      .from(counterparties)
+      .orderBy(desc(counterparties.createdAt));
+    return rows.map(rowToDto);
+  }
+
+  async batchCreate(rows: { name: string; inn: string }[]): Promise<number> {
+    if (rows.length === 0) return 0;
+    return this.db.transaction(async (tx) => {
+      await tx
+        .insert(counterparties)
+        .values(rows.map((r) => ({ name: r.name, inn: r.inn, address: '', alternativeNames: [] })));
+      return rows.length;
+    });
   }
 }

@@ -169,4 +169,30 @@ export class SupabaseCounterpartyRepository implements CounterpartyRepository {
     }
     if (!data || data.length === 0) throw new NotFoundError('Counterparty', id);
   }
+
+  async listAll(): Promise<Counterparty[]> {
+    const { data, error } = await this.supabase
+      .from('counterparties')
+      .select(SELECT_FIELDS)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data as CounterpartyRow[]).map(rowToDto);
+  }
+
+  async batchCreate(rows: { name: string; inn: string }[]): Promise<number> {
+    const BATCH_SIZE = 20;
+    let created = 0;
+    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+      const batch = rows.slice(i, i + BATCH_SIZE).map((r) => ({
+        name: r.name,
+        inn: r.inn,
+        address: '',
+        alternative_names: [] as string[],
+      }));
+      const { error } = await this.supabase.from('counterparties').insert(batch);
+      if (error) throw error;
+      created += batch.length;
+    }
+    return created;
+  }
 }

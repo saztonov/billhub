@@ -62,3 +62,26 @@ export class ForeignKeyConstraintError extends Error {
     this.name = 'ForeignKeyConstraintError';
   }
 }
+
+/**
+ * Бизнес-конфликт состояния (например, поставщик уже находится на проверке СБ).
+ * В отличие от UniqueConstraintError, не привязан к БД-ограничению.
+ * Роуты конвертируют её в 409 Conflict.
+ */
+export class ConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ConflictError';
+  }
+}
+
+/**
+ * Бизнес-нарушение прав/валидации, которое репозиторий выявляет на уровне домена
+ * (например, обязательный комментарий при отклонении). Роуты конвертируют её в 400.
+ */
+export class ValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ValidationError';
+  }
+}

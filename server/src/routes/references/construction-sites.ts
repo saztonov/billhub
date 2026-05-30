@@ -1,35 +1,18 @@
 import type { FastifyInstance } from 'fastify';
 import { authenticate } from '../../middleware/authenticate.js';
 import { requireRole } from '../../middleware/requireRole.js';
+import {
+  createConstructionSiteBodySchema,
+  updateConstructionSiteBodySchema,
+} from '../../schemas/reference.js';
 
 /* ------------------------------------------------------------------ */
-/*  Типы тел запросов                                                  */
+/*  Параметры пути                                                     */
 /* ------------------------------------------------------------------ */
-
-interface SiteBody {
-  name: string;
-  isActive?: boolean;
-}
 
 interface IdParams {
   id: string;
 }
-
-/* ------------------------------------------------------------------ */
-/*  JSON-схемы валидации                                               */
-/* ------------------------------------------------------------------ */
-
-const siteSchema = {
-  body: {
-    type: 'object' as const,
-    required: ['name'],
-    properties: {
-      name: { type: 'string' as const, minLength: 1 },
-      isActive: { type: 'boolean' as const },
-    },
-    additionalProperties: false,
-  },
-};
 
 const idParamsSchema = {
   params: {
@@ -40,89 +23,52 @@ const idParamsSchema = {
 };
 
 /* ------------------------------------------------------------------ */
-/*  Плагин маршрутов объектов строительства                            */
+/*  Плагин маршрутов объектов строительства (через fastify.repos)      */
 /* ------------------------------------------------------------------ */
 
 async function constructionSiteRoutes(fastify: FastifyInstance): Promise<void> {
-  const SELECT_FIELDS = 'id, name, is_active, created_at';
-
   /** GET /api/references/construction-sites — список объектов */
   fastify.get(
     '/',
     { preHandler: [authenticate, requireRole('admin', 'user', 'counterparty_user')] },
-    async (request, reply) => {
-      const { data, error } = await request.server.supabase
-        .from('construction_sites')
-        .select(SELECT_FIELDS)
-        .order('created_at', { ascending: false });
-      if (error) return reply.status(500).send({ error: error.message });
-      return data;
-    }
+    async (request) => {
+      return request.server.repos.references.listConstructionSites();
+    },
   );
 
   /** GET /api/references/construction-sites/:id — один объект */
   fastify.get<{ Params: IdParams }>(
     '/:id',
     { schema: idParamsSchema, preHandler: [authenticate, requireRole('admin', 'user')] },
-    async (request, reply) => {
-      const { id } = request.params;
-      const { data, error } = await request.server.supabase
-        .from('construction_sites')
-        .select(SELECT_FIELDS)
-        .eq('id', id)
-        .single();
-      if (error) return reply.status(404).send({ error: 'Объект не найден' });
-      return data;
-    }
+    async (request) => {
+      return request.server.repos.references.getConstructionSite(request.params.id);
+    },
   );
 
   /** POST /api/references/construction-sites — создание объекта */
-  fastify.post<{ Body: SiteBody }>(
-    '/',
-    { schema: siteSchema, preHandler: [authenticate, requireRole('admin')] },
-    async (request, reply) => {
-      const { name, isActive } = request.body;
-      const { data, error } = await request.server.supabase
-        .from('construction_sites')
-        .insert({ name, is_active: isActive ?? true })
-        .select(SELECT_FIELDS)
-        .single();
-      if (error) return reply.status(400).send({ error: error.message });
-      return data;
-    }
-  );
+  fastify.post('/', { preHandler: [authenticate, requireRole('admin')] }, async (request) => {
+    const body = createConstructionSiteBodySchema.parse(request.body);
+    return request.server.repos.references.createConstructionSite(body);
+  });
 
   /** PUT /api/references/construction-sites/:id — обновление объекта */
-  fastify.put<{ Params: IdParams; Body: SiteBody }>(
+  fastify.put<{ Params: IdParams }>(
     '/:id',
-    { schema: { ...idParamsSchema, ...siteSchema }, preHandler: [authenticate, requireRole('admin')] },
-    async (request, reply) => {
-      const { id } = request.params;
-      const { name, isActive } = request.body;
-      const { data, error } = await request.server.supabase
-        .from('construction_sites')
-        .update({ name, is_active: isActive })
-        .eq('id', id)
-        .select(SELECT_FIELDS)
-        .single();
-      if (error) return reply.status(400).send({ error: error.message });
-      return data;
-    }
+    { schema: idParamsSchema, preHandler: [authenticate, requireRole('admin')] },
+    async (request) => {
+      const body = updateConstructionSiteBodySchema.parse(request.body);
+      return request.server.repos.references.updateConstructionSite(request.params.id, body);
+    },
   );
 
   /** DELETE /api/references/construction-sites/:id — удаление объекта */
   fastify.delete<{ Params: IdParams }>(
     '/:id',
     { schema: idParamsSchema, preHandler: [authenticate, requireRole('admin')] },
-    async (request, reply) => {
-      const { id } = request.params;
-      const { error } = await request.server.supabase
-        .from('construction_sites')
-        .delete()
-        .eq('id', id);
-      if (error) return reply.status(400).send({ error: error.message });
+    async (request) => {
+      await request.server.repos.references.deleteConstructionSite(request.params.id);
       return { success: true };
-    }
+    },
   );
 }
 
