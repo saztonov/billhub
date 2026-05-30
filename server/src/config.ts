@@ -34,6 +34,11 @@ interface Config {
 
   /** Лимит размера файла (МБ) */
   maxFileSizeMb: number;
+
+  /** Drizzle / PostgreSQL (активны при DB_PROVIDER=drizzle; см. database-drizzle плагин) */
+  databaseUrl: string;
+  databaseMigrationUrl: string;
+  databasePoolMax: number;
 }
 
 /** Получение переменной окружения с значением по умолчанию */
@@ -54,17 +59,11 @@ function envOptional(key: string, defaultValue = ''): string {
 function validateRequired(keys: string[]): void {
   const missing = keys.filter((key) => !process.env[key]);
   if (missing.length > 0) {
-    throw new Error(
-      `Отсутствуют обязательные переменные окружения: ${missing.join(', ')}`
-    );
+    throw new Error(`Отсутствуют обязательные переменные окружения: ${missing.join(', ')}`);
   }
 }
 
-validateRequired([
-  'SUPABASE_URL',
-  'SUPABASE_SERVICE_ROLE_KEY',
-  'SUPABASE_JWT_SECRET',
-]);
+validateRequired(['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_JWT_SECRET']);
 
 export const config: Config = {
   port: parseInt(envOptional('PORT', '3000'), 10),
@@ -81,7 +80,7 @@ export const config: Config = {
   s3SecretKey: envOptional('S3_SECRET_KEY'),
   s3Bucket: envOptional('S3_BUCKET'),
 
-  storageProvider: (envOptional('STORAGE_PROVIDER', 'cloudru') as Config['storageProvider']),
+  storageProvider: envOptional('STORAGE_PROVIDER', 'cloudru') as Config['storageProvider'],
 
   r2Endpoint: envOptional('R2_ENDPOINT'),
   r2AccessKey: envOptional('R2_ACCESS_KEY'),
@@ -93,4 +92,8 @@ export const config: Config = {
   redisUrl: envOptional('REDIS_URL', 'redis://localhost:6379'),
 
   maxFileSizeMb: parseInt(envOptional('MAX_FILE_SIZE_MB', '100'), 10),
+
+  databaseUrl: envOptional('DATABASE_URL'),
+  databaseMigrationUrl: envOptional('DATABASE_MIGRATION_URL'),
+  databasePoolMax: parseInt(envOptional('DATABASE_POOL_MAX', '10'), 10),
 };

@@ -1,0 +1,32 @@
+# Локальный PostgreSQL для dev-цикла Drizzle (Iteration 4, SQL-first).
+#
+# Запуск:
+#   docker compose -f docker-compose.dev.yml up -d
+# Накат схемы (из каталога server/):
+#   DATABASE_URL=postgres://billhub:billhub@localhost:5433/billhub_db npm run db:migrate
+# Сверка drift (требует Docker):
+#   node scripts/drizzle-drift.ts
+#
+# Порт 5433 — чтобы не конфликтовать с локальным PostgreSQL на 5432.
+# Это инструмент разработки; production использует Yandex Managed PostgreSQL (план Iteration 8).
+services:
+  postgres-dev:
+    image: postgres:17-alpine
+    container_name: billhub-postgres-dev
+    environment:
+      POSTGRES_USER: billhub
+      POSTGRES_PASSWORD: billhub
+      POSTGRES_DB: billhub_db
+    ports:
+      - '127.0.0.1:5433:5432'
+    volumes:
+      - billhub-pg-dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U billhub -d billhub_db']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  billhub-pg-dev:

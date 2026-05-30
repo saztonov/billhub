@@ -15,7 +15,17 @@ import { defineConfig, globalIgnores } from 'eslint/config'
  *   починятся прицельно в quality-hardening, без блокировки cutover.
  */
 export default defineConfig([
-  globalIgnores(['dist', 'server', 'node_modules', 'sql', 'docs', 'temp', '.husky', '.vscode']),
+  globalIgnores([
+    'dist',
+    'server',
+    'scripts',
+    'node_modules',
+    'sql',
+    'docs',
+    'temp',
+    '.husky',
+    '.vscode',
+  ]),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [

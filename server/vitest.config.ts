@@ -23,8 +23,27 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
-      include: ['src/**/*.ts'],
-      exclude: ['src/**/*.{test,spec}.ts', 'src/test/**', 'src/server.ts', 'src/types/**'],
+      /**
+       * Покрытие меряется по слою, который ведётся test-driven в текущих итерациях
+       * (Strangler-Fig repository-слой, схемы, миграционный CLI, утилиты, резолюция провайдера).
+       * Реализации репозиториев (supabase/drizzle), плагины БД, drift и декларативная Drizzle-схема
+       * требуют живого бэкенда (Supabase / Docker-testcontainers) и покрываются интеграционными
+       * тестами. Бизнес-роуты/сервисы/очереди — отдельные итерации 4–6 и QH-трек (см. план).
+       */
+      include: [
+        'src/cli/**/*.ts',
+        'src/schemas/**/*.ts',
+        'src/utils/**/*.ts',
+        'src/repositories/**/*.ts',
+        'src/plugins/repositories.ts',
+      ],
+      exclude: [
+        'src/**/*.{test,spec}.ts',
+        'src/test/**',
+        'src/repositories/drizzle/**', // интеграционные (Docker/testcontainers)
+        'src/repositories/*.repository.ts', // type-only интерфейсы
+        'src/repositories/index.ts', // barrel (type-only)
+      ],
     },
   },
 });

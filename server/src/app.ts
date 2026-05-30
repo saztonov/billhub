@@ -8,6 +8,7 @@ import { toCamelCase } from './utils/caseTransform.js';
 
 /** Плагины инфраструктуры */
 import databasePlugin from './plugins/database.js';
+import databaseDrizzlePlugin from './plugins/database-drizzle.js';
 import s3Plugin from './plugins/s3.js';
 import redisPlugin from './plugins/redis.js';
 import queuesPlugin from './plugins/queues.js';
@@ -152,6 +153,7 @@ export async function createApp(opts: CreateAppOptions = {}): Promise<FastifyIns
   /** Плагины инфраструктуры */
   if (!skipInfra) {
     await fastify.register(databasePlugin);
+    await fastify.register(databaseDrizzlePlugin);
     await fastify.register(s3Plugin);
     await fastify.register(redisPlugin);
     await fastify.register(queuesPlugin);

@@ -2,10 +2,10 @@
  * Плагин Fastify, регистрирующий слой репозиториев в зависимости от feature-флага DB_PROVIDER.
  *
  * Поведение:
- *  - В production (`NODE_ENV=production`) ОБЯЗАТЕЛЬНО `DB_PROVIDER=drizzle` — startup-инвариант.
- *    Если выставлен другой провайдер — приложение падает на старте (по принципу 2 плана).
- *  - В dev/test допустим `DB_PROVIDER=supabase` (default до Iteration 4) и `drizzle` (когда импл готова).
- *  - Drizzle-реализация вводится в Iteration 4; до этого попытка `DB_PROVIDER=drizzle` падает с явной ошибкой.
+ *  - В production (`NODE_ENV=production`) ОБЯЗАТЕЛЬНО `DB_PROVIDER=drizzle` — startup-инвариант
+ *    (включается с Iteration 5; в Iteration 4 default = supabase). По принципу 2 плана.
+ *  - DB_PROVIDER=supabase → SupabaseRepository (через fastify.supabase).
+ *  - DB_PROVIDER=drizzle → DrizzleRepository (через fastify.db, см. database-drizzle плагин).
  *
  * Использование в роутах:
  *   const cp = await request.server.repos.counterparties.getById(id)
@@ -16,6 +16,9 @@ import type { Repositories } from '../repositories/index.js';
 import { SupabaseCounterpartyRepository } from '../repositories/supabase/counterparty.supabase.js';
 import { SupabaseSupplierRepository } from '../repositories/supabase/supplier.supabase.js';
 import { SupabaseUserRepository } from '../repositories/supabase/user.supabase.js';
+import { DrizzleCounterpartyRepository } from '../repositories/drizzle/counterparty.drizzle.js';
+import { DrizzleSupplierRepository } from '../repositories/drizzle/supplier.drizzle.js';
+import { DrizzleUserRepository } from '../repositories/drizzle/user.drizzle.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -56,13 +59,25 @@ async function repositoriesPlugin(fastify: FastifyInstance): Promise<void> {
   fastify.decorate('dbProvider', provider);
 
   if (provider === 'drizzle') {
-    throw new Error(
-      'DB_PROVIDER=drizzle ещё не поддерживается. Drizzle-реализация добавляется в Iteration 4.',
-    );
+    // fastify.db инициализируется database-drizzle плагином (зарегистрирован ранее).
+    const db = fastify.db;
+    if (!db) {
+      throw new Error(
+        'DB_PROVIDER=drizzle: fastify.db не инициализирован. ' +
+          'Проверьте регистрацию database-drizzle плагина и переменную DATABASE_URL.',
+      );
+    }
+    const repos: Repositories = {
+      counterparties: new DrizzleCounterpartyRepository(db),
+      suppliers: new DrizzleSupplierRepository(db),
+      users: new DrizzleUserRepository(db),
+    };
+    fastify.decorate('repos', repos);
+    fastify.log.info({ dbProvider: provider }, 'Repositories registered (Drizzle)');
+    return;
   }
 
-  // provider === 'supabase' — текущий runtime (Iteration 3).
-  // fastify.supabase предполагается уже инициализированным databasePlugin-ом до этого момента.
+  // provider === 'supabase' — fastify.supabase инициализирован databasePlugin-ом.
   const supabase = fastify.supabase;
   if (!supabase) {
     throw new Error(
@@ -78,10 +93,10 @@ async function repositoriesPlugin(fastify: FastifyInstance): Promise<void> {
 
   fastify.decorate('repos', repos);
 
-  fastify.log.info({ dbProvider: provider }, 'Repositories registered');
+  fastify.log.info({ dbProvider: provider }, 'Repositories registered (Supabase)');
 }
 
 export default fp(repositoriesPlugin, {
   name: 'repositories',
-  dependencies: ['database'],
+  dependencies: ['database', 'database-drizzle'],
 });

@@ -153,8 +153,10 @@ export class SupabaseUserRepository implements UserRepository {
   }
 
   async delete(id: string): Promise<void> {
-    const { error } = await this.supabase.from('users').delete().eq('id', id);
+    // .select('id') возвращает удалённые строки — пусто означает «не найдено» (контракт ⇒ NotFoundError).
+    const { data, error } = await this.supabase.from('users').delete().eq('id', id).select('id');
     if (error) throw error;
+    if (!data || data.length === 0) throw new NotFoundError('User', id);
   }
 
   async setActive(id: string, isActive: boolean): Promise<User> {

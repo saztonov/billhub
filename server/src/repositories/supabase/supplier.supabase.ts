@@ -147,12 +147,18 @@ export class SupabaseSupplierRepository implements SupplierRepository {
   }
 
   async delete(id: string): Promise<void> {
-    const { error } = await this.supabase.from('suppliers').delete().eq('id', id);
+    // .select('id') возвращает удалённые строки — пусто означает «не найдено» (контракт ⇒ NotFoundError).
+    const { data, error } = await this.supabase
+      .from('suppliers')
+      .delete()
+      .eq('id', id)
+      .select('id');
     if (error) {
       if ((error as { code?: string }).code === '23503') {
         throw new ForeignKeyConstraintError('Supplier', 'связанные договоры');
       }
       throw error;
     }
+    if (!data || data.length === 0) throw new NotFoundError('Supplier', id);
   }
 }
