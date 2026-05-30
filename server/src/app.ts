@@ -11,6 +11,7 @@ import databasePlugin from './plugins/database.js';
 import s3Plugin from './plugins/s3.js';
 import redisPlugin from './plugins/redis.js';
 import queuesPlugin from './plugins/queues.js';
+import repositoriesPlugin from './plugins/repositories.js';
 
 /** Маршруты */
 import healthRoutes from './routes/health.js';
@@ -154,6 +155,7 @@ export async function createApp(opts: CreateAppOptions = {}): Promise<FastifyIns
     await fastify.register(s3Plugin);
     await fastify.register(redisPlugin);
     await fastify.register(queuesPlugin);
+    await fastify.register(repositoriesPlugin);
   }
 
   /** Маршруты (health всегда; остальные — если не skipRoutes) */

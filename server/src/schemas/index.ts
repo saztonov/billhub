@@ -1,0 +1,10 @@
+/**
+ * Barrel-экспорт всех zod-схем.
+ *
+ * Импорт в routes/: `import { counterpartySchema } from '@server/schemas';`
+ * Использование с Fastify TypeBox-style: see fastify-type-provider-zod.
+ */
+export * from './common.js';
+export * from './counterparty.js';
+export * from './supplier.js';
+export * from './user.js';
