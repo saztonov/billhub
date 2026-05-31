@@ -70,8 +70,9 @@ class FakeBuilder implements PromiseLike<QueryResult> {
   constructor(
     private readonly db: FakeSupabase,
     private readonly table: string,
-    private readonly op: 'select' | 'insert' | 'update' | 'delete',
+    private readonly op: 'select' | 'insert' | 'update' | 'delete' | 'upsert',
     private readonly payload?: Row | Row[],
+    private readonly upsertOpts?: { onConflict?: string },
   ) {}
 
   select(_fields?: string, opts?: { count?: string }): this {
@@ -209,6 +210,32 @@ class FakeBuilder implements PromiseLike<QueryResult> {
       return this.singleMode ? { data: matched[0], error: null } : { data: matched, error: null };
     }
 
+    if (this.op === 'upsert') {
+      const defaults = DEFAULTS[this.table] ?? ((r: Row) => ({ id: randomUUID(), ...r }));
+      const conflictCols = this.upsertOpts?.onConflict
+        ? this.upsertOpts.onConflict.split(',').map((c) => c.trim())
+        : [];
+      const inputs: Row[] = Array.isArray(this.payload) ? this.payload : [this.payload ?? {}];
+      const result: Row[] = [];
+      for (const inp of inputs) {
+        const existing =
+          conflictCols.length > 0
+            ? store.find((r) => conflictCols.every((c) => r[c] === inp[c]))
+            : undefined;
+        if (existing) {
+          Object.assign(existing, inp);
+          result.push(existing);
+        } else {
+          const row = defaults(inp);
+          store.push(row);
+          result.push(row);
+        }
+      }
+      return this.singleMode
+        ? { data: result[0] ?? null, error: null }
+        : { data: result, error: null };
+    }
+
     // delete: .select() возвращает удалённые строки (как PostgREST). Пусто = не найдено.
     if (this.db.fkViolations.has(this.table)) {
       return { data: null, error: { code: '23503', message: 'foreign key violation' } };
@@ -275,6 +302,8 @@ export class FakeSupabase {
         new FakeBuilder(this, table, 'select').select(fields, opts),
       insert: (payload: Row | Row[]) => new FakeBuilder(this, table, 'insert', payload),
       update: (payload: Row) => new FakeBuilder(this, table, 'update', payload),
+      upsert: (payload: Row | Row[], opts?: { onConflict?: string }) =>
+        new FakeBuilder(this, table, 'upsert', payload, opts),
       delete: () => new FakeBuilder(this, table, 'delete'),
     };
   }

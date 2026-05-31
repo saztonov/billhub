@@ -31,6 +31,7 @@ import { SupabaseOcrModelRepository } from '../repositories/supabase/ocr-model.s
 import { SupabaseOmtsRpRepository } from '../repositories/supabase/omts-rp.supabase.js';
 import { SupabaseMaterialRepository } from '../repositories/supabase/material.supabase.js';
 import { SupabaseFoundingDocumentRepository } from '../repositories/supabase/founding-document.supabase.js';
+import { SupabaseOcrRepository } from '../repositories/supabase/ocr.supabase.js';
 import { DrizzleCounterpartyRepository } from '../repositories/drizzle/counterparty.drizzle.js';
 import { DrizzleSupplierRepository } from '../repositories/drizzle/supplier.drizzle.js';
 import { DrizzleUserRepository } from '../repositories/drizzle/user.drizzle.js';
@@ -49,6 +50,7 @@ import { DrizzleOcrModelRepository } from '../repositories/drizzle/ocr-model.dri
 import { DrizzleOmtsRpRepository } from '../repositories/drizzle/omts-rp.drizzle.js';
 import { DrizzleMaterialRepository } from '../repositories/drizzle/material.drizzle.js';
 import { DrizzleFoundingDocumentRepository } from '../repositories/drizzle/founding-document.drizzle.js';
+import { DrizzleOcrRepository } from '../repositories/drizzle/ocr.drizzle.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -116,6 +118,7 @@ async function repositoriesPlugin(fastify: FastifyInstance): Promise<void> {
       omtsRp: new DrizzleOmtsRpRepository(db),
       materials: new DrizzleMaterialRepository(db),
       foundingDocuments: new DrizzleFoundingDocumentRepository(db),
+      ocr: new DrizzleOcrRepository(db),
     };
     fastify.decorate('repos', repos);
     fastify.log.info({ dbProvider: provider }, 'Repositories registered (Drizzle)');
@@ -149,6 +152,7 @@ async function repositoriesPlugin(fastify: FastifyInstance): Promise<void> {
     omtsRp: new SupabaseOmtsRpRepository(supabase),
     materials: new SupabaseMaterialRepository(supabase),
     foundingDocuments: new SupabaseFoundingDocumentRepository(supabase),
+    ocr: new SupabaseOcrRepository(supabase),
   };
 
   fastify.decorate('repos', repos);
