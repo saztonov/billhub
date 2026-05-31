@@ -57,8 +57,10 @@ function ilikeMatch(value: unknown, pattern: string): boolean {
     .includes(needle);
 }
 
+type FilterOp = 'eq' | 'neq' | 'in' | 'gt' | 'lt' | 'gte' | 'lte' | 'is' | 'notis';
+
 class FakeBuilder implements PromiseLike<QueryResult> {
-  private filters: { col: string; op: 'eq' | 'neq' | 'in' | 'gt'; val: unknown }[] = [];
+  private filters: { col: string; op: FilterOp; val: unknown }[] = [];
   private orExpr: string | null = null;
   private rangeBounds: [number, number] | null = null;
   private orderSpec: { col: string; asc: boolean } | null = null;
@@ -95,6 +97,26 @@ class FakeBuilder implements PromiseLike<QueryResult> {
     this.filters.push({ col, op: 'gt', val });
     return this;
   }
+  lt(col: string, val: unknown): this {
+    this.filters.push({ col, op: 'lt', val });
+    return this;
+  }
+  gte(col: string, val: unknown): this {
+    this.filters.push({ col, op: 'gte', val });
+    return this;
+  }
+  lte(col: string, val: unknown): this {
+    this.filters.push({ col, op: 'lte', val });
+    return this;
+  }
+  is(col: string, val: unknown): this {
+    this.filters.push({ col, op: 'is', val });
+    return this;
+  }
+  not(col: string, operator: string, val: unknown): this {
+    this.filters.push({ col, op: operator === 'is' ? 'notis' : 'neq', val });
+    return this;
+  }
   limit(n: number): this {
     this.limitN = n;
     return this;
@@ -127,12 +149,15 @@ class FakeBuilder implements PromiseLike<QueryResult> {
     return Promise.resolve(this.exec()).then(onfulfilled, onrejected);
   }
 
-  private matchFilter(
-    r: Row,
-    f: { col: string; op: 'eq' | 'neq' | 'in' | 'gt'; val: unknown },
-  ): boolean {
+  private matchFilter(r: Row, f: { col: string; op: FilterOp; val: unknown }): boolean {
     if (f.op === 'in') return Array.isArray(f.val) && f.val.includes(r[f.col]);
     if (f.op === 'gt') return String(r[f.col] ?? '') > String(f.val ?? '');
+    if (f.op === 'lt') return String(r[f.col] ?? '') < String(f.val ?? '');
+    if (f.op === 'gte') return String(r[f.col] ?? '') >= String(f.val ?? '');
+    if (f.op === 'lte') return String(r[f.col] ?? '') <= String(f.val ?? '');
+    // .is(col, null) / .not(col, 'is', null): == null ловит и null, и undefined.
+    if (f.op === 'is') return r[f.col] == f.val;
+    if (f.op === 'notis') return r[f.col] != f.val;
     if (f.op === 'neq') return r[f.col] !== f.val;
     return r[f.col] === f.val;
   }

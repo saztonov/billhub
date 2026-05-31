@@ -30,6 +30,24 @@ Gate `grep fastify.supabase` для Iteration 5 трактуется как «н
 Обращения к `supabase.auth.*` в `users.ts` (batch-import) и весь `auth.ts` — задокументированное
 исключение до Iteration 6.
 
+## Финал Iteration 5 (cutover завершён)
+
+Все 13 доменов переведены на Repository-слой; default `DB_PROVIDER=drizzle` (supabase — явный
+rollback). Роуты НЕ используют `.from()/.rpc()`, кроме трёх задокументированных мест:
+- `auth.ts` — полностью на Supabase Auth, переводится в Iteration 6 (см. выше).
+- `users.ts` — только `supabase.auth.admin.createUser` (batch-import), Iteration 6.
+- `health.ts` — проба готовности БД, СДЕЛАНА provider-aware: при `DB_PROVIDER=drizzle` пробит
+  `fastify.db` (`select 1`); ветка `fastify.supabase` срабатывает только в rollback-режиме
+  (`DB_PROVIDER=supabase`). Это инфраструктурная проба, НЕ доступ к бизнес-данным — в Iteration 6
+  трогать не требуется.
+
+### Операционные действия после Iteration 5 (выполняет разработчик)
+- Применить миграцию `007_add_payment_request_closed_at.sql` к облачному Supabase И к целевому
+  Postgres (`npm run db:migrate`). Без неё `ready-for-closure-count` падает с 42703 (колонки
+  `closed_at` ранее не было нигде).
+- ocr_models: исходный роут обращался к несуществующей колонке `model_name`; репозиторий
+  использует реальную `name` (как в БД/schema.sql и типе фронта). Доп. миграций не требует.
+
 ## Прочие связанные данные
 
 - Импорт паролей подрядчиков: bcrypt-хэши из `auth.users.encrypted_password` → `users.password_hash`

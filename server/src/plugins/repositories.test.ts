@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { resolveDbProvider } from './repositories.js';
 
 describe('resolveDbProvider', () => {
-  it('по умолчанию (без env) → supabase', () => {
-    expect(resolveDbProvider({} as NodeJS.ProcessEnv)).toBe('supabase');
+  it('по умолчанию (без env) → drizzle (cutover Iteration 5)', () => {
+    expect(resolveDbProvider({} as NodeJS.ProcessEnv)).toBe('drizzle');
   });
 
   it('DB_PROVIDER=drizzle в dev → drizzle', () => {
@@ -30,10 +30,8 @@ describe('resolveDbProvider', () => {
     ).toThrow(/В production обязателен DB_PROVIDER=drizzle/);
   });
 
-  it('production без DB_PROVIDER падает (default=supabase запрещён в prod)', () => {
-    expect(() => resolveDbProvider({ NODE_ENV: 'production' } as NodeJS.ProcessEnv)).toThrow(
-      /В production обязателен DB_PROVIDER=drizzle/,
-    );
+  it('production без DB_PROVIDER → drizzle (default=drizzle разрешён в prod)', () => {
+    expect(resolveDbProvider({ NODE_ENV: 'production' } as NodeJS.ProcessEnv)).toBe('drizzle');
   });
 
   it('production + DB_PROVIDER=drizzle проходит', () => {

@@ -66,7 +66,9 @@ export type DbProvider = 'supabase' | 'drizzle';
  * Экспортируется для тестов.
  */
 export function resolveDbProvider(env: NodeJS.ProcessEnv): DbProvider {
-  const provider = (env.DB_PROVIDER ?? 'supabase') as DbProvider;
+  // Iteration 5 (cutover): default = drizzle. Supabase остаётся явным rollback-провайдером
+  // (DB_PROVIDER=supabase). В production drizzle обязателен (startup-инвариант ниже).
+  const provider = (env.DB_PROVIDER ?? 'drizzle') as DbProvider;
   const nodeEnv = env.NODE_ENV ?? 'development';
 
   if (provider !== 'supabase' && provider !== 'drizzle') {

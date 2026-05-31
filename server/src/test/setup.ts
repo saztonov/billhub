@@ -6,6 +6,9 @@
 
 // Чтобы не валились startup checks в config.ts
 process.env.NODE_ENV ??= 'test';
+// Default-провайдер БД с Iteration 5 — drizzle; для герметичных unit-тестов (FakeSupabase,
+// без DATABASE_URL) фиксируем supabase. Явный DB_PROVIDER=drizzle / CI переопределяет (??=).
+process.env.DB_PROVIDER ??= 'supabase';
 process.env.PORT ??= '0';
 process.env.CORS_ORIGIN ??= 'http://localhost:5173';
 process.env.SUPABASE_URL ??= 'https://test-project.supabase.co';
