@@ -24,6 +24,7 @@ export type { ReferenceRepository } from './reference.repository.js';
 export type { NotificationRepository } from './notification.repository.js';
 export type { CommentRepository } from './comment.repository.js';
 export type { NotificationActionRepository } from './notification-action.repository.js';
+export type { FileRepository } from './file.repository.js';
 
 /**
  * Контейнер всех репозиториев, декорирующий FastifyInstance как `fastify.repos`.
@@ -37,4 +38,5 @@ export interface Repositories {
   notifications: import('./notification.repository.js').NotificationRepository;
   comments: import('./comment.repository.js').CommentRepository;
   notificationActions: import('./notification-action.repository.js').NotificationActionRepository;
+  files: import('./file.repository.js').FileRepository;
 }

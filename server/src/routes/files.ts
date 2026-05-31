@@ -11,6 +11,7 @@ import { authenticate } from '../middleware/authenticate.js';
 import { requireRole } from '../middleware/requireRole.js';
 import { config } from '../config.js';
 import { sanitizeForS3 } from '../utils/sanitize.js';
+import type { FileEntityType } from '../schemas/file.js';
 
 /* ------------------------------------------------------------------ */
 /*  Константы                                                          */
@@ -18,8 +19,18 @@ import { sanitizeForS3 } from '../utils/sanitize.js';
 
 /** Допустимые расширения файлов */
 const ALLOWED_EXTENSIONS = new Set([
-  'pdf', 'doc', 'docx', 'xls', 'xlsx',
-  'jpg', 'jpeg', 'png', 'tiff', 'tif', 'bmp', 'dwg',
+  'pdf',
+  'doc',
+  'docx',
+  'xls',
+  'xlsx',
+  'jpg',
+  'jpeg',
+  'png',
+  'tiff',
+  'tif',
+  'bmp',
+  'dwg',
 ]);
 
 /** Допустимые MIME-типы */
@@ -42,23 +53,6 @@ const ALLOWED_CONTENT_TYPES = new Set([
 
 /** Контексты загрузки файлов */
 type UploadContext = 'request' | 'decision' | 'payment' | 'contract' | 'general' | 'founding';
-
-/** Таблицы метаданных файлов */
-type FileEntityType =
-  | 'payment_request_files'
-  | 'approval_decision_files'
-  | 'contract_request_files'
-  | 'payment_payment_files'
-  | 'founding_document_files';
-
-/** Маппинг entityType -> поле внешнего ключа */
-const ENTITY_FK_MAP: Record<FileEntityType, string> = {
-  payment_request_files: 'payment_request_id',
-  approval_decision_files: 'approval_decision_id',
-  contract_request_files: 'contract_request_id',
-  payment_payment_files: 'payment_payment_id',
-  founding_document_files: 'supplier_founding_document_id',
-};
 
 /* ------------------------------------------------------------------ */
 /*  Типы тел запросов                                                  */
@@ -277,19 +271,13 @@ function buildFileKey(body: UploadUrlBody): string {
  */
 async function getCounterpartyFolder(
   fastify: FastifyInstance,
-  counterpartyId: string
+  counterpartyId: string,
 ): Promise<string> {
-  const { data, error } = await fastify.supabase
-    .from('counterparties')
-    .select('name')
-    .eq('id', counterpartyId)
-    .single();
-
-  if (error || !data) {
+  const cp = await fastify.repos.counterparties.findById(counterpartyId);
+  if (!cp) {
     throw new Error('Контрагент не найден');
   }
-
-  return sanitizeForS3(data.name as string);
+  return sanitizeForS3(cp.name);
 }
 
 /**
@@ -299,7 +287,7 @@ async function getCounterpartyFolder(
 async function verifyCounterpartyOwnership(
   fastify: FastifyInstance,
   fileKey: string,
-  counterpartyId: string
+  counterpartyId: string,
 ): Promise<boolean> {
   /** Файлы решений по согласованиям доступны всем авторизованным */
   if (fileKey.startsWith('approval-decisions/')) {
@@ -381,7 +369,7 @@ async function fileRoutes(fastify: FastifyInstance): Promise<void> {
       });
 
       return reply.send({ uploadUrl, fileKey });
-    }
+    },
   );
 
   /**
@@ -404,7 +392,9 @@ async function fileRoutes(fastify: FastifyInstance): Promise<void> {
           return reply.status(403).send({ error: 'Контрагент не привязан' });
         }
         const isOwner = await verifyCounterpartyOwnership(
-          fastify, body.fileKey, user.counterpartyId
+          fastify,
+          body.fileKey,
+          user.counterpartyId,
         );
         if (!isOwner) {
           return reply.status(403).send({ error: 'Доступ запрещён' });
@@ -417,7 +407,7 @@ async function fileRoutes(fastify: FastifyInstance): Promise<void> {
           new HeadObjectCommand({
             Bucket: fastify.s3Bucket,
             Key: body.fileKey,
-          })
+          }),
         );
       } catch {
         return reply.status(404).send({ error: 'Файл не найден в хранилище' });
@@ -431,44 +421,24 @@ async function fileRoutes(fastify: FastifyInstance): Promise<void> {
         });
       }
 
-      /** Формируем запись для вставки */
-      const fkField = ENTITY_FK_MAP[body.entityType];
-
-      const record: Record<string, unknown> = {
-        [fkField]: body.entityId,
-        file_name: body.fileName,
-        file_key: body.fileKey,
-        file_size: body.fileSize,
-        mime_type: body.mimeType,
-        created_by: user.id,
-      };
-
-      /** Дополнительные поля для payment_request_files */
-      if (body.entityType === 'payment_request_files') {
-        if (body.documentTypeId) record['document_type_id'] = body.documentTypeId;
-        if (body.pageCount !== undefined) record['page_count'] = body.pageCount;
-        if (body.isResubmit !== undefined) record['is_resubmit'] = body.isResubmit;
-        if (body.isAdditional !== undefined) record['is_additional'] = body.isAdditional;
-      }
-
-      /** Дополнительные поля для contract_request_files */
-      if (body.entityType === 'contract_request_files') {
-        if (body.isAdditional !== undefined) record['is_additional'] = body.isAdditional;
-      }
-
-      /** Дополнительные поля для founding_document_files */
-      if (body.entityType === 'founding_document_files') {
-        if (body.comment !== undefined) record['comment'] = body.comment;
-      }
-
-      /** Вставляем метаданные в соответствующую таблицу */
-      const { data, error } = await fastify.supabase
-        .from(body.entityType)
-        .insert(record)
-        .select('id, file_key')
-        .single();
-
-      if (error) {
+      /** Сохраняем метаданные файла через репозиторий */
+      let saved: { id: string; fileKey: string };
+      try {
+        saved = await fastify.repos.files.createFileRecord({
+          entityType: body.entityType,
+          entityId: body.entityId,
+          fileName: body.fileName,
+          fileKey: body.fileKey,
+          fileSize: body.fileSize,
+          mimeType: body.mimeType,
+          createdBy: user.id,
+          documentTypeId: body.documentTypeId,
+          pageCount: body.pageCount,
+          isResubmit: body.isResubmit,
+          isAdditional: body.isAdditional,
+          comment: body.comment,
+        });
+      } catch (error) {
         request.log.error({ error }, 'Ошибка сохранения метаданных файла');
         return reply.status(500).send({ error: 'Ошибка сохранения метаданных файла' });
       }
@@ -477,17 +447,17 @@ async function fileRoutes(fastify: FastifyInstance): Promise<void> {
       const job = await fastify.fileProcessingQueue.add('process-file', {
         entityType: body.entityType,
         entityId: body.entityId,
-        fileId: data.id as string,
+        fileId: saved.id,
         fileKey: body.fileKey,
         userId: user.id,
       });
 
       return reply.send({
-        id: data.id as string,
-        fileKey: data.file_key as string,
+        id: saved.id,
+        fileKey: saved.fileKey,
         jobId: job.id,
       });
-    }
+    },
   );
 
   /**
@@ -513,9 +483,7 @@ async function fileRoutes(fastify: FastifyInstance): Promise<void> {
         if (!user.counterpartyId) {
           return reply.status(403).send({ error: 'Контрагент не привязан' });
         }
-        const isOwner = await verifyCounterpartyOwnership(
-          fastify, fileKey, user.counterpartyId
-        );
+        const isOwner = await verifyCounterpartyOwnership(fastify, fileKey, user.counterpartyId);
         if (!isOwner) {
           return reply.status(403).send({ error: 'Доступ запрещён' });
         }
@@ -538,7 +506,7 @@ async function fileRoutes(fastify: FastifyInstance): Promise<void> {
       });
 
       return reply.send({ downloadUrl });
-    }
+    },
   );
 
   /**
@@ -564,9 +532,7 @@ async function fileRoutes(fastify: FastifyInstance): Promise<void> {
         if (!user.counterpartyId) {
           return reply.status(403).send({ error: 'Контрагент не привязан' });
         }
-        const isOwner = await verifyCounterpartyOwnership(
-          fastify, fileKey, user.counterpartyId
-        );
+        const isOwner = await verifyCounterpartyOwnership(fastify, fileKey, user.counterpartyId);
         if (!isOwner) {
           return reply.status(403).send({ error: 'Доступ запрещён' });
         }
@@ -578,32 +544,25 @@ async function fileRoutes(fastify: FastifyInstance): Promise<void> {
           new DeleteObjectCommand({
             Bucket: fastify.s3Bucket,
             Key: fileKey,
-          })
+          }),
         );
       } catch (err) {
         request.log.error({ err, fileKey }, 'Ошибка удаления файла из S3');
         return reply.status(500).send({ error: 'Ошибка удаления файла' });
       }
 
-      /** Удаляем метаданные из БД, если указан entityType и entityId */
+      /** Удаляем метаданные из БД, если указан entityType и entityId (best-effort) */
       const { entityType, entityId } = request.query;
       if (entityType && entityId) {
-        const fkField = ENTITY_FK_MAP[entityType];
-        if (fkField) {
-          const { error } = await fastify.supabase
-            .from(entityType)
-            .delete()
-            .eq(fkField, entityId)
-            .eq('file_key', fileKey);
-
-          if (error) {
-            request.log.error({ error }, 'Ошибка удаления метаданных файла');
-          }
+        try {
+          await fastify.repos.files.deleteFileRecord(entityType, entityId, fileKey);
+        } catch (error) {
+          request.log.error({ error }, 'Ошибка удаления метаданных файла');
         }
       }
 
       return reply.send({ success: true });
-    }
+    },
   );
 
   /**
@@ -633,7 +592,7 @@ async function fileRoutes(fastify: FastifyInstance): Promise<void> {
       }));
 
       return reply.send({ files });
-    }
+    },
   );
 
   /**

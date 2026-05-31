@@ -13,10 +13,7 @@ import {
 import { authenticate } from '../middleware/authenticate.js';
 import { config } from '../config.js';
 import { sanitizeForS3 } from '../utils/sanitize.js';
-import {
-  acquireUploadSlot,
-  releaseUploadSlot,
-} from '../utils/uploadSemaphore.js';
+import { acquireUploadSlot, releaseUploadSlot } from '../utils/uploadSemaphore.js';
 
 /* ------------------------------------------------------------------ */
 /*  Константы                                                          */
@@ -33,8 +30,18 @@ const REDIS_PREFIX = 'upload:';
 
 /** Допустимые расширения файлов */
 const ALLOWED_EXTENSIONS = new Set([
-  'pdf', 'doc', 'docx', 'xls', 'xlsx',
-  'jpg', 'jpeg', 'png', 'tiff', 'tif', 'bmp', 'dwg',
+  'pdf',
+  'doc',
+  'docx',
+  'xls',
+  'xlsx',
+  'jpg',
+  'jpeg',
+  'png',
+  'tiff',
+  'tif',
+  'bmp',
+  'dwg',
 ]);
 
 /** Допустимые MIME-типы */
@@ -237,26 +244,20 @@ function buildFileKey(body: InitBody): string {
 /** Получает папку контрагента по ID */
 async function getCounterpartyFolder(
   fastify: FastifyInstance,
-  counterpartyId: string
+  counterpartyId: string,
 ): Promise<string> {
-  const { data, error } = await fastify.supabase
-    .from('counterparties')
-    .select('name')
-    .eq('id', counterpartyId)
-    .single();
-
-  if (error || !data) {
+  const cp = await fastify.repos.counterparties.findById(counterpartyId);
+  if (!cp) {
     throw new Error('Контрагент не найден');
   }
-
-  return sanitizeForS3(data.name as string);
+  return sanitizeForS3(cp.name);
 }
 
 /** Проверяет принадлежность файла контрагенту */
 async function verifyCounterpartyOwnership(
   fastify: FastifyInstance,
   fileKey: string,
-  counterpartyId: string
+  counterpartyId: string,
 ): Promise<boolean> {
   if (fileKey.startsWith('approval-decisions/')) {
     return true;
@@ -268,7 +269,7 @@ async function verifyCounterpartyOwnership(
 /** Читает сессию загрузки из Redis */
 async function getSession(
   fastify: FastifyInstance,
-  uploadId: string
+  uploadId: string,
 ): Promise<UploadSession | null> {
   const raw = await fastify.redis.get(`${REDIS_PREFIX}${uploadId}`);
   if (!raw) return null;
@@ -279,21 +280,18 @@ async function getSession(
 async function saveSession(
   fastify: FastifyInstance,
   uploadId: string,
-  session: UploadSession
+  session: UploadSession,
 ): Promise<void> {
   await fastify.redis.set(
     `${REDIS_PREFIX}${uploadId}`,
     JSON.stringify(session),
     'EX',
-    UPLOAD_SESSION_TTL
+    UPLOAD_SESSION_TTL,
   );
 }
 
 /** Удаляет сессию загрузки из Redis */
-async function deleteSession(
-  fastify: FastifyInstance,
-  uploadId: string
-): Promise<void> {
+async function deleteSession(fastify: FastifyInstance, uploadId: string): Promise<void> {
   await fastify.redis.del(`${REDIS_PREFIX}${uploadId}`);
 }
 
@@ -302,7 +300,6 @@ async function deleteSession(
 /* ------------------------------------------------------------------ */
 
 async function fileProxyRoutes(fastify: FastifyInstance): Promise<void> {
-
   /**
    * POST /api/files/upload/init
    * Инициализирует чанковую загрузку: валидирует, создаёт S3 multipart, сохраняет сессию в Redis
@@ -372,7 +369,7 @@ async function fileProxyRoutes(fastify: FastifyInstance): Promise<void> {
           Bucket: fastify.s3Bucket,
           Key: fileKey,
           ContentType: body.contentType,
-        })
+        }),
       );
 
       const s3UploadId = createResult.UploadId;
@@ -402,7 +399,7 @@ async function fileProxyRoutes(fastify: FastifyInstance): Promise<void> {
         partSize: PART_SIZE,
         totalParts,
       });
-    }
+    },
   );
 
   /**
@@ -463,7 +460,7 @@ async function fileProxyRoutes(fastify: FastifyInstance): Promise<void> {
             UploadId: session.s3UploadId,
             PartNumber: partNumber,
             Body: body,
-          })
+          }),
         );
 
         const etag = uploadResult.ETag;
@@ -479,7 +476,7 @@ async function fileProxyRoutes(fastify: FastifyInstance): Promise<void> {
       } finally {
         releaseUploadSlot();
       }
-    }
+    },
   );
 
   /**
@@ -505,7 +502,9 @@ async function fileProxyRoutes(fastify: FastifyInstance): Promise<void> {
       }
 
       /** Проверяем, что все части загружены */
-      const uploadedParts = Object.keys(session.parts).map(Number).sort((a, b) => a - b);
+      const uploadedParts = Object.keys(session.parts)
+        .map(Number)
+        .sort((a, b) => a - b);
       if (uploadedParts.length !== session.totalParts) {
         const missing = [];
         for (let i = 1; i <= session.totalParts; i++) {
@@ -529,7 +528,7 @@ async function fileProxyRoutes(fastify: FastifyInstance): Promise<void> {
             Key: session.fileKey,
             UploadId: session.s3UploadId,
             MultipartUpload: { Parts: parts },
-          })
+          }),
         );
       } catch (err) {
         request.log.error({ err }, 'Ошибка завершения multipart upload');
@@ -541,7 +540,7 @@ async function fileProxyRoutes(fastify: FastifyInstance): Promise<void> {
               Bucket: fastify.s3Bucket,
               Key: session.fileKey,
               UploadId: session.s3UploadId,
-            })
+            }),
           );
         } catch {
           // S3 lifecycle rule очистит незавершённые загрузки
@@ -558,7 +557,7 @@ async function fileProxyRoutes(fastify: FastifyInstance): Promise<void> {
           new HeadObjectCommand({
             Bucket: fastify.s3Bucket,
             Key: session.fileKey,
-          })
+          }),
         );
         if (head.ContentLength) {
           actualSize = head.ContentLength;
@@ -574,7 +573,7 @@ async function fileProxyRoutes(fastify: FastifyInstance): Promise<void> {
         fileSize: actualSize,
         mimeType: session.contentType,
       });
-    }
+    },
   );
 
   /**
@@ -599,7 +598,9 @@ async function fileProxyRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(403).send({ error: 'Доступ запрещён' });
       }
 
-      const uploadedParts = Object.keys(session.parts).map(Number).sort((a, b) => a - b);
+      const uploadedParts = Object.keys(session.parts)
+        .map(Number)
+        .sort((a, b) => a - b);
 
       return reply.send({
         uploadId,
@@ -607,7 +608,7 @@ async function fileProxyRoutes(fastify: FastifyInstance): Promise<void> {
         uploadedParts,
         totalParts: session.totalParts,
       });
-    }
+    },
   );
 
   /**
@@ -633,9 +634,7 @@ async function fileProxyRoutes(fastify: FastifyInstance): Promise<void> {
         if (!user.counterpartyId) {
           return reply.status(403).send({ error: 'Контрагент не привязан' });
         }
-        const isOwner = await verifyCounterpartyOwnership(
-          fastify, fileKey, user.counterpartyId
-        );
+        const isOwner = await verifyCounterpartyOwnership(fastify, fileKey, user.counterpartyId);
         if (!isOwner) {
           return reply.status(403).send({ error: 'Доступ запрещён' });
         }
@@ -649,7 +648,7 @@ async function fileProxyRoutes(fastify: FastifyInstance): Promise<void> {
           new HeadObjectCommand({
             Bucket: fastify.s3Bucket,
             Key: fileKey,
-          })
+          }),
         );
         contentLength = head.ContentLength;
         contentType = head.ContentType;
@@ -667,9 +666,7 @@ async function fileProxyRoutes(fastify: FastifyInstance): Promise<void> {
         getCommand.Range = rangeHeader;
       }
 
-      const s3Response = await fastify.s3Client.send(
-        new GetObjectCommand(getCommand)
-      );
+      const s3Response = await fastify.s3Client.send(new GetObjectCommand(getCommand));
 
       if (!s3Response.Body) {
         return reply.status(500).send({ error: 'S3 вернул пустой ответ' });
@@ -688,9 +685,11 @@ async function fileProxyRoutes(fastify: FastifyInstance): Promise<void> {
       const raw = reply.raw;
       raw.writeHead(statusCode, {
         'Content-Type': contentType || 'application/octet-stream',
-        ...(contentLength !== undefined && !rangeHeader && { 'Content-Length': String(contentLength) }),
+        ...(contentLength !== undefined &&
+          !rangeHeader && { 'Content-Length': String(contentLength) }),
         ...(s3Response.ContentRange && { 'Content-Range': s3Response.ContentRange }),
-        ...(s3Response.ContentLength !== undefined && rangeHeader && { 'Content-Length': String(s3Response.ContentLength) }),
+        ...(s3Response.ContentLength !== undefined &&
+          rangeHeader && { 'Content-Length': String(s3Response.ContentLength) }),
         'Content-Disposition': disposition,
         'Accept-Ranges': 'bytes',
       });
@@ -701,7 +700,7 @@ async function fileProxyRoutes(fastify: FastifyInstance): Promise<void> {
         // Клиент отключился mid-download — ничего не делаем
         raw.destroy();
       }
-    }
+    },
   );
 }
 
