@@ -36,6 +36,8 @@ export default defineConfig({
         'src/utils/**/*.ts',
         'src/repositories/**/*.ts',
         'src/plugins/repositories.ts',
+        'src/services/auth/**/*.ts', // Iteration 6: gate требует coverage auth >= 85%
+        'src/services/mail/**/*.ts',
       ],
       exclude: [
         'src/**/*.{test,spec}.ts',
@@ -43,6 +45,8 @@ export default defineConfig({
         'src/repositories/drizzle/**', // интеграционные (Docker/testcontainers)
         'src/repositories/*.repository.ts', // type-only интерфейсы
         'src/repositories/index.ts', // barrel (type-only)
+        'src/services/auth/stores/pg.ts', // интеграционные (Docker/testcontainers)
+        'src/services/auth/stores/types.ts', // type-only интерфейсы
       ],
     },
   },

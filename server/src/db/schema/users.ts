@@ -15,6 +15,10 @@ export const users = pgTable('users', {
   allSites: boolean('all_sites').notNull().default(false),
   fullName: text('full_name').notNull().default(''),
   isActive: boolean('is_active').notNull().default(true),
+  /** Standalone auth (миграция 0008). bcrypt-хэш; nullable до импорта из auth.users. */
+  passwordHash: text('password_hash'),
+  passwordChangedAt: timestamp('password_changed_at', { withTimezone: true, mode: 'string' }),
+  emailHmac: text('email_hmac'),
 });
 
 export const userConstructionSitesMapping = pgTable('user_construction_sites_mapping', {

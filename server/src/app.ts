@@ -26,6 +26,8 @@ import s3Plugin from './plugins/s3.js';
 import redisPlugin from './plugins/redis.js';
 import queuesPlugin from './plugins/queues.js';
 import repositoriesPlugin from './plugins/repositories.js';
+import authPlugin from './plugins/auth.js';
+import csrfPlugin from './plugins/csrf.js';
 
 /** Маршруты */
 import healthRoutes from './routes/health.js';
@@ -137,6 +139,9 @@ export async function createApp(opts: CreateAppOptions = {}): Promise<FastifyIns
   /** 2. Куки */
   await fastify.register(cookie);
 
+  /** 2.5. CSRF (double-submit). No-op в supabase-bridge; активна в standalone. */
+  await fastify.register(csrfPlugin);
+
   /** 3. Заголовки безопасности */
   await fastify.register(helmet, {
     contentSecurityPolicy: {
@@ -212,6 +217,12 @@ export async function createApp(opts: CreateAppOptions = {}): Promise<FastifyIns
     await fastify.register(queuesPlugin);
     await fastify.register(repositoriesPlugin);
   }
+
+  /**
+   * Auth-сервисы (Iteration 6). Регистрируются всегда: используют fastify.db (Drizzle) если он
+   * есть (production standalone), иначе in-memory хранилища (герметичные тесты без Docker).
+   */
+  await fastify.register(authPlugin);
 
   /** Маршруты (health всегда; остальные — если не skipRoutes) */
   await fastify.register(healthRoutes);

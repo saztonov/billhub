@@ -39,6 +39,30 @@ interface Config {
   databaseUrl: string;
   databaseMigrationUrl: string;
   databasePoolMax: number;
+
+  /**
+   * Режим аутентификации (Iteration 6). Это ОБЫЧНЫЙ feature-флаг, НЕ startup-инвариант
+   * (в отличие от DB_PROVIDER): план не объявляет AUTH_MODE инвариантом.
+   *   supabase-bridge — legacy-путь (Supabase Auth), default для старого окружения.
+   *   standalone      — собственный стек (раздел 13): bcrypt + access JWT + refresh rotation.
+   */
+  authMode: 'supabase-bridge' | 'standalone';
+
+  /** Standalone JWT (HS256). issuer/audience проверяются в authenticate. */
+  authJwtSecret: string;
+  jwtIssuer: string;
+  jwtAudience: string;
+  jwtAccessTtlSeconds: number;
+  refreshTtlSeconds: number;
+
+  /** Длина grace-window (мс) при ротации refresh-токена (параллельные вкладки). */
+  refreshGraceMs: number;
+
+  /** Секрет для double-submit CSRF-cookie. */
+  csrfSecret: string;
+
+  /** Ключ HMAC для псевдонимизации email в audit_log и ключах rate-limit. */
+  auditHmacKey: string;
 }
 
 /** Получение переменной окружения с значением по умолчанию */
@@ -96,4 +120,14 @@ export const config: Config = {
   databaseUrl: envOptional('DATABASE_URL'),
   databaseMigrationUrl: envOptional('DATABASE_MIGRATION_URL'),
   databasePoolMax: parseInt(envOptional('DATABASE_POOL_MAX', '10'), 10),
+
+  authMode: envOptional('AUTH_MODE', 'supabase-bridge') as Config['authMode'],
+  authJwtSecret: envOptional('AUTH_JWT_SECRET', 'dev-insecure-auth-jwt-secret-change-me'),
+  jwtIssuer: envOptional('JWT_ISSUER', 'BillHub'),
+  jwtAudience: envOptional('JWT_AUDIENCE', 'billhub'),
+  jwtAccessTtlSeconds: parseInt(envOptional('JWT_ACCESS_TTL_SECONDS', '900'), 10),
+  refreshTtlSeconds: parseInt(envOptional('REFRESH_TTL_SECONDS', '2592000'), 10),
+  refreshGraceMs: parseInt(envOptional('REFRESH_GRACE_MS', '5000'), 10),
+  csrfSecret: envOptional('CSRF_SECRET', 'dev-insecure-csrf-secret-change-me'),
+  auditHmacKey: envOptional('AUDIT_HMAC_KEY', 'dev-insecure-audit-hmac-key-change-me'),
 };
