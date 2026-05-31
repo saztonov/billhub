@@ -30,6 +30,9 @@ export type { PaymentRequestRepository } from './payment-request.repository.js';
 export type { ContractRequestRepository } from './contract-request.repository.js';
 export type { PaymentRepository } from './payment.repository.js';
 export type { ApprovalRepository } from './approval.repository.js';
+export type { AssignmentRepository } from './assignment.repository.js';
+export type { ErrorLogRepository } from './error-log.repository.js';
+export type { OcrModelRepository } from './ocr-model.repository.js';
 
 /**
  * Контейнер всех репозиториев, декорирующий FastifyInstance как `fastify.repos`.
@@ -48,4 +51,7 @@ export interface Repositories {
   contractRequests: import('./contract-request.repository.js').ContractRequestRepository;
   payments: import('./payment.repository.js').PaymentRepository;
   approvals: import('./approval.repository.js').ApprovalRepository;
+  assignments: import('./assignment.repository.js').AssignmentRepository;
+  errorLogs: import('./error-log.repository.js').ErrorLogRepository;
+  ocrModels: import('./ocr-model.repository.js').OcrModelRepository;
 }

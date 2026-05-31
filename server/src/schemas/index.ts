@@ -17,3 +17,6 @@ export * from './payment-request.js';
 export * from './contract-request.js';
 export * from './payment.js';
 export * from './approval.js';
+export * from './assignment.js';
+export * from './error-log.js';
+export * from './ocr-model.js';

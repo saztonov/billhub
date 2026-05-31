@@ -25,6 +25,9 @@ import { SupabasePaymentRequestRepository } from '../repositories/supabase/payme
 import { SupabaseContractRequestRepository } from '../repositories/supabase/contract-request.supabase.js';
 import { SupabasePaymentRepository } from '../repositories/supabase/payment.supabase.js';
 import { SupabaseApprovalRepository } from '../repositories/supabase/approval.supabase.js';
+import { SupabaseAssignmentRepository } from '../repositories/supabase/assignment.supabase.js';
+import { SupabaseErrorLogRepository } from '../repositories/supabase/error-log.supabase.js';
+import { SupabaseOcrModelRepository } from '../repositories/supabase/ocr-model.supabase.js';
 import { DrizzleCounterpartyRepository } from '../repositories/drizzle/counterparty.drizzle.js';
 import { DrizzleSupplierRepository } from '../repositories/drizzle/supplier.drizzle.js';
 import { DrizzleUserRepository } from '../repositories/drizzle/user.drizzle.js';
@@ -37,6 +40,9 @@ import { DrizzlePaymentRequestRepository } from '../repositories/drizzle/payment
 import { DrizzleContractRequestRepository } from '../repositories/drizzle/contract-request.drizzle.js';
 import { DrizzlePaymentRepository } from '../repositories/drizzle/payment.drizzle.js';
 import { DrizzleApprovalRepository } from '../repositories/drizzle/approval.drizzle.js';
+import { DrizzleAssignmentRepository } from '../repositories/drizzle/assignment.drizzle.js';
+import { DrizzleErrorLogRepository } from '../repositories/drizzle/error-log.drizzle.js';
+import { DrizzleOcrModelRepository } from '../repositories/drizzle/ocr-model.drizzle.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -98,6 +104,9 @@ async function repositoriesPlugin(fastify: FastifyInstance): Promise<void> {
       contractRequests: new DrizzleContractRequestRepository(db),
       payments: new DrizzlePaymentRepository(db),
       approvals: new DrizzleApprovalRepository(db),
+      assignments: new DrizzleAssignmentRepository(db),
+      errorLogs: new DrizzleErrorLogRepository(db),
+      ocrModels: new DrizzleOcrModelRepository(db),
     };
     fastify.decorate('repos', repos);
     fastify.log.info({ dbProvider: provider }, 'Repositories registered (Drizzle)');
@@ -125,6 +134,9 @@ async function repositoriesPlugin(fastify: FastifyInstance): Promise<void> {
     contractRequests: new SupabaseContractRequestRepository(supabase),
     payments: new SupabasePaymentRepository(supabase),
     approvals: new SupabaseApprovalRepository(supabase),
+    assignments: new SupabaseAssignmentRepository(supabase),
+    errorLogs: new SupabaseErrorLogRepository(supabase),
+    ocrModels: new SupabaseOcrModelRepository(supabase),
   };
 
   fastify.decorate('repos', repos);
