@@ -19,12 +19,14 @@ import { SupabaseUserRepository } from '../repositories/supabase/user.supabase.j
 import { SupabaseReferenceRepository } from '../repositories/supabase/reference.supabase.js';
 import { SupabaseNotificationRepository } from '../repositories/supabase/notification.supabase.js';
 import { SupabaseCommentRepository } from '../repositories/supabase/comment.supabase.js';
+import { SupabaseNotificationActionRepository } from '../repositories/supabase/notification-action.supabase.js';
 import { DrizzleCounterpartyRepository } from '../repositories/drizzle/counterparty.drizzle.js';
 import { DrizzleSupplierRepository } from '../repositories/drizzle/supplier.drizzle.js';
 import { DrizzleUserRepository } from '../repositories/drizzle/user.drizzle.js';
 import { DrizzleReferenceRepository } from '../repositories/drizzle/reference.drizzle.js';
 import { DrizzleNotificationRepository } from '../repositories/drizzle/notification.drizzle.js';
 import { DrizzleCommentRepository } from '../repositories/drizzle/comment.drizzle.js';
+import { DrizzleNotificationActionRepository } from '../repositories/drizzle/notification-action.drizzle.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -80,6 +82,7 @@ async function repositoriesPlugin(fastify: FastifyInstance): Promise<void> {
       references: new DrizzleReferenceRepository(db),
       notifications: new DrizzleNotificationRepository(db),
       comments: new DrizzleCommentRepository(db),
+      notificationActions: new DrizzleNotificationActionRepository(db),
     };
     fastify.decorate('repos', repos);
     fastify.log.info({ dbProvider: provider }, 'Repositories registered (Drizzle)');
@@ -101,6 +104,7 @@ async function repositoriesPlugin(fastify: FastifyInstance): Promise<void> {
     references: new SupabaseReferenceRepository(supabase),
     notifications: new SupabaseNotificationRepository(supabase),
     comments: new SupabaseCommentRepository(supabase),
+    notificationActions: new SupabaseNotificationActionRepository(supabase),
   };
 
   fastify.decorate('repos', repos);
