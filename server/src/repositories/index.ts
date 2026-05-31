@@ -35,6 +35,7 @@ export type { ErrorLogRepository } from './error-log.repository.js';
 export type { OcrModelRepository } from './ocr-model.repository.js';
 export type { OmtsRpRepository } from './omts-rp.repository.js';
 export type { MaterialRepository } from './material.repository.js';
+export type { FoundingDocumentRepository } from './founding-document.repository.js';
 
 /**
  * Контейнер всех репозиториев, декорирующий FastifyInstance как `fastify.repos`.
@@ -58,4 +59,5 @@ export interface Repositories {
   ocrModels: import('./ocr-model.repository.js').OcrModelRepository;
   omtsRp: import('./omts-rp.repository.js').OmtsRpRepository;
   materials: import('./material.repository.js').MaterialRepository;
+  foundingDocuments: import('./founding-document.repository.js').FoundingDocumentRepository;
 }

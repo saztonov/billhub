@@ -30,6 +30,7 @@ import { SupabaseErrorLogRepository } from '../repositories/supabase/error-log.s
 import { SupabaseOcrModelRepository } from '../repositories/supabase/ocr-model.supabase.js';
 import { SupabaseOmtsRpRepository } from '../repositories/supabase/omts-rp.supabase.js';
 import { SupabaseMaterialRepository } from '../repositories/supabase/material.supabase.js';
+import { SupabaseFoundingDocumentRepository } from '../repositories/supabase/founding-document.supabase.js';
 import { DrizzleCounterpartyRepository } from '../repositories/drizzle/counterparty.drizzle.js';
 import { DrizzleSupplierRepository } from '../repositories/drizzle/supplier.drizzle.js';
 import { DrizzleUserRepository } from '../repositories/drizzle/user.drizzle.js';
@@ -47,6 +48,7 @@ import { DrizzleErrorLogRepository } from '../repositories/drizzle/error-log.dri
 import { DrizzleOcrModelRepository } from '../repositories/drizzle/ocr-model.drizzle.js';
 import { DrizzleOmtsRpRepository } from '../repositories/drizzle/omts-rp.drizzle.js';
 import { DrizzleMaterialRepository } from '../repositories/drizzle/material.drizzle.js';
+import { DrizzleFoundingDocumentRepository } from '../repositories/drizzle/founding-document.drizzle.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -113,6 +115,7 @@ async function repositoriesPlugin(fastify: FastifyInstance): Promise<void> {
       ocrModels: new DrizzleOcrModelRepository(db),
       omtsRp: new DrizzleOmtsRpRepository(db),
       materials: new DrizzleMaterialRepository(db),
+      foundingDocuments: new DrizzleFoundingDocumentRepository(db),
     };
     fastify.decorate('repos', repos);
     fastify.log.info({ dbProvider: provider }, 'Repositories registered (Drizzle)');
@@ -145,6 +148,7 @@ async function repositoriesPlugin(fastify: FastifyInstance): Promise<void> {
     ocrModels: new SupabaseOcrModelRepository(supabase),
     omtsRp: new SupabaseOmtsRpRepository(supabase),
     materials: new SupabaseMaterialRepository(supabase),
+    foundingDocuments: new SupabaseFoundingDocumentRepository(supabase),
   };
 
   fastify.decorate('repos', repos);
