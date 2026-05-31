@@ -15,3 +15,4 @@ export * from './notification-action.js';
 export * from './file.js';
 export * from './payment-request.js';
 export * from './contract-request.js';
+export * from './payment.js';

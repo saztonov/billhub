@@ -28,6 +28,7 @@ export type { NotificationActionRepository } from './notification-action.reposit
 export type { FileRepository } from './file.repository.js';
 export type { PaymentRequestRepository } from './payment-request.repository.js';
 export type { ContractRequestRepository } from './contract-request.repository.js';
+export type { PaymentRepository } from './payment.repository.js';
 
 /**
  * Контейнер всех репозиториев, декорирующий FastifyInstance как `fastify.repos`.
@@ -44,4 +45,5 @@ export interface Repositories {
   files: import('./file.repository.js').FileRepository;
   paymentRequests: import('./payment-request.repository.js').PaymentRequestRepository;
   contractRequests: import('./contract-request.repository.js').ContractRequestRepository;
+  payments: import('./payment.repository.js').PaymentRepository;
 }

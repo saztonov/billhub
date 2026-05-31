@@ -23,6 +23,7 @@ import { SupabaseNotificationActionRepository } from '../repositories/supabase/n
 import { SupabaseFileRepository } from '../repositories/supabase/file.supabase.js';
 import { SupabasePaymentRequestRepository } from '../repositories/supabase/payment-request.supabase.js';
 import { SupabaseContractRequestRepository } from '../repositories/supabase/contract-request.supabase.js';
+import { SupabasePaymentRepository } from '../repositories/supabase/payment.supabase.js';
 import { DrizzleCounterpartyRepository } from '../repositories/drizzle/counterparty.drizzle.js';
 import { DrizzleSupplierRepository } from '../repositories/drizzle/supplier.drizzle.js';
 import { DrizzleUserRepository } from '../repositories/drizzle/user.drizzle.js';
@@ -33,6 +34,7 @@ import { DrizzleNotificationActionRepository } from '../repositories/drizzle/not
 import { DrizzleFileRepository } from '../repositories/drizzle/file.drizzle.js';
 import { DrizzlePaymentRequestRepository } from '../repositories/drizzle/payment-request.drizzle.js';
 import { DrizzleContractRequestRepository } from '../repositories/drizzle/contract-request.drizzle.js';
+import { DrizzlePaymentRepository } from '../repositories/drizzle/payment.drizzle.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -92,6 +94,7 @@ async function repositoriesPlugin(fastify: FastifyInstance): Promise<void> {
       files: new DrizzleFileRepository(db),
       paymentRequests: new DrizzlePaymentRequestRepository(db),
       contractRequests: new DrizzleContractRequestRepository(db),
+      payments: new DrizzlePaymentRepository(db),
     };
     fastify.decorate('repos', repos);
     fastify.log.info({ dbProvider: provider }, 'Repositories registered (Drizzle)');
@@ -117,6 +120,7 @@ async function repositoriesPlugin(fastify: FastifyInstance): Promise<void> {
     files: new SupabaseFileRepository(supabase),
     paymentRequests: new SupabasePaymentRequestRepository(supabase),
     contractRequests: new SupabaseContractRequestRepository(supabase),
+    payments: new SupabasePaymentRepository(supabase),
   };
 
   fastify.decorate('repos', repos);
