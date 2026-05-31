@@ -22,6 +22,7 @@ import { SupabaseCommentRepository } from '../repositories/supabase/comment.supa
 import { SupabaseNotificationActionRepository } from '../repositories/supabase/notification-action.supabase.js';
 import { SupabaseFileRepository } from '../repositories/supabase/file.supabase.js';
 import { SupabasePaymentRequestRepository } from '../repositories/supabase/payment-request.supabase.js';
+import { SupabaseContractRequestRepository } from '../repositories/supabase/contract-request.supabase.js';
 import { DrizzleCounterpartyRepository } from '../repositories/drizzle/counterparty.drizzle.js';
 import { DrizzleSupplierRepository } from '../repositories/drizzle/supplier.drizzle.js';
 import { DrizzleUserRepository } from '../repositories/drizzle/user.drizzle.js';
@@ -31,6 +32,7 @@ import { DrizzleCommentRepository } from '../repositories/drizzle/comment.drizzl
 import { DrizzleNotificationActionRepository } from '../repositories/drizzle/notification-action.drizzle.js';
 import { DrizzleFileRepository } from '../repositories/drizzle/file.drizzle.js';
 import { DrizzlePaymentRequestRepository } from '../repositories/drizzle/payment-request.drizzle.js';
+import { DrizzleContractRequestRepository } from '../repositories/drizzle/contract-request.drizzle.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -89,6 +91,7 @@ async function repositoriesPlugin(fastify: FastifyInstance): Promise<void> {
       notificationActions: new DrizzleNotificationActionRepository(db),
       files: new DrizzleFileRepository(db),
       paymentRequests: new DrizzlePaymentRequestRepository(db),
+      contractRequests: new DrizzleContractRequestRepository(db),
     };
     fastify.decorate('repos', repos);
     fastify.log.info({ dbProvider: provider }, 'Repositories registered (Drizzle)');
@@ -113,6 +116,7 @@ async function repositoriesPlugin(fastify: FastifyInstance): Promise<void> {
     notificationActions: new SupabaseNotificationActionRepository(supabase),
     files: new SupabaseFileRepository(supabase),
     paymentRequests: new SupabasePaymentRequestRepository(supabase),
+    contractRequests: new SupabaseContractRequestRepository(supabase),
   };
 
   fastify.decorate('repos', repos);
