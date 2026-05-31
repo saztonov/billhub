@@ -1148,7 +1148,8 @@ CREATE TABLE public.payment_requests (
     previous_status_id uuid,
     stage_history jsonb DEFAULT '[]'::jsonb,
     cost_type_id uuid,
-    materials_verification jsonb
+    materials_verification jsonb,
+    closed_at timestamp with time zone
 );
 
 

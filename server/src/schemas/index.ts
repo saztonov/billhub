@@ -16,3 +16,4 @@ export * from './file.js';
 export * from './payment-request.js';
 export * from './contract-request.js';
 export * from './payment.js';
+export * from './approval.js';

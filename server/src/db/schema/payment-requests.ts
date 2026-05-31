@@ -56,6 +56,7 @@ export const paymentRequests = pgTable('payment_requests', {
   stageHistory: jsonb('stage_history').default([]),
   costTypeId: uuid('cost_type_id'),
   materialsVerification: jsonb('materials_verification'),
+  closedAt: timestamp('closed_at', { withTimezone: true, mode: 'string' }),
 });
 
 export const paymentRequestFiles = pgTable('payment_request_files', {

@@ -2640,6 +2640,15 @@
               "position": 41,
               "max_length": null,
               "numeric_precision": null
+            },
+            {
+              "name": "closed_at",
+              "type": "timestamp with time zone",
+              "default": null,
+              "nullable": true,
+              "position": 42,
+              "max_length": null,
+              "numeric_precision": null
             }
           ]
         },

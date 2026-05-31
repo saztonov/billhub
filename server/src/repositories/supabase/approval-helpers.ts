@@ -1,10 +1,15 @@
-import type { FastifyInstance } from 'fastify';
+/**
+ * Хелперы Supabase-реализации согласований (перенесены из routes/approval-helpers.ts в Iteration 5).
+ * Используются ТОЛЬКО SupabaseApprovalRepository (rollback-провайдер). Drizzle-реализация
+ * воспроизводит эту же логику средствами ORM. Все функции принимают клиент аргументом.
+ */
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 /** Получить id статуса по entity_type и code */
 export async function getStatusId(
-  supabase: FastifyInstance['supabase'],
+  supabase: SupabaseClient,
   entityType: string,
-  code: string
+  code: string,
 ): Promise<string> {
   const { data, error } = await supabase
     .from('statuses')
@@ -18,9 +23,9 @@ export async function getStatusId(
 
 /** Добавить запись в stage_history заявки */
 export async function appendStageHistory(
-  supabase: FastifyInstance['supabase'],
+  supabase: SupabaseClient,
   paymentRequestId: string,
-  entry: Record<string, unknown>
+  entry: Record<string, unknown>,
 ): Promise<void> {
   const { data } = await supabase
     .from('payment_requests')
@@ -37,21 +42,24 @@ export async function appendStageHistory(
 
 /** Получить email и full_name пользователя */
 export async function getUserInfo(
-  supabase: FastifyInstance['supabase'],
-  userId: string
+  supabase: SupabaseClient,
+  userId: string,
 ): Promise<{ email?: string; fullName?: string }> {
   const { data } = await supabase
     .from('users')
     .select('email, full_name')
     .eq('id', userId)
     .single();
-  return { email: data?.email as string | undefined, fullName: data?.full_name as string | undefined };
+  return {
+    email: data?.email as string | undefined,
+    fullName: data?.full_name as string | undefined,
+  };
 }
 
 /** Получить id объектов пользователя */
 export async function getUserSiteIds(
-  supabase: FastifyInstance['supabase'],
-  userId: string
+  supabase: SupabaseClient,
+  userId: string,
 ): Promise<{ allSites: boolean; siteIds: string[] }> {
   const { data: userData } = await supabase
     .from('users')
@@ -65,13 +73,15 @@ export async function getUserSiteIds(
     .from('user_construction_sites_mapping')
     .select('construction_site_id')
     .eq('user_id', userId);
-  const siteIds = (siteMappings ?? []).map((s: Record<string, unknown>) => s.construction_site_id as string);
+  const siteIds = (siteMappings ?? []).map(
+    (s: Record<string, unknown>) => s.construction_site_id as string,
+  );
   return { allSites: false, siteIds };
 }
 
 /** Обработка отправки на доработку */
 export async function handleSendToRevision(
-  supabase: FastifyInstance['supabase'],
+  supabase: SupabaseClient,
   paymentRequestId: string,
   userId: string,
   comment: string,
@@ -86,9 +96,16 @@ export async function handleSendToRevision(
 
   // Запрет запуска цикла доработки из финальных статусов (опираемся на код статуса, не на rejected_at)
   const { data: curStatus } = await supabase
-    .from('statuses').select('code').eq('id', currentReq.status_id as string).single();
+    .from('statuses')
+    .select('code')
+    .eq('id', currentReq.status_id as string)
+    .single();
   if (curStatus?.code === 'rejected') {
-    return { success: false, error: 'Нельзя отправить на доработку отклонённую заявку', status: 400 };
+    return {
+      success: false,
+      error: 'Нельзя отправить на доработку отклонённую заявку',
+      status: 400,
+    };
   }
 
   const updateData: Record<string, unknown> = {
@@ -114,8 +131,10 @@ export async function handleSendToRevision(
 
   await appendStageHistory(supabase, paymentRequestId, {
     stage: (currentReq.current_stage as number) ?? 2,
-    department: 'omts', event: 'revision',
-    userEmail: userInfo.email, userFullName: userInfo.fullName,
+    department: 'omts',
+    event: 'revision',
+    userEmail: userInfo.email,
+    userFullName: userInfo.fullName,
     comment: comment || undefined,
   });
 
@@ -124,28 +143,47 @@ export async function handleSendToRevision(
 
 /** Обработка завершения доработки */
 export async function handleCompleteRevision(
-  supabase: FastifyInstance['supabase'],
+  supabase: SupabaseClient,
   paymentRequestId: string,
   userId: string,
-  fieldUpdates: { deliveryDays: number; deliveryDaysType: string; shippingConditionId: string; invoiceAmount: number; supplierId?: string | null },
+  fieldUpdates: {
+    deliveryDays: number;
+    deliveryDaysType: string;
+    shippingConditionId: string;
+    invoiceAmount: number;
+    supplierId?: string | null;
+  },
 ): Promise<{ success: boolean; error?: string; status?: number }> {
   const { data: cur, error: curErr } = await supabase
     .from('payment_requests')
-    .select('status_id, previous_status_id, current_stage, invoice_amount, invoice_amount_history, supplier_id')
+    .select(
+      'status_id, previous_status_id, current_stage, invoice_amount, invoice_amount_history, supplier_id',
+    )
     .eq('id', paymentRequestId)
     .single();
   if (curErr) return { success: false, error: 'Заявка не найдена', status: 404 };
-  if (!cur.previous_status_id) return { success: false, error: 'Нет предыдущего статуса', status: 400 };
+  if (!cur.previous_status_id)
+    return { success: false, error: 'Нет предыдущего статуса', status: 400 };
 
   // Запрет завершения доработки на отклонённой заявке (по коду текущего статуса)
   const { data: curStatus } = await supabase
-    .from('statuses').select('code').eq('id', cur.status_id as string).single();
+    .from('statuses')
+    .select('code')
+    .eq('id', cur.status_id as string)
+    .single();
   if (curStatus?.code === 'rejected') {
-    return { success: false, error: 'Нельзя завершить доработку на отклонённой заявке', status: 400 };
+    return {
+      success: false,
+      error: 'Нельзя завершить доработку на отклонённой заявке',
+      status: 400,
+    };
   }
 
   const { data: prevStatus } = await supabase
-    .from('statuses').select('code').eq('id', cur.previous_status_id as string).single();
+    .from('statuses')
+    .select('code')
+    .eq('id', cur.previous_status_id as string)
+    .single();
   // Запрет на восстановление в финальный статус "Отклонено" (защита от испорченного previous_status_id)
   if (prevStatus?.code === 'rejected') {
     return { success: false, error: 'Нельзя вернуть заявку в статус отклонения', status: 400 };
@@ -153,7 +191,8 @@ export async function handleCompleteRevision(
   const wasApproved = prevStatus?.code === 'approved';
 
   const updateData: Record<string, unknown> = {
-    status_id: cur.previous_status_id, previous_status_id: null,
+    status_id: cur.previous_status_id,
+    previous_status_id: null,
     delivery_days: fieldUpdates.deliveryDays,
     delivery_days_type: fieldUpdates.deliveryDaysType,
     shipping_condition_id: fieldUpdates.shippingConditionId,
@@ -178,7 +217,9 @@ export async function handleCompleteRevision(
   if (supplierProvided) updateData.supplier_id = newSupplierId;
 
   const { error: updErr } = await supabase
-    .from('payment_requests').update(updateData).eq('id', paymentRequestId);
+    .from('payment_requests')
+    .update(updateData)
+    .eq('id', paymentRequestId);
   if (updErr) return { success: false, error: updErr.message, status: 500 };
 
   const userInfo = await getUserInfo(supabase, userId);
@@ -186,32 +227,55 @@ export async function handleCompleteRevision(
   // Если поставщик сменился — отдельным логом фиксируем смену с именами/ИНН для читаемости
   if (supplierChanged) {
     const ids = [oldSupplierId, newSupplierId].filter(Boolean) as string[];
-    let oldName: string | null = null, oldInn: string | null = null, newName: string | null = null, newInn: string | null = null;
+    let oldName: string | null = null,
+      oldInn: string | null = null,
+      newName: string | null = null,
+      newInn: string | null = null;
     if (ids.length > 0) {
       const { data: sup } = await supabase.from('suppliers').select('id, name, inn').in('id', ids);
       const map = new Map<string, { name?: string; inn?: string }>();
-      (sup ?? []).forEach((s: Record<string, unknown>) => map.set(s.id as string, { name: s.name as string | undefined, inn: s.inn as string | undefined }));
-      if (oldSupplierId) { oldName = map.get(oldSupplierId)?.name ?? null; oldInn = map.get(oldSupplierId)?.inn ?? null; }
-      if (newSupplierId) { newName = map.get(newSupplierId)?.name ?? null; newInn = map.get(newSupplierId)?.inn ?? null; }
+      (sup ?? []).forEach((s: Record<string, unknown>) =>
+        map.set(s.id as string, {
+          name: s.name as string | undefined,
+          inn: s.inn as string | undefined,
+        }),
+      );
+      if (oldSupplierId) {
+        oldName = map.get(oldSupplierId)?.name ?? null;
+        oldInn = map.get(oldSupplierId)?.inn ?? null;
+      }
+      if (newSupplierId) {
+        newName = map.get(newSupplierId)?.name ?? null;
+        newInn = map.get(newSupplierId)?.inn ?? null;
+      }
     }
     await supabase.from('payment_request_logs').insert({
       payment_request_id: paymentRequestId,
       user_id: userId,
       action: 'supplier_changed',
       details: {
-        oldSupplierId, newSupplierId,
-        oldSupplierName: oldName, oldSupplierInn: oldInn,
-        newSupplierName: newName, newSupplierInn: newInn,
+        oldSupplierId,
+        newSupplierId,
+        oldSupplierName: oldName,
+        oldSupplierInn: oldInn,
+        newSupplierName: newName,
+        newSupplierInn: newInn,
       },
     });
   }
 
   await supabase.from('payment_request_logs').insert({
-    payment_request_id: paymentRequestId, user_id: userId, action: 'revision_complete', details: null,
+    payment_request_id: paymentRequestId,
+    user_id: userId,
+    action: 'revision_complete',
+    details: null,
   });
   await appendStageHistory(supabase, paymentRequestId, {
-    stage: (cur.current_stage as number) ?? 2, department: 'omts', event: 'revision_complete',
-    userEmail: userInfo.email, userFullName: userInfo.fullName,
+    stage: (cur.current_stage as number) ?? 2,
+    department: 'omts',
+    event: 'revision_complete',
+    userEmail: userInfo.email,
+    userFullName: userInfo.fullName,
     ...(supplierChanged ? { supplierChanged: true } : {}),
   });
 

@@ -24,6 +24,7 @@ import { SupabaseFileRepository } from '../repositories/supabase/file.supabase.j
 import { SupabasePaymentRequestRepository } from '../repositories/supabase/payment-request.supabase.js';
 import { SupabaseContractRequestRepository } from '../repositories/supabase/contract-request.supabase.js';
 import { SupabasePaymentRepository } from '../repositories/supabase/payment.supabase.js';
+import { SupabaseApprovalRepository } from '../repositories/supabase/approval.supabase.js';
 import { DrizzleCounterpartyRepository } from '../repositories/drizzle/counterparty.drizzle.js';
 import { DrizzleSupplierRepository } from '../repositories/drizzle/supplier.drizzle.js';
 import { DrizzleUserRepository } from '../repositories/drizzle/user.drizzle.js';
@@ -35,6 +36,7 @@ import { DrizzleFileRepository } from '../repositories/drizzle/file.drizzle.js';
 import { DrizzlePaymentRequestRepository } from '../repositories/drizzle/payment-request.drizzle.js';
 import { DrizzleContractRequestRepository } from '../repositories/drizzle/contract-request.drizzle.js';
 import { DrizzlePaymentRepository } from '../repositories/drizzle/payment.drizzle.js';
+import { DrizzleApprovalRepository } from '../repositories/drizzle/approval.drizzle.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -95,6 +97,7 @@ async function repositoriesPlugin(fastify: FastifyInstance): Promise<void> {
       paymentRequests: new DrizzlePaymentRequestRepository(db),
       contractRequests: new DrizzleContractRequestRepository(db),
       payments: new DrizzlePaymentRepository(db),
+      approvals: new DrizzleApprovalRepository(db),
     };
     fastify.decorate('repos', repos);
     fastify.log.info({ dbProvider: provider }, 'Repositories registered (Drizzle)');
@@ -121,6 +124,7 @@ async function repositoriesPlugin(fastify: FastifyInstance): Promise<void> {
     paymentRequests: new SupabasePaymentRequestRepository(supabase),
     contractRequests: new SupabaseContractRequestRepository(supabase),
     payments: new SupabasePaymentRepository(supabase),
+    approvals: new SupabaseApprovalRepository(supabase),
   };
 
   fastify.decorate('repos', repos);

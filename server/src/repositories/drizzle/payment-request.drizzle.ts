@@ -16,15 +16,11 @@ import {
   approvalDecisions,
   statuses,
   counterparties,
-  suppliers,
-  constructionSites,
-  costTypes,
-  paymentRequestFieldOptions,
-  paymentRequestAssignments,
   users,
   documentTypes,
   userConstructionSitesMapping,
 } from '../../db/schema/index.js';
+import { joinedPaymentRequests } from './payment-request-projection.js';
 import type {
   PaymentRequestRepository,
   PaymentRequestListFilter,
@@ -61,58 +57,11 @@ export class DrizzlePaymentRequestRepository implements PaymentRequestRepository
 
   /**
    * Проекция списка/детали: все колонки заявки + join-поля (camelCase, как после preSerialization).
-   * Текущая привязка берётся через DISTINCT ON подзапрос — ОДНА строка на заявку, чтобы flat-join
-   * не размножал родительские строки при нескольких is_current=true (индекс не UNIQUE).
+   * Вынесена в общий модуль payment-request-projection (единый источник формы строки заявки,
+   * переиспользуется DrizzleApprovalRepository).
    */
   private joined() {
-    const statusT = alias(statuses, 'status_t');
-    const paidStatusT = alias(statuses, 'paid_status_t');
-    const assigneeT = alias(users, 'assignee');
-    const curAssignment = this.db
-      .selectDistinctOn([paymentRequestAssignments.paymentRequestId], {
-        paymentRequestId: paymentRequestAssignments.paymentRequestId,
-        assignedUserId: paymentRequestAssignments.assignedUserId,
-      })
-      .from(paymentRequestAssignments)
-      .where(eq(paymentRequestAssignments.isCurrent, true))
-      .orderBy(
-        paymentRequestAssignments.paymentRequestId,
-        asc(paymentRequestAssignments.assignedAt),
-      )
-      .as('cur_assignment');
-
-    return this.db
-      .select({
-        ...getTableColumns(paymentRequests),
-        counterpartyName: counterparties.name,
-        counterpartyInn: counterparties.inn,
-        supplierName: suppliers.name,
-        supplierInn: suppliers.inn,
-        supplierLastSecurityStatus: suppliers.lastSecurityStatus,
-        siteName: constructionSites.name,
-        statusName: statusT.name,
-        statusColor: statusT.color,
-        paidStatusName: paidStatusT.name,
-        paidStatusColor: paidStatusT.color,
-        shippingConditionValue: paymentRequestFieldOptions.value,
-        costTypeName: costTypes.name,
-        assignedUserId: curAssignment.assignedUserId,
-        assignedUserEmail: assigneeT.email,
-        assignedUserFullName: assigneeT.fullName,
-      })
-      .from(paymentRequests)
-      .leftJoin(counterparties, eq(counterparties.id, paymentRequests.counterpartyId))
-      .leftJoin(suppliers, eq(suppliers.id, paymentRequests.supplierId))
-      .leftJoin(constructionSites, eq(constructionSites.id, paymentRequests.siteId))
-      .leftJoin(statusT, eq(statusT.id, paymentRequests.statusId))
-      .leftJoin(paidStatusT, eq(paidStatusT.id, paymentRequests.paidStatusId))
-      .leftJoin(
-        paymentRequestFieldOptions,
-        eq(paymentRequestFieldOptions.id, paymentRequests.shippingConditionId),
-      )
-      .leftJoin(costTypes, eq(costTypes.id, paymentRequests.costTypeId))
-      .leftJoin(curAssignment, eq(curAssignment.paymentRequestId, paymentRequests.id))
-      .leftJoin(assigneeT, eq(assigneeT.id, curAssignment.assignedUserId));
+    return joinedPaymentRequests(this.db);
   }
 
   async getUserSiteIds(userId: string): Promise<string[]> {
