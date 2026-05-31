@@ -13,3 +13,4 @@ export * from './notification.js';
 export * from './comment.js';
 export * from './notification-action.js';
 export * from './file.js';
+export * from './payment-request.js';

@@ -85,3 +85,14 @@ export class ValidationError extends Error {
     this.name = 'ValidationError';
   }
 }
+
+/**
+ * Нарушение прав доступа к данным (например, counterparty_user обращается к чужой заявке).
+ * Роуты конвертируют её в 403.
+ */
+export class ForbiddenError extends Error {
+  constructor(message = 'Доступ запрещён') {
+    super(message);
+    this.name = 'ForbiddenError';
+  }
+}

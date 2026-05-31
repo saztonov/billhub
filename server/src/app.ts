@@ -16,6 +16,7 @@ import {
   ForeignKeyConstraintError,
   ConflictError,
   ValidationError,
+  ForbiddenError,
 } from './repositories/index.js';
 
 /** Плагины инфраструктуры */
@@ -178,6 +179,9 @@ export async function createApp(opts: CreateAppOptions = {}): Promise<FastifyIns
     }
     if (error instanceof ValidationError) {
       return reply.status(400).send({ error: error.message });
+    }
+    if (error instanceof ForbiddenError) {
+      return reply.status(403).send({ error: error.message });
     }
     if (error instanceof NotFoundError) {
       return reply.status(404).send({ error: error.message });

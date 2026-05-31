@@ -254,6 +254,12 @@ export class SupabaseSupplierRepository implements SupplierRepository {
     return { items, total };
   }
 
+  async isSbRejected(supplierId: string | null | undefined): Promise<boolean> {
+    if (!supplierId) return false;
+    const found = await this.findById(supplierId);
+    return found?.lastSecurityStatus === 'rejected';
+  }
+
   async getSecurityHistory(supplierId: string): Promise<SupplierSecurityCheck[]> {
     const { data, error } = await this.supabase
       .from('supplier_security_checks')

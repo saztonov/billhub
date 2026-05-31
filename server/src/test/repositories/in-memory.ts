@@ -292,6 +292,12 @@ export class InMemorySupplierRepository implements SupplierRepository {
     return { items, total };
   }
 
+  async isSbRejected(supplierId: string | null | undefined): Promise<boolean> {
+    if (!supplierId) return false;
+    const found = this.items.find((s) => s.id === supplierId);
+    return found?.lastSecurityStatus === 'rejected';
+  }
+
   async getSecurityHistory(supplierId: string): Promise<SupplierSecurityCheck[]> {
     return this.checks
       .filter((c) => c.supplierId === supplierId)

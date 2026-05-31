@@ -54,6 +54,12 @@ export interface SupplierRepository {
    */
   listForApi(query: SupplierApiListQuery): Promise<{ items: SupplierListItem[]; total: number }>;
 
+  /**
+   * Отклонён ли поставщик службой безопасности (denormalized last_security_status==='rejected').
+   * Для null/undefined supplierId — false. Источник истины — миграция 006.
+   */
+  isSbRejected(supplierId: string | null | undefined): Promise<boolean>;
+
   /** История событий проверки СБ по поставщику (новейшие первыми). */
   getSecurityHistory(supplierId: string): Promise<SupplierSecurityCheck[]>;
 
