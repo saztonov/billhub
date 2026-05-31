@@ -21,3 +21,4 @@ export * from './assignment.js';
 export * from './error-log.js';
 export * from './ocr-model.js';
 export * from './omts-rp.js';
+export * from './material.js';

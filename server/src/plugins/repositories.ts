@@ -29,6 +29,7 @@ import { SupabaseAssignmentRepository } from '../repositories/supabase/assignmen
 import { SupabaseErrorLogRepository } from '../repositories/supabase/error-log.supabase.js';
 import { SupabaseOcrModelRepository } from '../repositories/supabase/ocr-model.supabase.js';
 import { SupabaseOmtsRpRepository } from '../repositories/supabase/omts-rp.supabase.js';
+import { SupabaseMaterialRepository } from '../repositories/supabase/material.supabase.js';
 import { DrizzleCounterpartyRepository } from '../repositories/drizzle/counterparty.drizzle.js';
 import { DrizzleSupplierRepository } from '../repositories/drizzle/supplier.drizzle.js';
 import { DrizzleUserRepository } from '../repositories/drizzle/user.drizzle.js';
@@ -45,6 +46,7 @@ import { DrizzleAssignmentRepository } from '../repositories/drizzle/assignment.
 import { DrizzleErrorLogRepository } from '../repositories/drizzle/error-log.drizzle.js';
 import { DrizzleOcrModelRepository } from '../repositories/drizzle/ocr-model.drizzle.js';
 import { DrizzleOmtsRpRepository } from '../repositories/drizzle/omts-rp.drizzle.js';
+import { DrizzleMaterialRepository } from '../repositories/drizzle/material.drizzle.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -110,6 +112,7 @@ async function repositoriesPlugin(fastify: FastifyInstance): Promise<void> {
       errorLogs: new DrizzleErrorLogRepository(db),
       ocrModels: new DrizzleOcrModelRepository(db),
       omtsRp: new DrizzleOmtsRpRepository(db),
+      materials: new DrizzleMaterialRepository(db),
     };
     fastify.decorate('repos', repos);
     fastify.log.info({ dbProvider: provider }, 'Repositories registered (Drizzle)');
@@ -141,6 +144,7 @@ async function repositoriesPlugin(fastify: FastifyInstance): Promise<void> {
     errorLogs: new SupabaseErrorLogRepository(supabase),
     ocrModels: new SupabaseOcrModelRepository(supabase),
     omtsRp: new SupabaseOmtsRpRepository(supabase),
+    materials: new SupabaseMaterialRepository(supabase),
   };
 
   fastify.decorate('repos', repos);
