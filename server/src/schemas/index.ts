@@ -20,3 +20,4 @@ export * from './approval.js';
 export * from './assignment.js';
 export * from './error-log.js';
 export * from './ocr-model.js';
+export * from './omts-rp.js';
