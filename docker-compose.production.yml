@@ -1,0 +1,151 @@
+# =============================================================================
+# docker-compose.production.yml — production-стек BillHub на целевой VPS Этапа 1.
+#
+# Профиль VPS: 2 vCPU / 4 GB RAM / 50–80 GB SSD, Ubuntu LTS, статический публичный IP.
+# Backend stateless и портативен (принцип 7): persistent volumes ТОЛЬКО redis-data
+# и эфемерный upload-temp. БД (Yandex Managed PG) и S3 (Cloud.ru) — внешние.
+#
+# Разделение процессов (Iteration 8): API-контейнер (RUN_WORKERS=false) только ставит
+# задачи в очередь; worker-контейнер (RUN_WORKERS=true) их обрабатывает. 2 процесса в
+# connection budget (ADR-0005: 2 × pool.max=10 + reserve 5 = 25 ≤ conn_limit 30).
+#
+# Бюджет памяти (лимиты): nginx 64M + backend 512M + worker 768M + redis 128M ≈ 1.47 GB
+# из 4 GB — остаётся запас под OCR-пики и ОС (+ swap 1 GB по runbook).
+#
+# Запуск:  docker compose -f docker-compose.production.yml up -d
+# Секреты: ./server/.env (права 600), см. .env.production.example.
+# =============================================================================
+
+services:
+  # --- nginx: TLS termination + статика SPA + прокси /api → backend ---
+  nginx:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - '80:80'
+      - '443:443'
+    # TLS-сертификаты (Let's Encrypt/корп. CA) монтируются с хоста; путь — в nginx-конфиге образа.
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+          cpus: '0.2'
+    networks:
+      - billhub
+
+  # --- backend: Fastify API ТОЛЬКО (без воркеров) ---
+  backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    command: ['node', 'dist/server.js']
+    env_file:
+      - ./server/.env
+    environment:
+      NODE_ENV: production
+      RUN_WORKERS: 'false'
+      NODE_OPTIONS: '--max-old-space-size=384'
+    volumes:
+      - upload-temp:/app/temp
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'wget',
+          '--no-verbose',
+          '--tries=1',
+          '--spider',
+          'http://127.0.0.1:3000/api/health/ready',
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.6'
+    networks:
+      - billhub
+
+  # --- worker: BullMQ воркеры (file-processing + OCR), без API-роутов ---
+  worker:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    command: ['node', 'dist/worker.js']
+    env_file:
+      - ./server/.env
+    environment:
+      NODE_ENV: production
+      RUN_WORKERS: 'true'
+      OCR_CONCURRENCY: '3'
+      FILE_PROCESSING_CONCURRENCY: '3'
+      NODE_OPTIONS: '--max-old-space-size=512'
+    volumes:
+      - upload-temp:/app/temp
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'wget',
+          '--no-verbose',
+          '--tries=1',
+          '--spider',
+          'http://127.0.0.1:3000/health/live',
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+          cpus: '0.8'
+    networks:
+      - billhub
+
+  # --- redis: BullMQ + chunked-upload sessions ---
+  redis:
+    image: redis:7-alpine
+    command: redis-server --maxmemory 64mb --maxmemory-policy noeviction --save 60 1000
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.2'
+    networks:
+      - billhub
+
+volumes:
+  upload-temp: # эфемерный чанк-кеш (принцип 7); терять не страшно
+  redis-data: # BullMQ state + upload-sessions (RDB-снимки save 60 1000)
+
+networks:
+  billhub:
+    driver: bridge

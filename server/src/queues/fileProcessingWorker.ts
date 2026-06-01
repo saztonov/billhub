@@ -119,7 +119,8 @@ export function createFileProcessingWorker(
 
   const worker = new Worker<FileProcessingJobData>('file-processing', processFileJob, {
     connection,
-    concurrency: 3,
+    // FILE_PROCESSING_CONCURRENCY (Iteration 8). По умолчанию 3.
+    concurrency: config.fileProcessingConcurrency,
   });
 
   worker.on('completed', (job) => {

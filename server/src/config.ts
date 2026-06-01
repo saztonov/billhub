@@ -35,6 +35,18 @@ interface Config {
   /** Лимит размера файла (МБ) */
   maxFileSizeMb: number;
 
+  /**
+   * Запускать ли BullMQ-воркеры в этом процессе (Iteration 8 — разделение API/worker).
+   *   true  — процесс обрабатывает задачи (worker-контейнер; по умолчанию для обратной совместимости).
+   *   false — процесс только ставит задачи в очередь, воркеры не стартуют (API-контейнер).
+   * Очереди (для enqueue) регистрируются всегда; флаг управляет только наличием Worker-ов.
+   */
+  runWorkers: boolean;
+  /** Параллелизм OCR-воркера (OCR_CONCURRENCY). На 4GB VPS — 3 (план Iteration 8). */
+  ocrConcurrency: number;
+  /** Параллелизм file-processing-воркера (FILE_PROCESSING_CONCURRENCY). */
+  fileProcessingConcurrency: number;
+
   /** Drizzle / PostgreSQL (активны при DB_PROVIDER=drizzle; см. database-drizzle плагин) */
   databaseUrl: string;
   databaseMigrationUrl: string;
@@ -120,6 +132,12 @@ export const config: Config = {
   redisUrl: envOptional('REDIS_URL', 'redis://localhost:6379'),
 
   maxFileSizeMb: parseInt(envOptional('MAX_FILE_SIZE_MB', '100'), 10),
+
+  // RUN_WORKERS по умолчанию true: одиночный процесс (dev / текущий compose) обрабатывает задачи.
+  // В production-compose API-контейнер ставит RUN_WORKERS=false, worker-контейнер — true.
+  runWorkers: envOptional('RUN_WORKERS', 'true').toLowerCase() !== 'false',
+  ocrConcurrency: parseInt(envOptional('OCR_CONCURRENCY', '1'), 10),
+  fileProcessingConcurrency: parseInt(envOptional('FILE_PROCESSING_CONCURRENCY', '3'), 10),
 
   databaseUrl: envOptional('DATABASE_URL'),
   databaseMigrationUrl: envOptional('DATABASE_MIGRATION_URL'),

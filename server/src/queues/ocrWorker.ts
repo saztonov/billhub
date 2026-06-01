@@ -117,7 +117,8 @@ export function createOcrWorker(deps: OcrWorkerDeps = {}): Worker<OcrJobData> {
 
   const worker = new Worker<OcrJobData>('ocr-processing', processOcrJob, {
     connection,
-    concurrency: 1, // Один OCR за раз (экономия памяти на 2GB VPS)
+    // OCR_CONCURRENCY (Iteration 8). По умолчанию 1; в worker-контейнере на 4GB VPS — 3.
+    concurrency: config.ocrConcurrency,
   });
 
   worker.on('completed', (job) => {

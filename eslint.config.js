@@ -23,6 +23,8 @@ export default defineConfig([
     'sql',
     'docs',
     'temp',
+    'e2e',
+    'playwright.config.ts',
     '.husky',
     '.vscode',
   ]),

@@ -14,7 +14,9 @@
 
 ### 1.1 Подготовка целевой VPS
 
-- [ ] Аренда VPS соответствующего размера: 4 vCPU / 8 GB RAM / 50+ GB SSD, Ubuntu LTS 22.04+.
+- [ ] Аренда VPS целевого размера: **2 vCPU / 4 GB RAM / 50–80 GB SSD, Ubuntu LTS 22.04+**.
+      (Под этот профиль рассчитаны лимиты `docker-compose.production.yml`: nginx 64M + backend 512M
+      + worker 768M + redis 128M ≈ 1.47 GB из 4 GB.)
 - [ ] **Обязательно: статический публичный IP.** Плавающий IP не подходит — он нужен для allowlist Yandex PG и Cloud.ru S3.
 - [ ] SSH-доступ настроен (по ключу, без пароля).
 - [ ] Зафиксировать значения для подстановки:
@@ -22,6 +24,23 @@
   - `NEW_VPS_HOST=user@___.___.___.___`
   - `OLD_VPS_IP=___.___.___.___`
   - `DOMAIN=billhub.ru` (или фактический)
+
+### 1.1.1 Swap 1 GB (страховка под OCR-пики)
+
+На 4 GB RAM пики OCR/обработки PDF (canvas, pdfjs) могут кратковременно превышать бюджет.
+1 GB swap предотвращает OOM-kill воркера без деградации в норме:
+
+```bash
+ssh "$NEW_VPS_HOST" '
+  sudo fallocate -l 1G /swapfile
+  sudo chmod 600 /swapfile
+  sudo mkswap /swapfile
+  sudo swapon /swapfile
+  echo "/swapfile none swap sw 0 0" | sudo tee -a /etc/fstab
+  sudo sysctl -w vm.swappiness=10
+  echo "vm.swappiness=10" | sudo tee /etc/sysctl.d/99-swappiness.conf
+'
+```
 
 ### 1.2 Установка Docker и базовых утилит на NEW_VPS
 
@@ -62,10 +81,42 @@ ssh "$NEW_VPS_HOST" '
 
 ### 1.5 Allowlist на внешних сервисах
 
-- [ ] **Yandex Managed PostgreSQL:** Yandex Cloud Console → Managed Service for PostgreSQL → cluster → Hosts → Edit security → добавить `NEW_VPS_IP/32` в whitelist.
-- [ ] **Cloud.ru S3:** Cloud.ru Console → Object Storage → Bucket → Permissions → добавить `NEW_VPS_IP/32` в allowlist (если используется IP-restriction; иначе — пропустить).
+- [ ] **Yandex Managed PostgreSQL** (master + sync replica): security group VPC → разрешить `6432/tcp`
+      с `NEW_VPS_IP/32`. TLS **verify-full** с Yandex CA (`/etc/yandex-pg/ca.crt`). Пользователи:
+      `billhub_runtime` (`CONNECTION LIMIT 30`, DML+EXECUTE), `billhub_migration` (`CONNECTION LIMIT 5`,
+      DDL). Детали — [scripts/yandex-pg-setup.md](../scripts/yandex-pg-setup.md).
+- [ ] **Cloud.ru S3:** bucket policy / сетевой allowlist на `NEW_VPS_IP/32`.
+      Детали — [scripts/cloudru-s3-setup.md](../scripts/cloudru-s3-setup.md).
 - [ ] **OpenRouter:** обычно не требует allowlist (auth по токену). Если используется IP-restriction — добавить.
-- [ ] **OLD_VPS_IP пока НЕ удаляем** — он понадобится для fallback.
+- [ ] **OLD_VPS_IP в allowlist Yandex PG / Cloud.ru НЕ добавляется** — старый прод ходит в Supabase/R2
+      (принцип 1). OLD_VPS нужен лишь как DNS-fallback на уровне домена.
+
+### 1.6 Первичный bootstrap Этапа 1 (только при первом развороте на новой инфре)
+
+Выполняется ОДИН раз перед первым `docker compose up`. На последующих VPS-переездах (§2) БД уже
+наполнена — этот раздел пропускается.
+
+- [ ] Кластер Yandex PG создан (master + sync replica), расширения `pgcrypto`/`citext`/`pg_trgm`
+      включены администратором, бэкапы + PITR (retention 14 дней). См. yandex-pg-setup.md.
+- [ ] Yandex CA на VPS: `/etc/yandex-pg/ca.crt` (`DATABASE_SSL_CA_PATH` / `PGSSLROOTCERT`).
+- [ ] Роли БД: применить [sql/bootstrap/roles.sql](../sql/bootstrap/roles.sql) под владельцем кластера
+      (заменив `CHANGE_ME` на пароли).
+- [ ] Bootstrap схемы (под `billhub_migration`, собранный server):
+
+```bash
+ssh "$NEW_VPS_HOST" '
+  cd /opt/portals/billhub
+  npm --prefix server ci && npm --prefix server run build
+  export DATABASE_MIGRATION_URL="postgresql://billhub_migration:***@<pg-host>:6432/billhub_db?sslmode=verify-full"
+  export PGSSLROOTCERT=/etc/yandex-pg/ca.crt
+  bash scripts/bootstrap-schema.sh        # sed-фильтр schema.sql → psql → migrate.js (0001/0002/0003)
+'
+```
+
+- [ ] Проверка: `SELECT max(version) FROM public._migrations;` == 3; ключевые таблицы на месте.
+- [ ] Cloud.ru S3 bucket `billhub-s3` создан + allowlist + round-trip (см. cloudru-s3-setup.md).
+- [ ] Наполнение копией prod-данных + импорт паролей + миграция файлов R2→Cloud.ru — **Iteration 9**
+      (не в этом разделе; этот bootstrap только создаёт чистую схему).
 
 ---
 
@@ -157,9 +208,26 @@ ssh "$NEW_VPS_HOST" '
 ```bash
 ssh "$NEW_VPS_HOST" '
   cd /opt/portals/billhub
-  docker compose up -d
+  docker compose -f docker-compose.production.yml up -d
 '
 ```
+
+> Production-стек — **`docker-compose.production.yml`**: nginx + backend (API only, `RUN_WORKERS=false`)
+> + worker (`RUN_WORKERS=true`, `OCR_CONCURRENCY=3`) + redis, с лимитами под 2 vCPU / 4 GB.
+> Одиночный `docker-compose.yml` (воркеры в backend) — для dev/локали.
+
+### 2.5.1 Проверка latency до Yandex PG (до выпуска в прод)
+
+```bash
+ssh "$NEW_VPS_HOST" '
+  cd /opt/portals/billhub
+  DATABASE_URL="postgresql://billhub_runtime:***@<pg-host>:6432/billhub_db?sslmode=verify-full" \
+  PGSSLROOTCERT=/etc/yandex-pg/ca.crt \
+    npx tsx scripts/check-pg-latency.ts
+'
+```
+
+Порог (ADR-0005 / план Iteration 8): median ≤ 30 мс, p95 ≤ 50 мс. Exit 1 → пересмотр провайдера VPS.
 
 ### 2.6 Дождаться `/health/ready`
 

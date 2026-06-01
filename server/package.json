@@ -7,8 +7,10 @@
   },
   "scripts": {
     "dev": "chcp 65001 >nul && tsx watch src/server.ts",
+    "dev:worker": "chcp 65001 >nul && tsx watch src/worker.ts",
     "build": "tsc",
-    "start": "chcp 65001 >nul && node --max-old-space-size=512 dist/server.js",
+    "start": "chcp 65001 >nul && node --max-old-space-size=384 dist/server.js",
+    "start:worker": "node --max-old-space-size=512 dist/worker.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -16,6 +18,8 @@
     "check": "npm run typecheck && npm run test",
     "db:migrate": "tsx src/cli/migrate.ts",
     "db:migrate:built": "node dist/cli/migrate.js",
+    "db:latency": "tsx src/cli/check-pg-latency.ts",
+    "smoke": "tsx src/cli/smoke-synthetic.ts",
     "drizzle:introspect": "drizzle-kit introspect"
   },
   "dependencies": {
@@ -49,6 +53,7 @@
     "@types/node": "^24.0.0",
     "@vitest/coverage-v8": "^4.1.7",
     "drizzle-kit": "^0.31.10",
+    "testcontainers": "^12.0.1",
     "tsx": "^4.19.4",
     "typescript": "~5.9.3",
     "vitest": "^4.1.7"
