@@ -80,6 +80,46 @@ export interface RunMigrationsResult {
   skipped: number[];
 }
 
+/**
+ * Ошибка: попытка применить миграции к Supabase-хосту (принцип 1 — старый прод не модифицируется).
+ */
+export class SupabaseMigrationBlockedError extends Error {
+  constructor(public readonly host: string) {
+    super(
+      `Отказ применять миграции к Supabase-хосту (${host}). Принцип 1: старый прод не модифицируется. ` +
+        `Если это осознанное действие на не-прод Supabase — задайте ALLOW_SUPABASE_MIGRATIONS=1.`,
+    );
+    this.name = 'SupabaseMigrationBlockedError';
+  }
+}
+
+/** Извлекает hostname из строки подключения PostgreSQL (URL или регэксп-фоллбэк). */
+export function extractDbHost(databaseUrl: string): string {
+  try {
+    return new URL(databaseUrl).hostname.toLowerCase();
+  } catch {
+    const m = /@([^:/?\s]+)/.exec(databaseUrl);
+    return (m?.[1] ?? '').toLowerCase();
+  }
+}
+
+/** Хост принадлежит Supabase (прямое подключение или pooler). */
+export function isSupabaseHost(databaseUrl: string): boolean {
+  const host = extractDbHost(databaseUrl);
+  return /\.supabase\.(co|com)$/i.test(host) || /\.pooler\.supabase\.com$/i.test(host);
+}
+
+/**
+ * Защита runner-а от применения миграций к Supabase (принцип 1). Бросает, если host —
+ * Supabase, кроме явного override ALLOW_SUPABASE_MIGRATIONS=1.
+ */
+export function assertNotSupabase(databaseUrl: string, env: NodeJS.ProcessEnv = process.env): void {
+  if (env.ALLOW_SUPABASE_MIGRATIONS === '1') return;
+  if (isSupabaseHost(databaseUrl)) {
+    throw new SupabaseMigrationBlockedError(extractDbHost(databaseUrl));
+  }
+}
+
 /** Ошибка несоответствия checksum уже применённой миграции. */
 export class ChecksumMismatchError extends Error {
   constructor(
@@ -234,6 +274,9 @@ const CREATE_MIGRATIONS_TABLE = `
 export async function runMigrations(opts: RunMigrationsOptions): Promise<RunMigrationsResult> {
   const log = opts.logger ?? ((m: string) => console.log(m));
   const dir = opts.migrationsDir ?? DEFAULT_MIGRATIONS_DIR;
+
+  // Принцип 1: ни при каких условиях не применяем миграции к Supabase (старый прод).
+  assertNotSupabase(opts.databaseUrl);
 
   const files = loadMigrationFiles(dir);
   if (files.length === 0) {

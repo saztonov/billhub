@@ -16,3 +16,4 @@ export * from './approvals.js';
 export * from './invoices-ocr.js';
 export * from './documents.js';
 export * from './system.js';
+export * from './observability.js';

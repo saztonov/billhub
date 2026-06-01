@@ -37,6 +37,9 @@ export type { OmtsRpRepository } from './omts-rp.repository.js';
 export type { MaterialRepository } from './material.repository.js';
 export type { FoundingDocumentRepository } from './founding-document.repository.js';
 export type { OcrRepository } from './ocr.repository.js';
+export type { OutboxRepository } from './outbox.repository.js';
+export type { AuditLogRepository } from './audit-log.repository.js';
+export type { JobsLogRepository } from './jobs-log.repository.js';
 
 /**
  * Контейнер всех репозиториев, декорирующий FastifyInstance как `fastify.repos`.
@@ -62,4 +65,8 @@ export interface Repositories {
   materials: import('./material.repository.js').MaterialRepository;
   foundingDocuments: import('./founding-document.repository.js').FoundingDocumentRepository;
   ocr: import('./ocr.repository.js').OcrRepository;
+  /** Observability (Iteration 7) — Drizzle-only; Supabase-impl кидает not-supported (принцип 2). */
+  outbox: import('./outbox.repository.js').OutboxRepository;
+  auditLog: import('./audit-log.repository.js').AuditLogRepository;
+  jobsLog: import('./jobs-log.repository.js').JobsLogRepository;
 }

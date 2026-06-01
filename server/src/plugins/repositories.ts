@@ -51,6 +51,12 @@ import { DrizzleOmtsRpRepository } from '../repositories/drizzle/omts-rp.drizzle
 import { DrizzleMaterialRepository } from '../repositories/drizzle/material.drizzle.js';
 import { DrizzleFoundingDocumentRepository } from '../repositories/drizzle/founding-document.drizzle.js';
 import { DrizzleOcrRepository } from '../repositories/drizzle/ocr.drizzle.js';
+import { DrizzleOutboxRepository } from '../repositories/drizzle/outbox.drizzle.js';
+import { DrizzleAuditLogRepository } from '../repositories/drizzle/audit-log.drizzle.js';
+import { DrizzleJobsLogRepository } from '../repositories/drizzle/jobs-log.drizzle.js';
+import { SupabaseOutboxRepository } from '../repositories/supabase/outbox.supabase.js';
+import { SupabaseAuditLogRepository } from '../repositories/supabase/audit-log.supabase.js';
+import { SupabaseJobsLogRepository } from '../repositories/supabase/jobs-log.supabase.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -121,6 +127,9 @@ async function repositoriesPlugin(fastify: FastifyInstance): Promise<void> {
       materials: new DrizzleMaterialRepository(db),
       foundingDocuments: new DrizzleFoundingDocumentRepository(db),
       ocr: new DrizzleOcrRepository(db),
+      outbox: new DrizzleOutboxRepository(db),
+      auditLog: new DrizzleAuditLogRepository(db),
+      jobsLog: new DrizzleJobsLogRepository(db),
     };
     fastify.decorate('repos', repos);
     fastify.log.info({ dbProvider: provider }, 'Repositories registered (Drizzle)');
@@ -155,6 +164,9 @@ async function repositoriesPlugin(fastify: FastifyInstance): Promise<void> {
     materials: new SupabaseMaterialRepository(supabase),
     foundingDocuments: new SupabaseFoundingDocumentRepository(supabase),
     ocr: new SupabaseOcrRepository(supabase),
+    outbox: new SupabaseOutboxRepository(supabase),
+    auditLog: new SupabaseAuditLogRepository(supabase),
+    jobsLog: new SupabaseJobsLogRepository(supabase),
   };
 
   fastify.decorate('repos', repos);

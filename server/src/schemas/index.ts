@@ -24,3 +24,4 @@ export * from './omts-rp.js';
 export * from './material.js';
 export * from './founding-document.js';
 export * from './ocr.js';
+export * from './observability.js';

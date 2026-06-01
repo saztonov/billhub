@@ -17,6 +17,10 @@ import {
   ChecksumMismatchError,
   TransactionControlError,
   DEFAULT_MIGRATIONS_DIR,
+  extractDbHost,
+  isSupabaseHost,
+  assertNotSupabase,
+  SupabaseMigrationBlockedError,
   type MigrationFile,
   type AppliedMigration,
 } from './migrate.js';
@@ -184,5 +188,51 @@ describe('migrate: реальные миграции репозитория (п�
     for (const f of files) {
       expect(containsTransactionControl(f.sql)).toBe(false);
     }
+  });
+
+  it('реальные миграции имеют чистую нумерацию от 0001 (0002/0003 — Iteration 7)', () => {
+    const versions = loadMigrationFiles(DEFAULT_MIGRATIONS_DIR).map((f) => f.version);
+    expect(versions).toContain(1);
+    expect(versions).toContain(2);
+    expect(versions).toContain(3);
+  });
+});
+
+describe('migrate: assertNotSupabase (принцип 1 — старый прод не модифицируется)', () => {
+  it('extractDbHost достаёт hostname', () => {
+    expect(extractDbHost('postgres://u:p@db.abcdef.supabase.co:5432/postgres')).toBe(
+      'db.abcdef.supabase.co',
+    );
+    expect(extractDbHost('postgresql://u:p@rc1a.db.yandexcloud.net:6432/billhub_db')).toBe(
+      'rc1a.db.yandexcloud.net',
+    );
+  });
+
+  it('isSupabaseHost: прямое подключение и pooler', () => {
+    expect(isSupabaseHost('postgres://u:p@db.abcdef.supabase.co:5432/postgres')).toBe(true);
+    expect(isSupabaseHost('postgres://u:p@aws-0-eu.pooler.supabase.com:6543/postgres')).toBe(true);
+    expect(isSupabaseHost('postgres://u:p@x.supabase.com:5432/postgres')).toBe(true);
+    expect(isSupabaseHost('postgresql://u:p@rc1a.db.yandexcloud.net:6432/billhub_db')).toBe(false);
+    expect(isSupabaseHost('postgres://u:p@localhost:5432/billhub')).toBe(false);
+  });
+
+  it('assertNotSupabase бросает на Supabase-хосте', () => {
+    expect(() =>
+      assertNotSupabase('postgres://u:p@db.abcdef.supabase.co:5432/postgres', {}),
+    ).toThrow(SupabaseMigrationBlockedError);
+  });
+
+  it('assertNotSupabase пропускает Yandex PG', () => {
+    expect(() =>
+      assertNotSupabase('postgresql://u:p@rc1a.db.yandexcloud.net:6432/billhub_db', {}),
+    ).not.toThrow();
+  });
+
+  it('ALLOW_SUPABASE_MIGRATIONS=1 снимает запрет (явный override)', () => {
+    expect(() =>
+      assertNotSupabase('postgres://u:p@db.abcdef.supabase.co:5432/postgres', {
+        ALLOW_SUPABASE_MIGRATIONS: '1',
+      }),
+    ).not.toThrow();
   });
 });

@@ -8,8 +8,13 @@ import cookie from '@fastify/cookie';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import { ZodError } from 'zod';
+import { sql } from 'drizzle-orm';
+import { HeadBucketCommand } from '@aws-sdk/client-s3';
 import { config } from './config.js';
 import { toCamelCase } from './utils/caseTransform.js';
+import { FASTIFY_REDACT_PATHS } from './services/observability/logger.js';
+import { assertEnvStartup, assertRuntimeStartup } from './services/observability/startup-checks.js';
+import { DEFAULT_MIGRATIONS_DIR, loadMigrationFiles } from './cli/migrate.js';
 import {
   NotFoundError,
   UniqueConstraintError,
@@ -25,6 +30,7 @@ import databaseDrizzlePlugin from './plugins/database-drizzle.js';
 import s3Plugin from './plugins/s3.js';
 import redisPlugin from './plugins/redis.js';
 import queuesPlugin from './plugins/queues.js';
+import maintenancePlugin from './plugins/maintenance.js';
 import repositoriesPlugin from './plugins/repositories.js';
 import authPlugin from './plugins/auth.js';
 import csrfPlugin from './plugins/csrf.js';
@@ -92,14 +98,12 @@ export async function createApp(opts: CreateAppOptions = {}): Promise<FastifyIns
   const fastify = Fastify({
     logger: logger ?? {
       level: config.nodeEnv === 'production' ? 'info' : 'debug',
-      /** Скрываем секреты из логов */
-      redact: [
-        'req.headers.authorization',
-        'req.headers.cookie',
-        'body.password',
-        'body.currentPassword',
-        'body.newPassword',
-      ],
+      /**
+       * Скрываем секреты и ПДн из логов (Iteration 7, observability §20).
+       * Единый список путей — services/observability/logger.ts (FASTIFY_REDACT_PATHS):
+       * auth-секреты, presigned-URL, OCR-поля (ocr_response/recognized_text/material_name).
+       */
+      redact: { paths: FASTIFY_REDACT_PATHS, censor: '[Redacted]' },
       transport:
         config.nodeEnv !== 'production'
           ? { target: 'pino-pretty', options: { colorize: true } }
@@ -216,6 +220,8 @@ export async function createApp(opts: CreateAppOptions = {}): Promise<FastifyIns
     await fastify.register(redisPlugin);
     await fastify.register(queuesPlugin);
     await fastify.register(repositoriesPlugin);
+    // Фоновые задачи (outbox-диспетчер + retention + мониторы) — Iteration 7. No-op без Drizzle.
+    await fastify.register(maintenancePlugin);
   }
 
   /**
@@ -259,13 +265,43 @@ export async function createApp(opts: CreateAppOptions = {}): Promise<FastifyIns
   return fastify;
 }
 
+/** Runtime startup checks (production): расширения PG, применённая миграция, доступность S3. */
+async function runRuntimeStartupChecks(fastify: FastifyInstance): Promise<void> {
+  const files = loadMigrationFiles(DEFAULT_MIGRATIONS_DIR);
+  const expected = files.length ? Math.max(...files.map((f) => f.version)) : 0;
+  await assertRuntimeStartup(process.env, {
+    hasDb: !!fastify.db,
+    queryExtensions: async () => {
+      const res = await fastify.db!.execute(sql`select extname from pg_extension`);
+      return (res as unknown as Array<{ extname: string }>).map((r) => r.extname);
+    },
+    queryAppliedMigration: async () => {
+      const res = await fastify.db!.execute(
+        sql`select max(version)::int as v from public._migrations`,
+      );
+      return (res as unknown as Array<{ v: number | null }>)[0]?.v ?? null;
+    },
+    expectedMigration: expected,
+    headBucket: async () => {
+      await fastify.s3Client.send(new HeadBucketCommand({ Bucket: fastify.s3Bucket }));
+    },
+  });
+}
+
 /**
  * Запускает сервер на configured port.
  * Тонкая обёртка над createApp + listen.
  */
 export async function start(): Promise<void> {
+  // 1. Быстрый fail на env-проблемах (production): обязательные env, placeholder, sslmode, dev-флаги.
+  assertEnvStartup(process.env);
+
   const fastify = await createApp();
   try {
+    // 2. Runtime-проверки (production): расширения PG, миграция == ожидаемой, S3 reachable.
+    if (config.nodeEnv === 'production') {
+      await runRuntimeStartupChecks(fastify);
+    }
     await fastify.listen({ port: config.port, host: '0.0.0.0' });
     fastify.log.info(`Сервер запущен на http://0.0.0.0:${config.port} (${config.nodeEnv})`);
   } catch (err) {

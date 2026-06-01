@@ -73,6 +73,16 @@ export function fingerprintCommitted(mod: Record<string, unknown>): SchemaFinger
 
 /** Отпечаток реальной БД через information_schema. */
 export async function fingerprintDatabase(sql: postgres.Sql): Promise<SchemaFingerprint> {
+  // Дочерние партиции (relispartition=true) не входят в TS-схему — фингерпринтим только
+  // родительскую партиционированную таблицу (audit_log), а audit_log_YYYY_MM / _default опускаем.
+  const partitions = await sql<{ relname: string }[]>`
+    SELECT c.relname
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND c.relispartition = true
+  `;
+  const partitionChildren = new Set(partitions.map((p) => p.relname));
+
   const cols = await sql<
     {
       table_name: string;
@@ -98,6 +108,7 @@ export async function fingerprintDatabase(sql: postgres.Sql): Promise<SchemaFing
 
   const out: SchemaFingerprint = {};
   for (const c of cols) {
+    if (partitionChildren.has(c.table_name)) continue;
     const raw =
       c.data_type === 'ARRAY' || c.data_type === 'USER-DEFINED' ? c.udt_name : c.data_type;
     const { type, isArray } = normalizeType(raw);

@@ -2,14 +2,16 @@ import { Worker } from 'bullmq';
 import type { Job } from 'bullmq';
 import { createClient } from '@supabase/supabase-js';
 import { S3Client } from '@aws-sdk/client-s3';
-import pino from 'pino';
 import { parseRedisUrl } from './index.js';
 import { config } from '../config.js';
 import { processPaymentRequestOcr } from '../services/ocrService.js';
 import type { OcrDependencies } from '../services/ocrService.js';
+import type { JobsLogRepository } from '../repositories/jobs-log.repository.js';
+import { recordJobResult } from '../services/observability/jobs-log.recorder.js';
+import { createObservabilityLogger } from '../services/observability/logger.js';
 
-/** Логгер воркера OCR */
-const logger = pino({ name: 'ocr-worker' });
+/** Логгер воркера OCR с redaction (Iteration 7) */
+const logger = createObservabilityLogger('ocr-worker');
 
 /* ------------------------------------------------------------------ */
 /*  Типы                                                               */
@@ -70,13 +72,13 @@ async function processOcrJob(job: Job<OcrJobData>): Promise<void> {
 
   await processPaymentRequestOcr(deps, paymentRequestId, async (progress) => {
     // Прогресс: процент на основе этапов
-    const filePercent = progress.totalFiles > 0
-      ? (progress.fileIndex / progress.totalFiles) * 100
-      : 0;
+    const filePercent =
+      progress.totalFiles > 0 ? (progress.fileIndex / progress.totalFiles) * 100 : 0;
 
-    const pagePercent = progress.totalPages && progress.totalPages > 0 && progress.pageIndex != null
-      ? ((progress.pageIndex + 1) / progress.totalPages) * (100 / (progress.totalFiles || 1))
-      : 0;
+    const pagePercent =
+      progress.totalPages && progress.totalPages > 0 && progress.pageIndex != null
+        ? ((progress.pageIndex + 1) / progress.totalPages) * (100 / (progress.totalFiles || 1))
+        : 0;
 
     const totalPercent = Math.min(Math.round(filePercent + pagePercent), 99);
 
@@ -98,28 +100,63 @@ async function processOcrJob(job: Job<OcrJobData>): Promise<void> {
 /*  Создание воркера                                                   */
 /* ------------------------------------------------------------------ */
 
+/** Зависимости воркера OCR (Iteration 7): отчётность в jobs_log. */
+export interface OcrWorkerDeps {
+  jobsLog?: JobsLogRepository;
+}
+
+/** Длительность выполнения задачи (мс) по таймштампам BullMQ, либо null. */
+function jobDurationMs(job: Job | undefined): number | null {
+  if (job?.processedOn && job?.finishedOn) return job.finishedOn - job.processedOn;
+  return null;
+}
+
 /** Создание воркера OCR */
-export function createOcrWorker(): Worker<OcrJobData> {
+export function createOcrWorker(deps: OcrWorkerDeps = {}): Worker<OcrJobData> {
   const connection = parseRedisUrl(config.redisUrl);
 
-  const worker = new Worker<OcrJobData>(
-    'ocr-processing',
-    processOcrJob,
-    {
-      connection,
-      concurrency: 1, // Один OCR за раз (экономия памяти на 2GB VPS)
-    },
-  );
+  const worker = new Worker<OcrJobData>('ocr-processing', processOcrJob, {
+    connection,
+    concurrency: 1, // Один OCR за раз (экономия памяти на 2GB VPS)
+  });
 
   worker.on('completed', (job) => {
     logger.info({ jobId: job.id }, 'OCR задача завершена');
+    if (deps.jobsLog) {
+      void recordJobResult(
+        deps.jobsLog,
+        {
+          queueName: 'ocr-processing',
+          jobId: String(job.id ?? ''),
+          type: job.name,
+          attemptsMade: job.attemptsMade,
+          maxAttempts: job.opts.attempts ?? 1,
+          durationMs: jobDurationMs(job),
+          completed: true,
+        },
+        (err) => logger.error({ err }, 'jobs_log запись (completed) не удалась'),
+      );
+    }
   });
 
   worker.on('failed', (job, err) => {
-    logger.error(
-      { jobId: job?.id, err: err.message },
-      'OCR задача завершилась с ошибкой',
-    );
+    logger.error({ jobId: job?.id, err: err.message }, 'OCR задача завершилась с ошибкой');
+    if (deps.jobsLog && job) {
+      void recordJobResult(
+        deps.jobsLog,
+        {
+          queueName: 'ocr-processing',
+          jobId: String(job.id ?? ''),
+          type: job.name,
+          attemptsMade: job.attemptsMade,
+          maxAttempts: job.opts.attempts ?? 1,
+          durationMs: jobDurationMs(job),
+          error: err.message,
+          completed: false,
+        },
+        (e) => logger.error({ err: e }, 'jobs_log запись (failed) не удалась'),
+      );
+    }
   });
 
   worker.on('error', (err) => {

@@ -16,7 +16,10 @@ import {
   buildAuthServices,
   createPinoAuditLogger,
   type AuthServiceBundle,
+  type AuditLogger,
 } from '../services/auth/index.js';
+import { AuditLogService } from '../services/auth/audit-log.service.js';
+import { DrizzleAuditLogRepository } from '../repositories/drizzle/audit-log.drizzle.js';
 import {
   InMemoryPasswordResetStore,
   InMemoryRefreshTokenStore,
@@ -76,7 +79,16 @@ async function authPlugin(fastify: FastifyInstance): Promise<void> {
         passwordResets: new InMemoryPasswordResetStore(),
       };
 
-  const audit = createPinoAuditLogger(fastify.log);
+  // Iteration 7: при наличии Drizzle (production standalone) security-события пишутся в audit_log
+  // (+ pino-зеркало). Без fastify.db (герметичные тесты) — pino-only логгер Iteration 6.
+  const audit: AuditLogger = fastify.db
+    ? new AuditLogService({
+        repo: new DrizzleAuditLogRepository(fastify.db),
+        sink: fastify.log,
+        hmacKey: config.auditHmacKey,
+        onError: (err) => fastify.log.error({ err }, 'audit_log запись не удалась'),
+      })
+    : createPinoAuditLogger(fastify.log);
   const mail = new MailStub(process.env.MAIL_STUB_LOG_PATH ?? DEFAULT_MAIL_STUB_LOG);
 
   const services = buildAuthServices({

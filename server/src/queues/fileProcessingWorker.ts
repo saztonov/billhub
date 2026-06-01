@@ -1,12 +1,14 @@
 import { Worker } from 'bullmq';
 import type { Job } from 'bullmq';
 import { createClient } from '@supabase/supabase-js';
-import pino from 'pino';
 import { config } from '../config.js';
 import { parseRedisUrl } from './index.js';
+import type { JobsLogRepository } from '../repositories/jobs-log.repository.js';
+import { recordJobResult } from '../services/observability/jobs-log.recorder.js';
+import { createObservabilityLogger } from '../services/observability/logger.js';
 
-/** Логгер воркера (вне контекста Fastify) */
-const logger = pino({ name: 'file-processing-worker' });
+/** Логгер воркера (вне контекста Fastify) с redaction (Iteration 7) */
+const logger = createObservabilityLogger('file-processing-worker');
 
 /** Данные задачи обработки файла */
 export interface FileProcessingJobData {
@@ -52,10 +54,7 @@ const supabase = createClient(config.supabaseUrl, config.supabaseServiceRoleKey)
 async function processFileJob(job: Job<FileProcessingJobData>): Promise<void> {
   const { entityType, entityId, fileId, fileKey } = job.data;
 
-  logger.info(
-    { jobId: job.id, entityType, entityId, fileId },
-    'Начало обработки файла'
-  );
+  logger.info({ jobId: job.id, entityType, entityId, fileId }, 'Начало обработки файла');
 
   await job.updateProgress(10);
 
@@ -75,7 +74,7 @@ async function processFileJob(job: Job<FileProcessingJobData>): Promise<void> {
     if (fetchError) {
       logger.error(
         { err: fetchError, table, entityId },
-        'Ошибка получения текущего значения счётчика'
+        'Ошибка получения текущего значения счётчика',
       );
       throw new Error(`Ошибка чтения ${table}: ${fetchError.message}`);
     }
@@ -89,49 +88,77 @@ async function processFileJob(job: Job<FileProcessingJobData>): Promise<void> {
       .eq(idField, entityId);
 
     if (updateError) {
-      logger.error(
-        { err: updateError, table, entityId },
-        'Ошибка обновления счётчика'
-      );
+      logger.error({ err: updateError, table, entityId }, 'Ошибка обновления счётчика');
       throw new Error(`Ошибка обновления ${table}: ${updateError.message}`);
     }
 
-    logger.info(
-      { table, entityId, newCount: currentCount + 1 },
-      'Счётчик файлов обновлён'
-    );
+    logger.info({ table, entityId, newCount: currentCount + 1 }, 'Счётчик файлов обновлён');
   }
 
   await job.updateProgress(100);
 
-  logger.info(
-    { jobId: job.id, fileKey },
-    'Обработка файла завершена'
-  );
+  logger.info({ jobId: job.id, fileKey }, 'Обработка файла завершена');
+}
+
+/** Зависимости воркера обработки файлов (Iteration 7): отчётность в jobs_log. */
+export interface FileProcessingWorkerDeps {
+  jobsLog?: JobsLogRepository;
+}
+
+/** Длительность выполнения задачи (мс) по таймштампам BullMQ, либо null. */
+function jobDurationMs(job: Job | undefined): number | null {
+  if (job?.processedOn && job?.finishedOn) return job.finishedOn - job.processedOn;
+  return null;
 }
 
 /** Создание и запуск воркера */
-export function createFileProcessingWorker(): Worker<FileProcessingJobData> {
+export function createFileProcessingWorker(
+  deps: FileProcessingWorkerDeps = {},
+): Worker<FileProcessingJobData> {
   const connection = parseRedisUrl(config.redisUrl);
 
-  const worker = new Worker<FileProcessingJobData>(
-    'file-processing',
-    processFileJob,
-    {
-      connection,
-      concurrency: 3,
-    }
-  );
+  const worker = new Worker<FileProcessingJobData>('file-processing', processFileJob, {
+    connection,
+    concurrency: 3,
+  });
 
   worker.on('completed', (job) => {
     logger.info({ jobId: job.id }, 'Задача успешно завершена');
+    if (deps.jobsLog) {
+      void recordJobResult(
+        deps.jobsLog,
+        {
+          queueName: 'file-processing',
+          jobId: String(job.id ?? ''),
+          type: job.name,
+          attemptsMade: job.attemptsMade,
+          maxAttempts: job.opts.attempts ?? 1,
+          durationMs: jobDurationMs(job),
+          completed: true,
+        },
+        (err) => logger.error({ err }, 'jobs_log запись (completed) не удалась'),
+      );
+    }
   });
 
   worker.on('failed', (job, err) => {
-    logger.error(
-      { jobId: job?.id, err: err.message },
-      'Задача завершилась с ошибкой'
-    );
+    logger.error({ jobId: job?.id, err: err.message }, 'Задача завершилась с ошибкой');
+    if (deps.jobsLog && job) {
+      void recordJobResult(
+        deps.jobsLog,
+        {
+          queueName: 'file-processing',
+          jobId: String(job.id ?? ''),
+          type: job.name,
+          attemptsMade: job.attemptsMade,
+          maxAttempts: job.opts.attempts ?? 1,
+          durationMs: jobDurationMs(job),
+          error: err.message,
+          completed: false,
+        },
+        (e) => logger.error({ err: e }, 'jobs_log запись (failed) не удалась'),
+      );
+    }
   });
 
   worker.on('error', (err) => {

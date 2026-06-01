@@ -7,12 +7,19 @@ import { createFileProcessingWorker } from '../queues/fileProcessingWorker.js';
 import type { FileProcessingJobData } from '../queues/fileProcessingWorker.js';
 import { createOcrWorker } from '../queues/ocrWorker.js';
 import type { OcrJobData } from '../queues/ocrWorker.js';
+import { DrizzleJobsLogRepository } from '../repositories/drizzle/jobs-log.drizzle.js';
+import type { JobsLogRepository } from '../repositories/jobs-log.repository.js';
 
 /** Плагин BullMQ очередей для Fastify */
 async function queuesPlugin(fastify: FastifyInstance): Promise<void> {
+  // Iteration 7: при Drizzle (production) воркеры пишут результат в jobs_log.
+  const jobsLog: JobsLogRepository | undefined = fastify.db
+    ? new DrizzleJobsLogRepository(fastify.db)
+    : undefined;
+
   /** Запуск воркеров */
-  const fileWorker: Worker<FileProcessingJobData> = createFileProcessingWorker();
-  const ocrWorker: Worker<OcrJobData> = createOcrWorker();
+  const fileWorker: Worker<FileProcessingJobData> = createFileProcessingWorker({ jobsLog });
+  const ocrWorker: Worker<OcrJobData> = createOcrWorker({ jobsLog });
 
   fastify.log.info('BullMQ воркеры запущены');
 

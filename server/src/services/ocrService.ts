@@ -2,12 +2,13 @@ import { GetObjectCommand } from '@aws-sdk/client-s3';
 import type { S3Client } from '@aws-sdk/client-s3';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Readable } from 'node:stream';
-import pino from 'pino';
 import { recognizeInvoiceStructured } from './openrouter.js';
 import type { OcrParsedItem } from './openrouter.js';
+import { recordS3Result } from './observability/s3-error-rate.js';
+import { createObservabilityLogger } from './observability/logger.js';
 
-/** Логгер модуля */
-const logger = pino({ name: 'ocr-service' });
+/** Логгер модуля с redaction (Iteration 7). */
+const logger = createObservabilityLogger('ocr-service');
 
 /* ------------------------------------------------------------------ */
 /*  Константы                                                          */
@@ -24,7 +25,6 @@ const OCR_CONCURRENCY = 3;
 
 /** Максимальное количество страниц PDF */
 const MAX_PDF_PAGES = 20;
-
 
 /* ------------------------------------------------------------------ */
 /*  Типы                                                               */
@@ -93,7 +93,15 @@ async function downloadS3File(
   fileKey: string,
 ): Promise<Buffer> {
   const command = new GetObjectCommand({ Bucket: bucket, Key: fileKey });
-  const response = await s3Client.send(command);
+  // Учёт исхода S3-операции для мониторинга error-rate (Iteration 7).
+  let response;
+  try {
+    response = await s3Client.send(command);
+    recordS3Result(true);
+  } catch (err) {
+    recordS3Result(false);
+    throw err;
+  }
 
   if (!response.Body) {
     throw new Error(`S3: пустое тело ответа для ${fileKey}`);
@@ -109,7 +117,9 @@ async function downloadS3File(
 }
 
 /** Рендерит все страницы PDF в JPEG через poppler-utils (pdftoppm) */
-async function renderPdfToJpegPages(pdfBuffer: Buffer): Promise<{ base64: string; pageNum: number }[]> {
+async function renderPdfToJpegPages(
+  pdfBuffer: Buffer,
+): Promise<{ base64: string; pageNum: number }[]> {
   const { execFile } = await import('node:child_process');
   const { promisify } = await import('node:util');
   const fs = await import('node:fs/promises');
@@ -128,17 +138,20 @@ async function renderPdfToJpegPages(pdfBuffer: Buffer): Promise<{ base64: string
 
     // pdftoppm рендерит PDF в JPEG с разрешением 200 DPI
     await execFileAsync('pdftoppm', [
-      '-jpeg', '-jpegopt', 'quality=85',
-      '-r', '200',
-      '-l', String(MAX_PDF_PAGES),
-      pdfPath, outPrefix,
+      '-jpeg',
+      '-jpegopt',
+      'quality=85',
+      '-r',
+      '200',
+      '-l',
+      String(MAX_PDF_PAGES),
+      pdfPath,
+      outPrefix,
     ]);
 
     // Читаем результаты (файлы page-01.jpg, page-02.jpg, ...)
     const files = await fs.readdir(tmpDir);
-    const jpegFiles = files
-      .filter((f) => f.startsWith('page-') && f.endsWith('.jpg'))
-      .sort();
+    const jpegFiles = files.filter((f) => f.startsWith('page-') && f.endsWith('.jpg')).sort();
 
     const results: { base64: string; pageNum: number }[] = [];
 
@@ -184,8 +197,9 @@ function validateAmounts(items: OcrParsedItem[]): OcrParsedItem[] {
 
 /** Создает подсказку для повторного распознавания */
 function buildRetryHint(mismatched: OcrParsedItem[]): string {
-  const lines = mismatched.map((item) =>
-    `Строка "${item.name}": количество=${item.quantity}, цена=${item.price}, сумма=${item.amount}, ожидаемая сумма=${((item.quantity ?? 0) * (item.price ?? 0)).toFixed(2)}. Перепроверь значения.`,
+  const lines = mismatched.map(
+    (item) =>
+      `Строка "${item.name}": количество=${item.quantity}, цена=${item.price}, сумма=${item.amount}, ожидаемая сумма=${((item.quantity ?? 0) * (item.price ?? 0)).toFixed(2)}. Перепроверь значения.`,
   );
   return `В предыдущей попытке обнаружены расхождения quantity*price != amount для следующих строк:\n${lines.join('\n')}\nПерепроверь эти строки особенно внимательно.`;
 }
@@ -196,10 +210,7 @@ async function findOrCreateMaterial(
   name: string,
   unit: string | null,
 ): Promise<string> {
-  let query = supabase
-    .from('materials_dictionary')
-    .select('id')
-    .eq('name', name);
+  let query = supabase.from('materials_dictionary').select('id').eq('name', name);
 
   if (unit) {
     query = query.eq('unit', unit);
@@ -235,10 +246,7 @@ async function findOrCreateMaterial(
 }
 
 /** Пул параллельных задач с ограничением concurrency */
-async function promisePool<T>(
-  tasks: (() => Promise<T>)[],
-  concurrency: number,
-): Promise<T[]> {
+async function promisePool<T>(tasks: (() => Promise<T>)[], concurrency: number): Promise<T[]> {
   const results: T[] = new Array(tasks.length) as T[];
   let nextIndex = 0;
 
@@ -252,10 +260,7 @@ async function promisePool<T>(
     }
   }
 
-  const workers = Array.from(
-    { length: Math.min(concurrency, tasks.length) },
-    () => runWorker(),
-  );
+  const workers = Array.from({ length: Math.min(concurrency, tasks.length) }, () => runWorker());
   await Promise.all(workers);
   return results;
 }
@@ -299,10 +304,7 @@ export async function processPaymentRequestOcr(
   }
 
   // Удаляем старые распознанные данные
-  await supabase
-    .from('recognized_materials')
-    .delete()
-    .eq('payment_request_id', paymentRequestId);
+  await supabase.from('recognized_materials').delete().eq('payment_request_id', paymentRequestId);
 
   let globalPosition = 0;
 
@@ -492,10 +494,7 @@ export async function processPaymentRequestOcr(
         })
         .eq('id', logId);
 
-      logger.error(
-        { paymentRequestId, fileId, error: errorMsg },
-        'Ошибка OCR распознавания файла',
-      );
+      logger.error({ paymentRequestId, fileId, error: errorMsg }, 'Ошибка OCR распознавания файла');
     }
   }
 }

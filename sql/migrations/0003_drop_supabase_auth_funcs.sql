@@ -1,0 +1,21 @@
+-- Миграция 0003: удаление висящих Supabase-auth-функций (план Iteration 7, доделка Iteration 6).
+--
+-- Контекст: sql/schema/schema.sql (raw pg_dump от Supabase) содержит функцию
+-- public.change_user_password(uuid, text), тело которой обращается к auth.uid() и auth.users.
+-- На Yandex PG схемы auth НЕТ: функция компилируется (plpgsql-тело парсится лениво), но падает
+-- при вызове. После bootstrap-schema.sh (Iteration 8) функция попадает в новую БД — её нужно
+-- убрать, чтобы не было «висящего» кода с обращением к несуществующей схеме auth.
+--
+-- Standalone-замена уже есть (Iteration 6): смена пароля через POST /api/auth/password/change
+-- (bcrypt-compare + users.password_hash, server/src/services/auth/), без auth.uid()/auth.users.
+--
+-- Прочие функции схемы (generate_request_number, generate_contract_request_number,
+-- list_counterparties_with_sb, list_suppliers_with_sb) auth-схему НЕ используют — не трогаем.
+--
+-- GATE (Iteration 7): pg_dump --schema-only --section=post-data | grep -E 'auth\.(uid|users)'
+-- по телам функций возвращает 0 строк (FK users_id_fkey → auth.users чистится sed-фильтром
+-- bootstrap-schema.sh, Iteration 8; здесь убираем только функцию).
+--
+-- Без top-level BEGIN/COMMIT — runner оборачивает в транзакцию сам (ADR-0002). Идемпотентно.
+
+DROP FUNCTION IF EXISTS public.change_user_password(uuid, text) CASCADE;

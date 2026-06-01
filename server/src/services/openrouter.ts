@@ -1,8 +1,8 @@
-import pino from 'pino';
 import { config } from '../config.js';
+import { createObservabilityLogger } from './observability/logger.js';
 
-/** Логгер модуля */
-const logger = pino({ name: 'openrouter' });
+/** Логгер модуля с redaction (Iteration 7): rawContent/jsonStr и др. чувствительные поля скрыты. */
+const logger = createObservabilityLogger('openrouter');
 
 /* ------------------------------------------------------------------ */
 /*  Константы                                                          */
@@ -146,7 +146,14 @@ export async function recognizeInvoiceStructured(
   };
 
   const bodyStr = JSON.stringify(body);
-  logger.info({ modelId, bodyLengthKb: Math.round(bodyStr.length / 1024), imageLengthKb: Math.round(imageUrl.length / 1024) }, 'Отправка запроса в OpenRouter');
+  logger.info(
+    {
+      modelId,
+      bodyLengthKb: Math.round(bodyStr.length / 1024),
+      imageLengthKb: Math.round(imageUrl.length / 1024),
+    },
+    'Отправка запроса в OpenRouter',
+  );
 
   const response = await fetchWithRetry(CHAT_COMPLETIONS_URL, {
     method: 'POST',
@@ -166,15 +173,28 @@ export async function recognizeInvoiceStructured(
   }
 
   // Извлекаем JSON из ответа (может быть обрамлен ```json...```)
-  const jsonStr = content.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+  const jsonStr = content
+    .replace(/^```json\s*/i, '')
+    .replace(/```\s*$/i, '')
+    .trim();
 
-  logger.info({ rawContentLength: content.length, jsonStrLength: jsonStr.length, rawContent: content.substring(0, 300) }, 'Ответ OpenRouter получен');
+  logger.info(
+    {
+      rawContentLength: content.length,
+      jsonStrLength: jsonStr.length,
+      rawContent: content.substring(0, 300),
+    },
+    'Ответ OpenRouter получен',
+  );
 
   let parsed: { items: OcrParsedItem[] };
   try {
     parsed = JSON.parse(jsonStr) as { items: OcrParsedItem[] };
   } catch (parseErr) {
-    logger.error({ jsonStr: jsonStr.substring(0, 500), error: String(parseErr) }, 'Ошибка парсинга JSON ответа OpenRouter');
+    logger.error(
+      { jsonStr: jsonStr.substring(0, 500), error: String(parseErr) },
+      'Ошибка парсинга JSON ответа OpenRouter',
+    );
     throw new Error(`Не удалось распарсить JSON из ответа OpenRouter: ${String(parseErr)}`);
   }
 

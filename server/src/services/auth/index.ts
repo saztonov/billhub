@@ -16,6 +16,7 @@ export * from './token.service.js';
 export * from './refresh-token.service.js';
 export * from './password-reset.service.js';
 export * from './audit.js';
+export * from './audit-log.service.js';
 export type {
   AuthStores,
   UserAuthStore,

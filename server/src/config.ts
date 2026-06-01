@@ -39,6 +39,10 @@ interface Config {
   databaseUrl: string;
   databaseMigrationUrl: string;
   databasePoolMax: number;
+  /** Пользователь runtime БД (для мониторинга соединений pg_stat_activity). */
+  databaseRuntimeUser: string;
+  /** conn_limit пользователя runtime (ADR-5: 30) — порог алерта DB connections. */
+  databaseConnLimit: number;
 
   /**
    * Режим аутентификации (Iteration 6). Это ОБЫЧНЫЙ feature-флаг, НЕ startup-инвариант
@@ -120,6 +124,8 @@ export const config: Config = {
   databaseUrl: envOptional('DATABASE_URL'),
   databaseMigrationUrl: envOptional('DATABASE_MIGRATION_URL'),
   databasePoolMax: parseInt(envOptional('DATABASE_POOL_MAX', '10'), 10),
+  databaseRuntimeUser: envOptional('DATABASE_RUNTIME_USER', 'billhub_runtime'),
+  databaseConnLimit: parseInt(envOptional('DATABASE_CONN_LIMIT', '30'), 10),
 
   authMode: envOptional('AUTH_MODE', 'supabase-bridge') as Config['authMode'],
   authJwtSecret: envOptional('AUTH_JWT_SECRET', 'dev-insecure-auth-jwt-secret-change-me'),

@@ -71,3 +71,41 @@ export default defineConfig([
   },
 ])
 ```
+
+## Observability и внешний uptime-мониторинг (Этап 1, Iteration 7)
+
+Бэкенд (`server/`) предоставляет health-эндпоинты для оркестратора и внешнего мониторинга:
+
+- `GET /api/health/live` — liveness, без зависимостей, всегда `200`. Используется внешним
+  uptime-мониторингом и health-check контейнера.
+- `GET /api/health/ready` — readiness: PostgreSQL (`SELECT 1`, timeout 1с), S3 (`HEAD bucket`,
+  кэш 30с), Redis (`ping`, timeout 500мс), применённая миграция. Возвращает `503` и JSON с
+  per-dependency статусом при сбое любой зависимости.
+
+### Настройка внешнего uptime-мониторинга (UptimeRobot / cronitor)
+
+Этап 1 не использует Sentry SaaS / Prometheus (ADR-0001 §20). Внешний uptime закрывается
+бесплатным внешним сервисом:
+
+1. **UptimeRobot** (или cronitor) — создать два HTTP(s)-монитора:
+   - `https://<домен>/api/health/live` — интервал 1 мин, ожидаемый код `200`.
+   - `https://<домен>/api/health/ready` — интервал 1 мин, ожидаемый код `200` (на `503` алерт).
+2. Алерт-контакты: email + Telegram-бот; срабатывание при **2 подряд** неудачных проверках.
+3. Проверка алертов: остановить backend (`docker compose stop api`) → в течение ~2 мин должен
+   прийти алерт; запустить обратно → recovery-уведомление.
+
+### Внутренние мониторы (audit-события, без SaaS)
+
+Запускаются как BullMQ recurring jobs (`server/src/plugins/maintenance.ts`), при превышении порога
+пишут событие в `audit_log`:
+
+- **DB connections** (каждые 30с): `pg_stat_activity` по `billhub_runtime` > 80% от `conn_limit`
+  (`DATABASE_CONN_LIMIT`, ADR-0005 = 30) → `db_connections_high`.
+- **Dead jobs** (каждую 1 мин): `jobs_log` со `status='dead'` за последний час > 0 → `dead_jobs_detected`.
+- **S3 error-rate** (каждую 1 мин): доля ошибок S3-операций воркеров > 5%/мин → `s3_error_rate_high`.
+
+### Backup-restore rehearsal
+
+`scripts/backup-restore-rehearsal.sh` — задокументированная процедура восстановления Yandex
+Managed PostgreSQL из бэкапа в отдельный тестовый кластер + smoke (расширения, последняя миграция,
+ключевые таблицы). RPO/RTO — по ADR-0005. Прогоняется перед cutover и далее ежеквартально.
