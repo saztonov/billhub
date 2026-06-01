@@ -170,20 +170,19 @@ describe('migrate: containsTransactionControl', () => {
   });
 });
 
-describe('migrate: реальные миграции репозитория', () => {
-  it('baseline объявляет covers-through=6', () => {
+describe('migrate: реальные миграции репозитория (после cleanup миграций 0000-007)', () => {
+  it('папка sql/migrations/ содержит ТОЛЬКО инкрементальные миграции (≥ 0001)', () => {
     const files = loadMigrationFiles(DEFAULT_MIGRATIONS_DIR);
-    const baseline = files.find((f) => f.version === 0);
-    expect(baseline).toBeDefined();
-    expect(parseCoversThrough(baseline!.sql)).toBe(6);
+    expect(files.length).toBeGreaterThan(0);
+    expect(files.find((f) => f.version === 0)).toBeUndefined();
+    // первая миграция — 0001 (по принципу 6 SQL-first и финальной архитектуре в плане Iteration 6).
+    expect(files[0]!.version).toBeGreaterThanOrEqual(1);
   });
 
-  it('план: baseline execute (без tx-control), 001-006 covered — без ошибок', () => {
+  it('ни одна реальная миграция не содержит top-level BEGIN/COMMIT (runner сам оборачивает в tx)', () => {
     const files = loadMigrationFiles(DEFAULT_MIGRATIONS_DIR);
-    const plan = planMigrations(files, [], 6);
-    expect(plan.items.find((i) => i.version === 0)?.action).toBe('execute');
-    expect(plan.toCover).toBeGreaterThanOrEqual(6);
-    // baseline не должен содержать top-level BEGIN/COMMIT (иначе runner сломал бы атомарность)
-    expect(containsTransactionControl(files.find((f) => f.version === 0)!.sql)).toBe(false);
+    for (const f of files) {
+      expect(containsTransactionControl(f.sql)).toBe(false);
+    }
   });
 });

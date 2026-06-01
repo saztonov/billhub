@@ -1,10 +1,12 @@
--- Миграция 0008: standalone auth (стандарт v3 раздел 13, план Iteration 6).
+-- Миграция 0001: standalone auth (стандарт v3 раздел 13, план Iteration 6).
 --
--- ВНИМАНИЕ по нумерации: план/постановка ссылались на «0007_auth_standalone.sql»,
--- но версия 7 уже занята применённой миграцией 007_add_payment_request_closed_at.sql
--- (Iteration 5). Migration-runner (server/src/cli/migrate.ts) запрещает дублирующиеся
--- номера версий, поэтому auth-миграция получает СЛЕДУЮЩИЙ свободный номер — 0008.
--- Принцип 6 (SQL-first, checksum, нельзя править применённые миграции) соблюдён.
+-- Финальная архитектура миграций (план Iteration 6 примечание):
+--   - Старые 0000_baseline.sql и 001-007 удалены (тег pre-migration-cleanup).
+--     Их роль выполняет scripts/bootstrap-schema.sh (Iteration 8): sed-фильтрация
+--     sql/schema/schema.sql + psql, потом migrate.js применяет инкрементальные миграции.
+--   - 0001 — первая инкрементальная миграция, написанная в плане миграции (с чистого старта).
+--   - Будущие: 0002 (outbox/audit, Iteration 7), 0003 (drop supabase auth funcs, Iteration 7 опц.),
+--     0004 (fix storage keys, Iteration 9 опц.), 0005 (keycloak link, Iteration 11/Этап 2).
 --
 -- Что добавляется:
 --   1. users.password_hash / password_changed_at / email_hmac — bcrypt-хэш из

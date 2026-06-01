@@ -3,7 +3,7 @@
  *
  * Проверяют то, что in-memory store воспроизвести не может: настоящий SELECT ... FOR UPDATE
  * при ротации refresh-токена (5 параллельных обменов → ровно одна замена) и reuse-detection.
- * А также что миграция 0008 применяется migrate.ts без ошибок и создаёт нужные объекты.
+ * А также что миграция 0001 применяется migrate.ts без ошибок и создаёт нужные объекты.
  *
  * Требует Docker. Запуск: RUN_DOCKER_TESTS=1 vitest run (CI / Iteration 8). Без флага — skip.
  */
@@ -60,7 +60,7 @@ describe.skipIf(!RUN)('auth Drizzle-хранилища (testcontainers PG)', () 
     });
   }
 
-  it('миграция 0008 создала refresh_tokens/password_reset_tokens/users.password_hash', async () => {
+  it('миграция 0001 создала refresh_tokens/password_reset_tokens/users.password_hash', async () => {
     const cols = await client<{ table_name: string; column_name: string }[]>`
       SELECT table_name, column_name FROM information_schema.columns
       WHERE table_schema='public'

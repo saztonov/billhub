@@ -1,6 +1,6 @@
 /**
  * Barrel Drizzle-схемы BillHub (44 таблицы, сгруппированы по доменам; +refresh_tokens,
- * +password_reset_tokens из миграции 0008).
+ * +password_reset_tokens из миграции 0001).
  * Источник правды для схемы — SQL-миграции (принцип 6); TS-схема производна через introspect (ADR-0002).
  */
 export * from './enums.js';

@@ -1,5 +1,5 @@
 /**
- * Drizzle-схема домена standalone-auth (миграция 0008, Iteration 6).
+ * Drizzle-схема домена standalone-auth (миграция 0001, Iteration 6).
  * Источник правды — SQL-миграция; TS-схема производна (ADR-0002, принцип 6).
  *
  * refresh_tokens       — rotation + reuse detection (family_id, replaced_by, revoked_at).

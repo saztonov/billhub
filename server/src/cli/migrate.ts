@@ -8,10 +8,15 @@
  *  - читает sql/migrations/, сортирует по числовому префиксу;
  *  - применяет ещё не применённые миграции, каждую в отдельной транзакции;
  *  - фиксирует SHA-256 checksum файла;
- *  - checksum-несоответствие УЖЕ применённой миграции = ошибка (защита от правки старых миграций);
- *  - baseline (0000) отражает прод ПОСЛЕ миграций 001-006: версии ≤ baseline-covers-through
- *    помечаются applied БЕЗ переисполнения (директива `migrate:baseline-covers-through=N`
- *    в 0000_baseline.sql). См. ADR-0003.
+ *  - checksum-несоответствие УЖЕ применённой миграции = ошибка (защита от правки старых миграций).
+ *
+ * Архитектура bootstrap-схемы (план Iteration 6 примечание, ADR-0003):
+ *  - 0000_baseline.sql и 001-007 УДАЛЕНЫ (тег pre-migration-cleanup).
+ *  - Bootstrap на чистой Yandex PG = scripts/bootstrap-schema.sh (Iteration 8):
+ *    sed-фильтрация sql/schema/schema.sql + psql, потом migrate.js применяет 0001+.
+ *  - Если baseline (0000) когда-нибудь вернётся — поддержка директивы
+ *    `migrate:baseline-covers-through=N` сохранена (parseCoversThrough), при её отсутствии
+ *    coversThrough=-1 и все миграции выполняются нормально.
  *
  * `drizzle-kit migrate`/`generate`/`push` НЕ используются (ADR-0002).
  *
