@@ -3,8 +3,8 @@
 Чек-лист и инвентаризация для миграции на Yandex Managed PostgreSQL + Cloud.ru S3 (Этап 1).
 
 **Зафиксировано:** 2026-05-30 (Iteration 0). **Актуализировано:** Iteration 8 (числа таблиц после
-bootstrap чистой схемы из `schema.sql` + миграций `0001`/`0002`; connection budget под 2 процесса).
-**Будет уточнено** в итерации 9 (полная репетиция с данными).
+bootstrap чистой схемы из `schema.sql` + миграций `0001`/`0002`; connection budget под 2 процесса);
+Iteration 10 (структурированы контакты incident-команды §10 + строка подтверждения для preflight).
 
 ---
 
@@ -296,19 +296,35 @@ MAX_FILE_SIZE_MB=100
 - `rclone_check_cutover.log` — лог `rclone check`.
 - `cutover_db_pg_restore.log` — лог `pg_restore`.
 - `cutover_smoke_playwright.html` — отчёт Playwright smoke.
-- `cutover_timeline.md` — фактический таймлайн событий в окне (заполняется live).
+- `cutover_timeline.md` — фактический таймлайн событий в окне (заполняется live из `timeline-template.md`).
+- `timeline-template.md` — шаблон live-таймлайна окна (Iteration 10).
+- `decision-checklist.md` — чек-лист incident-команды на точке невозврата (Iteration 10).
+- `iteration-9-report.md` — отчёт полной схемы тестов Iteration 9 (проверяется preflight; `ИТОГ: PASS`).
+- `week-1-report.md` — отчёт первой недели post-cutover (`scripts/post-cutover/week-1-report.sh`).
+- `delta-replay-conflicts.log` — конфликты delta-replay (только при rollback B/C, ADR-0006).
 
 ---
 
-## 10. Команда и контакты (to be filled)
+## 10. Команда и контакты incident-команды
 
-- **Cutover owner:** _TBD_.
-- **DBA:** _TBD_.
-- **DevOps:** _TBD_.
-- **Backend lead:** _TBD_.
-- **Frontend lead:** _TBD_.
-- **QA:** _TBD_.
-- **Communications (notify users):** _TBD_.
-- **Yandex Cloud support:** _TBD_ (контракт / контакт).
-- **Cloud.ru support:** _TBD_.
-- **Cloudflare R2 support:** _TBD_.
+Заполняется оператором ПЕРЕД cutover. `scripts/cutover/01-preflight.sh` (проверка 9) откладывает
+cutover, пока в этой секции остаются маркеры `<ЗАПОЛНИТЬ>` ИЛИ пока строка подтверждения ниже не
+содержит свежую (≤30 дней) дату. Формат каждой роли: `ФИО — телефон — email/telegram`.
+
+- **Cutover owner:** <ЗАПОЛНИТЬ>
+- **DBA:** <ЗАПОЛНИТЬ>
+- **DevOps:** <ЗАПОЛНИТЬ>
+- **Backend lead:** <ЗАПОЛНИТЬ>
+- **Frontend lead:** <ЗАПОЛНИТЬ>
+- **QA:** <ЗАПОЛНИТЬ>
+- **Communications (уведомление пользователей):** <ЗАПОЛНИТЬ>
+- **Yandex Cloud support:** <ЗАПОЛНИТЬ> (контракт / канал)
+- **Cloud.ru support:** <ЗАПОЛНИТЬ>
+- **Cloudflare R2 support:** <ЗАПОЛНИТЬ>
+- **Канал инцидента (Slack/Telegram):** <ЗАПОЛНИТЬ>
+
+**Контакты подтверждены (timestamp): <ЗАПОЛНИТЬ: YYYY-MM-DD>**
+
+> После заполнения всех ролей заменить `<ЗАПОЛНИТЬ: YYYY-MM-DD>` в строке выше на текущую дату в
+> формате четыре-два-два через дефис (год-месяц-день). Дата старше `CONTACTS_MAX_AGE_DAYS` (30 дней) →
+> preflight (проверка 9) требует переподтверждения. Преждевременных дат в этом примечании быть не должно.

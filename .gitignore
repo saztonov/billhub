@@ -141,3 +141,13 @@ vite.config.ts.timestamp-*
 
 temp/
 
+# Локальные инструменты разработчика (напр. shellcheck-бинарь для верификации cutover-скриптов)
+.tools/
+
+# Логи cutover-скриптов (fallback, когда /var/log/cutover недоступен — напр. при dry-run на dev-машине)
+.cutover-logs/
+
+# Дампы БД cutover (содержат ПДн — НИКОГДА не коммитить)
+*.dump
+cutover*.dump
+

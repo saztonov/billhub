@@ -16,7 +16,11 @@
 | `rclone_check_*.log` | `scripts/verify-s3-sync.sh` | после каждой синхронизации |
 | `cutover_db_pg_restore.log` | `scripts/dump-and-restore.sh` | наполнение/окно cutover |
 | `delta-replay-conflicts.log` | `scripts/delta-replay-yandex-to-supabase.ts` | только при rollback (ADR-0006) |
-| `cutover_timeline.md` | заполняется вручную | live в окне cutover |
+| `cutover_timeline.md` | копия `timeline-template.md`, заполняется вручную | live в окне cutover |
+| `timeline-template.md` | шаблон (Iteration 10) | заготовка live-таймлайна |
+| `decision-checklist.md` | шаблон (Iteration 10) | точка невозврата, incident-команда |
+| `iteration-9-report.md` | шаблон (Iteration 10), заполняет оператор | preflight проверка 8 (`ИТОГ: PASS`) |
+| `week-1-report.md` | `scripts/post-cutover/week-1-report.sh` | post-cutover, первая неделя |
 
 ## Проверки (verification chain, ADR-0004)
 
