@@ -1,0 +1,26 @@
+[
+  {
+    "Key": "primer-kontragent/2026-000123/1717000000000_schet.pdf",
+    "Size": 245678,
+    "LastModified": "2026-05-20T08:15:42.000Z",
+    "ETag": "\"9bb58f26192e4ba00f01e2e7b136bbd8\""
+  },
+  {
+    "Key": "primer-kontragent/payment/4f1c.../1717000123000_akt.pdf",
+    "Size": 51380224,
+    "LastModified": "2026-05-21T11:02:10.000Z",
+    "ETag": "\"a1b2c3d4e5f6-7\""
+  },
+  {
+    "Key": "approval-decisions/9a2b.../1717000456000_resolution.pdf",
+    "Size": 13456,
+    "LastModified": "2026-05-22T09:30:00.000Z",
+    "ETag": "\"0f8e7d6c5b4a39281706f5e4d3c2b1a0\""
+  },
+  {
+    "Key": "founding-docs/7c3d.../1717000789000_ustav.pdf",
+    "Size": 0,
+    "LastModified": "2026-05-23T14:45:30.000Z",
+    "ETag": "\"d41d8cd98f00b204e9800998ecf8427e\""
+  }
+]

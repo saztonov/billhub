@@ -12,7 +12,10 @@ import { defineConfig, devices } from '@playwright/test'
  */
 export default defineConfig({
   testDir: './e2e',
-  timeout: 60_000,
+  // load/ — нагрузочные k6-скрипты (.js, импортируют k6/*), запускаются k6, не Playwright.
+  // helpers/ — общие хелперы (uiLogin/apiLogin), не тест-файлы.
+  testIgnore: ['**/load/**', '**/helpers/**'],
+  timeout: 120_000,
   expect: { timeout: 10_000 },
   fullyParallel: false,
   retries: 0,

@@ -5,7 +5,7 @@
  *   1. CREATE EXTENSION pgcrypto/citext/pg_trgm (шаг администратора кластера).
  *   2. Применение отфильтрованного sql/schema/schema.sql (тот же sed-фильтр, что в production)
  *      через postgres.js .simple() — аналог `psql -f` с ON_ERROR_STOP (батч падает на первой ошибке).
- *   3. Инкрементальные миграции 0001/0002/0003 через собственный runner (как `node migrate.js`).
+ *   3. Инкрементальные миграции 0001/0002/0003/0004 через собственный runner (как `node migrate.js`).
  * Затем проверяет, что итоговый набор таблиц соответствует ожидаемому.
  *
  * Запуск: `RUN_INTEGRATION=1 npm test` (или CI). Без Docker/sed — пропускается.
@@ -59,9 +59,15 @@ describe.skipIf(!RUN)('bootstrap-schema на testcontainers PostgreSQL (Iteratio
     return new Set(rows.map((r) => r.table_name));
   }
 
-  it('последняя применённая миграция == 3 (0001/0002/0003)', async () => {
+  it('последняя применённая миграция == 4 (0001/0002/0003/0004)', async () => {
     const rows = await sql<{ v: number }[]>`SELECT max(version)::int AS v FROM public._migrations`;
-    expect(rows[0]?.v).toBe(3);
+    expect(rows[0]?.v).toBe(4);
+  });
+
+  it('0004_fix_storage_keys — data-only no-op: новых таблиц не добавляет', async () => {
+    // Карта префиксов пуста (ADR-0004) → миграция не создаёт объектов и не падает на пустой БД.
+    const tables = await tableSet();
+    expect(tables.has('payment_request_files')).toBe(true);
   });
 
   it('таблицы из schema.sql присутствуют (прикладная схема)', async () => {
