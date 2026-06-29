@@ -1,5 +1,11 @@
 # Развертывание BillHub на VPS (Docker)
 
+> **Актуально (v3.1 single-VPS).** Целевая раскладка и деплой переведены на формат `deploy/` по образцу
+> EstiMat — см. [deploy/README.md](../deploy/README.md) и [deploy/VPS-SETUP.md](../deploy/VPS-SETUP.md)
+> ([ADR-0007](adr/0007-v31-single-vps-alignment.md)): общий `infra-nginx` + per-portal compose-проект,
+> single-domain (same-origin), `deploy-billhub` / `deploy-billhub --migrate`. Документ ниже описывает прежнюю
+> all-in-one схему (root `docker-compose.production.yml`) и сохраняется как справочный.
+
 ## Оглавление
 1. [Архитектура](#архитектура)
 2. [Системные требования](#системные-требования)

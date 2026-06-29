@@ -1,0 +1,4 @@
+# Shell-скрипты и nginx-конфиги выполняются на Linux-VPS — всегда LF (иначе bash падает на \r).
+*.sh text eol=lf
+deploy/**/*.conf text eol=lf
+deploy/**/Dockerfile text eol=lf

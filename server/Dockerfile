@@ -1,3 +1,10 @@
+# Образ бэкенда BillHub (API + worker + migrate — один образ).
+#
+# ВАЖНО: контекст сборки — КОРЕНЬ РЕПО (а не ./server), потому что в образ нужно положить
+# каталог sql/migrations (он лежит в корне, вне ./server). Сборка:
+#   docker build -f server/Dockerfile -t billhub-api .
+# либо через compose с `context: .` (dev) / `context: ..` (deploy/docker-compose.prod.yml).
+#
 # Этап 1: Сборка бэкенда (Debian для совместимости node-canvas с g++)
 FROM node:20-bookworm-slim AS builder
 
@@ -8,10 +15,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-COPY package*.json ./
+COPY server/package*.json ./
 RUN npm ci
 
-COPY . .
+COPY server/ ./
 RUN npm run build
 
 # Этап 2: Продакшн-образ (Debian slim — совместимость с node-canvas, собранным на glibc)
@@ -33,7 +40,13 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
 
+# Миграции в образ (C2): нужны и one-shot сервису migrate, и API при production startup checks
+# (app.ts → loadMigrationFiles(DEFAULT_MIGRATIONS_DIR)). MIGRATIONS_DIR делает путь явным —
+# в собранном dist относительный путь резолвился бы иначе, чем в исходнике.
+COPY sql/migrations ./sql/migrations
+
 ENV NODE_ENV=production
+ENV MIGRATIONS_DIR=/app/sql/migrations
 
 EXPOSE 3000
 

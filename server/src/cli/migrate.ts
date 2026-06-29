@@ -31,8 +31,17 @@ import postgres from 'postgres';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-/** Каталог SQL-миграций по умолчанию (репо-корень/sql/migrations). */
-export const DEFAULT_MIGRATIONS_DIR = path.resolve(__dirname, '../../../sql/migrations');
+/**
+ * Каталог SQL-миграций.
+ * Приоритет: env `MIGRATIONS_DIR` → относительный путь от модуля (репо-корень/sql/migrations).
+ *
+ * В собранном образе глубина dist/cli (2 уровня под /app) отличается от исходной server/src/cli
+ * (3 уровня под корнем), поэтому относительный `../../../sql/migrations` указывал бы на `/sql/migrations`.
+ * В Docker-образе миграции лежат в `/app/sql/migrations`, и путь задаётся через `MIGRATIONS_DIR`
+ * (ENV в Dockerfile). Для исходника/тестов/локального запуска работает относительный фоллбэк.
+ */
+export const DEFAULT_MIGRATIONS_DIR =
+  process.env.MIGRATIONS_DIR ?? path.resolve(__dirname, '../../../sql/migrations');
 
 /** Описание одной миграции на диске. */
 export interface MigrationFile {
@@ -266,6 +275,90 @@ const CREATE_MIGRATIONS_TABLE = `
   );
 `;
 
+/** Стабильный ключ advisory-лока миграций (защита от параллельного наката, в т.ч. с другой машины). */
+const MIGRATION_ADVISORY_LOCK_KEY = 7656501;
+
+/** Ошибка: БД доступна только для чтения (standby/read-only) — миграции запрещены. */
+export class ReadOnlyDatabaseError extends Error {
+  constructor() {
+    super(
+      'БД доступна только для чтения (standby/replica или transaction_read_only=on). ' +
+        'Миграции применяются только к мастеру — проверьте строку подключения.',
+    );
+    this.name = 'ReadOnlyDatabaseError';
+  }
+}
+
+/** Ошибка: не удалось получить advisory-лок (вероятно, миграции уже накатываются другим процессом). */
+export class MigrationLockBusyError extends Error {
+  constructor() {
+    super(
+      'Не удалось получить advisory-лок миграций — вероятно, накат уже идёт другим процессом. ' +
+        'Дождитесь его завершения и повторите.',
+    );
+    this.name = 'MigrationLockBusyError';
+  }
+}
+
+/** Отказ писать на standby/read-only (по образцу PayHub-runner). */
+async function assertWritablePrimary(sql: postgres.Sql): Promise<void> {
+  const rows = await sql<
+    Array<{ in_recovery: boolean; tro: string }>
+  >`SELECT pg_is_in_recovery() AS in_recovery, current_setting('transaction_read_only') AS tro`;
+  if (rows[0]?.in_recovery === true || rows[0]?.tro === 'on') {
+    throw new ReadOnlyDatabaseError();
+  }
+}
+
+/** Прочитать применённые миграции; устойчиво к отсутствию таблицы `_migrations` (для status). */
+async function readApplied(sql: postgres.Sql): Promise<AppliedMigration[]> {
+  try {
+    const rows = await sql<
+      AppliedMigration[]
+    >`SELECT version, name, checksum FROM public._migrations ORDER BY version`;
+    return [...rows];
+  } catch (err) {
+    // 42P01 — таблицы ещё нет (чистая БД): применённых миграций нет.
+    if ((err as { code?: string })?.code === '42P01') return [];
+    throw err;
+  }
+}
+
+export interface MigrationStatus {
+  applied: number;
+  pending: Array<{ version: number; name: string; action: MigrationAction }>;
+  expected: number;
+  current: number;
+}
+
+/**
+ * Статус миграций без изменения БД (для preflight деплоя и отчёта). Не создаёт таблицу,
+ * не берёт лок. Возвращает количество применённых, список pending и ожидаемую/текущую версию.
+ */
+export async function getMigrationStatus(opts: RunMigrationsOptions): Promise<MigrationStatus> {
+  const dir = opts.migrationsDir ?? DEFAULT_MIGRATIONS_DIR;
+  assertNotSupabase(opts.databaseUrl);
+  const files = loadMigrationFiles(dir);
+  const baseline = files.find((f) => f.version === 0);
+  const coversThrough = baseline ? parseCoversThrough(baseline.sql) : -1;
+  const sql = postgres(opts.databaseUrl, { max: 1, onnotice: () => {}, prepare: false });
+  try {
+    const applied = await readApplied(sql);
+    const plan = planMigrations(files, applied, coversThrough);
+    const pending = plan.items
+      .filter((i) => i.action !== 'skip')
+      .map((i) => ({ version: i.version, name: i.name, action: i.action }));
+    return {
+      applied: applied.length,
+      pending,
+      expected: files.length ? Math.max(...files.map((f) => f.version)) : 0,
+      current: applied.length ? Math.max(...applied.map((a) => a.version)) : 0,
+    };
+  } finally {
+    await sql.end({ timeout: 5 });
+  }
+}
+
 /**
  * Применить все непримененные миграции. Каждая execute-миграция — отдельная транзакция
  * (DDL + запись в _migrations атомарны). Cover-миграции (baseline-covered) только фиксируются
@@ -288,8 +381,18 @@ export async function runMigrations(opts: RunMigrationsOptions): Promise<RunMigr
 
   const sql = postgres(opts.databaseUrl, { max: 1, onnotice: () => {}, prepare: false });
   const result: RunMigrationsResult = { executed: [], covered: [], skipped: [] };
+  let locked = false;
 
   try {
+    // Отказ писать на standby/read-only.
+    await assertWritablePrimary(sql);
+    // Advisory-лок: защита от параллельного наката (в т.ч. с другой машины).
+    const lock = await sql<
+      Array<{ locked: boolean }>
+    >`SELECT pg_try_advisory_lock(${MIGRATION_ADVISORY_LOCK_KEY}) AS locked`;
+    if (!lock[0]?.locked) throw new MigrationLockBusyError();
+    locked = true;
+
     await sql.unsafe(CREATE_MIGRATIONS_TABLE).simple();
     const appliedRows = await sql<
       AppliedMigration[]
@@ -332,22 +435,50 @@ export async function runMigrations(opts: RunMigrationsOptions): Promise<RunMigr
     );
     return result;
   } finally {
+    if (locked)
+      await sql`SELECT pg_advisory_unlock(${MIGRATION_ADVISORY_LOCK_KEY})`.catch(() => {});
     await sql.end({ timeout: 5 });
   }
 }
 
-/** CLI-точка входа. */
+/** CLI-точка входа. Режимы: apply (по умолчанию), `status`, `--dry-run`; вывод `--json`. */
 async function main(): Promise<void> {
+  const argv = process.argv.slice(2);
+  const json = argv.includes('--json');
+  const isStatus = argv.includes('status') || argv.includes('--status');
+  const dryRun = argv.includes('--dry-run');
+
   const databaseUrl = process.env.DATABASE_MIGRATION_URL ?? process.env.DATABASE_URL;
   if (!databaseUrl) {
     console.error('Не задан DATABASE_MIGRATION_URL или DATABASE_URL');
     process.exit(1);
   }
+
   try {
-    await runMigrations({ databaseUrl });
+    // status / dry-run — без изменений БД (для preflight деплоя: pending-guard).
+    if (isStatus || dryRun) {
+      const status = await getMigrationStatus({ databaseUrl });
+      if (json) {
+        console.log(JSON.stringify(status));
+      } else {
+        console.log(
+          `Миграции: применено ${status.applied}, pending ${status.pending.length} ` +
+            `(текущая ${status.current} / ожидается ${status.expected}).`,
+        );
+        for (const p of status.pending) {
+          console.log(`  • ${String(p.version).padStart(4, '0')}_${p.name} — ${p.action}`);
+        }
+      }
+      process.exit(0);
+    }
+
+    const result = await runMigrations({ databaseUrl });
+    if (json) console.log(JSON.stringify(result));
     process.exit(0);
   } catch (err) {
-    console.error('Миграция провалилась:', err instanceof Error ? err.message : err);
+    const msg = err instanceof Error ? err.message : String(err);
+    if (json) console.log(JSON.stringify({ error: msg }));
+    else console.error('Миграция провалилась:', msg);
     process.exit(1);
   }
 }

@@ -1,0 +1,152 @@
+# BillHub — portal compose project (single-VPS baseline, §1/§4, по образцу EstiMat).
+#
+# Запускается через /usr/local/bin/deploy-billhub; вручную из корня репо на VPS:
+#   docker compose -f deploy/docker-compose.prod.yml -p billhub up -d billhub-api billhub-web billhub-worker
+#
+# БД — внешний Yandex Managed PostgreSQL (в этом compose НЕТ postgres). Образы собираются на VPS
+# (этап 1, отклонение §19). Сеть edge — общая с infra-nginx, создаётся один раз:
+#   docker network create edge
+#
+# Секреты — пер-сервис env-файлы в /etc/billhub (640 root:docker, C5):
+#   runtime.env   — billhub-api + billhub-worker (DML-роль, без DDL-кредов)
+#   migration.env — только сервис migrate (DDL-роль DATABASE_MIGRATION_URL)
+#
+# BILLHUB_TAG — immutable commit-SHA тег образов (выставляет deploy-скрипт; default latest).
+
+services:
+  # --- API: Fastify, только обработка HTTP (без воркеров) ---
+  billhub-api:
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
+    image: billhub-api:${BILLHUB_TAG:-latest}
+    restart: unless-stopped
+    env_file: /etc/billhub/runtime.env
+    environment:
+      NODE_ENV: production
+      RUN_WORKERS: 'false'
+      NODE_OPTIONS: '--max-old-space-size=384'
+    volumes:
+      - upload-temp:/app/temp
+      - mail-stub:/app/data # защищённый лог mail-stub (C9), MAIL_STUB_LOG_PATH=/app/data/mail-stub.log
+    networks: [edge, internal] # edge — для ingress; internal — для redis
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'wget',
+          '--no-verbose',
+          '--tries=1',
+          '--spider',
+          'http://127.0.0.1:3000/api/health/ready',
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.6'
+
+  # --- worker: BullMQ воркеры (file-processing + OCR), тот же образ, без API-роутов ---
+  billhub-worker:
+    image: billhub-api:${BILLHUB_TAG:-latest}
+    command: ['node', 'dist/worker.js']
+    restart: unless-stopped
+    env_file: /etc/billhub/runtime.env
+    environment:
+      NODE_ENV: production
+      RUN_WORKERS: 'true'
+      OCR_CONCURRENCY: '3'
+      FILE_PROCESSING_CONCURRENCY: '3'
+      NODE_OPTIONS: '--max-old-space-size=512'
+    volumes:
+      - upload-temp:/app/temp
+    networks: [internal] # worker не принимает входящие — только internal (redis/БД/S3)
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'wget',
+          '--no-verbose',
+          '--tries=1',
+          '--spider',
+          'http://127.0.0.1:3000/health/live',
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+          cpus: '0.8'
+
+  # --- web: SPA-статика в собственном образе портала (C1 ownership) ---
+  # VITE_API_URL пуст ⇒ same-origin (фронт ходит на относительный /api через ingress, C6).
+  billhub-web:
+    build:
+      context: ..
+      dockerfile: deploy/web/Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-}
+        VITE_SENTRY_DSN: ${VITE_SENTRY_DSN:-}
+    image: billhub-web:${BILLHUB_TAG:-latest}
+    restart: unless-stopped
+    networks: [edge]
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+          cpus: '0.2'
+
+  # --- redis: BullMQ + chunked-upload sessions ---
+  redis:
+    image: redis:7-alpine
+    command: redis-server --maxmemory 64mb --maxmemory-policy noeviction --save 60 1000
+    volumes:
+      - redis-data:/data
+    networks: [internal] # приватная сеть портала — НЕ на общем edge
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.2'
+
+  # --- migrate: разовый накат миграций отдельным шагом (§5), DDL-роль ---
+  #   docker compose -f deploy/docker-compose.prod.yml -p billhub run --rm migrate
+  # Тот же образ billhub-api (внутри есть /app/sql/migrations и dist/cli/migrate.js).
+  migrate:
+    image: billhub-api:${BILLHUB_TAG:-latest}
+    profiles: ['migrate']
+    env_file: /etc/billhub/migration.env
+    environment:
+      NODE_ENV: production
+    networks: [internal] # доступ к внешней БД; на edge не нужен
+    command: ['node', 'dist/cli/migrate.js']
+
+volumes:
+  upload-temp: # эфемерный чанк-кеш (backend stateless)
+  redis-data: # BullMQ state + upload-sessions
+  mail-stub: # лог mail-stub с plain reset-токеном (C9) — не в stdout
+
+networks:
+  edge:
+    external: true
+  internal:
+    driver: bridge

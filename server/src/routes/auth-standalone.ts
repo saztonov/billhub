@@ -293,10 +293,26 @@ async function standaloneAuthRoutes(fastify: FastifyInstance): Promise<void> {
 
       const result = await authServices.passwordReset.request(rec.id);
       // Доставка через @su10/mail (заглушка пишет в свой JSON-лог, НЕ в audit_log).
-      await authServices.mail.sendPasswordReset(
-        { id: rec.id, email: rec.email, fullName: rec.fullName },
-        result.plainToken,
-      );
+      // Audit фиксирует ФАКТ доставки (kind + emailHmac), но НИКОГДА сам токен.
+      const mailHmac = emailHmac(rec.email, config.auditHmacKey);
+      try {
+        await authServices.mail.sendPasswordReset(
+          { id: rec.id, email: rec.email, fullName: rec.fullName },
+          result.plainToken,
+        );
+        authServices.audit.emit('mail_sent', {
+          userId: rec.id,
+          emailHmac: mailHmac,
+          mailKind: 'password_reset',
+        });
+      } catch (mailErr) {
+        authServices.audit.emit('mail_failed', {
+          userId: rec.id,
+          emailHmac: mailHmac,
+          mailKind: 'password_reset',
+        });
+        throw mailErr;
+      }
 
       // plain-токен возвращается АДМИНУ один раз (copy-once UI). В audit_log его нет.
       return {

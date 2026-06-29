@@ -5,7 +5,7 @@ services:
       context: .
       dockerfile: Dockerfile.frontend
     ports:
-      - "127.0.0.1:3080:80"
+      - '127.0.0.1:3080:80'
     depends_on:
       backend:
         condition: service_healthy
@@ -13,17 +13,18 @@ services:
     networks:
       - billhub
 
-  # Бэкенд: Fastify API-сервер
+  # Бэкенд: Fastify API-сервер (контекст — корень репо: server/Dockerfile кладёт sql/migrations в образ)
   backend:
     build:
-      context: ./server
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: server/Dockerfile
     env_file:
       - ./server/.env
     volumes:
       - upload-temp:/app/temp
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health"]
+      test:
+        ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://127.0.0.1:3000/api/health']
       interval: 30s
       timeout: 5s
       retries: 3
@@ -43,7 +44,7 @@ services:
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
       timeout: 3s
       retries: 5

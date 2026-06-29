@@ -43,8 +43,8 @@ services:
   # --- backend: Fastify API ТОЛЬКО (без воркеров) ---
   backend:
     build:
-      context: ./server
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: server/Dockerfile
     command: ['node', 'dist/server.js']
     env_file:
       - ./server/.env
@@ -83,8 +83,8 @@ services:
   # --- worker: BullMQ воркеры (file-processing + OCR), без API-роутов ---
   worker:
     build:
-      context: ./server
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: server/Dockerfile
     command: ['node', 'dist/worker.js']
     env_file:
       - ./server/.env

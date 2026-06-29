@@ -19,7 +19,9 @@ export type AuditEvent =
   | 'role_change'
   | 'admin_action'
   | 'user_created'
-  | 'user_deactivated';
+  | 'user_deactivated'
+  | 'mail_sent'
+  | 'mail_failed';
 
 export interface AuditFields {
   userId?: string;
