@@ -107,19 +107,29 @@ const TOOLTIP_EVENT_LABELS: Record<string, string> = {
 }
 
 /** Формирует содержимое тултипа из stageHistory */
-function buildStatusTooltip(stageHistory: StageHistoryEntry[], isCounterparty: boolean): React.ReactNode | null {
-  const entries = (stageHistory ?? []).filter(e => e.event !== 'received' && TOOLTIP_EVENT_LABELS[e.event])
+function buildStatusTooltip(
+  stageHistory: StageHistoryEntry[],
+  isCounterparty: boolean,
+): React.ReactNode | null {
+  const entries = (stageHistory ?? []).filter(
+    (e) => e.event !== 'received' && TOOLTIP_EVENT_LABELS[e.event],
+  )
   if (entries.length === 0) return null
 
   return (
     <div style={{ maxWidth: 360 }}>
       {entries.map((entry, idx) => {
         const eventLabel = TOOLTIP_EVENT_LABELS[entry.event]
-        const dept = entry.isOmtsRp ? 'ОМТС РП' : (DEPARTMENT_LABELS[entry.department as keyof typeof DEPARTMENT_LABELS] ?? entry.department)
+        const dept = entry.isOmtsRp
+          ? 'ОМТС РП'
+          : (DEPARTMENT_LABELS[entry.department as keyof typeof DEPARTMENT_LABELS] ??
+            entry.department)
         const date = formatDateShort(entry.at)
         // Для counterparty автор виден только на стадии ОМТС
         const showAuthor = !isCounterparty || entry.stage === 2
-        const authorName = showAuthor ? getShortName(entry.userFullName, entry.userEmail) : undefined
+        const authorName = showAuthor
+          ? getShortName(entry.userFullName, entry.userEmail)
+          : undefined
         // revision_complete показываем без департамента
         const isRevisionComplete = entry.event === 'revision_complete'
 
@@ -128,8 +138,7 @@ function buildStatusTooltip(stageHistory: StageHistoryEntry[], isCounterparty: b
             <span>
               {!isRevisionComplete && <>{dept} </>}
               {eventLabel}
-              {authorName && <> ({authorName})</>}
-              {' '}{date}
+              {authorName && <> ({authorName})</>} {date}
             </span>
             {entry.comment && (
               <div style={{ paddingLeft: 16, marginBottom: 4, opacity: 0.85 }}>
@@ -144,38 +153,51 @@ function buildStatusTooltip(stageHistory: StageHistoryEntry[], isCounterparty: b
 }
 
 /** Формирует пункты мобильного меню действий для строки */
-function buildMobileActions(
-  record: PaymentRequest,
-  props: RequestsTableProps,
-) {
-  const items: { key: string; label: string; icon: React.ReactNode; danger?: boolean; onClick: () => void }[] = [
+function buildMobileActions(record: PaymentRequest, props: RequestsTableProps) {
+  const items: {
+    key: string
+    label: string
+    icon: React.ReactNode
+    danger?: boolean
+    onClick: () => void
+  }[] = [
     { key: 'view', label: 'Просмотр', icon: <EyeOutlined />, onClick: () => props.onView(record) },
   ]
 
   if (props.showApprovalActions && props.onApprove) {
     items.push({
-      key: 'approve', label: 'Согласовать', icon: <CheckOutlined />,
+      key: 'approve',
+      label: 'Согласовать',
+      icon: <CheckOutlined />,
       onClick: () => props.onApprove!(record.id, ''),
     })
   }
 
   if (props.showApprovalActions && props.onReject) {
     items.push({
-      key: 'reject', label: 'Отклонить', icon: <StopOutlined />, danger: true,
+      key: 'reject',
+      label: 'Отклонить',
+      icon: <StopOutlined />,
+      danger: true,
       onClick: () => {}, // обрабатывается через setRejectModalId
     })
   }
 
   if (props.isCounterpartyUser && props.onResubmit && record.rejectedAt) {
     items.push({
-      key: 'resubmit', label: 'Отправить повторно', icon: <RedoOutlined />,
+      key: 'resubmit',
+      label: 'Отправить повторно',
+      icon: <RedoOutlined />,
       onClick: () => props.onResubmit!(record),
     })
   }
 
   if (props.isAdmin && props.onDelete && !record.isDeleted) {
     items.push({
-      key: 'delete', label: 'Удалить', icon: <DeleteOutlined />, danger: true,
+      key: 'delete',
+      label: 'Удалить',
+      icon: <DeleteOutlined />,
+      danger: true,
       onClick: () => props.onDelete!(record.id),
     })
   }
@@ -186,19 +208,42 @@ function buildMobileActions(
 const RequestsTable = (props: RequestsTableProps) => {
   const { message: _message } = App.useApp()
   const {
-    requests, isLoading, onView, isCounterpartyUser, hideCounterpartyColumn,
-    statusOptions, onStatusChange, statusChangingId, isAdmin, onDelete, uploadTasks,
-    showApprovalActions, onApprove, onReject, showApprovedDate, showRejectedDate,
-    totalStages, showDepartmentFilter, rejectionDepartments, onResubmit,
-    showResponsibleColumn, canAssignResponsible, omtsUsers, onAssignResponsible, responsibleFilter,
-    statusFilters, showOmtsDays, unreadCounts, isMobile,
+    requests,
+    isLoading,
+    onView,
+    isCounterpartyUser,
+    hideCounterpartyColumn,
+    statusOptions,
+    onStatusChange,
+    statusChangingId,
+    isAdmin,
+    onDelete,
+    uploadTasks,
+    showApprovalActions,
+    onApprove,
+    onReject,
+    showApprovedDate,
+    showRejectedDate,
+    totalStages,
+    showDepartmentFilter,
+    rejectionDepartments,
+    onResubmit,
+    showResponsibleColumn,
+    canAssignResponsible,
+    omtsUsers,
+    onAssignResponsible,
+    responsibleFilter,
+    statusFilters,
+    showOmtsDays,
+    unreadCounts,
+    isMobile,
   } = props
 
   const [rejectModalId, setRejectModalId] = useState<string | null>(null)
 
   const filteredRequests = useMemo(() => {
-    if (responsibleFilter === 'assigned') return requests.filter(r => r.assignedUserId !== null)
-    if (responsibleFilter === 'unassigned') return requests.filter(r => r.assignedUserId === null)
+    if (responsibleFilter === 'assigned') return requests.filter((r) => r.assignedUserId !== null)
+    if (responsibleFilter === 'unassigned') return requests.filter((r) => r.assignedUserId === null)
     return requests
   }, [requests, responsibleFilter])
 
@@ -208,49 +253,97 @@ const RequestsTable = (props: RequestsTableProps) => {
 
     const cols: Record<string, unknown>[] = [
       {
-        title: '№', dataIndex: 'requestNumber', key: 'requestNumber', width: 50,
+        title: '№',
+        dataIndex: 'requestNumber',
+        key: 'requestNumber',
+        width: 50,
         render: (requestNumber: string) => extractRequestNumber(requestNumber),
       },
     ]
 
     if (!hideCounterpartyColumn) {
       cols.push({
-        title: 'Подрядчик', dataIndex: 'counterpartyName', key: 'counterpartyName',
-        ellipsis: true,
-        render: (_: string | undefined, record: PaymentRequest) => <span style={{ fontSize: 12 }}>{record.counterpartyName ? (record.counterpartyInn ? `${record.counterpartyName}, ${record.counterpartyInn}` : record.counterpartyName) : '—'}</span>,
+        title: 'Подрядчик',
+        dataIndex: 'counterpartyName',
+        key: 'counterpartyName',
+        render: (_: string | undefined, record: PaymentRequest) =>
+          record.counterpartyName ? (
+            <div style={{ fontSize: 12, lineHeight: 1.3 }}>
+              <div>{record.counterpartyName}</div>
+              {record.counterpartyInn && (
+                <div style={{ color: '#8c8c8c', fontSize: 11 }}>{record.counterpartyInn}</div>
+              )}
+            </div>
+          ) : (
+            <span style={{ fontSize: 12 }}>—</span>
+          ),
       })
     }
 
     cols.push(
       {
-        title: 'Объект', dataIndex: 'siteName', key: 'siteName',
+        title: 'Объект',
+        dataIndex: 'siteName',
+        key: 'siteName',
         ellipsis: true,
         render: (name: string | undefined) => <span style={{ fontSize: 12 }}>{name ?? '—'}</span>,
       },
       {
-        title: 'Статус', key: 'status', width: 100,
+        title: 'Статус',
+        key: 'status',
+        width: 100,
         render: (_: unknown, record: PaymentRequest) => {
           const tooltipContent = buildStatusTooltip(record.stageHistory, !!isCounterpartyUser)
-          const tag = <Tag color={record.statusColor ?? 'default'} style={{ fontSize: 11, lineHeight: 1.3, whiteSpace: 'pre-line' }}>{record.statusName}</Tag>
+          const tag = (
+            <Tag
+              color={record.statusColor ?? 'default'}
+              style={{ fontSize: 11, lineHeight: 1.3, whiteSpace: 'pre-line' }}
+            >
+              {record.statusName}
+            </Tag>
+          )
           if (!tooltipContent) return tag
-          return <Tooltip title={tooltipContent} mouseEnterDelay={0.5}>{tag}</Tooltip>
+          return (
+            <Tooltip title={tooltipContent} mouseEnterDelay={0.5}>
+              {tag}
+            </Tooltip>
+          )
         },
       },
       {
-        title: 'Сумма РП', key: 'invoiceAmount', width: 100, align: 'right' as const,
+        title: 'Сумма РП',
+        key: 'invoiceAmount',
+        width: 100,
+        align: 'right' as const,
         render: (_: unknown, record: PaymentRequest) => {
-          const str = record.invoiceAmount != null
-            ? record.invoiceAmount.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
-            : '—'
+          const str =
+            record.invoiceAmount != null
+              ? record.invoiceAmount.toLocaleString('ru-RU', {
+                  minimumFractionDigits: 0,
+                  maximumFractionDigits: 0,
+                })
+              : '—'
           return (
-            <span style={{ backgroundColor: '#1d3557', color: '#fff', borderRadius: 4, padding: '1px 6px', fontSize: 12, whiteSpace: 'nowrap' }}>
+            <span
+              style={{
+                backgroundColor: '#1d3557',
+                color: '#fff',
+                borderRadius: 4,
+                padding: '1px 6px',
+                fontSize: 12,
+                whiteSpace: 'nowrap',
+              }}
+            >
               {str} ₽
             </span>
           )
         },
       },
       {
-        title: '', key: 'mobileActions', width: 40, align: 'center' as const,
+        title: '',
+        key: 'mobileActions',
+        width: 40,
+        align: 'center' as const,
         render: (_: unknown, record: PaymentRequest) => {
           const items = buildMobileActions(record, props)
           return (
@@ -270,7 +363,12 @@ const RequestsTable = (props: RequestsTableProps) => {
               trigger={['click']}
               placement="bottomRight"
             >
-              <Button type="text" icon={<MoreOutlined />} size="small" onClick={(e) => e.stopPropagation()} />
+              <Button
+                type="text"
+                icon={<MoreOutlined />}
+                size="small"
+                onClick={(e) => e.stopPropagation()}
+              />
             </Dropdown>
           )
         },
@@ -286,32 +384,61 @@ const RequestsTable = (props: RequestsTableProps) => {
 
     const cols: Record<string, unknown>[] = [
       {
-        title: '№', dataIndex: 'requestNumber', key: 'requestNumber', width: 60,
-        sorter: (a: PaymentRequest, b: PaymentRequest) => parseInt(extractRequestNumber(a.requestNumber), 10) - parseInt(extractRequestNumber(b.requestNumber), 10),
+        title: '№',
+        dataIndex: 'requestNumber',
+        key: 'requestNumber',
+        width: 60,
+        sorter: (a: PaymentRequest, b: PaymentRequest) =>
+          parseInt(extractRequestNumber(a.requestNumber), 10) -
+          parseInt(extractRequestNumber(b.requestNumber), 10),
         render: (requestNumber: string) => extractRequestNumber(requestNumber),
       },
     ]
 
     if (!hideCounterpartyColumn) {
       cols.push({
-        title: 'Подрядчик', dataIndex: 'counterpartyName', key: 'counterpartyName', width: 180, ellipsis: true,
-        sorter: (a: PaymentRequest, b: PaymentRequest) => (a.counterpartyName || '').localeCompare(b.counterpartyName || '', 'ru'),
-        render: (_: string | undefined, record: PaymentRequest) => record.counterpartyName ? (record.counterpartyInn ? `${record.counterpartyName}, ${record.counterpartyInn}` : record.counterpartyName) : '—',
+        title: 'Подрядчик',
+        dataIndex: 'counterpartyName',
+        key: 'counterpartyName',
+        width: 180,
+        sorter: (a: PaymentRequest, b: PaymentRequest) =>
+          (a.counterpartyName || '').localeCompare(b.counterpartyName || '', 'ru'),
+        render: (_: string | undefined, record: PaymentRequest) =>
+          record.counterpartyName ? (
+            <div style={{ lineHeight: 1.3 }}>
+              <div>{record.counterpartyName}</div>
+              {record.counterpartyInn && (
+                <div style={{ color: '#8c8c8c', fontSize: 12 }}>{record.counterpartyInn}</div>
+              )}
+            </div>
+          ) : (
+            '—'
+          ),
       })
     }
 
     cols.push(
       {
-        title: 'Объект', dataIndex: 'siteName', key: 'siteName', width: 160,
-        sorter: (a: PaymentRequest, b: PaymentRequest) => (a.siteName || '').localeCompare(b.siteName || '', 'ru'),
+        title: 'Объект',
+        dataIndex: 'siteName',
+        key: 'siteName',
+        width: 160,
+        sorter: (a: PaymentRequest, b: PaymentRequest) =>
+          (a.siteName || '').localeCompare(b.siteName || '', 'ru'),
         render: (name: string | undefined) => name ?? '—',
       },
       {
-        title: 'Поставщик', dataIndex: 'supplierName', key: 'supplierName', width: 160,
-        sorter: (a: PaymentRequest, b: PaymentRequest) => (a.supplierName || '').localeCompare(b.supplierName || '', 'ru'),
+        title: 'Поставщик',
+        dataIndex: 'supplierName',
+        key: 'supplierName',
+        width: 160,
+        sorter: (a: PaymentRequest, b: PaymentRequest) =>
+          (a.supplierName || '').localeCompare(b.supplierName || '', 'ru'),
         render: (_: string | undefined, record: PaymentRequest) => {
           if (!record.supplierName) return '—'
-          const text = record.supplierInn ? `${record.supplierName}, ${record.supplierInn}` : record.supplierName
+          const text = record.supplierInn
+            ? `${record.supplierName}, ${record.supplierInn}`
+            : record.supplierName
           if (record.supplierLastSecurityStatus !== 'rejected') return text
           return (
             <span>
@@ -322,21 +449,45 @@ const RequestsTable = (props: RequestsTableProps) => {
         },
       },
       {
-        title: 'Статус', key: 'status', width: 150,
-        sorter: (a: PaymentRequest, b: PaymentRequest) => (a.statusName || '').localeCompare(b.statusName || '', 'ru'),
+        title: 'Статус',
+        key: 'status',
+        width: 150,
+        sorter: (a: PaymentRequest, b: PaymentRequest) =>
+          (a.statusName || '').localeCompare(b.statusName || '', 'ru'),
         filters: statusFilters,
         onFilter: (value: unknown, record: PaymentRequest) => record.statusId === value,
         render: (_: unknown, record: PaymentRequest) => {
           const tooltipContent = buildStatusTooltip(record.stageHistory, !!isCounterpartyUser)
-          const tag = <Tag color={record.statusColor ?? 'default'} style={{ whiteSpace: 'pre-line', lineHeight: 1.3 }}>{record.statusName}</Tag>
+          const tag = (
+            <Tag
+              color={record.statusColor ?? 'default'}
+              style={{ whiteSpace: 'pre-line', lineHeight: 1.3 }}
+            >
+              {record.statusName}
+            </Tag>
+          )
           if (!tooltipContent) return tag
-          return <Tooltip title={tooltipContent} mouseEnterDelay={0.5}>{tag}</Tooltip>
+          return (
+            <Tooltip title={tooltipContent} mouseEnterDelay={0.5}>
+              {tag}
+            </Tooltip>
+          )
         },
       },
       {
-        title: 'Оплата', key: 'paidStatus', width: 110,
-        sorter: (a: PaymentRequest, b: PaymentRequest) => (a.paidStatusName || '').localeCompare(b.paidStatusName || '', 'ru'),
-        render: (_: unknown, record: PaymentRequest) => <Tag color={record.paidStatusColor ?? 'default'} style={{ whiteSpace: 'normal', lineHeight: 1.3 }}>{record.paidStatusName ?? '—'}</Tag>,
+        title: 'Оплата',
+        key: 'paidStatus',
+        width: 110,
+        sorter: (a: PaymentRequest, b: PaymentRequest) =>
+          (a.paidStatusName || '').localeCompare(b.paidStatusName || '', 'ru'),
+        render: (_: unknown, record: PaymentRequest) => (
+          <Tag
+            color={record.paidStatusColor ?? 'default'}
+            style={{ whiteSpace: 'normal', lineHeight: 1.3 }}
+          >
+            {record.paidStatusName ?? '—'}
+          </Tag>
+        ),
       },
       {
         title: (
@@ -346,21 +497,52 @@ const RequestsTable = (props: RequestsTableProps) => {
             <div>Сумма оплачено</div>
           </div>
         ),
-        key: 'invoiceAmount', width: 180, align: 'right' as const,
-        sorter: (a: PaymentRequest, b: PaymentRequest) => (a.invoiceAmount ?? 0) - (b.invoiceAmount ?? 0),
+        key: 'invoiceAmount',
+        width: 180,
+        align: 'right' as const,
+        sorter: (a: PaymentRequest, b: PaymentRequest) =>
+          (a.invoiceAmount ?? 0) - (b.invoiceAmount ?? 0),
         render: (_: unknown, record: PaymentRequest) => {
-          const invoiceStr = record.invoiceAmount != null
-            ? record.invoiceAmount.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-            : '—'
-          const paidStr = record.totalPaid > 0
-            ? record.totalPaid.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-            : '0,00'
+          const invoiceStr =
+            record.invoiceAmount != null
+              ? record.invoiceAmount.toLocaleString('ru-RU', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })
+              : '—'
+          const paidStr =
+            record.totalPaid > 0
+              ? record.totalPaid.toLocaleString('ru-RU', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })
+              : '0,00'
           return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
-              <span style={{ backgroundColor: '#1d3557', color: '#fff', borderRadius: 4, padding: '1px 8px', fontSize: 13, whiteSpace: 'nowrap' }}>
+            <div
+              style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}
+            >
+              <span
+                style={{
+                  backgroundColor: '#1d3557',
+                  color: '#fff',
+                  borderRadius: 4,
+                  padding: '1px 8px',
+                  fontSize: 13,
+                  whiteSpace: 'nowrap',
+                }}
+              >
                 {invoiceStr} ₽
               </span>
-              <span style={{ backgroundColor: '#1b5e20', color: '#fff', borderRadius: 4, padding: '1px 8px', fontSize: 13, whiteSpace: 'nowrap' }}>
+              <span
+                style={{
+                  backgroundColor: '#1b5e20',
+                  color: '#fff',
+                  borderRadius: 4,
+                  padding: '1px 8px',
+                  fontSize: 13,
+                  whiteSpace: 'nowrap',
+                }}
+              >
                 {paidStr} ₽
               </span>
             </div>
@@ -368,8 +550,12 @@ const RequestsTable = (props: RequestsTableProps) => {
         },
       },
       {
-        title: 'РП', dataIndex: 'dpNumber', key: 'dpNumber', width: 120,
-        sorter: (a: PaymentRequest, b: PaymentRequest) => (a.dpNumber || '').localeCompare(b.dpNumber || '', 'ru'),
+        title: 'РП',
+        dataIndex: 'dpNumber',
+        key: 'dpNumber',
+        width: 120,
+        sorter: (a: PaymentRequest, b: PaymentRequest) =>
+          (a.dpNumber || '').localeCompare(b.dpNumber || '', 'ru'),
         render: (value: string | null) => value ?? '—',
       },
     )
@@ -385,7 +571,8 @@ const RequestsTable = (props: RequestsTableProps) => {
         key: 'unreadComments',
         width: 65,
         align: 'center' as const,
-        sorter: (a: PaymentRequest, b: PaymentRequest) => (unreadCounts[a.id] || 0) - (unreadCounts[b.id] || 0),
+        sorter: (a: PaymentRequest, b: PaymentRequest) =>
+          (unreadCounts[a.id] || 0) - (unreadCounts[b.id] || 0),
         render: (_: unknown, record: PaymentRequest) => {
           const count = unreadCounts[record.id] || 0
           if (count === 0) return null
@@ -396,7 +583,9 @@ const RequestsTable = (props: RequestsTableProps) => {
 
     if (showResponsibleColumn) {
       cols.push({
-        title: 'Ответственный', key: 'responsible', width: 200,
+        title: 'Ответственный',
+        key: 'responsible',
+        width: 200,
         sorter: (a: PaymentRequest, b: PaymentRequest) => {
           const aVal = a.assignedUserFullName || ''
           const bVal = b.assignedUserFullName || ''
@@ -425,26 +614,40 @@ const RequestsTable = (props: RequestsTableProps) => {
 
     cols.push(
       {
-        title: 'Дата', dataIndex: 'createdAt', key: 'createdAt', width: 100,
-        sorter: (a: PaymentRequest, b: PaymentRequest) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+        title: 'Дата',
+        dataIndex: 'createdAt',
+        key: 'createdAt',
+        width: 100,
+        sorter: (a: PaymentRequest, b: PaymentRequest) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
         defaultSortOrder: 'descend' as const,
         render: (date: string) => formatDateShort(date),
       },
       {
-        title: 'Срок', key: 'days', width: 80,
-        sorter: (a: PaymentRequest, b: PaymentRequest) => calculateDays(a.createdAt, a.approvedAt) - calculateDays(b.createdAt, b.approvedAt),
-        render: (_: unknown, record: PaymentRequest) => <span>{calculateDays(record.createdAt, record.approvedAt)}</span>,
+        title: 'Срок',
+        key: 'days',
+        width: 80,
+        sorter: (a: PaymentRequest, b: PaymentRequest) =>
+          calculateDays(a.createdAt, a.approvedAt) - calculateDays(b.createdAt, b.approvedAt),
+        render: (_: unknown, record: PaymentRequest) => (
+          <span>{calculateDays(record.createdAt, record.approvedAt)}</span>
+        ),
       },
     )
 
     if (showOmtsDays) {
       cols.push({
-        title: 'Срок ОМТС', key: 'omtsDays', width: 80,
+        title: 'Срок ОМТС',
+        key: 'omtsDays',
+        width: 80,
         sorter: (a: PaymentRequest, b: PaymentRequest) => {
           if (!a.omtsEnteredAt && !b.omtsEnteredAt) return 0
           if (!a.omtsEnteredAt) return 1
           if (!b.omtsEnteredAt) return -1
-          return calculateDays(a.omtsEnteredAt, a.omtsApprovedAt) - calculateDays(b.omtsEnteredAt, b.omtsApprovedAt)
+          return (
+            calculateDays(a.omtsEnteredAt, a.omtsApprovedAt) -
+            calculateDays(b.omtsEnteredAt, b.omtsApprovedAt)
+          )
         },
         render: (_: unknown, record: PaymentRequest) => {
           if (!record.omtsEnteredAt) return <span style={{ color: '#bfbfbf' }}>—</span>
@@ -455,46 +658,72 @@ const RequestsTable = (props: RequestsTableProps) => {
 
     if (showApprovedDate) {
       cols.push({
-        title: 'Дата согласования', dataIndex: 'approvedAt', key: 'approvedAt', width: 100,
-        sorter: (a: PaymentRequest, b: PaymentRequest) => new Date(a.approvedAt ?? '').getTime() - new Date(b.approvedAt ?? '').getTime(),
+        title: 'Дата согласования',
+        dataIndex: 'approvedAt',
+        key: 'approvedAt',
+        width: 100,
+        sorter: (a: PaymentRequest, b: PaymentRequest) =>
+          new Date(a.approvedAt ?? '').getTime() - new Date(b.approvedAt ?? '').getTime(),
         render: (date: string | null) => formatDateShort(date),
       })
     }
 
     if (showRejectedDate) {
       cols.push({
-        title: 'Дата отклонения', dataIndex: 'rejectedAt', key: 'rejectedAt', width: 100,
-        sorter: (a: PaymentRequest, b: PaymentRequest) => new Date(a.rejectedAt ?? '').getTime() - new Date(b.rejectedAt ?? '').getTime(),
+        title: 'Дата отклонения',
+        dataIndex: 'rejectedAt',
+        key: 'rejectedAt',
+        width: 100,
+        sorter: (a: PaymentRequest, b: PaymentRequest) =>
+          new Date(a.rejectedAt ?? '').getTime() - new Date(b.rejectedAt ?? '').getTime(),
         render: (date: string | null) => formatDateShort(date),
       })
     }
 
     if (showDepartmentFilter && rejectionDepartments) {
-      cols.push({ title: 'Кто отклонил', key: 'rejectedBy', width: 180, filters: rejectionDepartments, onFilter: () => true })
+      cols.push({
+        title: 'Кто отклонил',
+        key: 'rejectedBy',
+        width: 180,
+        filters: rejectionDepartments,
+        onFilter: () => true,
+      })
     }
 
     cols.push({
-      title: 'Файлы', key: 'files', width: 70,
+      title: 'Файлы',
+      key: 'files',
+      width: 70,
       render: (_: unknown, record: PaymentRequest) => {
         if (record.totalFiles === 0) return <span style={{ color: '#bfbfbf' }}>—</span>
         if (record.uploadedFiles >= record.totalFiles) {
           return (
             <Tooltip title={`${record.totalFiles} файл(ов)`}>
-              <Space size={4}><CheckCircleOutlined style={{ color: '#52c41a' }} /><span>{record.totalFiles}</span></Space>
+              <Space size={4}>
+                <CheckCircleOutlined style={{ color: '#52c41a' }} />
+                <span>{record.totalFiles}</span>
+              </Space>
             </Tooltip>
           )
         }
-        return <span style={{ color: '#fa8c16' }}>{record.uploadedFiles}/{record.totalFiles}</span>
+        return (
+          <span style={{ color: '#fa8c16' }}>
+            {record.uploadedFiles}/{record.totalFiles}
+          </span>
+        )
       },
     })
 
     if (isCounterpartyUser && totalStages && totalStages > 0) {
       cols.push({
-        title: 'Согласование', key: 'approval', width: 160,
+        title: 'Согласование',
+        key: 'approval',
+        width: 160,
         sorter: (a: PaymentRequest, b: PaymentRequest) => {
           const getWeight = (r: PaymentRequest) => {
             if (r.approvedAt) return 3000
-            if (r.currentStage && !r.withdrawnAt && !r.rejectedAt) return 2000 + (r.currentStage || 0)
+            if (r.currentStage && !r.withdrawnAt && !r.rejectedAt)
+              return 2000 + (r.currentStage || 0)
             if (r.rejectedAt) return 1000
             return 0
           }
@@ -502,46 +731,121 @@ const RequestsTable = (props: RequestsTableProps) => {
         },
         render: (_: unknown, record: PaymentRequest) => {
           if (uploadTasks?.[record.id]?.status === 'error') {
-            return <Tooltip title="Ошибка загрузки файлов"><Space size={4}><CloseCircleOutlined style={{ color: '#f5222d' }} /><span style={{ color: '#f5222d', fontSize: 12 }}>Ошибка загрузки</span></Space></Tooltip>
+            return (
+              <Tooltip title="Ошибка загрузки файлов">
+                <Space size={4}>
+                  <CloseCircleOutlined style={{ color: '#f5222d' }} />
+                  <span style={{ color: '#f5222d', fontSize: 12 }}>Ошибка загрузки</span>
+                </Space>
+              </Tooltip>
+            )
           }
-          if (record.approvedAt) return <Tooltip title="Согласовано"><div style={{ width: '80%' }}><Progress percent={100} size={{ height: 5 }} status="success" showInfo={false} /></div></Tooltip>
+          if (record.approvedAt)
+            return (
+              <Tooltip title="Согласовано">
+                <div style={{ width: '80%' }}>
+                  <Progress percent={100} size={{ height: 5 }} status="success" showInfo={false} />
+                </div>
+              </Tooltip>
+            )
           if (record.rejectedAt) {
             const rejectedPercent = record.rejectedStage === 1 ? 50 : 100
-            return <Tooltip title={`Отклонено на ${record.rejectedStage === 1 ? 'Штабе' : 'ОМТС'}`}><div style={{ width: '80%' }}><Progress percent={rejectedPercent} size={{ height: 5 }} status="exception" showInfo={false} /></div></Tooltip>
+            return (
+              <Tooltip title={`Отклонено на ${record.rejectedStage === 1 ? 'Штабе' : 'ОМТС'}`}>
+                <div style={{ width: '80%' }}>
+                  <Progress
+                    percent={rejectedPercent}
+                    size={{ height: 5 }}
+                    status="exception"
+                    showInfo={false}
+                  />
+                </div>
+              </Tooltip>
+            )
           }
-          if (record.withdrawnAt || !record.currentStage) return <span style={{ color: '#bfbfbf' }}>—</span>
+          if (record.withdrawnAt || !record.currentStage)
+            return <span style={{ color: '#bfbfbf' }}>—</span>
           const completedStages = record.currentStage - 1
           const percent = Math.round((completedStages / totalStages) * 100)
           const stageLabel = record.currentStage === 1 ? 'Штаб' : 'ОМТС'
-          return <Tooltip title={`На стадии ${stageLabel}`}><div style={{ width: '80%' }}><Progress percent={percent} size={{ height: 5 }} strokeColor="#fa8c16" showInfo={false} /></div></Tooltip>
+          return (
+            <Tooltip title={`На стадии ${stageLabel}`}>
+              <div style={{ width: '80%' }}>
+                <Progress
+                  percent={percent}
+                  size={{ height: 5 }}
+                  strokeColor="#fa8c16"
+                  showInfo={false}
+                />
+              </div>
+            </Tooltip>
+          )
         },
       })
     }
 
     cols.push({
-      title: 'Действия', key: 'actions', width: showApprovalActions ? 140 : 126, fixed: 'right' as const,
+      title: 'Действия',
+      key: 'actions',
+      width: showApprovalActions ? 140 : 126,
+      fixed: 'right' as const,
       render: (_: unknown, record: PaymentRequest) => (
         <Space>
-          <Tooltip title="Просмотр"><Button icon={<EyeOutlined />} size="small" onClick={() => onView(record)} /></Tooltip>
+          <Tooltip title="Просмотр">
+            <Button icon={<EyeOutlined />} size="small" onClick={() => onView(record)} />
+          </Tooltip>
           {showApprovalActions && (
             <>
               <Tooltip title="Согласовать">
-                <Popconfirm title="Согласование заявки" description="Подтвердите корректность всех файлов и условий" onConfirm={() => onApprove?.(record.id, '')} okText="Согласовать" cancelText="Отмена">
+                <Popconfirm
+                  title="Согласование заявки"
+                  description="Подтвердите корректность всех файлов и условий"
+                  onConfirm={() => onApprove?.(record.id, '')}
+                  okText="Согласовать"
+                  cancelText="Отмена"
+                >
                   <Button type="primary" icon={<CheckOutlined />} size="small" />
                 </Popconfirm>
               </Tooltip>
-              <Tooltip title="Отклонить"><Button danger icon={<StopOutlined />} size="small" onClick={() => setRejectModalId(record.id)} /></Tooltip>
+              <Tooltip title="Отклонить">
+                <Button
+                  danger
+                  icon={<StopOutlined />}
+                  size="small"
+                  onClick={() => setRejectModalId(record.id)}
+                />
+              </Tooltip>
             </>
           )}
           {isCounterpartyUser && onResubmit && record.rejectedAt && (
-            <Tooltip title="Отправить повторно"><Button icon={<RedoOutlined />} type="primary" size="small" onClick={() => onResubmit(record)} /></Tooltip>
+            <Tooltip title="Отправить повторно">
+              <Button
+                icon={<RedoOutlined />}
+                type="primary"
+                size="small"
+                onClick={() => onResubmit(record)}
+              />
+            </Tooltip>
           )}
           {!isCounterpartyUser && statusOptions && onStatusChange && !showApprovalActions && (
-            <Select size="small" style={{ width: 150 }} value={record.statusId} options={statusOptions} loading={statusChangingId === record.id} onChange={(val) => onStatusChange(record.id, val)} />
+            <Select
+              size="small"
+              style={{ width: 150 }}
+              value={record.statusId}
+              options={statusOptions}
+              loading={statusChangingId === record.id}
+              onChange={(val) => onStatusChange(record.id, val)}
+            />
           )}
           {isAdmin && onDelete && !record.isDeleted && (
-            <Popconfirm title="Удалить заявку?" description="Заявка станет неактивной, но данные и файлы сохранятся" onConfirm={() => onDelete(record.id)}>
-              <Tooltip title="Удалить"><Button icon={<DeleteOutlined />} danger size="small" /></Tooltip>
+            <Popconfirm
+              title="Удалить заявку?"
+              description="Заявка станет неактивной, но данные и файлы сохранятся"
+              onConfirm={() => onDelete(record.id)}
+            >
+              <Tooltip title="Удалить">
+                <Button icon={<DeleteOutlined />} danger size="small" />
+              </Tooltip>
             </Popconfirm>
           )}
         </Space>
@@ -550,11 +854,32 @@ const RequestsTable = (props: RequestsTableProps) => {
 
     return cols
   }, [
-    isMobile, hideCounterpartyColumn, statusFilters, unreadCounts,
-    showResponsibleColumn, canAssignResponsible, omtsUsers, onAssignResponsible,
-    showOmtsDays, showApprovedDate, showRejectedDate, showDepartmentFilter, rejectionDepartments,
-    isCounterpartyUser, totalStages, uploadTasks, showApprovalActions,
-    onView, onApprove, onResubmit, onDelete, isAdmin, statusOptions, onStatusChange, statusChangingId, onReject,
+    isMobile,
+    hideCounterpartyColumn,
+    statusFilters,
+    unreadCounts,
+    showResponsibleColumn,
+    canAssignResponsible,
+    omtsUsers,
+    onAssignResponsible,
+    showOmtsDays,
+    showApprovedDate,
+    showRejectedDate,
+    showDepartmentFilter,
+    rejectionDepartments,
+    isCounterpartyUser,
+    totalStages,
+    uploadTasks,
+    showApprovalActions,
+    onView,
+    onApprove,
+    onResubmit,
+    onDelete,
+    isAdmin,
+    statusOptions,
+    onStatusChange,
+    statusChangingId,
+    onReject,
   ])
 
   // Применяем пользовательский конфиг к десктопным столбцам
@@ -580,7 +905,10 @@ const RequestsTable = (props: RequestsTableProps) => {
   }, [filteredRequests, currentPage, pageSize])
 
   return (
-    <div ref={containerRef} style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+    <div
+      ref={containerRef}
+      style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
+    >
       <Table
         columns={columns as any}
         dataSource={paginatedData}
@@ -592,7 +920,12 @@ const RequestsTable = (props: RequestsTableProps) => {
         onRow={(record: PaymentRequest) => ({
           onClick: (e: React.MouseEvent) => {
             const target = e.target as HTMLElement
-            if (target.closest('button, a, .ant-btn, .ant-select, .ant-popconfirm, .ant-popover, .ant-dropdown')) return
+            if (
+              target.closest(
+                'button, a, .ant-btn, .ant-select, .ant-popconfirm, .ant-popover, .ant-dropdown',
+              )
+            )
+              return
             onView(record)
           },
           style: { cursor: 'pointer' },
@@ -604,7 +937,15 @@ const RequestsTable = (props: RequestsTableProps) => {
           return classes.join(' ')
         }}
       />
-      <div ref={paginationRef} style={{ display: 'flex', justifyContent: 'flex-end', padding: isMobile ? '8px 0 60px 0' : '12px 0', flexShrink: 0 }}>
+      <div
+        ref={paginationRef}
+        style={{
+          display: 'flex',
+          justifyContent: 'flex-end',
+          padding: isMobile ? '8px 0 60px 0' : '12px 0',
+          flexShrink: 0,
+        }}
+      >
         <Pagination
           current={currentPage}
           pageSize={pageSize}
