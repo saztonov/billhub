@@ -308,10 +308,12 @@ docker compose up -d
 
 ```bash
 nano /var/www/billhub/data/billhub-app/server/.env
-docker compose restart backend
+docker compose up -d backend
 ```
 
-Пересборка не нужна — env подключается при запуске контейнера.
+Пересборка образа не нужна. Важно: применять правки env через `up -d` (пересоздание контейнера), а
+НЕ `docker compose restart` — restart не перечитывает `env_file` (переменные фиксируются при создании
+контейнера), и старые значения останутся.
 
 ### Очистка старых образов (billhub)
 
