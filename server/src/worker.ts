@@ -16,7 +16,6 @@ import { createServer } from 'node:http';
 import postgres from 'postgres';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import * as schema from './db/schema/index.js';
-import { pgNumericAsNumberTypes } from './db/pg-types.js';
 import { config } from './config.js';
 import { resolveDbProvider } from './plugins/repositories.js';
 import { createFileProcessingWorker } from './queues/fileProcessingWorker.js';
@@ -41,12 +40,7 @@ async function main(): Promise<void> {
         ? config.databasePoolMax
         : 10;
     // prepare: false — transaction-mode пул Yandex Managed PG (:6432) несовместим с prepared statements.
-    pgClient = postgres(config.databaseUrl, {
-      max,
-      prepare: false,
-      onnotice: () => {},
-      types: pgNumericAsNumberTypes,
-    });
+    pgClient = postgres(config.databaseUrl, { max, prepare: false, onnotice: () => {} });
     db = drizzle(pgClient, { schema });
     jobsLog = new DrizzleJobsLogRepository(db);
     logger.info({ poolMax: max }, 'worker: Drizzle-пул для jobs_log инициализирован');

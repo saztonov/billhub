@@ -76,11 +76,6 @@ export interface RecognizedMaterialInsert {
   amount: number | null;
 }
 
-/** number → string для numeric-колонок Drizzle; null/undefined → null. */
-function numStr(v: number | null | undefined): string | null {
-  return v == null ? null : String(v);
-}
-
 export class OcrProcessingRepository {
   constructor(private readonly db: Db) {}
 
@@ -149,7 +144,7 @@ export class OcrProcessingRepository {
         attemptNumber: entry.attemptNumber ?? 1,
         inputTokens: entry.inputTokens ?? null,
         outputTokens: entry.outputTokens ?? null,
-        totalCost: numStr(entry.totalCost),
+        totalCost: entry.totalCost ?? null,
         completedAt: entry.completedAt ?? null,
       })
       .returning({ id: ocrRecognitionLog.id });
@@ -165,7 +160,7 @@ export class OcrProcessingRepository {
         errorMessage: patch.errorMessage ?? null,
         inputTokens: patch.inputTokens ?? null,
         outputTokens: patch.outputTokens ?? null,
-        totalCost: numStr(patch.totalCost),
+        totalCost: patch.totalCost ?? null,
         completedAt: patch.completedAt ?? null,
       })
       .where(eq(ocrRecognitionLog.id, id));
@@ -211,9 +206,9 @@ export class OcrProcessingRepository {
       pageNumber: row.pageNumber,
       position: row.position,
       article: row.article,
-      quantity: numStr(row.quantity),
-      price: numStr(row.price),
-      amount: numStr(row.amount),
+      quantity: row.quantity ?? null,
+      price: row.price ?? null,
+      amount: row.amount ?? null,
     });
   }
 }

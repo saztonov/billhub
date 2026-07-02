@@ -38,10 +38,6 @@ import { NotFoundError, ForbiddenError } from '../types.js';
 type Db = PostgresJsDatabase<typeof schema>;
 type AnyTx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
-function numStr(n: number | null | undefined): string | null {
-  return n != null ? String(n) : null;
-}
-
 async function statusIdByCode(tx: Db | AnyTx, entityType: string, code: string): Promise<string> {
   const [row] = await tx
     .select({ id: statuses.id })
@@ -139,7 +135,7 @@ export class DrizzlePaymentRequestRepository implements PaymentRequestRepository
           shippingConditionId: input.shippingConditionId,
           comment: input.comment || null,
           // как в исходном роуте: `invoice_amount: body.invoiceAmount || null` (0 ⇒ null).
-          invoiceAmount: input.invoiceAmount ? String(input.invoiceAmount) : null,
+          invoiceAmount: input.invoiceAmount || null,
           supplierId: input.supplierId || null,
           totalFiles: input.totalFiles,
           uploadedFiles: 0,
@@ -236,8 +232,11 @@ export class DrizzlePaymentRequestRepository implements PaymentRequestRepository
         push('comment', snap.comment, patch.comment ?? null);
       }
       let invoiceAmountChanged = false;
-      if (patch.invoiceAmount !== undefined && numStr(patch.invoiceAmount) !== snap.invoiceAmount) {
-        updates.invoiceAmount = numStr(patch.invoiceAmount);
+      if (
+        patch.invoiceAmount !== undefined &&
+        (patch.invoiceAmount ?? null) !== snap.invoiceAmount
+      ) {
+        updates.invoiceAmount = patch.invoiceAmount ?? null;
         push('invoice_amount', snap.invoiceAmount, patch.invoiceAmount ?? null);
         invoiceAmountChanged = true;
       }
@@ -342,7 +341,7 @@ export class DrizzlePaymentRequestRepository implements PaymentRequestRepository
         updateData.deliveryDays = input.fieldUpdates.deliveryDays;
         updateData.deliveryDaysType = input.fieldUpdates.deliveryDaysType;
         updateData.shippingConditionId = input.fieldUpdates.shippingConditionId;
-        updateData.invoiceAmount = numStr(input.fieldUpdates.invoiceAmount);
+        updateData.invoiceAmount = input.fieldUpdates.invoiceAmount ?? null;
       }
 
       await tx.update(paymentRequests).set(updateData).where(eq(paymentRequests.id, id));
@@ -410,7 +409,7 @@ export class DrizzlePaymentRequestRepository implements PaymentRequestRepository
         .set({
           dpNumber: dp.dpNumber,
           dpDate: dp.dpDate,
-          dpAmount: numStr(dp.dpAmount),
+          dpAmount: dp.dpAmount ?? null,
           dpFileKey: dp.dpFileKey,
           dpFileName: dp.dpFileName,
         })

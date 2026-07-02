@@ -148,7 +148,7 @@ export class DrizzleMaterialRepository implements MaterialRepository {
     await this.db.transaction(async (tx) => {
       await tx
         .update(recognizedMaterials)
-        .set({ estimateQuantity: estimateQuantity != null ? String(estimateQuantity) : null })
+        .set({ estimateQuantity })
         .where(eq(recognizedMaterials.id, id));
     });
   }

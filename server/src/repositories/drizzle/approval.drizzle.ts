@@ -823,23 +823,17 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
         deliveryDays: fieldUpdates.deliveryDays,
         deliveryDaysType: fieldUpdates.deliveryDaysType,
         shippingConditionId: fieldUpdates.shippingConditionId,
-        invoiceAmount: String(fieldUpdates.invoiceAmount),
+        invoiceAmount: fieldUpdates.invoiceAmount ?? null,
         withdrawnAt: null,
         withdrawalComment: null,
       };
       if (wasApproved) updateData.approvedAt = nowIso();
-      // Эквивалентность с исходным роутом: там сравнивается `cur.invoice_amount !== invoiceAmount`,
-      // где invoice_amount приходит из PostgREST СТРОКОЙ ("200.00"), а invoiceAmount — число (200).
-      // Строгое !== строки и числа ВСЕГДА истинно при non-null, поэтому старая сумма архивируется
-      // при КАЖДОМ завершении доработки с заданной суммой (в т.ч. без её изменения). Drizzle тоже
-      // читает numeric строкой (string-mode), поэтому повторяем то же сравнение строки с числом —
-      // Number()-приведение сломало бы эквивалентность (пропускало бы no-op архивацию).
-      if (
-        cur.invoiceAmount != null &&
-        (cur.invoiceAmount as unknown) !== fieldUpdates.invoiceAmount
-      ) {
+      // Исходный роут (PostgREST) сравнивал строку "200.00" с числом 200 — строгое !== ВСЕГДА
+      // истинно при non-null, т.е. старая сумма архивируется при КАЖДОМ завершении доработки с
+      // заданной суммой (в т.ч. без её изменения). Сохраняем ровно это поведение: numeric теперь
+      // читается числом (mode:'number'), поэтому «всегда при non-null» задаём условие явно.
+      if (cur.invoiceAmount != null) {
         const history = ((cur.invoiceAmountHistory as Row[]) ?? []).slice();
-        // Архивируем СЫРОЕ строковое значение numeric (как PostgREST), без Number().
         history.push({ amount: cur.invoiceAmount, changedAt: nowIso() });
         updateData.invoiceAmountHistory = history;
       }

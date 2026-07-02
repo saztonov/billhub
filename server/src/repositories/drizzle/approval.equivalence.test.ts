@@ -220,7 +220,7 @@ describe.skipIf(!RUN)('Approvals equivalence (Supabase fake ↔ Drizzle testcont
       previousStatusId: pr.previous_status_id ?? null,
       withdrawnAt: pr.withdrawn_at ?? null,
       withdrawalComment: pr.withdrawal_comment ?? null,
-      invoiceAmount: pr.invoice_amount != null ? String(pr.invoice_amount) : null,
+      invoiceAmount: pr.invoice_amount != null ? Number(pr.invoice_amount) : null,
       stageHistory: [],
       invoiceAmountHistory: [],
     });

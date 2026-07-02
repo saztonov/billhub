@@ -60,7 +60,7 @@ export class DrizzlePaymentRepository implements PaymentRepository {
 
     await tx
       .update(paymentRequests)
-      .set({ totalPaid: String(totalPaid), paidStatusId: st.id })
+      .set({ totalPaid, paidStatusId: st.id })
       .where(eq(paymentRequests.id, paymentRequestId));
 
     return { totalPaid, paidStatusId: st.id };
@@ -116,7 +116,7 @@ export class DrizzlePaymentRepository implements PaymentRepository {
           paymentRequestId: input.paymentRequestId,
           paymentNumber: nextNumber,
           paymentDate: input.paymentDate,
-          amount: String(input.amount),
+          amount: input.amount,
           createdBy: input.createdBy,
         })
         .returning({ id: paymentPayments.id });
@@ -132,7 +132,7 @@ export class DrizzlePaymentRepository implements PaymentRepository {
         updatedAt: new Date().toISOString(),
       };
       if (patch.paymentDate !== undefined) updates.paymentDate = patch.paymentDate;
-      if (patch.amount !== undefined) updates.amount = String(patch.amount);
+      if (patch.amount !== undefined) updates.amount = patch.amount;
       await tx.update(paymentPayments).set(updates).where(eq(paymentPayments.id, id));
       const prId = await this.paymentRequestIdOf(tx, id);
       if (prId) await this.recalcPaidStatus(tx, prId);

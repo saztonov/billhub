@@ -47,7 +47,9 @@ export const distributionLetters = pgTable('distribution_letters', {
   siteId: uuid('site_id').notNull(),
   number: text('number').notNull().default(''),
   date: date('date', { mode: 'string' }),
-  totalAmount: numeric('total_amount', { precision: 15, scale: 2 }).notNull().default('0'),
+  totalAmount: numeric('total_amount', { precision: 15, scale: 2, mode: 'number' })
+    .notNull()
+    .default(0),
   status: text('status').notNull().default('draft'),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
 });

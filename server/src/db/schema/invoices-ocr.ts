@@ -18,7 +18,9 @@ export const invoices = pgTable('invoices', {
   counterpartyId: uuid('counterparty_id').notNull(),
   number: text('number').notNull().default(''),
   date: date('date', { mode: 'string' }),
-  totalAmount: numeric('total_amount', { precision: 15, scale: 2 }).notNull().default('0'),
+  totalAmount: numeric('total_amount', { precision: 15, scale: 2, mode: 'number' })
+    .notNull()
+    .default(0),
   status: text('status').notNull().default('new'),
   fileKey: text('file_key').notNull().default(''),
   fileName: text('file_name').notNull().default(''),
@@ -34,9 +36,9 @@ export const specifications = pgTable('specifications', {
   position: integer('position').notNull().default(1),
   name: text('name').notNull().default(''),
   unit: text('unit').notNull().default(''),
-  quantity: numeric('quantity', { precision: 15, scale: 4 }).notNull().default('0'),
-  price: numeric('price', { precision: 15, scale: 2 }).notNull().default('0'),
-  amount: numeric('amount', { precision: 15, scale: 2 }).notNull().default('0'),
+  quantity: numeric('quantity', { precision: 15, scale: 4, mode: 'number' }).notNull().default(0),
+  price: numeric('price', { precision: 15, scale: 2, mode: 'number' }).notNull().default(0),
+  amount: numeric('amount', { precision: 15, scale: 2, mode: 'number' }).notNull().default(0),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
 });
 
@@ -58,7 +60,7 @@ export const ocrRecognitionLog = pgTable('ocr_recognition_log', {
   attemptNumber: integer('attempt_number').notNull().default(1),
   inputTokens: integer('input_tokens'),
   outputTokens: integer('output_tokens'),
-  totalCost: numeric('total_cost', { precision: 15, scale: 6 }),
+  totalCost: numeric('total_cost', { precision: 15, scale: 6, mode: 'number' }),
   startedAt: timestamp('started_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
   completedAt: timestamp('completed_at', { withTimezone: true, mode: 'string' }),
 });
@@ -71,10 +73,10 @@ export const recognizedMaterials = pgTable('recognized_materials', {
   pageNumber: integer('page_number'),
   position: integer('position').notNull(),
   article: text('article'),
-  quantity: numeric('quantity', { precision: 15, scale: 4 }),
-  price: numeric('price', { precision: 15, scale: 2 }),
-  amount: numeric('amount', { precision: 15, scale: 2 }),
-  estimateQuantity: numeric('estimate_quantity', { precision: 15, scale: 4 }),
+  quantity: numeric('quantity', { precision: 15, scale: 4, mode: 'number' }),
+  price: numeric('price', { precision: 15, scale: 2, mode: 'number' }),
+  amount: numeric('amount', { precision: 15, scale: 2, mode: 'number' }),
+  estimateQuantity: numeric('estimate_quantity', { precision: 15, scale: 4, mode: 'number' }),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
 });
 

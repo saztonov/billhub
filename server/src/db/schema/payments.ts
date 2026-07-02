@@ -19,7 +19,7 @@ export const paymentPayments = pgTable('payment_payments', {
   paymentRequestId: uuid('payment_request_id').notNull(),
   paymentNumber: integer('payment_number').notNull(),
   paymentDate: date('payment_date', { mode: 'string' }).notNull(),
-  amount: numeric('amount', { precision: 15, scale: 2 }).notNull(),
+  amount: numeric('amount', { precision: 15, scale: 2, mode: 'number' }).notNull(),
   createdBy: uuid('created_by').notNull(),
   updatedBy: uuid('updated_by'),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
