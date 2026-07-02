@@ -83,13 +83,59 @@ main() {
   esac
 
   step_dump
+  step_drop_fks
   step_restore
+  step_readd_fks
   verify_counts
   verify_schema
   step_import_passwords
   step_storage_key_fix
 
   log "ГОТОВО. Наполнение копией prod-данных + verification зелёные."
+}
+
+# FK-определения снятых constraint'ов (между step_drop_fks и step_readd_fks).
+FK_DEFS_FILE=""
+
+# --- Шаг 1.5: снять FK-ограничения перед restore -----------------------------
+# managed Postgres (Yandex/RDS/Cloud SQL) не даёт суперпользователя, поэтому
+# --disable-triggers/session_replication_role=replica недоступны или ненадёжны
+# (через connection-pooler в transaction-режиме SET может не сохраняться между
+# командами pg_restore). Загружаем данные без FK вообще, проверяем целостность
+# при обратном ADD CONSTRAINT (padает с понятной ошибкой, если данные битые).
+step_drop_fks() {
+  if [[ "${DRY_RUN:-0}" == "1" ]]; then log "Шаг 1.5: снятие FK пропущено (dry-run)."; return; fi
+  log "Шаг 1.5: снятие FK-ограничений public.* перед restore (владелец — не требует суперпользователя) …"
+  FK_DEFS_FILE="$(mktemp)"
+  psql "$DATABASE_MIGRATION_URL" -v ON_ERROR_STOP=on -tAc "
+    SELECT 'ALTER TABLE public.' || quote_ident(rel.relname) || ' ADD CONSTRAINT '
+           || quote_ident(con.conname) || ' ' || pg_get_constraintdef(con.oid) || ';'
+    FROM pg_constraint con
+    JOIN pg_class rel ON rel.oid = con.conrelid
+    JOIN pg_namespace nsp ON nsp.oid = rel.relnamespace
+    WHERE con.contype = 'f' AND nsp.nspname = 'public'
+  " >"$FK_DEFS_FILE"
+  local n; n="$(wc -l <"$FK_DEFS_FILE" | tr -d '[:space:]')"
+  psql "$DATABASE_MIGRATION_URL" -v ON_ERROR_STOP=on -tAc "
+    SELECT 'ALTER TABLE public.' || quote_ident(rel.relname) || ' DROP CONSTRAINT '
+           || quote_ident(con.conname) || ';'
+    FROM pg_constraint con
+    JOIN pg_class rel ON rel.oid = con.conrelid
+    JOIN pg_namespace nsp ON nsp.oid = rel.relnamespace
+    WHERE con.contype = 'f' AND nsp.nspname = 'public'
+  " | psql "$DATABASE_MIGRATION_URL" -v ON_ERROR_STOP=on -q -f -
+  log "Снято FK: $n (определения сохранены: $FK_DEFS_FILE)."
+}
+
+# --- Шаг 2.5: вернуть FK-ограничения после restore ---------------------------
+step_readd_fks() {
+  if [[ "${DRY_RUN:-0}" == "1" ]]; then log "Шаг 2.5: возврат FK пропущен (dry-run)."; return; fi
+  [[ -n "$FK_DEFS_FILE" && -s "$FK_DEFS_FILE" ]] || { log "Шаг 2.5: нет сохранённых FK — пропуск."; return; }
+  log "Шаг 2.5: восстановление FK-ограничений (валидирует целостность перенесённых данных) …"
+  psql "$DATABASE_MIGRATION_URL" -v ON_ERROR_STOP=on -q -f "$FK_DEFS_FILE" \
+    || fail "не удалось восстановить FK — данные после restore нарушают целостность (см. вывод psql выше)."
+  rm -f "$FK_DEFS_FILE"
+  log "FK-ограничения восстановлены и провалидированы."
 }
 
 # --- Шаг 1: pg_dump --data-only от Supabase (read-only) ---------------------
@@ -113,13 +159,12 @@ step_restore() {
   # Восстанавливаем ТОЛЬКО public: схемы auth на Yandex нет (sed-фильтр bootstrap её убрал).
   # auth.users в дампе нужен только архивно; bcrypt-хэши берёт import-passwords прямо из Supabase.
   #
-  # --disable-triggers НЕ используется: он делает ALTER TABLE ... DISABLE TRIGGER ALL, что требует
-  # реального суперпользователя и падает с "permission denied: ... is a system trigger" на managed
-  # Postgres (Yandex/RDS/Cloud SQL — суперюзер клиенту недоступен нигде). Вместо этого отключаем
-  # срабатывание триггеров (включая проверки FK) через GUC session_replication_role=replica —
-  # её обычный владелец БД устанавливать может, ALTER TABLE не требуется.
-  log "Шаг 2/5: pg_restore -j 4 --data-only --schema=public в Yandex PG (session_replication_role=replica) …"
-  run "PGOPTIONS='-c session_replication_role=replica' pg_restore --dbname='$DATABASE_MIGRATION_URL' \
+  # FK-ограничения сняты в step_drop_fks (managed Postgres не даёт суперпользователя для
+  # --disable-triggers; session_replication_role=replica через connection-pooler Yandex (порт 6432,
+  # Odyssey в transaction-режиме) на практике не сохраняется между командами pg_restore — проверено).
+  # Поэтому -j 4 безопасен независимо от порядка загрузки таблиц.
+  log "Шаг 2/5: pg_restore -j 4 --data-only --schema=public в Yandex PG …"
+  run "pg_restore --dbname='$DATABASE_MIGRATION_URL' \
     --data-only --no-owner --no-privileges \
     --schema=public -j 4 \
     '$DUMP_FILE' 2> '$repo_root/docs/cutover-artifacts/cutover_db_pg_restore.log' || true"
