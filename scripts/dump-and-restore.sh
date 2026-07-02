@@ -213,7 +213,6 @@ verify_schema() {
   log "Шаг 3/5b: сверка набора таблиц Yandex == schema.sql + ожидаемые новые …"
 
   local tmp; tmp="$(mktemp -d)"
-  trap 'rm -rf "$tmp"' RETURN
 
   yandex_tables | sort -u >"$tmp/yandex.txt"
   schema_sql_tables >"$tmp/schema.txt"
@@ -248,6 +247,7 @@ verify_schema() {
     grep -qx "$nt" "$tmp/yandex.txt" || fail "ожидаемая новая таблица отсутствует: $nt"
   done
   log "Набор таблиц = schema.sql + {${EXPECTED_NEW[*]} (+ партиции audit_log_*)} + _migrations. Расхождений нет."
+  rm -rf "$tmp"
 }
 
 # --- Шаг 4: import-passwords (bcrypt auth.users → users.password_hash) ------
