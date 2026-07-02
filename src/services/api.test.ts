@@ -209,6 +209,63 @@ describe('api.post FormData / JSON', () => {
   })
 })
 
+describe('CSRF double-submit', () => {
+  afterEach(() => {
+    document.cookie = 'csrf_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/'
+  })
+
+  it('api.post добавляет X-CSRF-Token из cookie csrf_token', async () => {
+    document.cookie = 'csrf_token=secret-token-123; path=/'
+    let receivedHeader: string | null = null
+    server.use(
+      http.post(`${BASE}/api/write`, ({ request }) => {
+        receivedHeader = request.headers.get('x-csrf-token')
+        return HttpResponse.json({ ok: true })
+      }),
+    )
+    await api.post('/api/write', { foo: 'bar' })
+    expect(receivedHeader).toBe('secret-token-123')
+  })
+
+  it('api.get НЕ добавляет X-CSRF-Token (safe-метод)', async () => {
+    document.cookie = 'csrf_token=secret-token-123; path=/'
+    let receivedHeader: string | null | undefined = undefined
+    server.use(
+      http.get(`${BASE}/api/read`, ({ request }) => {
+        receivedHeader = request.headers.get('x-csrf-token')
+        return HttpResponse.json({ ok: true })
+      }),
+    )
+    await api.get('/api/read')
+    expect(receivedHeader).toBeNull()
+  })
+
+  it('refreshAccessToken добавляет X-CSRF-Token из cookie', async () => {
+    document.cookie = 'csrf_token=refresh-csrf-456; path=/'
+    let receivedHeader: string | null = null
+    server.use(
+      http.post(`${BASE}/api/auth/refresh`, ({ request }) => {
+        receivedHeader = request.headers.get('x-csrf-token')
+        return HttpResponse.json({ accessTokenExpiresAt: Date.now() + 60000 })
+      }),
+    )
+    await refreshAccessToken()
+    expect(receivedHeader).toBe('refresh-csrf-456')
+  })
+
+  it('без cookie заголовок X-CSRF-Token не отправляется (сервер вернёт 403)', async () => {
+    let receivedHeader: string | null | undefined = undefined
+    server.use(
+      http.post(`${BASE}/api/write-no-cookie`, ({ request }) => {
+        receivedHeader = request.headers.get('x-csrf-token')
+        return HttpResponse.json({ ok: true })
+      }),
+    )
+    await api.post('/api/write-no-cookie', {})
+    expect(receivedHeader).toBeNull()
+  })
+})
+
 describe('api.putBinary', () => {
   it('отправляет Blob с заданным Content-Type', async () => {
     let contentType = ''

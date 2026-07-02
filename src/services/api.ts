@@ -1,5 +1,13 @@
 const BASE_URL = import.meta.env.VITE_API_URL || ''
 
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
+
+/** Читает значение cookie по имени (csrf_token отдаётся с httpOnly=false для double-submit). */
+function getCookie(name: string): string | null {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`))
+  return match ? decodeURIComponent(match[1]) : null
+}
+
 /** Ошибка API с HTTP-статусом */
 export class ApiError extends Error {
   status: number
@@ -51,9 +59,14 @@ function redirectToLogin(): never {
 /** Внутренняя реализация запроса refresh */
 async function doRefresh(): Promise<RefreshResult> {
   try {
+    const headers = new Headers()
+    const csrfToken = getCookie('csrf_token')
+    if (csrfToken) headers.set('X-CSRF-Token', csrfToken)
+
     const res = await fetch(`${BASE_URL}/api/auth/refresh`, {
       method: 'POST',
       credentials: 'include',
+      headers,
     })
     if (!res.ok) return { ok: false }
     try {
@@ -93,7 +106,12 @@ interface FetchOptions {
 }
 
 /** Базовый fetch-обёртка */
-async function apiFetch<T>(url: string, options?: RequestInit, isRetry = false, fetchOptions?: FetchOptions): Promise<T> {
+async function apiFetch<T>(
+  url: string,
+  options?: RequestInit,
+  isRetry = false,
+  fetchOptions?: FetchOptions,
+): Promise<T> {
   // Блокируем запросы после начала redirect на логин
   if (isRedirecting) throw new ApiError(401, 'Требуется авторизация')
 
@@ -104,6 +122,15 @@ async function apiFetch<T>(url: string, options?: RequestInit, isRetry = false, 
   const headers = new Headers(options?.headers)
   if (!isFormData && !isBlob && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
+  }
+
+  // CSRF double-submit (standalone auth, server/src/plugins/csrf.ts): write-методы должны
+  // продублировать cookie csrf_token в заголовке. Cookie выдаётся сервером на любой GET
+  // (например, checkAuth на старте приложения), поэтому к моменту первого write она уже есть.
+  const method = (options?.method ?? 'GET').toUpperCase()
+  if (!SAFE_METHODS.has(method) && !headers.has('X-CSRF-Token')) {
+    const csrfToken = getCookie('csrf_token')
+    if (csrfToken) headers.set('X-CSRF-Token', csrfToken)
   }
 
   let res: Response
@@ -141,7 +168,9 @@ async function apiFetch<T>(url: string, options?: RequestInit, isRetry = false, 
       const body = await res.json()
       message = body.message || body.error || message
       details = body
-    } catch { /* тело ответа не JSON */ }
+    } catch {
+      /* тело ответа не JSON */
+    }
     throw new ApiError(res.status, message, details)
   }
 
@@ -151,7 +180,10 @@ async function apiFetch<T>(url: string, options?: RequestInit, isRetry = false, 
 }
 
 /** Сериализация query-параметров */
-function withParams(url: string, params?: Record<string, string | number | boolean | undefined>): string {
+function withParams(
+  url: string,
+  params?: Record<string, string | number | boolean | undefined>,
+): string {
   if (!params) return url
   const sp = new URLSearchParams()
   for (const [k, v] of Object.entries(params)) {
@@ -163,20 +195,33 @@ function withParams(url: string, params?: Record<string, string | number | boole
 
 /** Удобные методы для HTTP-запросов */
 export const api = {
-  get: <T>(url: string, params?: Record<string, string | number | boolean | undefined>, fetchOptions?: FetchOptions) =>
-    apiFetch<T>(withParams(url, params), undefined, false, fetchOptions),
+  get: <T>(
+    url: string,
+    params?: Record<string, string | number | boolean | undefined>,
+    fetchOptions?: FetchOptions,
+  ) => apiFetch<T>(withParams(url, params), undefined, false, fetchOptions),
 
   post: <T>(url: string, body?: unknown, fetchOptions?: FetchOptions) =>
-    apiFetch<T>(url, { method: 'POST', body: body !== undefined ? JSON.stringify(body) : undefined }, false, fetchOptions),
+    apiFetch<T>(
+      url,
+      { method: 'POST', body: body !== undefined ? JSON.stringify(body) : undefined },
+      false,
+      fetchOptions,
+    ),
 
   put: <T>(url: string, body?: unknown) =>
-    apiFetch<T>(url, { method: 'PUT', body: body !== undefined ? JSON.stringify(body) : undefined }),
+    apiFetch<T>(url, {
+      method: 'PUT',
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    }),
 
   patch: <T>(url: string, body?: unknown) =>
-    apiFetch<T>(url, { method: 'PATCH', body: body !== undefined ? JSON.stringify(body) : undefined }),
+    apiFetch<T>(url, {
+      method: 'PATCH',
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    }),
 
-  delete: <T>(url: string) =>
-    apiFetch<T>(url, { method: 'DELETE' }),
+  delete: <T>(url: string) => apiFetch<T>(url, { method: 'DELETE' }),
 
   /** PUT с бинарным телом (для загрузки чанков файлов) */
   putBinary: <T>(url: string, data: Blob | ArrayBuffer, contentType = 'application/octet-stream') =>
