@@ -11,6 +11,7 @@ import postgres from 'postgres';
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type { FastifyInstance } from 'fastify';
 import * as schema from '../db/schema/index.js';
+import { pgNumericAsNumberTypes } from '../db/pg-types.js';
 import { config } from '../config.js';
 import { resolveDbProvider } from './repositories.js';
 
@@ -42,7 +43,12 @@ async function databaseDrizzlePlugin(fastify: FastifyInstance): Promise<void> {
 
   // prepare: false — пул Yandex Managed PG на :6432 работает в transaction mode,
   // где prepared statements через переиспользуемые соединения ломаются.
-  const client = postgres(url, { max, prepare: false, onnotice: () => {} });
+  const client = postgres(url, {
+    max,
+    prepare: false,
+    onnotice: () => {},
+    types: pgNumericAsNumberTypes,
+  });
   const db = drizzle(client, { schema });
 
   fastify.decorate('db', db);
