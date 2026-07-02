@@ -8,7 +8,7 @@
  * Требует живой PostgreSQL — покрывается интеграционными тестами под testcontainers
  * (как и src/repositories/drizzle/**); из unit-coverage исключён.
  */
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import * as schema from '../../../db/schema/index.js';
 import { passwordResetTokens, refreshTokens, users } from '../../../db/schema/index.js';
@@ -59,11 +59,14 @@ export class DrizzleUserAuthStore implements UserAuthStore {
     };
   }
 
+  // Регистронезависимо (совместимо с UNIQUE-индексом users_email_lower_unique_idx,
+  // миграция 0005): без этого пользователи с не-lowercase email в БД не могут залогиниться,
+  // если вводят email в другом регистре.
   async findByEmail(email: string): Promise<UserAuthRecord | null> {
     const [r] = await this.db
       .select(this.cols())
       .from(users)
-      .where(eq(users.email, email))
+      .where(sql`lower(${users.email}) = lower(${email})`)
       .limit(1);
     return r ? mapUser(r) : null;
   }

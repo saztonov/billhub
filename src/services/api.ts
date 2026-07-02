@@ -144,8 +144,13 @@ async function apiFetch<T>(
     throw new ApiError(0, 'Ошибка сети')
   }
 
-  // Обработка 401: попытка refresh и повтор запроса
-  if (res.status === 401 && !isRetry) {
+  // Обработка 401: попытка refresh и повтор запроса. Для /api/auth/login 401 означает
+  // неверные credentials, а не истёкший access-токен — refresh здесь бессмысленен и глушит
+  // настоящее сообщение сервера ("Неверный email или пароль"), поэтому пропускаем и отдаём
+  // ошибку через общий парсинг тела ответа ниже.
+  const isLoginEndpoint = url === '/api/auth/login'
+
+  if (res.status === 401 && !isRetry && !isLoginEndpoint) {
     const result = await refreshAccessToken()
     if (result.ok) return apiFetch<T>(url, options, true, fetchOptions)
     if (fetchOptions?.skipAuthRedirect) {
@@ -154,7 +159,7 @@ async function apiFetch<T>(
     redirectToLogin()
   }
 
-  if (res.status === 401) {
+  if (res.status === 401 && !isLoginEndpoint) {
     if (fetchOptions?.skipAuthRedirect) {
       throw new ApiError(401, 'Требуется авторизация')
     }

@@ -117,6 +117,26 @@ describe.skipIf(!RUN)('auth Drizzle-хранилища (testcontainers PG)', () 
     expect(audit.events.some((e) => e.event === 'refresh_reuse')).toBe(true);
   });
 
+  it('DrizzleUserAuthStore.findByEmail регистронезависим (совместим с users_email_lower_unique_idx)', async () => {
+    const mixedCaseUserId = randomUUID();
+    await db.insert(users).values({
+      id: mixedCaseUserId,
+      email: 'MixedCase.User@Example.com',
+      fullName: 'Mixed Case',
+      role: 'user',
+    });
+    const userStore = new DrizzleUserAuthStore(db);
+
+    const byLower = await userStore.findByEmail('mixedcase.user@example.com');
+    expect(byLower?.id).toBe(mixedCaseUserId);
+
+    const byUpper = await userStore.findByEmail('MIXEDCASE.USER@EXAMPLE.COM');
+    expect(byUpper?.id).toBe(mixedCaseUserId);
+
+    const byOriginal = await userStore.findByEmail('MixedCase.User@Example.com');
+    expect(byOriginal?.id).toBe(mixedCaseUserId);
+  });
+
   it('DrizzleUserAuthStore.setPasswordHash + DrizzlePasswordResetStore round-trip', async () => {
     const userStore = new DrizzleUserAuthStore(db);
     await userStore.setPasswordHash(userId, '$2b$12$' + 'x'.repeat(53), new Date().toISOString());

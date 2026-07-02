@@ -177,6 +177,30 @@ describe('401 → redirect на /login', () => {
   })
 })
 
+describe('/api/auth/login 401 — не пытается refresh, отдаёт реальное сообщение сервера', () => {
+  it('401 от login пробрасывает message из тела ответа, без вызова /api/auth/refresh', async () => {
+    let refreshCalled = false
+    server.use(
+      http.post(`${BASE}/api/auth/login`, () =>
+        HttpResponse.json({ error: 'Неверный email или пароль' }, { status: 401 }),
+      ),
+      http.post(`${BASE}/api/auth/refresh`, () => {
+        refreshCalled = true
+        return new HttpResponse(null, { status: 401 })
+      }),
+    )
+    await expect(
+      api.post(
+        '/api/auth/login',
+        { email: 'a@b.ru', password: 'wrong' },
+        { skipAuthRedirect: true },
+      ),
+    ).rejects.toMatchObject({ status: 401, message: 'Неверный email или пароль' })
+    expect(refreshCalled).toBe(false)
+    expect(window.location.href).toBe('http://localhost/test')
+  })
+})
+
 describe('api.post FormData / JSON', () => {
   it('JSON-тело отправляется с Content-Type: application/json', async () => {
     let contentType = ''
