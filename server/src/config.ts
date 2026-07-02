@@ -2,7 +2,8 @@ import 'dotenv/config';
 
 interface Config {
   port: number;
-  corsOrigin: string;
+  /** Один или несколько разрешённых origin (мультидомен). Массив — если задано > 1 значения. */
+  corsOrigin: string | string[];
   nodeEnv: string;
 
   /** Supabase */
@@ -118,9 +119,22 @@ if (supabaseNeeded) {
   validateRequired(['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_JWT_SECRET']);
 }
 
+/**
+ * CORS_ORIGIN — список разрешённых origin через запятую (мультидомен).
+ * Один origin возвращается строкой, несколько — массивом (fastify отражает совпавший
+ * origin при credentials:true). Пустые элементы отбрасываются.
+ */
+function parseCorsOrigin(raw: string): string | string[] {
+  const origins = raw
+    .split(',')
+    .map((o) => o.trim())
+    .filter((o) => o.length > 0);
+  return origins.length <= 1 ? (origins[0] ?? '') : origins;
+}
+
 export const config: Config = {
   port: parseInt(envOptional('PORT', '3000'), 10),
-  corsOrigin: envOptional('CORS_ORIGIN', 'http://localhost:5173'),
+  corsOrigin: parseCorsOrigin(envOptional('CORS_ORIGIN', 'http://localhost:5173')),
   nodeEnv: envOptional('NODE_ENV', 'development'),
 
   supabaseUrl: supabaseNeeded ? env('SUPABASE_URL') : envOptional('SUPABASE_URL'),
