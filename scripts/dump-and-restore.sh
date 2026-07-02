@@ -112,11 +112,16 @@ step_dump() {
 step_restore() {
   # Восстанавливаем ТОЛЬКО public: схемы auth на Yandex нет (sed-фильтр bootstrap её убрал).
   # auth.users в дампе нужен только архивно; bcrypt-хэши берёт import-passwords прямо из Supabase.
-  log "Шаг 2/5: pg_restore -j 4 --data-only --schema=public в Yandex PG …"
-  run "pg_restore --dbname='$DATABASE_MIGRATION_URL' \
+  #
+  # --disable-triggers НЕ используется: он делает ALTER TABLE ... DISABLE TRIGGER ALL, что требует
+  # реального суперпользователя и падает с "permission denied: ... is a system trigger" на managed
+  # Postgres (Yandex/RDS/Cloud SQL — суперюзер клиенту недоступен нигде). Вместо этого отключаем
+  # срабатывание триггеров (включая проверки FK) через GUC session_replication_role=replica —
+  # её обычный владелец БД устанавливать может, ALTER TABLE не требуется.
+  log "Шаг 2/5: pg_restore -j 4 --data-only --schema=public в Yandex PG (session_replication_role=replica) …"
+  run "PGOPTIONS='-c session_replication_role=replica' pg_restore --dbname='$DATABASE_MIGRATION_URL' \
     --data-only --no-owner --no-privileges \
     --schema=public -j 4 \
-    --disable-triggers \
     '$DUMP_FILE' 2> '$repo_root/docs/cutover-artifacts/cutover_db_pg_restore.log' || true"
   # pg_restore может вернуть !=0 на безобидных NOTICE/уже-существующих последовательностях;
   # фактический критерий успеха — verification ниже, а не код возврата restore.
