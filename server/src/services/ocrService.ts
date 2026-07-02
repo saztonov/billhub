@@ -1,9 +1,9 @@
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import type { S3Client } from '@aws-sdk/client-s3';
-import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Readable } from 'node:stream';
 import { recognizeInvoiceStructured } from './openrouter.js';
 import type { OcrParsedItem } from './openrouter.js';
+import type { OcrProcessingRepository } from '../repositories/drizzle/ocr-processing.drizzle.js';
 import { recordS3Result } from './observability/s3-error-rate.js';
 import { createObservabilityLogger } from './observability/logger.js';
 
@@ -30,14 +30,6 @@ const MAX_PDF_PAGES = 20;
 /*  Типы                                                               */
 /* ------------------------------------------------------------------ */
 
-/** Настройки OCR-модели */
-interface OcrModelSetting {
-  id: string;
-  name: string;
-  inputPrice: number;
-  outputPrice: number;
-}
-
 /** Прогресс распознавания */
 export interface OcrProgress {
   stage: 'downloading' | 'rendering' | 'recognizing' | 'validating' | 'saving';
@@ -47,9 +39,12 @@ export interface OcrProgress {
   totalPages?: number;
 }
 
-/** Зависимости сервиса (передаются извне, не привязан к Fastify) */
+/**
+ * Зависимости сервиса (передаются извне, не привязан к Fastify).
+ * Данные — через OcrProcessingRepository (Drizzle/Yandex PG), файлы — через S3.
+ */
 export interface OcrDependencies {
-  supabase: SupabaseClient;
+  ocrRepo: OcrProcessingRepository;
   s3Client: S3Client;
   s3Bucket: string;
 }
@@ -57,34 +52,6 @@ export interface OcrDependencies {
 /* ------------------------------------------------------------------ */
 /*  Вспомогательные функции                                            */
 /* ------------------------------------------------------------------ */
-
-/** Загрузка настроек OCR из БД */
-async function loadOcrSettings(supabase: SupabaseClient): Promise<{
-  autoEnabled: boolean;
-  activeModelId: string;
-  models: OcrModelSetting[];
-}> {
-  const { data, error } = await supabase
-    .from('settings')
-    .select('key, value')
-    .in('key', ['ocr_auto_enabled', 'ocr_active_model_id', 'ocr_models']);
-  if (error) throw error;
-
-  const settings: Record<string, unknown> = {};
-  for (const row of data ?? []) {
-    settings[row.key as string] = row.value;
-  }
-
-  const autoVal = settings['ocr_auto_enabled'] as { enabled?: boolean } | undefined;
-  const modelVal = settings['ocr_active_model_id'] as { modelId?: string } | undefined;
-  const modelsVal = settings['ocr_models'] as { models?: OcrModelSetting[] } | undefined;
-
-  return {
-    autoEnabled: autoVal?.enabled ?? false,
-    activeModelId: modelVal?.modelId ?? '',
-    models: modelsVal?.models ?? [],
-  };
-}
 
 /** Скачивает файл из S3 как Buffer */
 async function downloadS3File(
@@ -204,47 +171,6 @@ function buildRetryHint(mismatched: OcrParsedItem[]): string {
   return `В предыдущей попытке обнаружены расхождения quantity*price != amount для следующих строк:\n${lines.join('\n')}\nПерепроверь эти строки особенно внимательно.`;
 }
 
-/** Ищет или создает запись в справочнике материалов */
-async function findOrCreateMaterial(
-  supabase: SupabaseClient,
-  name: string,
-  unit: string | null,
-): Promise<string> {
-  let query = supabase.from('materials_dictionary').select('id').eq('name', name);
-
-  if (unit) {
-    query = query.eq('unit', unit);
-  } else {
-    query = query.is('unit', null);
-  }
-
-  const { data } = await query.limit(1);
-  if (data && data.length > 0) {
-    return (data[0] as Record<string, unknown>).id as string;
-  }
-
-  // Создание
-  const insertData: Record<string, unknown> = { name };
-  if (unit) insertData.unit = unit;
-
-  const { data: newData, error } = await supabase
-    .from('materials_dictionary')
-    .insert(insertData)
-    .select('id')
-    .single();
-
-  if (error) {
-    // Возможна гонка -- пробуем еще раз найти
-    const { data: retryData } = await query.limit(1);
-    if (retryData && retryData.length > 0) {
-      return (retryData[0] as Record<string, unknown>).id as string;
-    }
-    throw error;
-  }
-
-  return (newData as Record<string, unknown>).id as string;
-}
-
 /** Пул параллельных задач с ограничением concurrency */
 async function promisePool<T>(tasks: (() => Promise<T>)[], concurrency: number): Promise<T[]> {
   const results: T[] = new Array(tasks.length) as T[];
@@ -275,9 +201,9 @@ export async function processPaymentRequestOcr(
   paymentRequestId: string,
   onProgress?: (progress: OcrProgress) => void,
 ): Promise<void> {
-  const { supabase, s3Client, s3Bucket } = deps;
+  const { ocrRepo, s3Client, s3Bucket } = deps;
 
-  const settings = await loadOcrSettings(supabase);
+  const settings = await ocrRepo.getSettings();
   if (!settings.activeModelId) {
     throw new Error('Не выбрана модель OCR');
   }
@@ -285,16 +211,10 @@ export async function processPaymentRequestOcr(
   const activeModel = settings.models.find((m) => m.id === settings.activeModelId);
 
   // Получаем файлы-счета заявки (исключаем отклоненные)
-  const { data: files, error: filesError } = await supabase
-    .from('payment_request_files')
-    .select('id, file_key, file_name, mime_type')
-    .eq('payment_request_id', paymentRequestId)
-    .eq('document_type_id', INVOICE_DOC_TYPE_ID)
-    .eq('is_rejected', false);
-  if (filesError) throw filesError;
+  const files = await ocrRepo.getInvoiceFiles(paymentRequestId, INVOICE_DOC_TYPE_ID);
 
-  const invoiceFiles = (files ?? []).filter((f: Record<string, unknown>) => {
-    const mime = (f.mime_type as string) ?? '';
+  const invoiceFiles = files.filter((f) => {
+    const mime = f.mimeType ?? '';
     return mime.startsWith('image/') || mime === 'application/pdf';
   });
 
@@ -304,29 +224,23 @@ export async function processPaymentRequestOcr(
   }
 
   // Удаляем старые распознанные данные
-  await supabase.from('recognized_materials').delete().eq('payment_request_id', paymentRequestId);
+  await ocrRepo.deleteRecognizedMaterials(paymentRequestId);
 
   let globalPosition = 0;
 
   for (let fi = 0; fi < invoiceFiles.length; fi++) {
-    const file = invoiceFiles[fi] as Record<string, unknown>;
-    const fileId = file.id as string;
-    const fileKey = file.file_key as string;
-    const mimeType = (file.mime_type as string) ?? '';
+    const file = invoiceFiles[fi]!;
+    const fileId = file.id;
+    const fileKey = file.fileKey;
+    const mimeType = file.mimeType ?? '';
 
     // Создаем запись в логе
-    const { data: logData, error: logInsertError } = await supabase
-      .from('ocr_recognition_log')
-      .insert({
-        payment_request_id: paymentRequestId,
-        file_id: fileId,
-        model_id: settings.activeModelId,
-        status: 'processing',
-      })
-      .select('id')
-      .single();
-    if (logInsertError) throw logInsertError;
-    const logId = (logData as Record<string, unknown>).id as string;
+    const logId = await ocrRepo.insertRecognitionLog({
+      paymentRequestId,
+      fileId,
+      modelId: settings.activeModelId,
+      status: 'processing',
+    });
 
     try {
       onProgress?.({ stage: 'downloading', fileIndex: fi, totalFiles: invoiceFiles.length });
@@ -392,19 +306,19 @@ export async function processPaymentRequestOcr(
             }
 
             // Записываем повторную попытку в лог
-            await supabase.from('ocr_recognition_log').insert({
-              payment_request_id: paymentRequestId,
-              file_id: fileId,
-              model_id: settings.activeModelId,
+            await ocrRepo.insertRecognitionLog({
+              paymentRequestId,
+              fileId,
+              modelId: settings.activeModelId,
               status: 'success',
-              attempt_number: 2,
-              input_tokens: retryResult.inputTokens,
-              output_tokens: retryResult.outputTokens,
-              total_cost: activeModel
+              attemptNumber: 2,
+              inputTokens: retryResult.inputTokens,
+              outputTokens: retryResult.outputTokens,
+              totalCost: activeModel
                 ? retryResult.inputTokens * activeModel.inputPrice +
                   retryResult.outputTokens * activeModel.outputPrice
                 : null,
-              completed_at: new Date().toISOString(),
+              completedAt: new Date().toISOString(),
             });
 
             return {
@@ -438,24 +352,29 @@ export async function processPaymentRequestOcr(
 
         for (const item of result.items) {
           if (!item.name) continue;
-          const materialId = await findOrCreateMaterial(supabase, item.name, item.unit ?? null);
+          const materialId = await ocrRepo.findOrCreateMaterial(item.name, item.unit ?? null);
           globalPosition++;
 
-          const { error: insertErr } = await supabase.from('recognized_materials').insert({
-            payment_request_id: paymentRequestId,
-            file_id: fileId,
-            material_id: materialId,
-            page_number: pageNum,
-            position: globalPosition,
-            article: item.article ?? null,
-            quantity: item.quantity ?? null,
-            price: item.price ?? null,
-            amount: item.amount ?? null,
-          });
-
-          if (insertErr) {
+          try {
+            await ocrRepo.insertRecognizedMaterial({
+              paymentRequestId,
+              fileId,
+              materialId,
+              pageNumber: pageNum,
+              position: globalPosition,
+              article: item.article ?? null,
+              quantity: item.quantity ?? null,
+              price: item.price ?? null,
+              amount: item.amount ?? null,
+            });
+          } catch (insertErr) {
             logger.error(
-              { paymentRequestId, fileId, materialId, error: insertErr.message },
+              {
+                paymentRequestId,
+                fileId,
+                materialId,
+                error: insertErr instanceof Error ? insertErr.message : String(insertErr),
+              },
               'Ошибка сохранения распознанного материала',
             );
           }
@@ -467,16 +386,13 @@ export async function processPaymentRequestOcr(
         ? fileInputTokens * activeModel.inputPrice + fileOutputTokens * activeModel.outputPrice
         : null;
 
-      await supabase
-        .from('ocr_recognition_log')
-        .update({
-          status: 'success',
-          input_tokens: fileInputTokens,
-          output_tokens: fileOutputTokens,
-          total_cost: totalCost,
-          completed_at: new Date().toISOString(),
-        })
-        .eq('id', logId);
+      await ocrRepo.updateRecognitionLog(logId, {
+        status: 'success',
+        inputTokens: fileInputTokens,
+        outputTokens: fileOutputTokens,
+        totalCost,
+        completedAt: new Date().toISOString(),
+      });
 
       logger.info(
         { paymentRequestId, fileId, inputTokens: fileInputTokens, outputTokens: fileOutputTokens },
@@ -485,14 +401,11 @@ export async function processPaymentRequestOcr(
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Неизвестная ошибка OCR';
 
-      await supabase
-        .from('ocr_recognition_log')
-        .update({
-          status: 'error',
-          error_message: errorMsg,
-          completed_at: new Date().toISOString(),
-        })
-        .eq('id', logId);
+      await ocrRepo.updateRecognitionLog(logId, {
+        status: 'error',
+        errorMessage: errorMsg,
+        completedAt: new Date().toISOString(),
+      });
 
       logger.error({ paymentRequestId, fileId, error: errorMsg }, 'Ошибка OCR распознавания файла');
     }

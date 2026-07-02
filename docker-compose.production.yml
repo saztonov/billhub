@@ -1,5 +1,10 @@
+# ===== DEPRECATED / LEGACY — НЕ использовать для VPS2 (Этап 1) =====
+# Канонический деплой — стек deploy/ (корпстандарт v3.1, ADR-0007): см. docs/deployment.md,
+# deploy/README.md. Этот all-in-one стек сохранён только как справочный. В нём DDL-креды
+# (DATABASE_MIGRATION_URL) попадают в runtime-контейнеры — ослабление разделения ролей.
+# ==================================================================
 # =============================================================================
-# docker-compose.production.yml — production-стек BillHub на целевой VPS Этапа 1.
+# docker-compose.production.yml — ПРЕЖНИЙ all-in-one стек (справочный, не для VPS2).
 #
 # Профиль VPS: 2 vCPU / 4 GB RAM / 50–80 GB SSD, Ubuntu LTS, статический публичный IP.
 # Backend stateless и портативен (принцип 7): persistent volumes ТОЛЬКО redis-data

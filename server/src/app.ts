@@ -10,7 +10,7 @@ import rateLimit from '@fastify/rate-limit';
 import { ZodError } from 'zod';
 import { sql } from 'drizzle-orm';
 import { HeadBucketCommand } from '@aws-sdk/client-s3';
-import { config } from './config.js';
+import { config, isSupabaseNeeded } from './config.js';
 import { toCamelCase } from './utils/caseTransform.js';
 import { FASTIFY_REDACT_PATHS } from './services/observability/logger.js';
 import { assertEnvStartup, assertRuntimeStartup } from './services/observability/startup-checks.js';
@@ -214,7 +214,11 @@ export async function createApp(opts: CreateAppOptions = {}): Promise<FastifyIns
 
   /** Плагины инфраструктуры */
   if (!skipInfra) {
-    await fastify.register(databasePlugin);
+    // Supabase-клиент регистрируется только когда он реально нужен (supabase-bridge /
+    // DB_PROVIDER=supabase). В standalone+drizzle (Этап 1) плагин не поднимается — SUPABASE_* не нужны.
+    if (isSupabaseNeeded(process.env)) {
+      await fastify.register(databasePlugin);
+    }
     await fastify.register(databaseDrizzlePlugin);
     await fastify.register(s3Plugin);
     await fastify.register(redisPlugin);

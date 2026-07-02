@@ -20,6 +20,7 @@ import {
 function goodEnv(): StartupEnv {
   return {
     NODE_ENV: 'production',
+    AUTH_MODE: 'standalone',
     DATABASE_URL:
       'postgres://billhub_runtime:pw@rc1a.db.yandexcloud.net:6432/billhub_db?sslmode=verify-full',
     AUTH_JWT_SECRET: 'a-real-long-secret-value-1234567890',
@@ -103,6 +104,20 @@ describe('startup-checks: assertEnvStartup', () => {
 
   it('не запускается вне production (dev на placeholder допустим)', () => {
     expect(() => assertEnvStartup({ NODE_ENV: 'development' })).not.toThrow();
+  });
+
+  it('падает в production при AUTH_MODE != standalone (C1)', () => {
+    const env = goodEnv();
+    env.AUTH_MODE = 'supabase-bridge';
+    expect(() => assertEnvStartup(env)).toThrow(StartupCheckError);
+  });
+
+  it('в standalone не требует SUPABASE_* (Этап 1, VPS2)', () => {
+    const env = goodEnv();
+    delete env.SUPABASE_URL;
+    delete env.SUPABASE_SERVICE_ROLE_KEY;
+    delete env.SUPABASE_JWT_SECRET;
+    expect(() => assertEnvStartup(env)).not.toThrow();
   });
 });
 

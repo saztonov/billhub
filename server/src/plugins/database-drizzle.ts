@@ -40,7 +40,9 @@ async function databaseDrizzlePlugin(fastify: FastifyInstance): Promise<void> {
       ? config.databasePoolMax
       : 10;
 
-  const client = postgres(url, { max, onnotice: () => {} });
+  // prepare: false — пул Yandex Managed PG на :6432 работает в transaction mode,
+  // где prepared statements через переиспользуемые соединения ломаются.
+  const client = postgres(url, { max, prepare: false, onnotice: () => {} });
   const db = drizzle(client, { schema });
 
   fastify.decorate('db', db);

@@ -11,8 +11,19 @@ const userCache = new LRUCache<string, RequestUser>({
   ttl: 15_000,
 });
 
-/** JWKS для верификации JWT Supabase (режим supabase-bridge). */
-const JWKS = createRemoteJWKSet(new URL(`${config.supabaseUrl}/auth/v1/.well-known/jwks.json`));
+/**
+ * JWKS для верификации JWT Supabase (режим supabase-bridge). Инициализируется лениво:
+ * в standalone URL не строится, поэтому пустой SUPABASE_URL не роняет импорт модуля.
+ */
+let supabaseJwks: ReturnType<typeof createRemoteJWKSet> | null = null;
+function getSupabaseJwks(): ReturnType<typeof createRemoteJWKSet> {
+  if (!supabaseJwks) {
+    supabaseJwks = createRemoteJWKSet(
+      new URL(`${config.supabaseUrl}/auth/v1/.well-known/jwks.json`),
+    );
+  }
+  return supabaseJwks;
+}
 
 /** UserAuthRecord (standalone-хранилище) → RequestUser. */
 function recordToRequestUser(rec: UserAuthRecord): RequestUser {
@@ -96,7 +107,7 @@ async function authenticateSupabaseBridge(
   let userId: string;
 
   try {
-    const { payload } = await jwtVerify(token, JWKS);
+    const { payload } = await jwtVerify(token, getSupabaseJwks());
     userId = payload.sub as string;
 
     if (!userId) {

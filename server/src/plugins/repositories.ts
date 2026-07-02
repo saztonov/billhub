@@ -176,5 +176,7 @@ async function repositoriesPlugin(fastify: FastifyInstance): Promise<void> {
 
 export default fp(repositoriesPlugin, {
   name: 'repositories',
-  dependencies: ['database', 'database-drizzle'],
+  // 'database' (Supabase-клиент) больше не жёсткая зависимость: в standalone+drizzle он не
+  // регистрируется. Порядок для supabase-режима сохраняется порядком register() в app.ts.
+  dependencies: ['database-drizzle'],
 });

@@ -1,11 +1,12 @@
 import { Worker } from 'bullmq';
 import type { Job } from 'bullmq';
-import { createClient } from '@supabase/supabase-js';
 import { S3Client } from '@aws-sdk/client-s3';
 import { parseRedisUrl } from './index.js';
 import { config } from '../config.js';
 import { processPaymentRequestOcr } from '../services/ocrService.js';
 import type { OcrDependencies } from '../services/ocrService.js';
+import { OcrProcessingRepository } from '../repositories/drizzle/ocr-processing.drizzle.js';
+import type { BillhubDatabase } from '../plugins/database-drizzle.js';
 import type { JobsLogRepository } from '../repositories/jobs-log.repository.js';
 import { recordJobResult } from '../services/observability/jobs-log.recorder.js';
 import { createObservabilityLogger } from '../services/observability/logger.js';
@@ -28,8 +29,8 @@ export interface OcrJobData {
 /* ------------------------------------------------------------------ */
 
 /** Создает зависимости для OCR-сервиса (отдельный экземпляр для воркера) */
-function createWorkerDeps(): OcrDependencies {
-  const supabase = createClient(config.supabaseUrl, config.supabaseServiceRoleKey);
+function createWorkerDeps(db: BillhubDatabase): OcrDependencies {
+  const ocrRepo = new OcrProcessingRepository(db);
 
   let endpoint: string;
   let accessKeyId: string;
@@ -57,18 +58,21 @@ function createWorkerDeps(): OcrDependencies {
     forcePathStyle: true,
   });
 
-  return { supabase, s3Client, s3Bucket: bucket };
+  return { ocrRepo, s3Client, s3Bucket: bucket };
 }
 
 /* ------------------------------------------------------------------ */
 /*  Обработчик задачи                                                  */
 /* ------------------------------------------------------------------ */
 
-async function processOcrJob(job: Job<OcrJobData>): Promise<void> {
+async function processOcrJob(job: Job<OcrJobData>, db: BillhubDatabase | undefined): Promise<void> {
   const { paymentRequestId, userId } = job.data;
   logger.info({ jobId: job.id, paymentRequestId, userId }, 'Начало OCR обработки');
 
-  const deps = createWorkerDeps();
+  if (!db) {
+    throw new Error('ocr-worker: Drizzle db не инициализирован — OCR недоступен');
+  }
+  const deps = createWorkerDeps(db);
 
   await processPaymentRequestOcr(deps, paymentRequestId, async (progress) => {
     // Прогресс: процент на основе этапов
@@ -100,9 +104,11 @@ async function processOcrJob(job: Job<OcrJobData>): Promise<void> {
 /*  Создание воркера                                                   */
 /* ------------------------------------------------------------------ */
 
-/** Зависимости воркера OCR (Iteration 7): отчётность в jobs_log. */
+/** Зависимости воркера OCR: отчётность в jobs_log + Drizzle-клиент для данных OCR. */
 export interface OcrWorkerDeps {
   jobsLog?: JobsLogRepository;
+  /** Drizzle-клиент (обязателен для распознавания на Yandex PG). */
+  db?: BillhubDatabase;
 }
 
 /** Длительность выполнения задачи (мс) по таймштампам BullMQ, либо null. */
@@ -115,7 +121,7 @@ function jobDurationMs(job: Job | undefined): number | null {
 export function createOcrWorker(deps: OcrWorkerDeps = {}): Worker<OcrJobData> {
   const connection = parseRedisUrl(config.redisUrl);
 
-  const worker = new Worker<OcrJobData>('ocr-processing', processOcrJob, {
+  const worker = new Worker<OcrJobData>('ocr-processing', (job) => processOcrJob(job, deps.db), {
     connection,
     // OCR_CONCURRENCY (Iteration 8). По умолчанию 1; в worker-контейнере на 4GB VPS — 3.
     concurrency: config.ocrConcurrency,

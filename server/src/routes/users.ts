@@ -1,7 +1,9 @@
 import type { FastifyInstance } from 'fastify';
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { authenticate } from '../middleware/authenticate.js';
 import { requireRole } from '../middleware/requireRole.js';
+import { PasswordService } from '../services/auth/password.service.js';
 import { updateUserWithSitesBodySchema, updateUserSitesBodySchema } from '../schemas/user.js';
 
 /* ------------------------------------------------------------------ */
@@ -22,7 +24,7 @@ const idParamsSchema = {
 
 const patchBodySchema = z.object({ isActive: z.boolean().optional() });
 
-/** Batch-import создаёт пользователей-подрядчиков; auth-часть остаётся на Supabase Auth до Iteration 6. */
+/** Batch-import создаёт пользователей-подрядчиков (standalone auth: bcrypt-хэш в public.users). */
 const batchRowSchema = z.object({
   counterpartyId: z.string(),
   email: z.string(),
@@ -36,8 +38,8 @@ const batchImportBodySchema = z.union([
 
 /* ------------------------------------------------------------------ */
 /*  Плагин маршрутов пользователей (через fastify.repos)               */
-/*  Исключение: POST /batch-import использует Supabase Auth для         */
-/*  создания учётной записи (см. docs/iteration-6-auth-notes.md).      */
+/*  POST /batch-import создаёт подрядчиков локально (standalone auth):  */
+/*  bcrypt-хэш в public.users, без Supabase.                           */
 /* ------------------------------------------------------------------ */
 
 async function userRoutes(fastify: FastifyInstance): Promise<void> {
@@ -135,9 +137,9 @@ async function userRoutes(fastify: FastifyInstance): Promise<void> {
     },
   );
 
-  /** POST /api/users/batch-import — создание пользователя-подрядчика.
-   *  Auth-учётка создаётся через Supabase Auth (исключение до Iteration 6,
-   *  см. docs/iteration-6-auth-notes.md); профиль — через repos.users. */
+  /** POST /api/users/batch-import — создание пользователей-подрядчиков (standalone auth).
+   *  Учётка и bcrypt-хэш пароля создаются локально в public.users; уникальность email
+   *  гарантирует индекс users_email_lower_unique_idx (миграция 0005). */
   fastify.post(
     '/batch-import',
     { preHandler: [authenticate, requireRole('admin')] },
@@ -147,32 +149,29 @@ async function userRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(400).send({ error: 'Неверный формат данных' });
       }
       const rows = 'rows' in parsed.data ? parsed.data.rows : [parsed.data];
-      const supabase = request.server.supabase;
+      const { authServices, repos } = request.server;
       const results: { email: string; status: 'success' | 'error'; errorMessage?: string }[] = [];
 
       for (const row of rows) {
         try {
-          const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-            email: row.email,
-            password: row.password,
-            email_confirm: true,
-          });
-          if (authError || !authData.user) {
-            throw new Error(authError?.message ?? 'Не удалось создать пользователя в Auth');
-          }
-          await request.server.repos.users.createCounterpartyUserRecord({
-            id: authData.user.id,
+          PasswordService.assertStrong(row.password);
+          const id = randomUUID();
+          const passwordHash = await authServices.passwords.hash(row.password);
+          await repos.users.createCounterpartyUserRecord({
+            id,
             email: row.email,
             fullName: row.fullName,
             counterpartyId: row.counterpartyId,
           });
+          await authServices.users.setPasswordHash(id, passwordHash, new Date().toISOString());
           results.push({ email: row.email, status: 'success' });
         } catch (err) {
-          results.push({
-            email: row.email,
-            status: 'error',
-            errorMessage: err instanceof Error ? err.message : 'Неизвестная ошибка',
-          });
+          const msg = err instanceof Error ? err.message : 'Неизвестная ошибка';
+          // Регистронезависимый дубль email (индекс users_email_lower_unique_idx) → понятный текст.
+          const errorMessage = /users_email_lower_unique_idx|duplicate key|unique/i.test(msg)
+            ? `Пользователь с email ${row.email} уже существует`
+            : msg;
+          results.push({ email: row.email, status: 'error', errorMessage });
         }
       }
 

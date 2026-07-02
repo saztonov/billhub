@@ -40,8 +40,11 @@ async function queuesPlugin(fastify: FastifyInstance): Promise<void> {
     : undefined;
 
   /** Запуск воркеров */
-  const fileWorker: Worker<FileProcessingJobData> = createFileProcessingWorker({ jobsLog });
-  const ocrWorker: Worker<OcrJobData> = createOcrWorker({ jobsLog });
+  const fileWorker: Worker<FileProcessingJobData> = createFileProcessingWorker({
+    jobsLog,
+    db: fastify.db,
+  });
+  const ocrWorker: Worker<OcrJobData> = createOcrWorker({ jobsLog, db: fastify.db });
 
   fastify.log.info('BullMQ воркеры запущены');
 

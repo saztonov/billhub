@@ -25,6 +25,26 @@ export const REQUIRED_PROD_ENV: string[] = [
   'SUPABASE_JWT_SECRET',
 ];
 
+/** Supabase-переменные — обязательны только в legacy-режимах (supabase-bridge / DB_PROVIDER=supabase). */
+export const SUPABASE_ENV_KEYS: string[] = [
+  'SUPABASE_URL',
+  'SUPABASE_SERVICE_ROLE_KEY',
+  'SUPABASE_JWT_SECRET',
+];
+
+function supabaseNeeded(env: StartupEnv): boolean {
+  const authMode = env.AUTH_MODE ?? 'supabase-bridge';
+  const dbProvider = env.DB_PROVIDER ?? 'drizzle';
+  return authMode === 'supabase-bridge' || dbProvider === 'supabase';
+}
+
+/** Обязательные переменные с учётом режима: в standalone+drizzle SUPABASE_* исключаются. */
+export function requiredProdEnv(env: StartupEnv): string[] {
+  return supabaseNeeded(env)
+    ? REQUIRED_PROD_ENV
+    : REQUIRED_PROD_ENV.filter((k) => !SUPABASE_ENV_KEYS.includes(k));
+}
+
 /** Переменные, проверяемые на placeholder-значения. */
 export const PLACEHOLDER_CHECK_KEYS: string[] = [
   'DATABASE_URL',
@@ -86,6 +106,15 @@ export function checkNoDevFlags(env: StartupEnv): string[] {
   return problems;
 }
 
+/** C1: в production AUTH_MODE обязан быть standalone (иначе молчаливый запуск в legacy supabase-bridge). */
+export function checkAuthModeInvariant(env: StartupEnv): string[] {
+  if ((env.NODE_ENV ?? 'development') !== 'production') return [];
+  const mode = env.AUTH_MODE ?? 'supabase-bridge';
+  return mode === 'standalone'
+    ? []
+    : [`В production обязателен AUTH_MODE=standalone (получено: ${mode})`];
+}
+
 export function checkExtensions(
   present: string[],
   required: string[] = REQUIRED_PG_EXTENSIONS,
@@ -107,10 +136,11 @@ export function checkAppliedMigration(applied: number | null, expected: number):
 /** Все чистые env-проверки (без IO). */
 export function collectEnvStartupProblems(env: StartupEnv): string[] {
   return [
-    ...checkRequiredEnv(env),
+    ...checkRequiredEnv(env, requiredProdEnv(env)),
     ...checkNoPlaceholders(env),
     ...checkSslMode(env.DATABASE_URL),
     ...checkNoDevFlags(env),
+    ...checkAuthModeInvariant(env),
   ];
 }
 

@@ -23,6 +23,7 @@ import { createOcrWorker } from './queues/ocrWorker.js';
 import { fileProcessingQueue, ocrQueue } from './queues/index.js';
 import { DrizzleJobsLogRepository } from './repositories/drizzle/jobs-log.drizzle.js';
 import type { JobsLogRepository } from './repositories/jobs-log.repository.js';
+import type { BillhubDatabase } from './plugins/database-drizzle.js';
 import { createObservabilityLogger } from './services/observability/logger.js';
 
 const logger = createObservabilityLogger('worker-main');
@@ -30,6 +31,7 @@ const logger = createObservabilityLogger('worker-main');
 async function main(): Promise<void> {
   // jobs_log (Iteration 7) — только при Drizzle. postgres.js-пул закрываем при остановке.
   let pgClient: ReturnType<typeof postgres> | undefined;
+  let db: BillhubDatabase | undefined;
   let jobsLog: JobsLogRepository | undefined;
 
   if (resolveDbProvider(process.env) === 'drizzle' && config.databaseUrl) {
@@ -37,15 +39,17 @@ async function main(): Promise<void> {
       Number.isFinite(config.databasePoolMax) && config.databasePoolMax > 0
         ? config.databasePoolMax
         : 10;
-    pgClient = postgres(config.databaseUrl, { max, onnotice: () => {} });
-    jobsLog = new DrizzleJobsLogRepository(drizzle(pgClient, { schema }));
+    // prepare: false — transaction-mode пул Yandex Managed PG (:6432) несовместим с prepared statements.
+    pgClient = postgres(config.databaseUrl, { max, prepare: false, onnotice: () => {} });
+    db = drizzle(pgClient, { schema });
+    jobsLog = new DrizzleJobsLogRepository(db);
     logger.info({ poolMax: max }, 'worker: Drizzle-пул для jobs_log инициализирован');
   } else {
     logger.warn('worker: DB_PROVIDER!=drizzle или нет DATABASE_URL — jobs_log отключён');
   }
 
-  const fileWorker = createFileProcessingWorker({ jobsLog });
-  const ocrWorker = createOcrWorker({ jobsLog });
+  const fileWorker = createFileProcessingWorker({ jobsLog, db });
+  const ocrWorker = createOcrWorker({ jobsLog, db });
   logger.info(
     { ocrConcurrency: config.ocrConcurrency, fileConcurrency: config.fileProcessingConcurrency },
     'worker: BullMQ воркеры запущены',

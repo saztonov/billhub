@@ -103,16 +103,33 @@ function validateRequired(keys: string[]): void {
   }
 }
 
-validateRequired(['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_JWT_SECRET']);
+/**
+ * Supabase нужен только в legacy-режимах: supabase-bridge (auth) или DB_PROVIDER=supabase.
+ * В standalone + drizzle (Этап 1, VPS2) SUPABASE_* необязательны.
+ */
+export function isSupabaseNeeded(env: NodeJS.ProcessEnv = process.env): boolean {
+  const authMode = env.AUTH_MODE ?? 'supabase-bridge';
+  const dbProvider = env.DB_PROVIDER ?? 'drizzle';
+  return authMode === 'supabase-bridge' || dbProvider === 'supabase';
+}
+
+const supabaseNeeded = isSupabaseNeeded();
+if (supabaseNeeded) {
+  validateRequired(['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_JWT_SECRET']);
+}
 
 export const config: Config = {
   port: parseInt(envOptional('PORT', '3000'), 10),
   corsOrigin: envOptional('CORS_ORIGIN', 'http://localhost:5173'),
   nodeEnv: envOptional('NODE_ENV', 'development'),
 
-  supabaseUrl: env('SUPABASE_URL'),
-  supabaseServiceRoleKey: env('SUPABASE_SERVICE_ROLE_KEY'),
-  supabaseJwtSecret: env('SUPABASE_JWT_SECRET'),
+  supabaseUrl: supabaseNeeded ? env('SUPABASE_URL') : envOptional('SUPABASE_URL'),
+  supabaseServiceRoleKey: supabaseNeeded
+    ? env('SUPABASE_SERVICE_ROLE_KEY')
+    : envOptional('SUPABASE_SERVICE_ROLE_KEY'),
+  supabaseJwtSecret: supabaseNeeded
+    ? env('SUPABASE_JWT_SECRET')
+    : envOptional('SUPABASE_JWT_SECRET'),
 
   s3Endpoint: envOptional('S3_ENDPOINT'),
   s3Region: envOptional('S3_REGION', 'ru-1'),

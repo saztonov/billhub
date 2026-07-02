@@ -1,8 +1,9 @@
 import { Worker } from 'bullmq';
 import type { Job } from 'bullmq';
-import { createClient } from '@supabase/supabase-js';
+import { sql } from 'drizzle-orm';
 import { config } from '../config.js';
 import { parseRedisUrl } from './index.js';
+import type { BillhubDatabase } from '../plugins/database-drizzle.js';
 import type { JobsLogRepository } from '../repositories/jobs-log.repository.js';
 import { recordJobResult } from '../services/observability/jobs-log.recorder.js';
 import { createObservabilityLogger } from '../services/observability/logger.js';
@@ -47,52 +48,41 @@ const COUNTER_MAP: Record<
   founding_document_files: null,
 };
 
-/** Supabase клиент для воркера (service role) */
-const supabase = createClient(config.supabaseUrl, config.supabaseServiceRoleKey);
-
-/** Обработка одной задачи */
-async function processFileJob(job: Job<FileProcessingJobData>): Promise<void> {
+/** Обработка одной задачи. db — Drizzle-клиент (обязателен для счётчиков файлов). */
+async function processFileJob(
+  job: Job<FileProcessingJobData>,
+  db: BillhubDatabase | undefined,
+): Promise<void> {
   const { entityType, entityId, fileId, fileKey } = job.data;
 
   logger.info({ jobId: job.id, entityType, entityId, fileId }, 'Начало обработки файла');
 
   await job.updateProgress(10);
 
-  /** Обновление счётчика загруженных файлов (если применимо) */
+  /** Обновление счётчика загруженных файлов (если применимо) — атомарный SQL-инкремент. */
   const counterConfig = COUNTER_MAP[entityType];
 
   if (counterConfig) {
+    if (!db) {
+      throw new Error('file-processing: Drizzle db не инициализирован — счётчик не обновить');
+    }
     const { table, idField, counterField } = counterConfig;
 
-    /** Получаем текущее значение счётчика */
-    const { data, error: fetchError } = await supabase
-      .from(table)
-      .select(counterField)
-      .eq(idField, entityId)
-      .single();
+    // Атомарно: uploaded_files = uploaded_files + 1 — без read-modify-write, без гонок при
+    // параллельных загрузках. Имена table/idField/counterField — из хардкод-константы COUNTER_MAP
+    // (не пользовательский ввод), поэтому sql.identifier безопасен.
+    const rows = (await db.execute(sql`
+      UPDATE ${sql.identifier(table)}
+      SET ${sql.identifier(counterField)} = ${sql.identifier(counterField)} + 1
+      WHERE ${sql.identifier(idField)} = ${entityId}
+      RETURNING ${sql.identifier(counterField)} AS new_count
+    `)) as unknown as Array<{ new_count: number }>;
 
-    if (fetchError) {
-      logger.error(
-        { err: fetchError, table, entityId },
-        'Ошибка получения текущего значения счётчика',
-      );
-      throw new Error(`Ошибка чтения ${table}: ${fetchError.message}`);
+    if (rows.length === 0) {
+      throw new Error(`file-processing: строка не найдена (${table}.${idField}=${entityId})`);
     }
 
-    const record = data as unknown as Record<string, unknown> | null;
-    const currentCount = (record?.[counterField] as number) ?? 0;
-
-    const { error: updateError } = await supabase
-      .from(table)
-      .update({ [counterField]: currentCount + 1 })
-      .eq(idField, entityId);
-
-    if (updateError) {
-      logger.error({ err: updateError, table, entityId }, 'Ошибка обновления счётчика');
-      throw new Error(`Ошибка обновления ${table}: ${updateError.message}`);
-    }
-
-    logger.info({ table, entityId, newCount: currentCount + 1 }, 'Счётчик файлов обновлён');
+    logger.info({ table, entityId, newCount: rows[0]!.new_count }, 'Счётчик файлов обновлён');
   }
 
   await job.updateProgress(100);
@@ -103,6 +93,8 @@ async function processFileJob(job: Job<FileProcessingJobData>): Promise<void> {
 /** Зависимости воркера обработки файлов (Iteration 7): отчётность в jobs_log. */
 export interface FileProcessingWorkerDeps {
   jobsLog?: JobsLogRepository;
+  /** Drizzle-клиент для атомарного обновления счётчиков файлов. */
+  db?: BillhubDatabase;
 }
 
 /** Длительность выполнения задачи (мс) по таймштампам BullMQ, либо null. */
@@ -117,11 +109,15 @@ export function createFileProcessingWorker(
 ): Worker<FileProcessingJobData> {
   const connection = parseRedisUrl(config.redisUrl);
 
-  const worker = new Worker<FileProcessingJobData>('file-processing', processFileJob, {
-    connection,
-    // FILE_PROCESSING_CONCURRENCY (Iteration 8). По умолчанию 3.
-    concurrency: config.fileProcessingConcurrency,
-  });
+  const worker = new Worker<FileProcessingJobData>(
+    'file-processing',
+    (job) => processFileJob(job, deps.db),
+    {
+      connection,
+      // FILE_PROCESSING_CONCURRENCY (Iteration 8). По умолчанию 3.
+      concurrency: config.fileProcessingConcurrency,
+    },
+  );
 
   worker.on('completed', (job) => {
     logger.info({ jobId: job.id }, 'Задача успешно завершена');
