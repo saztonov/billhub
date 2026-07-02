@@ -109,11 +109,11 @@ ssh "$NEW_VPS_HOST" '
   npm --prefix server ci && npm --prefix server run build
   export DATABASE_MIGRATION_URL="postgresql://billhub_migration:***@<pg-host>:6432/billhub_db?sslmode=verify-full"
   export PGSSLROOTCERT=/etc/yandex-pg/ca.crt
-  bash scripts/bootstrap-schema.sh        # sed-фильтр schema.sql → psql → migrate.js (0001/0002/0003)
+  bash scripts/bootstrap-schema.sh        # sed-фильтр schema.sql → psql → migrate.js (0001–0005)
 '
 ```
 
-- [ ] Проверка: `SELECT max(version) FROM public._migrations;` == 3; ключевые таблицы на месте.
+- [ ] Проверка: `SELECT max(version) FROM public._migrations;` == 5; ключевые таблицы на месте.
 - [ ] Cloud.ru S3 bucket `billhub-s3` создан + allowlist + round-trip (см. cloudru-s3-setup.md).
 - [ ] Наполнение копией prod-данных + импорт паролей + миграция файлов R2→Cloud.ru — **Iteration 9**
       (не в этом разделе; этот bootstrap только создаёт чистую схему).

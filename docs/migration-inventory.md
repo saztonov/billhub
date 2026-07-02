@@ -23,10 +23,11 @@ Bootstrap новой Yandex PG = `scripts/bootstrap-schema.sh`: sed-фильтр
 | `0002` партиции `audit_log` | `audit_log_default` + помесячные `audit_log_YYYY_MM` | +K (≥1) |
 | `0003_drop_supabase_auth_funcs` | таблиц не добавляет (DROP FUNCTION `change_user_password`) | 0 |
 | `0004_fix_storage_keys` (Iteration 9, опц.) | таблиц не добавляет (idempotent data-only UPDATE `*.file_key`; по умолчанию no-op, ADR-0004) | 0 |
+| `0005_unique_email` (Этап 1, VPS2) | таблиц не добавляет (unique-индекс `users_email_lower_unique_idx` на `lower(email)`) | 0 |
 
 **Итог: 47 логических таблиц** (42 + 2 + 3) + партиции `audit_log` (минимум `audit_log_default`;
 помесячные создаются динамически DO-циклом и ретеншеном). Плюс системная `public._migrations`
-(создаётся runner-ом, max(version)=4 после bootstrap с `0004`).
+(создаётся runner-ом, max(version)=5 после bootstrap с `0005`).
 
 > Партиции `audit_log` считаются как BASE TABLE в `information_schema.tables`, поэтому фактическое
 > число строк там = 47 + (число партиций) + 1 (`_migrations`). Проверяется интеграционным тестом

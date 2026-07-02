@@ -17,6 +17,8 @@
 #   7. delta-replay-yandex-to-supabase unit-тесты зелёные (rollback-инструмент, ADR-0006).
 #   8. Отчёт Iteration 9 DoD присутствует (полная схема тестов зафиксирована отчётом).
 #   9. Контакты incident-команды заполнены и timestamp свежий (migration-inventory.md §10).
+#  10. Нет регистронезависимых дублей email в Supabase public.users (иначе unique-индекс 0005 и
+#      restore на шаге 04 упадут). Диагностика: GROUP BY lower(email) HAVING count(*)>1.
 #
 # Любой провал → exit 1 «Cutover откладывается: <причины>». Все проверки выполняются (не fail-fast),
 # чтобы оператор увидел сразу все блокеры.
@@ -72,7 +74,7 @@ filtered_public_tables() {
 
 # --- 1. git clean -----------------------------------------------------------
 check_git_clean() {
-  log "Проверка 1/9: рабочее дерево git чистое …"
+  log "Проверка 1/10:рабочее дерево git чистое …"
   if [[ "$DRY_RUN" == "1" ]]; then note_skip "git status --porcelain"; return 0; fi
   require_cmd git
   if [[ -z "$(git -C "$repo_root" status --porcelain)" ]]; then
@@ -84,7 +86,7 @@ check_git_clean() {
 
 # --- 2. CI green (gh api) ---------------------------------------------------
 check_ci_green() {
-  log "Проверка 2/9: CI на $GH_MAIN_BRANCH зелёный (gh api) …"
+  log "Проверка 2/10:CI на $GH_MAIN_BRANCH зелёный (gh api) …"
   if [[ "$DRY_RUN" == "1" ]]; then note_skip "gh api check-runs для $GH_MAIN_BRANCH"; return 0; fi
   if ! command -v gh >/dev/null 2>&1; then
     [[ "${ALLOW_NO_CI:-0}" == "1" ]] && { note_pass "gh отсутствует, ALLOW_NO_CI=1 — пропуск (под ответственность оператора)"; return 0; }
@@ -115,14 +117,14 @@ check_ci_green() {
 
 # --- 3. schema.sql readable -------------------------------------------------
 check_schema_readable() {
-  log "Проверка 3/9: sql/schema/schema.sql существует и читается …"
+  log "Проверка 3/10:sql/schema/schema.sql существует и читается …"
   if [[ -r "$SCHEMA_SQL" ]]; then note_pass "schema.sql читается ($SCHEMA_SQL)"; else note_fail "schema.sql недоступен: $SCHEMA_SQL"; fi
   [[ -r "$SED_FILTER" ]] || note_fail "sed-фильтр недоступен: $SED_FILTER"
 }
 
 # --- 4. Supabase schema drift ----------------------------------------------
 check_supabase_schema_drift() {
-  log "Проверка 4/9: pg_dump --schema-only Supabase == schema.sql (набор public-таблиц) …"
+  log "Проверка 4/10:pg_dump --schema-only Supabase == schema.sql (набор public-таблиц) …"
   if [[ "$DRY_RUN" == "1" ]]; then note_skip "pg_dump --schema-only Supabase + diff таблиц со schema.sql"; return 0; fi
   if [[ -z "${SUPABASE_DB_URL:-}" ]]; then note_fail "не задан SUPABASE_DB_URL — не проверить schema-drift Supabase"; return 0; fi
   if ! command -v pg_dump >/dev/null 2>&1; then note_fail "pg_dump не найден — не проверить schema-drift"; return 0; fi
@@ -147,7 +149,7 @@ check_supabase_schema_drift() {
 
 # --- 5. Yandex PG доступность + latency ------------------------------------
 check_yandex_pg() {
-  log "Проверка 5/9: Yandex PG доступен (psql SELECT 1) + latency …"
+  log "Проверка 5/10:Yandex PG доступен (psql SELECT 1) + latency …"
   if [[ "$DRY_RUN" == "1" ]]; then note_skip "psql SELECT 1 + npm run db:latency"; return 0; fi
   if [[ -z "${DATABASE_MIGRATION_URL:-}" && -z "${DATABASE_URL:-}" ]]; then
     note_fail "не заданы DATABASE_MIGRATION_URL/DATABASE_URL — не проверить Yandex PG"; return 0
@@ -173,7 +175,7 @@ check_yandex_pg() {
 
 # --- 6. Cloud.ru S3 + manifest ---------------------------------------------
 check_cloudru_s3() {
-  log "Проверка 6/9: Cloud.ru S3 доступен + manifest актуален …"
+  log "Проверка 6/10:Cloud.ru S3 доступен + manifest актуален …"
   if [[ "$DRY_RUN" == "1" ]]; then note_skip "aws s3api list-objects-v2 Cloud.ru + наличие manifest"; return 0; fi
   if [[ -z "${CLOUDRU_ENDPOINT:-}" ]]; then note_fail "не задан CLOUDRU_ENDPOINT — не проверить Cloud.ru S3"; return 0; fi
   if command -v aws >/dev/null 2>&1; then
@@ -196,7 +198,7 @@ check_cloudru_s3() {
 
 # --- 7. delta-replay unit-тесты --------------------------------------------
 check_delta_replay_tests() {
-  log "Проверка 7/9: delta-replay unit-тесты зелёные …"
+  log "Проверка 7/10:delta-replay unit-тесты зелёные …"
   if [[ "$DRY_RUN" == "1" ]]; then note_skip "npm --prefix server test delta-replay"; return 0; fi
   if command -v npm >/dev/null 2>&1; then
     if ( cd "$repo_root" && npm --prefix server test -- src/cli/delta-replay-yandex-to-supabase.test.ts ) >/dev/null 2>&1; then
@@ -211,7 +213,7 @@ check_delta_replay_tests() {
 
 # --- 8. Отчёт Iteration 9 DoD ----------------------------------------------
 check_iteration9_report() {
-  log "Проверка 8/9: отчёт Iteration 9 DoD присутствует с вердиктом PASS …"
+  log "Проверка 8/10:отчёт Iteration 9 DoD присутствует с вердиктом PASS …"
   if [[ ! -s "$ITERATION9_REPORT" ]]; then
     note_fail "отчёт Iteration 9 отсутствует: $ITERATION9_REPORT (зафиксируйте полную схему тестов перед окном)"
     return 0
@@ -228,7 +230,7 @@ check_iteration9_report() {
 # Плейсхолдеры детектируются ТОЛЬКО в секции «## 10.» инвентаря (в env-секции легитимны
 # <host>/<project>/<secret>, их не считаем за невыполненные контакты).
 check_contacts() {
-  log "Проверка 9/9: контакты incident-команды заполнены и timestamp свежий …"
+  log "Проверка 9/10:контакты incident-команды заполнены и timestamp свежий …"
   [[ -r "$INVENTORY" ]] || { note_fail "не найден $INVENTORY"; return 0; }
   local section
   section="$(awk '/^## 10\./{f=1;next} /^## /{f=0} f' "$INVENTORY")"
@@ -260,6 +262,24 @@ check_contacts() {
   fi
 }
 
+# --- 10. Нет регистронезависимых дублей email (unique-индекс 0005 / restore) ------
+check_email_dedup() {
+  log "Проверка 10/10: нет регистронезависимых дублей email в Supabase public.users …"
+  if [[ "$DRY_RUN" == "1" ]]; then note_skip "SELECT ... GROUP BY lower(email) HAVING count(*)>1 в Supabase"; return 0; fi
+  if [[ -z "${SUPABASE_DB_URL:-}" ]]; then note_fail "не задан SUPABASE_DB_URL — не проверить дубли email"; return 0; fi
+  if ! command -v psql >/dev/null 2>&1; then note_fail "psql не найден — не проверить дубли email"; return 0; fi
+  assert_is_supabase "$SUPABASE_DB_URL" "SUPABASE_DB_URL"
+  local dups
+  dups="$(psql "$SUPABASE_DB_URL" -tAc "SELECT count(*) FROM (SELECT 1 FROM public.users GROUP BY lower(email) HAVING count(*) > 1) d" 2>/dev/null | tr -d '[:space:]' || true)"
+  if [[ -z "$dups" ]]; then
+    note_fail "не удалось выполнить запрос дублей email к Supabase"
+  elif [[ "$dups" == "0" ]]; then
+    note_pass "регистронезависимых дублей email нет (миграция 0005 применится, restore не упадёт)"
+  else
+    note_fail "$dups групп(ы) дублей email (lower(email)) в public.users — устраните до окна: unique-индекс 0005 и restore на шаге 04 упадут"
+  fi
+}
+
 main() {
   init_logging
   log "=== PRE-FLIGHT CUTOVER 1 (read-only проверки; окно ещё НЕ открыто) ==="
@@ -274,6 +294,7 @@ main() {
   check_delta_replay_tests
   check_iteration9_report
   check_contacts
+  check_email_dedup
 
   echo
   if (( ${#FAILURES[@]} == 0 )); then

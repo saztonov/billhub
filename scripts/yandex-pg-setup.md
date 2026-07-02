@@ -165,13 +165,13 @@ export PGSSLROOTCERT=/etc/yandex-pg/ca.crt
 bash scripts/bootstrap-schema.sh
 ```
 
-Скрипт: sed-фильтрация `sql/schema/schema.sql` → `psql` (ON_ERROR_STOP) → `migrate.js` (0001/0002/0003).
+Скрипт: sed-фильтрация `sql/schema/schema.sql` → `psql` (ON_ERROR_STOP) → `migrate.js` (0001–0005).
 `assertNotSupabase()` в runner-е и shell-guard в скрипте не дадут подать Supabase-URL (принцип 1).
 
 Проверка после bootstrap:
 
 ```sql
-SELECT max(version) FROM public._migrations;      -- ожидается 3
+SELECT max(version) FROM public._migrations;      -- ожидается 5
 SELECT count(*) FROM information_schema.tables
  WHERE table_schema='public' AND table_type='BASE TABLE';
 SELECT to_regclass('public.users'), to_regclass('public.refresh_tokens'),
@@ -189,5 +189,5 @@ SELECT to_regclass('public.users'), to_regclass('public.refresh_tokens'),
 - [ ] Роли `billhub_runtime` (limit 30) и `billhub_migration` (limit 5) созданы.
 - [ ] Allowlist: только `NEW_VPS_IP/32` на порт 6432.
 - [ ] Бэкапы retention 14 дней; PITR активен.
-- [ ] `bootstrap-schema.sh` отработал: `max(version)=3`, ключевые таблицы на месте.
+- [ ] `bootstrap-schema.sh` отработал: `max(version)=5`, ключевые таблицы на месте.
 - [ ] Latency с VPS: `scripts/check-pg-latency.ts` — median ≤ 30 мс, p95 ≤ 50 мс.

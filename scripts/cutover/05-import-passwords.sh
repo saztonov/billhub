@@ -3,11 +3,16 @@
 # 05-import-passwords.sh — финальный перенос bcrypt-хэшей в cutover-окне (план Iteration 10, шаг 5/12,
 # T0+35). Обёртка над server/dist/cli/import-passwords.js: читает auth.users.encrypted_password
 # (bcrypt) из Supabase (read-only, принцип 1) → public.users.password_hash в Yandex PG, и проверяет
-# на выборке (--verify-sample), что bcrypt.compare прежним паролем проходит.
+# на выборке (--verify-sample), что перенесённый hash в формате bcrypt ($2a/$2b/$2y). ВАЖНО:
+# --verify-sample проверяет ФОРМАТ, а НЕ реальный логин; фактический вход прежним паролем
+# подтверждают e2e-smoke на шагах 09/11.
+#
+# Дополнительно CLI (D1/D3): падает, если пользователь есть в auth.users, но НЕ найден в public.users
+# (неполный перенос); печатает список активных пользователей без пароля (им нужен сброс пароля).
 #
 # Идемпотентность: импорт — UPSERT password_hash по user_id (повторный запуск переносит те же хэши,
-# результат тот же). verify-sample случаен, но критерий (все из выборки логинятся) детерминирован.
-# Если verify-sample НЕ прошёл → выход !=0 → оператор инициирует rollback Сценарий A (ADR-0006).
+# результат тот же). verify-sample случаен, но критерий (все из выборки — валидный bcrypt-формат)
+# детерминирован. Если verify-sample/целостность НЕ прошли → выход !=0 → rollback Сценарий A (ADR-0006).
 #
 # Переменные окружения:
 #   SUPABASE_DB_URL          источник bcrypt-хэшей (read-only)                         [обязательна]
@@ -52,7 +57,7 @@ main() {
     --verify-sample '$VERIFY_SAMPLE'"
 
   if [[ "$DRY_RUN" == "1" ]]; then log "[dry-run] Импорт не выполнялся."; exit 0; fi
-  log "ГОТОВО. Хэши перенесены, выборка $VERIFY_SAMPLE/$VERIFY_SAMPLE прошла. Далее — шаг 6 (rclone delta)."
+  log "ГОТОВО. Хэши перенесены, выборка $VERIFY_SAMPLE (формат bcrypt) прошла. Далее — шаг 6 (rclone delta)."
 }
 
 main "$@"

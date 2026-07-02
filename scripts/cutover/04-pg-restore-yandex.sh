@@ -47,7 +47,6 @@ TARGET_DB_NAME="${TARGET_DB_NAME:-billhub_db}"
 JOBS="${JOBS:-4}"
 ARTIFACTS="$repo_root/docs/cutover-artifacts"
 
-KEY_TABLES=(users payment_requests contract_requests payment_request_files)
 EXPECTED_NEW=(refresh_tokens password_reset_tokens outbox jobs_log audit_log)
 
 # Прикладные таблицы из отфильтрованной schema.sql (тот же sed-фильтр, что в bootstrap-schema.sh).
@@ -160,18 +159,29 @@ verify_schema() {
   log "  ✓ Набор таблиц соответствует ожиданиям (schema.sql + только новые из 0001/0002)."
 }
 
-# --- (опц.) сверка count(*) ключевых таблиц Supabase vs Yandex --------------
+# --- (D2) ОБЯЗАТЕЛЬНАЯ сверка count(*) ВСЕХ прикладных таблиц Supabase vs Yandex ---
+# Раньше сверка была опциональной и только по 4 ключевым таблицам — частичный недо-restore в
+# остальных таблицах не ловился. Теперь SUPABASE_DB_URL обязателен, а сверяются все таблицы schema.sql.
 verify_counts() {
-  [[ -n "${SUPABASE_DB_URL:-}" ]] || { log "SUPABASE_DB_URL не задан — count-сверка пропущена (sanity по схеме уже выполнен)."; return 0; }
-  if [[ "$DRY_RUN" == "1" ]]; then log "[dry-run] сверка count(*) ${KEY_TABLES[*]} (Supabase vs Yandex)"; return 0; fi
-  log "Сверка count(*) ключевых таблиц (Supabase vs Yandex) …"
-  local t src dst
-  for t in "${KEY_TABLES[@]}"; do
-    src="$(psql "$SUPABASE_DB_URL" -tAc "SELECT count(*) FROM public.$t" | tr -d '[:space:]')" || fail "count $t из Supabase не прочитан"
-    dst="$(psql "$DATABASE_MIGRATION_URL" -tAc "SELECT count(*) FROM public.$t" | tr -d '[:space:]')" || fail "count $t из Yandex не прочитан"
-    [[ "$src" == "$dst" ]] || fail "count($t): Supabase=$src != Yandex=$dst — данные перенесены не полностью."
-    log "  ✓ $t: $src == $dst"
-  done
+  [[ -n "${SUPABASE_DB_URL:-}" ]] || fail "SUPABASE_DB_URL обязателен для count-сверки (D2): без него неполный restore в неключевых таблицах не заметить."
+  if [[ "$DRY_RUN" == "1" ]]; then log "[dry-run] сверка count(*) всех таблиц schema.sql (Supabase vs Yandex)"; return 0; fi
+  log "Сверка count(*) всех прикладных таблиц schema.sql (Supabase vs Yandex) …"
+  local t src dst mismatches=0 checked=0
+  while IFS= read -r t; do
+    [[ -n "$t" ]] || continue
+    src="$(psql "$SUPABASE_DB_URL" -tAc "SELECT count(*) FROM public.\"$t\"" | tr -d '[:space:]')" || fail "count $t из Supabase не прочитан"
+    dst="$(psql "$DATABASE_MIGRATION_URL" -tAc "SELECT count(*) FROM public.\"$t\"" | tr -d '[:space:]')" || fail "count $t из Yandex не прочитан"
+    checked=$((checked + 1))
+    if [[ "$src" == "$dst" ]]; then
+      log "  ✓ $t: $src == $dst"
+    else
+      log "  ✗ $t: Supabase=$src != Yandex=$dst"
+      mismatches=$((mismatches + 1))
+    fi
+  done < <(schema_sql_tables)
+  [[ "$checked" -gt 0 ]] || fail "count-сверка: не удалось получить список таблиц schema.sql."
+  [[ "$mismatches" -eq 0 ]] || fail "count-сверка: расхождения в $mismatches таблиц(ах) — данные перенесены не полностью."
+  log "  count-сверка: $checked таблиц, расхождений нет."
 }
 
 main() {

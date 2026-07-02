@@ -37,6 +37,8 @@ export interface TargetWriter {
   /** Обновляет password_hash. Возвращает true, если строка пользователя найдена в target. */
   setPasswordHash(userId: string, hash: string): Promise<boolean>;
   getPasswordHash(userId: string): Promise<string | null>;
+  /** Активные пользователи target с password_hash IS NULL (отчёт D3). Опционально. */
+  listNullPasswordUsers?(): Promise<{ id: string; email: string }[]>;
 }
 
 export interface ImportResult {
@@ -44,8 +46,14 @@ export interface ImportResult {
   migrated: number;
   /** Пропущены: null/не-bcrypt encrypted_password или отсутствует в target. */
   skipped: number;
+  /** Из skipped: encrypted_password null/не-bcrypt (OAuth/SSO — легитимно). */
+  skippedNoPassword: number;
+  /** Из skipped: пользователь есть в auth.users, но НЕ найден в public.users (проблема целостности). */
+  skippedNotInTarget: number;
   verified: number;
   verifyFailures: string[];
+  /** Активные пользователи target с password_hash IS NULL после импорта (нужен сброс пароля). */
+  nullPasswordUsers?: { id: string; email: string }[];
 }
 
 export interface RunImportOptions {
@@ -78,6 +86,8 @@ export async function runImport(opts: RunImportOptions): Promise<ImportResult> {
     total: users.length,
     migrated: 0,
     skipped: 0,
+    skippedNoPassword: 0,
+    skippedNotInTarget: 0,
     verified: 0,
     verifyFailures: [],
   };
@@ -86,18 +96,23 @@ export async function runImport(opts: RunImportOptions): Promise<ImportResult> {
   for (const u of users) {
     if (!u.encryptedPassword || !PasswordService.isBcryptHash(u.encryptedPassword)) {
       result.skipped += 1;
+      result.skippedNoPassword += 1;
       continue;
     }
     const updated = await opts.target.setPasswordHash(u.id, u.encryptedPassword);
     if (!updated) {
       result.skipped += 1;
+      result.skippedNotInTarget += 1;
       continue;
     }
     result.migrated += 1;
     migratedIds.push(u.id);
   }
 
-  log(`Источник: ${result.total}, перенесено: ${result.migrated}, пропущено: ${result.skipped}`);
+  log(
+    `Источник: ${result.total}, перенесено: ${result.migrated}, пропущено: ${result.skipped} ` +
+      `(без пароля/OAuth: ${result.skippedNoPassword}, нет в target: ${result.skippedNotInTarget})`,
+  );
 
   const sampleN = opts.verifySample ?? 0;
   if (sampleN > 0 && migratedIds.length > 0) {
@@ -115,6 +130,12 @@ export async function runImport(opts: RunImportOptions): Promise<ImportResult> {
       `Проверено выборкой: ${result.verified}/${picks.length}` +
         (result.verifyFailures.length ? `, провалов: ${result.verifyFailures.length}` : ''),
     );
+  }
+
+  // D3: активные пользователи без пароля после импорта (нужен флоу сброса пароля).
+  if (opts.target.listNullPasswordUsers) {
+    result.nullPasswordUsers = await opts.target.listNullPasswordUsers();
+    log(`Активных пользователей без пароля после импорта: ${result.nullPasswordUsers.length}`);
   }
 
   return result;
@@ -165,6 +186,16 @@ export class PgTargetWriter implements TargetWriter {
       SELECT password_hash FROM public.users WHERE id = ${userId}
     `;
     return row ? row.password_hash : null;
+  }
+
+  async listNullPasswordUsers(): Promise<{ id: string; email: string }[]> {
+    const rows = await this.sql<{ id: string; email: string | null }[]>`
+      SELECT id, email::text AS email
+      FROM public.users
+      WHERE password_hash IS NULL AND is_active = true
+      ORDER BY email
+    `;
+    return rows.map((r) => ({ id: r.id, email: r.email ?? '' }));
   }
 
   async close(): Promise<void> {
@@ -225,6 +256,21 @@ async function main(): Promise<void> {
     if (res.verifyFailures.length > 0) {
       console.error(`Проверка не пройдена для ${res.verifyFailures.length} пользователей.`);
       process.exit(1);
+    }
+    // D1: пользователь из auth.users, отсутствующий в public.users, = неполный перенос данных.
+    if (res.skippedNotInTarget > 0) {
+      console.error(
+        `Целостность: ${res.skippedNotInTarget} пользователей из auth.users не найдены в public.users. ` +
+          `Данные перенесены не полностью — прервано.`,
+      );
+      process.exit(1);
+    }
+    // D3: активные пользователи без пароля — не блокер импорта, но требуют сброса пароля.
+    if (res.nullPasswordUsers && res.nullPasswordUsers.length > 0) {
+      console.warn(
+        `ВНИМАНИЕ: ${res.nullPasswordUsers.length} активных пользователей без пароля (нужен сброс). Список:`,
+      );
+      for (const u of res.nullPasswordUsers) console.warn(`  - ${u.email} (${u.id})`);
     }
     console.log('import-passwords завершён успешно.');
     process.exit(0);

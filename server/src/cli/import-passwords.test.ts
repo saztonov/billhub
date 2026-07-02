@@ -83,6 +83,27 @@ describe('import-passwords — 100 синтетических пользоват
     expect(res.total).toBe(6);
     expect(res.migrated).toBe(3);
     expect(res.skipped).toBe(3);
+    expect(res.skippedNoPassword).toBe(2); // null + plaintext (OAuth/без пароля)
+    expect(res.skippedNotInTarget).toBe(1); // 'absent' — есть в auth, нет в public.users
+  });
+
+  it('сообщает активных пользователей без пароля после импорта (D3)', async () => {
+    const users = synthetic(2);
+    const knownIds = new Set(users.map((u) => u.id));
+    const nullList = [{ id: 'x', email: 'x@e.com' }];
+    const target: TargetWriter = {
+      async setPasswordHash(id: string): Promise<boolean> {
+        return knownIds.has(id);
+      },
+      async getPasswordHash(): Promise<string | null> {
+        return null;
+      },
+      async listNullPasswordUsers(): Promise<{ id: string; email: string }[]> {
+        return nullList;
+      },
+    };
+    const res = await runImport({ source: new FakeSource(users), target, logger: () => {} });
+    expect(res.nullPasswordUsers).toEqual(nullList);
   });
 
   it('перенесённые хэши остаются валидным bcrypt в target', async () => {
