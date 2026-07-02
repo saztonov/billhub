@@ -26,9 +26,13 @@ services:
       NODE_ENV: production
       RUN_WORKERS: 'false'
       NODE_OPTIONS: '--max-old-space-size=384'
+      # Yandex Managed PG отдаёт сертификат приватного CA — postgres.js (verify-full) проверяет
+      # по стору Node и НЕ читает PGSSLROOTCERT, поэтому CA даём Node через NODE_EXTRA_CA_CERTS.
+      NODE_EXTRA_CA_CERTS: /etc/yandex-pg/ca.crt
     volumes:
       - upload-temp:/app/temp
       - mail-stub:/app/data # защищённый лог mail-stub (C9), MAIL_STUB_LOG_PATH=/app/data/mail-stub.log
+      - /etc/yandex-pg:/etc/yandex-pg:ro # Yandex CA для TLS verify-full (файл на хосте)
     networks: [edge, internal] # edge — для ingress; internal — для redis
     depends_on:
       redis:
@@ -65,8 +69,10 @@ services:
       OCR_CONCURRENCY: '3'
       FILE_PROCESSING_CONCURRENCY: '3'
       NODE_OPTIONS: '--max-old-space-size=512'
+      NODE_EXTRA_CA_CERTS: /etc/yandex-pg/ca.crt # Yandex CA для TLS verify-full (см. billhub-api)
     volumes:
       - upload-temp:/app/temp
+      - /etc/yandex-pg:/etc/yandex-pg:ro # Yandex CA для TLS verify-full
     networks: [internal] # worker не принимает входящие — только internal (redis/БД/S3)
     depends_on:
       redis:
@@ -137,6 +143,9 @@ services:
     env_file: /etc/billhub/migration.env
     environment:
       NODE_ENV: production
+      NODE_EXTRA_CA_CERTS: /etc/yandex-pg/ca.crt # Yandex CA для TLS verify-full (migrate тоже на postgres.js)
+    volumes:
+      - /etc/yandex-pg:/etc/yandex-pg:ro # Yandex CA для TLS verify-full
     networks: [internal] # доступ к внешней БД; на edge не нужен
     command: ['node', 'dist/cli/migrate.js']
 
