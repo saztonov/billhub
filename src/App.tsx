@@ -6,13 +6,19 @@ import AuthLayout from '@/layout/AuthLayout'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import RoleGuard from '@/components/RoleGuard'
 import LoginPage from '@/pages/LoginPage'
+import AppUpdateBanner from '@/components/AppUpdateBanner'
 import { useAuthStore } from '@/store/authStore'
 import { lazyWithRetry } from '@/utils/lazyWithRetry'
 
 /** Корневой редирект: security уходит на вкладку «Поставщики», остальные — в заявки на оплату */
 const RootRedirect = () => {
   const role = useAuthStore((s) => s.user?.role)
-  return <Navigate to={role === 'security' ? '/references?tab=suppliers' : '/payment-requests'} replace />
+  return (
+    <Navigate
+      to={role === 'security' ? '/references?tab=suppliers' : '/payment-requests'}
+      replace
+    />
+  )
 }
 
 // Ленивая загрузка страниц с retry при сетевых сбоях
@@ -36,6 +42,8 @@ const App = () => {
 
   return (
     <AntdApp>
+      {/* Глобальный баннер обновления фронта — виден на всех маршрутах */}
+      <AppUpdateBanner />
       <Routes>
         {/* Авторизация и регистрация */}
         <Route element={<AuthLayout />}>
@@ -46,66 +54,147 @@ const App = () => {
         <Route element={<ProtectedRoute />}>
           <Route element={<MainLayout />}>
             <Route path="/" element={<RootRedirect />} />
-            <Route path="/profile" element={
-              <Suspense fallback={<Flex align="center" justify="center" style={{ padding: 48 }}><Spin size="large" /></Flex>}>
-                <ProfilePage />
-              </Suspense>
-            } />
+            <Route
+              path="/profile"
+              element={
+                <Suspense
+                  fallback={
+                    <Flex align="center" justify="center" style={{ padding: 48 }}>
+                      <Spin size="large" />
+                    </Flex>
+                  }
+                >
+                  <ProfilePage />
+                </Suspense>
+              }
+            />
 
             {/* Заявки видны всем кроме security */}
             <Route element={<RoleGuard allowedRoles={['admin', 'user', 'counterparty_user']} />}>
-              <Route path="/payment-requests" element={
-                <Suspense fallback={<Flex align="center" justify="center" style={{ padding: 48 }}><Spin size="large" /></Flex>}>
-                  <PaymentRequestsPage />
-                </Suspense>
-              } />
-              <Route path="/contract-requests" element={
-                <Suspense fallback={<Flex align="center" justify="center" style={{ padding: 48 }}><Spin size="large" /></Flex>}>
-                  <ContractRequestsPage />
-                </Suspense>
-              } />
+              <Route
+                path="/payment-requests"
+                element={
+                  <Suspense
+                    fallback={
+                      <Flex align="center" justify="center" style={{ padding: 48 }}>
+                        <Spin size="large" />
+                      </Flex>
+                    }
+                  >
+                    <PaymentRequestsPage />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/contract-requests"
+                element={
+                  <Suspense
+                    fallback={
+                      <Flex align="center" justify="center" style={{ padding: 48 }}>
+                        <Spin size="large" />
+                      </Flex>
+                    }
+                  >
+                    <ContractRequestsPage />
+                  </Suspense>
+                }
+              />
             </Route>
 
             {/* Только admin и user (внутренние сотрудники) */}
             <Route element={<RoleGuard allowedRoles={['admin', 'user']} />}>
-              <Route path="/distribution-letters" element={
-                <Suspense fallback={<Flex align="center" justify="center" style={{ padding: 48 }}><Spin size="large" /></Flex>}>
-                  <DistributionLettersPage />
-                </Suspense>
-              } />
-              <Route path="/employees" element={
-                <Suspense fallback={<Flex align="center" justify="center" style={{ padding: 48 }}><Spin size="large" /></Flex>}>
-                  <EmployeesPage />
-                </Suspense>
-              } />
-              <Route path="/materials" element={
-                <Suspense fallback={<Flex align="center" justify="center" style={{ padding: 48 }}><Spin size="large" /></Flex>}>
-                  <MaterialsPage />
-                </Suspense>
-              } />
-              <Route path="/materials/:paymentRequestId" element={
-                <Suspense fallback={<Flex align="center" justify="center" style={{ padding: 48 }}><Spin size="large" /></Flex>}>
-                  <MaterialsDetailPage />
-                </Suspense>
-              } />
+              <Route
+                path="/distribution-letters"
+                element={
+                  <Suspense
+                    fallback={
+                      <Flex align="center" justify="center" style={{ padding: 48 }}>
+                        <Spin size="large" />
+                      </Flex>
+                    }
+                  >
+                    <DistributionLettersPage />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/employees"
+                element={
+                  <Suspense
+                    fallback={
+                      <Flex align="center" justify="center" style={{ padding: 48 }}>
+                        <Spin size="large" />
+                      </Flex>
+                    }
+                  >
+                    <EmployeesPage />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/materials"
+                element={
+                  <Suspense
+                    fallback={
+                      <Flex align="center" justify="center" style={{ padding: 48 }}>
+                        <Spin size="large" />
+                      </Flex>
+                    }
+                  >
+                    <MaterialsPage />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/materials/:paymentRequestId"
+                element={
+                  <Suspense
+                    fallback={
+                      <Flex align="center" justify="center" style={{ padding: 48 }}>
+                        <Spin size="large" />
+                      </Flex>
+                    }
+                  >
+                    <MaterialsDetailPage />
+                  </Suspense>
+                }
+              />
             </Route>
 
             {/* Справочники — admin, user, security */}
             <Route element={<RoleGuard allowedRoles={['admin', 'user', 'security']} />}>
-              <Route path="/references" element={
-                <Suspense fallback={<Flex align="center" justify="center" style={{ padding: 48 }}><Spin size="large" /></Flex>}>
-                  <ReferencesPage />
-                </Suspense>
-              } />
+              <Route
+                path="/references"
+                element={
+                  <Suspense
+                    fallback={
+                      <Flex align="center" justify="center" style={{ padding: 48 }}>
+                        <Spin size="large" />
+                      </Flex>
+                    }
+                  >
+                    <ReferencesPage />
+                  </Suspense>
+                }
+              />
             </Route>
 
             {/* Только admin */}
             <Route element={<RoleGuard allowedRoles={['admin']} />}>
-              <Route path="/admin" element={
-                <Suspense fallback={<Flex align="center" justify="center" style={{ padding: 48 }}><Spin size="large" /></Flex>}>
-                  <AdminPage />
-                </Suspense>
-              } />
+              <Route
+                path="/admin"
+                element={
+                  <Suspense
+                    fallback={
+                      <Flex align="center" justify="center" style={{ padding: 48 }}>
+                        <Spin size="large" />
+                      </Flex>
+                    }
+                  >
+                    <AdminPage />
+                  </Suspense>
+                }
+              />
             </Route>
           </Route>
         </Route>
