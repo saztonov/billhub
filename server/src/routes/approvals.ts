@@ -149,7 +149,7 @@ async function approvalRoutes(fastify: FastifyInstance): Promise<void> {
     const count = await request.server.repos.approvals.countApproved({
       allSites: query.allSites === 'true' || user.role === 'admin',
       siteIds: query.siteIds ? query.siteIds.split(',') : [],
-      showDeleted: query.showDeleted === 'true',
+      showDeleted: user.role === 'admin' && query.showDeleted === 'true',
     });
     return { count };
   });
@@ -167,7 +167,7 @@ async function approvalRoutes(fastify: FastifyInstance): Promise<void> {
     const count = await request.server.repos.approvals.countRejected({
       allSites: query.allSites === 'true' || user.role === 'admin',
       siteIds: query.siteIds ? query.siteIds.split(',') : [],
-      showDeleted: query.showDeleted === 'true',
+      showDeleted: user.role === 'admin' && query.showDeleted === 'true',
     });
     return { count };
   });

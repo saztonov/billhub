@@ -26,7 +26,7 @@ async function paymentRequestRoutes(fastify: FastifyInstance): Promise<void> {
     const repo = request.server.repos.paymentRequests;
 
     const filter: PaymentRequestListFilter = {
-      showDeleted: query.showDeleted === 'true',
+      showDeleted: user.role === 'admin' && query.showDeleted === 'true',
       supplierId: query.supplierId,
       siteId: query.siteId,
       statusId: query.statusId,

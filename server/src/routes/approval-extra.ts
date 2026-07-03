@@ -105,7 +105,7 @@ async function approvalExtraRoutes(fastify: FastifyInstance): Promise<void> {
     return request.server.repos.approvals.listApprovedArray({
       allSites: query.allSites === 'true' || user.role === 'admin',
       siteIds: query.siteIds ? query.siteIds.split(',') : [],
-      showDeleted: query.showDeleted === 'true',
+      showDeleted: user.role === 'admin' && query.showDeleted === 'true',
     });
   });
 
@@ -116,7 +116,7 @@ async function approvalExtraRoutes(fastify: FastifyInstance): Promise<void> {
     return request.server.repos.approvals.listRejectedArray({
       allSites: query.allSites === 'true' || user.role === 'admin',
       siteIds: query.siteIds ? query.siteIds.split(',') : [],
-      showDeleted: query.showDeleted === 'true',
+      showDeleted: user.role === 'admin' && query.showDeleted === 'true',
     });
   });
 
