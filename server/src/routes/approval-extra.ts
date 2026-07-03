@@ -101,20 +101,22 @@ async function approvalExtraRoutes(fastify: FastifyInstance): Promise<void> {
   /* ---------- GET /api/approvals/approved-requests ---------- */
   fastify.get('/api/approvals/approved-requests', adminOrUser, async (request) => {
     const user = request.user!;
-    const query = request.query as { allSites?: string; siteIds?: string };
+    const query = request.query as { allSites?: string; siteIds?: string; showDeleted?: string };
     return request.server.repos.approvals.listApprovedArray({
       allSites: query.allSites === 'true' || user.role === 'admin',
       siteIds: query.siteIds ? query.siteIds.split(',') : [],
+      showDeleted: query.showDeleted === 'true',
     });
   });
 
   /* ---------- GET /api/approvals/rejected-requests ---------- */
   fastify.get('/api/approvals/rejected-requests', adminOrUser, async (request) => {
     const user = request.user!;
-    const query = request.query as { allSites?: string; siteIds?: string };
+    const query = request.query as { allSites?: string; siteIds?: string; showDeleted?: string };
     return request.server.repos.approvals.listRejectedArray({
       allSites: query.allSites === 'true' || user.role === 'admin',
       siteIds: query.siteIds ? query.siteIds.split(',') : [],
+      showDeleted: query.showDeleted === 'true',
     });
   });
 

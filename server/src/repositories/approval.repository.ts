@@ -41,6 +41,8 @@ export type ApprovalOpResult = { ok: true } | { ok: false; status: number; error
 export interface QueryScope {
   allSites: boolean;
   siteIds: string[];
+  /** true — включить удалённые (is_deleted=true) в выборку/счётчик; по умолчанию только активные. */
+  showDeleted?: boolean;
 }
 
 export interface AddDecisionFileInput {

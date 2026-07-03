@@ -33,7 +33,12 @@ interface PaymentRequestStoreState {
   isLoading: boolean
   isSubmitting: boolean
   error: string | null
-  fetchRequests: (counterpartyId?: string, userSiteIds?: string[], allSites?: boolean, includeDeleted?: boolean) => Promise<void>
+  fetchRequests: (
+    counterpartyId?: string,
+    userSiteIds?: string[],
+    allSites?: boolean,
+    includeDeleted?: boolean,
+  ) => Promise<void>
   createRequest: (
     data: CreateRequestData,
     counterpartyId: string,
@@ -64,7 +69,16 @@ interface PaymentRequestStoreState {
     newFilesCount?: number,
   ) => Promise<void>
   toggleFileRejection: (fileId: string, userId: string) => Promise<void>
-  updateDpData: (id: string, data: { dpNumber: string; dpDate: string; dpAmount: number; dpFileKey: string; dpFileName: string }) => Promise<void>
+  updateDpData: (
+    id: string,
+    data: {
+      dpNumber: string
+      dpDate: string
+      dpAmount: number
+      dpFileKey: string
+      dpFileName: string
+    },
+  ) => Promise<void>
 }
 
 export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get) => ({
@@ -80,7 +94,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
       // Формируем query-параметры для API
       const params: Record<string, string | number | boolean | undefined> = {}
       if (counterpartyId) params.counterpartyId = counterpartyId
-      if (includeDeleted) params.includeDeleted = true
+      if (includeDeleted) params.showDeleted = true
       if (allSites !== undefined) params.allSites = allSites
       if (userSiteIds && userSiteIds.length > 0) params.siteIds = userSiteIds.join(',')
       // Если allSites=false и нет объектов — пустой список
@@ -112,7 +126,12 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
       return result
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка создания заявки'
-      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'createRequest' } })
+      logError({
+        errorType: 'api_error',
+        errorMessage: message,
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'createRequest' },
+      })
       set({ error: message, isSubmitting: false })
       throw err
     }
@@ -162,7 +181,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
               ...r,
               uploadedFiles: r.uploadedFiles + 1,
               // При повторной отправке или догрузке увеличиваем также totalFiles
-              totalFiles: (isResubmit || isAdditional) ? r.totalFiles + 1 : r.totalFiles,
+              totalFiles: isResubmit || isAdditional ? r.totalFiles + 1 : r.totalFiles,
             }
           : r,
       ),
@@ -172,9 +191,7 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
   fetchRequestFiles: async (requestId) => {
     set({ isLoading: true, error: null })
     try {
-      const data = await api.get<PaymentRequestFile[]>(
-        `/api/payment-requests/${requestId}/files`,
-      )
+      const data = await api.get<PaymentRequestFile[]>(`/api/payment-requests/${requestId}/files`)
 
       set({ currentRequestFiles: data ?? [], isLoading: false })
     } catch (err) {
@@ -198,7 +215,12 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
       set({ isSubmitting: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка повторной отправки'
-      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'resubmitRequest' } })
+      logError({
+        errorType: 'api_error',
+        errorMessage: message,
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'resubmitRequest' },
+      })
       set({ error: message, isSubmitting: false })
       throw err
     }
@@ -216,7 +238,12 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
       set({ isSubmitting: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка обновления заявки'
-      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'updateRequest' } })
+      logError({
+        errorType: 'api_error',
+        errorMessage: message,
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'updateRequest' },
+      })
       set({ error: message, isSubmitting: false })
       throw err
     }
@@ -231,14 +258,26 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
       set((state) => ({
         requests: state.requests.map((r) =>
           r.id === id
-            ? { ...r, dpNumber: data.dpNumber, dpDate: data.dpDate, dpAmount: data.dpAmount, dpFileKey: data.dpFileKey, dpFileName: data.dpFileName }
+            ? {
+                ...r,
+                dpNumber: data.dpNumber,
+                dpDate: data.dpDate,
+                dpAmount: data.dpAmount,
+                dpFileKey: data.dpFileKey,
+                dpFileName: data.dpFileName,
+              }
             : r,
         ),
         isSubmitting: false,
       }))
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Ошибка сохранения данных РП'
-      logError({ errorType: 'api_error', errorMessage: msg, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'updateDpData' } })
+      logError({
+        errorType: 'api_error',
+        errorMessage: msg,
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'updateDpData' },
+      })
       set({ error: msg, isSubmitting: false })
       throw err
     }
@@ -260,12 +299,22 @@ export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get
       set({
         currentRequestFiles: files.map((f) =>
           f.id === fileId
-            ? { ...f, isRejected: newRejected, rejectedBy: newRejected ? userId : null, rejectedAt: newRejected ? new Date().toISOString() : null }
+            ? {
+                ...f,
+                isRejected: newRejected,
+                rejectedBy: newRejected ? userId : null,
+                rejectedAt: newRejected ? new Date().toISOString() : null,
+              }
             : f,
         ),
       })
     } catch (err) {
-      logError({ errorType: 'api_error', errorMessage: err instanceof Error ? err.message : 'Ошибка', errorStack: null, metadata: { action: 'toggleFileRejection', fileId } })
+      logError({
+        errorType: 'api_error',
+        errorMessage: err instanceof Error ? err.message : 'Ошибка',
+        errorStack: null,
+        metadata: { action: 'toggleFileRejection', fileId },
+      })
     }
   },
 }))

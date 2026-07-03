@@ -69,7 +69,11 @@ export function usePaymentRequestsData({
   const { statuses, fetchStatuses } = useStatusStore()
   const { suppliers, fetchSuppliers } = useSupplierStore()
   const { omtsUsers, fetchOmtsUsers, assignResponsible } = useAssignmentStore()
-  const { fetchSites: fetchOmtsRpSites, fetchConfig: fetchOmtsRpConfig, responsibleUserId: omtsRpResponsibleUserId } = useOmtsRpStore()
+  const {
+    fetchSites: fetchOmtsRpSites,
+    fetchConfig: fetchOmtsRpConfig,
+    responsibleUserId: omtsRpResponsibleUserId,
+  } = useOmtsRpStore()
   const isOmtsRpUser = !!user?.id && user.id === omtsRpResponsibleUserId
 
   const uploadTasks = useUploadQueueStore((s) => s.tasks)
@@ -111,7 +115,9 @@ export function usePaymentRequestsData({
   // Устанавливаем фильтры по умолчанию для ОМТС (если не восстановлены из localStorage)
   useEffect(() => {
     if (isUser && isOmtsUser && !isMobile) {
-      setFilters((prev: FilterValues) => prev.myRequestsFilter ? prev : { ...prev, myRequestsFilter: 'assigned_to_me' })
+      setFilters((prev: FilterValues) =>
+        prev.myRequestsFilter ? prev : { ...prev, myRequestsFilter: 'assigned_to_me' },
+      )
     }
   }, [isUser, isOmtsUser, isMobile, setFilters])
 
@@ -138,7 +144,17 @@ export function usePaymentRequestsData({
     } else if (isUser) {
       fetchRequests(undefined, userSiteIds, userAllSites)
     }
-  }, [fetchRequests, isCounterpartyUser, isAdmin, isUser, user?.counterpartyId, sitesLoaded, userSiteIds, userAllSites, showDeleted])
+  }, [
+    fetchRequests,
+    isCounterpartyUser,
+    isAdmin,
+    isUser,
+    user?.counterpartyId,
+    sitesLoaded,
+    userSiteIds,
+    userAllSites,
+    showDeleted,
+  ])
 
   // Загружаем pendingRequests для счетчика вкладки
   useEffect(() => {
@@ -147,7 +163,16 @@ export function usePaymentRequestsData({
     if (department && userDeptInChain) {
       fetchPendingRequests(department, user.id, isAdmin)
     }
-  }, [isCounterpartyUser, sitesLoaded, user?.id, user?.department, isAdmin, adminSelectedStage, userDeptInChain, fetchPendingRequests])
+  }, [
+    isCounterpartyUser,
+    sitesLoaded,
+    user?.id,
+    user?.department,
+    isAdmin,
+    adminSelectedStage,
+    userDeptInChain,
+    fetchPendingRequests,
+  ])
 
   // Загружаем заявки ОМТС РП для счетчика вкладки
   useEffect(() => {
@@ -183,14 +208,14 @@ export function usePaymentRequestsData({
     } else if (activeTab === 'omts_rp') {
       fetchOmtsRpPendingRequests()
     } else if (activeTab === 'approved') {
-      fetchApprovedRequests(sIds, allS)
+      fetchApprovedRequests(sIds, allS, showDeleted)
     } else if (activeTab === 'rejected') {
-      fetchRejectedRequests(sIds, allS)
+      fetchRejectedRequests(sIds, allS, showDeleted)
     }
 
     // Обновляем счетчики всех вкладок
-    fetchApprovedCount(sIds, allS)
-    fetchRejectedCount(sIds, allS)
+    fetchApprovedCount(sIds, allS, showDeleted)
+    fetchRejectedCount(sIds, allS, showDeleted)
     if (activeTab !== 'all') {
       if (isUser) fetchRequests(undefined, sIds, allS)
       else if (isAdmin) fetchRequests(undefined, undefined, undefined, showDeleted)
@@ -202,7 +227,31 @@ export function usePaymentRequestsData({
     if (activeTab !== 'omts_rp' && (isOmtsRpUser || isAdmin)) {
       fetchOmtsRpPendingRequests()
     }
-  }, [activeTab, refreshTrigger, sitesLoaded, isCounterpartyUser, user?.counterpartyId, user?.id, user?.department, isUser, isAdmin, isOmtsRpUser, adminSelectedStage, userDeptInChain, userSiteIds, userAllSites, showDeleted, fetchRequests, fetchPendingRequests, fetchOmtsRpPendingRequests, fetchApprovedRequests, fetchRejectedRequests, fetchApprovedCount, fetchRejectedCount, siteFilterParams])
+  }, [
+    activeTab,
+    refreshTrigger,
+    sitesLoaded,
+    isCounterpartyUser,
+    user?.counterpartyId,
+    user?.id,
+    user?.department,
+    isUser,
+    isAdmin,
+    isOmtsRpUser,
+    adminSelectedStage,
+    userDeptInChain,
+    userSiteIds,
+    userAllSites,
+    showDeleted,
+    fetchRequests,
+    fetchPendingRequests,
+    fetchOmtsRpPendingRequests,
+    fetchApprovedRequests,
+    fetchRejectedRequests,
+    fetchApprovedCount,
+    fetchRejectedCount,
+    siteFilterParams,
+  ])
 
   // Загружаем справочники для фильтров
   useEffect(() => {
@@ -224,15 +273,18 @@ export function usePaymentRequestsData({
   }, [isOmtsUser, isAdmin, fetchOmtsUsers, fetchOmtsRpSites, fetchOmtsRpConfig])
 
   /** Проверяет, может ли текущий пользователь редактировать заявку */
-  const canEditRequest = useCallback((record: PaymentRequest | null): boolean => {
-    if (!record || isCounterpartyUser) return false
-    if (isAdmin) return true
-    if (isUser) {
-      if (userAllSites) return true
-      return userSiteIds.includes(record.siteId)
-    }
-    return false
-  }, [isAdmin, isCounterpartyUser, isUser, userAllSites, userSiteIds])
+  const canEditRequest = useCallback(
+    (record: PaymentRequest | null): boolean => {
+      if (!record || isCounterpartyUser) return false
+      if (isAdmin) return true
+      if (isUser) {
+        if (userAllSites) return true
+        return userSiteIds.includes(record.siteId)
+      }
+      return false
+    },
+    [isAdmin, isCounterpartyUser, isUser, userAllSites, userSiteIds],
+  )
 
   return {
     // Пользователь и роли

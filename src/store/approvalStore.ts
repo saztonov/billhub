@@ -2,10 +2,19 @@ import { create } from 'zustand'
 import { api } from '@/services/api'
 import { logError } from '@/services/errorLogger'
 import { useUploadQueueStore } from '@/store/uploadQueueStore'
-import type { Department, ApprovalDecision, PaymentRequest, PaymentRequestLog, StageHistoryEntry } from '@/types'
+import type {
+  Department,
+  ApprovalDecision,
+  PaymentRequest,
+  PaymentRequestLog,
+  StageHistoryEntry,
+} from '@/types'
 
 /** Добавляет запись в stage_history заявки (через API) */
-export async function appendStageHistory(paymentRequestId: string, entry: Omit<StageHistoryEntry, 'at'> & { at?: string }) {
+export async function appendStageHistory(
+  paymentRequestId: string,
+  entry: Omit<StageHistoryEntry, 'at'> & { at?: string },
+) {
   await api.post(`/api/approvals/payment-request/${paymentRequestId}/stage-history`, entry)
 }
 
@@ -38,19 +47,33 @@ interface ApprovalStoreState {
   // Решения и логи
   fetchDecisions: (paymentRequestId: string) => Promise<void>
   fetchLogs: (paymentRequestId: string) => Promise<void>
-  approveRequest: (paymentRequestId: string, department: Department, userId: string, comment: string) => Promise<void>
-  rejectRequest: (paymentRequestId: string, department: Department, userId: string, comment: string, files?: FileItem[]) => Promise<void>
+  approveRequest: (
+    paymentRequestId: string,
+    department: Department,
+    userId: string,
+    comment: string,
+  ) => Promise<void>
+  rejectRequest: (
+    paymentRequestId: string,
+    department: Department,
+    userId: string,
+    comment: string,
+    files?: FileItem[],
+  ) => Promise<void>
 
   // На доработку
   sendToRevision: (paymentRequestId: string, comment: string) => Promise<void>
   // Завершение доработки (контрагент)
-  completeRevision: (paymentRequestId: string, fieldUpdates: {
-    deliveryDays: number
-    deliveryDaysType: string
-    shippingConditionId: string
-    invoiceAmount: number
-    supplierId?: string | null
-  }) => Promise<void>
+  completeRevision: (
+    paymentRequestId: string,
+    fieldUpdates: {
+      deliveryDays: number
+      deliveryDaysType: string
+      shippingConditionId: string
+      invoiceAmount: number
+      supplierId?: string | null
+    },
+  ) => Promise<void>
 
   // Очистка текущих решений/логов
   clearCurrentData: () => void
@@ -58,12 +81,28 @@ interface ApprovalStoreState {
   // Заявки по вкладкам
   fetchPendingRequests: (department: Department, userId: string, isAdmin?: boolean) => Promise<void>
   fetchOmtsRpPendingRequests: () => Promise<void>
-  fetchApprovedRequests: (userSiteIds?: string[], allSites?: boolean) => Promise<void>
-  fetchRejectedRequests: (userSiteIds?: string[], allSites?: boolean) => Promise<void>
+  fetchApprovedRequests: (
+    userSiteIds?: string[],
+    allSites?: boolean,
+    showDeleted?: boolean,
+  ) => Promise<void>
+  fetchRejectedRequests: (
+    userSiteIds?: string[],
+    allSites?: boolean,
+    showDeleted?: boolean,
+  ) => Promise<void>
 
   // Счётчики (только count, без загрузки данных)
-  fetchApprovedCount: (userSiteIds?: string[], allSites?: boolean) => Promise<void>
-  fetchRejectedCount: (userSiteIds?: string[], allSites?: boolean) => Promise<void>
+  fetchApprovedCount: (
+    userSiteIds?: string[],
+    allSites?: boolean,
+    showDeleted?: boolean,
+  ) => Promise<void>
+  fetchRejectedCount: (
+    userSiteIds?: string[],
+    allSites?: boolean,
+    showDeleted?: boolean,
+  ) => Promise<void>
 }
 
 export const useApprovalStore = create<ApprovalStoreState>((set) => ({
@@ -86,7 +125,12 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
       set({ isLoading: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка отправки на доработку'
-      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'sendToRevision', paymentRequestId } })
+      logError({
+        errorType: 'api_error',
+        errorMessage: message,
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'sendToRevision', paymentRequestId },
+      })
       set({ error: message, isLoading: false })
       throw err
     }
@@ -95,12 +139,20 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
   completeRevision: async (paymentRequestId, fieldUpdates) => {
     set({ isLoading: true, error: null })
     try {
-      await api.post(`/api/approvals/payment-request/${paymentRequestId}/revision-complete`, fieldUpdates)
+      await api.post(
+        `/api/approvals/payment-request/${paymentRequestId}/revision-complete`,
+        fieldUpdates,
+      )
 
       set({ isLoading: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка завершения доработки'
-      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'completeRevision', paymentRequestId } })
+      logError({
+        errorType: 'api_error',
+        errorMessage: message,
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'completeRevision', paymentRequestId },
+      })
       set({ error: message, isLoading: false })
       throw err
     }
@@ -150,7 +202,12 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
       set({ isLoading: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка согласования'
-      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'approveRequest', paymentRequestId } })
+      logError({
+        errorType: 'api_error',
+        errorMessage: message,
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'approveRequest', paymentRequestId },
+      })
       set({ error: message, isLoading: false })
     }
   },
@@ -172,18 +229,20 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
       // Добавляем файлы в очередь загрузки (ленивая загрузка)
       if (files.length > 0 && result?.decisionId) {
         const plainFiles = files.map((f) => f.file)
-        useUploadQueueStore.getState().addDecisionFilesTask(
-          result.decisionId,
-          result.requestNumber,
-          plainFiles,
-          userId,
-        )
+        useUploadQueueStore
+          .getState()
+          .addDecisionFilesTask(result.decisionId, result.requestNumber, plainFiles, userId)
       }
 
       set({ isLoading: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка отклонения'
-      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'rejectRequest', paymentRequestId } })
+      logError({
+        errorType: 'api_error',
+        errorMessage: message,
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'rejectRequest', paymentRequestId },
+      })
       set({ error: message, isLoading: false })
       throw err
     }
@@ -198,10 +257,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
       }
       if (isAdmin) params.isAdmin = true
 
-      const data = await api.get<PaymentRequest[]>(
-        '/api/approvals/pending-requests',
-        params,
-      )
+      const data = await api.get<PaymentRequest[]>('/api/approvals/pending-requests', params)
 
       set({ pendingRequests: data ?? [], isLoading: false })
     } catch (err) {
@@ -213,19 +269,22 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
   fetchOmtsRpPendingRequests: async () => {
     set({ isLoading: true, error: null })
     try {
-      const data = await api.get<PaymentRequest[]>(
-        '/api/approvals/omts-rp-pending-requests',
-      )
+      const data = await api.get<PaymentRequest[]>('/api/approvals/omts-rp-pending-requests')
 
       set({ omtsRpPendingRequests: data ?? [], isLoading: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка загрузки заявок ОМТС РП'
-      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'fetchOmtsRpPendingRequests' } })
+      logError({
+        errorType: 'api_error',
+        errorMessage: message,
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'fetchOmtsRpPendingRequests' },
+      })
       set({ error: message, isLoading: false })
     }
   },
 
-  fetchApprovedRequests: async (userSiteIds?, allSites?) => {
+  fetchApprovedRequests: async (userSiteIds?, allSites?, showDeleted?) => {
     set({ isLoading: true, error: null })
     try {
       if (allSites === false && userSiteIds && userSiteIds.length === 0) {
@@ -236,11 +295,9 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
       const params: Record<string, string | number | boolean | undefined> = {}
       if (allSites !== undefined) params.allSites = allSites
       if (userSiteIds && userSiteIds.length > 0) params.siteIds = userSiteIds.join(',')
+      if (showDeleted) params.showDeleted = true
 
-      const data = await api.get<PaymentRequest[]>(
-        '/api/approvals/approved-requests',
-        params,
-      )
+      const data = await api.get<PaymentRequest[]>('/api/approvals/approved-requests', params)
 
       set({ approvedRequests: data ?? [], isLoading: false })
     } catch (err) {
@@ -249,7 +306,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
     }
   },
 
-  fetchRejectedRequests: async (userSiteIds?, allSites?) => {
+  fetchRejectedRequests: async (userSiteIds?, allSites?, showDeleted?) => {
     set({ isLoading: true, error: null })
     try {
       if (allSites === false && userSiteIds && userSiteIds.length === 0) {
@@ -260,11 +317,9 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
       const params: Record<string, string | number | boolean | undefined> = {}
       if (allSites !== undefined) params.allSites = allSites
       if (userSiteIds && userSiteIds.length > 0) params.siteIds = userSiteIds.join(',')
+      if (showDeleted) params.showDeleted = true
 
-      const data = await api.get<PaymentRequest[]>(
-        '/api/approvals/rejected-requests',
-        params,
-      )
+      const data = await api.get<PaymentRequest[]>('/api/approvals/rejected-requests', params)
 
       set({ rejectedRequests: data ?? [], isLoading: false })
     } catch (err) {
@@ -273,7 +328,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
     }
   },
 
-  fetchApprovedCount: async (userSiteIds?, allSites?) => {
+  fetchApprovedCount: async (userSiteIds?, allSites?, showDeleted?) => {
     try {
       if (allSites === false && userSiteIds && userSiteIds.length === 0) {
         set({ approvedCount: 0 })
@@ -283,19 +338,23 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
       const params: Record<string, string | number | boolean | undefined> = {}
       if (allSites !== undefined) params.allSites = allSites
       if (userSiteIds && userSiteIds.length > 0) params.siteIds = userSiteIds.join(',')
+      if (showDeleted) params.showDeleted = true
 
-      const data = await api.get<{ count: number }>(
-        '/api/approvals/approved-count',
-        params,
-      )
+      const data = await api.get<{ count: number }>('/api/approvals/approved-count', params)
 
       set({ approvedCount: data?.count ?? 0 })
     } catch (err) {
-      logError({ errorType: 'api_error', errorMessage: err instanceof Error ? err.message : 'Ошибка получения счётчика согласованных', errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'fetchApprovedCount' } })
+      logError({
+        errorType: 'api_error',
+        errorMessage:
+          err instanceof Error ? err.message : 'Ошибка получения счётчика согласованных',
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'fetchApprovedCount' },
+      })
     }
   },
 
-  fetchRejectedCount: async (userSiteIds?, allSites?) => {
+  fetchRejectedCount: async (userSiteIds?, allSites?, showDeleted?) => {
     try {
       if (allSites === false && userSiteIds && userSiteIds.length === 0) {
         set({ rejectedCount: 0 })
@@ -305,15 +364,18 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
       const params: Record<string, string | number | boolean | undefined> = {}
       if (allSites !== undefined) params.allSites = allSites
       if (userSiteIds && userSiteIds.length > 0) params.siteIds = userSiteIds.join(',')
+      if (showDeleted) params.showDeleted = true
 
-      const data = await api.get<{ count: number }>(
-        '/api/approvals/rejected-count',
-        params,
-      )
+      const data = await api.get<{ count: number }>('/api/approvals/rejected-count', params)
 
       set({ rejectedCount: data?.count ?? 0 })
     } catch (err) {
-      logError({ errorType: 'api_error', errorMessage: err instanceof Error ? err.message : 'Ошибка получения счётчика отклонённых', errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'fetchRejectedCount' } })
+      logError({
+        errorType: 'api_error',
+        errorMessage: err instanceof Error ? err.message : 'Ошибка получения счётчика отклонённых',
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'fetchRejectedCount' },
+      })
     }
   },
 }))

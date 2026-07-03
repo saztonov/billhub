@@ -270,7 +270,8 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
 
   async listApprovedArray(opts: QueryScope): Promise<Row[]> {
     if (!opts.allSites && opts.siteIds.length === 0) return [];
-    const conds = [isNotNull(paymentRequests.approvedAt), eq(paymentRequests.isDeleted, false)];
+    const conds = [isNotNull(paymentRequests.approvedAt)];
+    if (!opts.showDeleted) conds.push(eq(paymentRequests.isDeleted, false));
     if (!opts.allSites) conds.push(inArray(paymentRequests.siteId, opts.siteIds));
     return (await joinedPaymentRequests(this.db)
       .where(and(...conds))
@@ -279,7 +280,8 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
 
   async listRejectedArray(opts: QueryScope): Promise<Row[]> {
     if (!opts.allSites && opts.siteIds.length === 0) return [];
-    const conds = [isNotNull(paymentRequests.rejectedAt), eq(paymentRequests.isDeleted, false)];
+    const conds = [isNotNull(paymentRequests.rejectedAt)];
+    if (!opts.showDeleted) conds.push(eq(paymentRequests.isDeleted, false));
     if (!opts.allSites) conds.push(inArray(paymentRequests.siteId, opts.siteIds));
     return (await joinedPaymentRequests(this.db)
       .where(and(...conds))
@@ -300,14 +302,16 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
 
   async countApproved(opts: QueryScope): Promise<number> {
     if (!opts.allSites && opts.siteIds.length === 0) return 0;
-    const conds = [isNotNull(paymentRequests.approvedAt), eq(paymentRequests.isDeleted, false)];
+    const conds = [isNotNull(paymentRequests.approvedAt)];
+    if (!opts.showDeleted) conds.push(eq(paymentRequests.isDeleted, false));
     if (!opts.allSites) conds.push(inArray(paymentRequests.siteId, opts.siteIds));
     return this.countWhere(conds);
   }
 
   async countRejected(opts: QueryScope): Promise<number> {
     if (!opts.allSites && opts.siteIds.length === 0) return 0;
-    const conds = [isNotNull(paymentRequests.rejectedAt), eq(paymentRequests.isDeleted, false)];
+    const conds = [isNotNull(paymentRequests.rejectedAt)];
+    if (!opts.showDeleted) conds.push(eq(paymentRequests.isDeleted, false));
     if (!opts.allSites) conds.push(inArray(paymentRequests.siteId, opts.siteIds));
     return this.countWhere(conds);
   }

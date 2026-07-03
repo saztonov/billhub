@@ -145,10 +145,11 @@ async function approvalRoutes(fastify: FastifyInstance): Promise<void> {
   /* ---------- GET /api/approvals/approved-count ---------- */
   fastify.get('/api/approvals/approved-count', adminOrUser, async (request) => {
     const user = request.user!;
-    const query = request.query as { allSites?: string; siteIds?: string };
+    const query = request.query as { allSites?: string; siteIds?: string; showDeleted?: string };
     const count = await request.server.repos.approvals.countApproved({
       allSites: query.allSites === 'true' || user.role === 'admin',
       siteIds: query.siteIds ? query.siteIds.split(',') : [],
+      showDeleted: query.showDeleted === 'true',
     });
     return { count };
   });
@@ -162,10 +163,11 @@ async function approvalRoutes(fastify: FastifyInstance): Promise<void> {
   /* ---------- GET /api/approvals/rejected-count ---------- */
   fastify.get('/api/approvals/rejected-count', adminOrUser, async (request) => {
     const user = request.user!;
-    const query = request.query as { allSites?: string; siteIds?: string };
+    const query = request.query as { allSites?: string; siteIds?: string; showDeleted?: string };
     const count = await request.server.repos.approvals.countRejected({
       allSites: query.allSites === 'true' || user.role === 'admin',
       siteIds: query.siteIds ? query.siteIds.split(',') : [],
+      showDeleted: query.showDeleted === 'true',
     });
     return { count };
   });

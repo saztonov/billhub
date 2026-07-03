@@ -207,8 +207,8 @@ export class SupabaseApprovalRepository implements ApprovalRepository {
       .from('payment_requests')
       .select(PR_SELECT)
       .not('approved_at', 'is', null)
-      .eq('is_deleted', false)
       .order('approved_at', { ascending: false });
+    if (!opts.showDeleted) q = q.eq('is_deleted', false);
     if (!opts.allSites) q = q.in('site_id', opts.siteIds);
     const { data, error } = await q;
     if (error) throw new Error(error.message);
@@ -221,8 +221,8 @@ export class SupabaseApprovalRepository implements ApprovalRepository {
       .from('payment_requests')
       .select(PR_SELECT)
       .not('rejected_at', 'is', null)
-      .eq('is_deleted', false)
       .order('rejected_at', { ascending: false });
+    if (!opts.showDeleted) q = q.eq('is_deleted', false);
     if (!opts.allSites) q = q.in('site_id', opts.siteIds);
     const { data, error } = await q;
     if (error) throw new Error(error.message);
@@ -237,8 +237,8 @@ export class SupabaseApprovalRepository implements ApprovalRepository {
     let q = this.supabase
       .from('payment_requests')
       .select('id', { count: 'exact', head: true })
-      .not('approved_at', 'is', null)
-      .eq('is_deleted', false);
+      .not('approved_at', 'is', null);
+    if (!opts.showDeleted) q = q.eq('is_deleted', false);
     if (!opts.allSites && opts.siteIds.length > 0) q = q.in('site_id', opts.siteIds);
     else if (!opts.allSites) return 0;
     const { count, error } = await q;
@@ -250,8 +250,8 @@ export class SupabaseApprovalRepository implements ApprovalRepository {
     let q = this.supabase
       .from('payment_requests')
       .select('id', { count: 'exact', head: true })
-      .not('rejected_at', 'is', null)
-      .eq('is_deleted', false);
+      .not('rejected_at', 'is', null);
+    if (!opts.showDeleted) q = q.eq('is_deleted', false);
     if (!opts.allSites && opts.siteIds.length > 0) q = q.in('site_id', opts.siteIds);
     else if (!opts.allSites) return 0;
     const { count, error } = await q;
