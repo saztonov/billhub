@@ -41,6 +41,18 @@ interface ResetConfirmBody {
 
 /* ------------------------------- Cookie-хелперы ---------------------------- */
 
+/** Путь refresh-cookie в standalone-режиме (обслуживает и /api/auth/refresh, и /api/auth/logout). */
+const REFRESH_COOKIE_PATH = '/api/auth';
+
+/**
+ * Путь refresh-cookie в legacy-режиме (supabase-bridge, auth-legacy.ts клал её на /api/auth/refresh).
+ * После cutover на standalone из-за разницы путей в браузере остаётся «осиротевшая» legacy-cookie:
+ * при POST /api/auth/refresh браузер отправляет её первой (более длинный путь приоритетнее по RFC 6265),
+ * сервер читает невалидный по формату токен и отвечает 401. Поэтому standalone обязан явно чистить
+ * refresh_token и по этому пути — иначе пользователей выбрасывает при каждом обновлении токена.
+ */
+const LEGACY_REFRESH_COOKIE_PATH = '/api/auth/refresh';
+
 function accessCookie(): CookieSerializeOptions {
   return {
     httpOnly: true,
@@ -56,14 +68,20 @@ function refreshCookie(): CookieSerializeOptions {
     httpOnly: true,
     secure: isProduction,
     sameSite: 'lax',
-    path: '/api/auth',
+    path: REFRESH_COOKIE_PATH,
     maxAge: config.refreshTtlSeconds,
   };
 }
 
+/** Удаляет «осиротевшую» refresh-cookie legacy-пути (см. LEGACY_REFRESH_COOKIE_PATH). */
+function clearLegacyRefreshCookie(reply: FastifyReply): void {
+  reply.clearCookie('refresh_token', { path: LEGACY_REFRESH_COOKIE_PATH });
+}
+
 function clearAuthCookies(reply: FastifyReply): void {
   reply.clearCookie('access_token', { path: '/' });
-  reply.clearCookie('refresh_token', { path: '/api/auth' });
+  reply.clearCookie('refresh_token', { path: REFRESH_COOKIE_PATH });
+  clearLegacyRefreshCookie(reply);
 }
 
 /* ------------------------------- JSON-схемы -------------------------------- */
@@ -168,6 +186,10 @@ async function standaloneAuthRoutes(fastify: FastifyInstance): Promise<void> {
 
       reply.setCookie('access_token', access.token, accessCookie());
       reply.setCookie('refresh_token', refresh.refreshToken, refreshCookie());
+      // Лечим браузеры с «осиротевшей» legacy refresh-cookie: без этого при следующем /refresh
+      // браузер снова отправит невалидный legacy-токен и пользователя выбросит через ~15 минут.
+      // Порядок неважен для браузера (разные пути = разные cookie), но рабочий токен идёт первым.
+      clearLegacyRefreshCookie(reply);
 
       authServices.audit.emit('login_success', {
         userId: rec.id,

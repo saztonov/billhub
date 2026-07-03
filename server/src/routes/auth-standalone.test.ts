@@ -63,6 +63,14 @@ function cookieVal(
   return res.cookies.find((c) => c.name === name)?.value;
 }
 
+/** Все Set-Cookie с данным именем (для проверки очистки refresh_token сразу по двум путям). */
+function cookiesByName(
+  res: { cookies: { name: string; value: string; path?: string; maxAge?: number }[] },
+  name: string,
+): { name: string; value: string; path?: string; maxAge?: number }[] {
+  return res.cookies.filter((c) => c.name === name);
+}
+
 async function getCsrf(app: FastifyInstance): Promise<string> {
   const res = await app.inject({ method: 'GET', url: '/api/auth/csrf' });
   return cookieVal(res, 'csrf_token')!;
@@ -172,6 +180,43 @@ describe('standalone auth routes', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().success).toBe(true);
     expect(cookieVal(res, 'access_token')).toBeTruthy();
+  });
+
+  it('login чистит legacy refresh-cookie (/api/auth/refresh) и ставит standalone (/api/auth)', async () => {
+    const csrf = await getCsrf(app);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      cookies: { csrf_token: csrf },
+      headers: { 'x-csrf-token': csrf },
+      payload: { email: 'admin@example.com', password: PASSWORD },
+    });
+    expect(res.statusCode).toBe(200);
+    const refreshCookies = cookiesByName(res, 'refresh_token');
+    // Одна cookie — удаление legacy-пути (maxAge=0), вторая — новый standalone-токен на /api/auth.
+    const legacyClear = refreshCookies.find((c) => c.path === '/api/auth/refresh');
+    const standaloneSet = refreshCookies.find((c) => c.path === '/api/auth');
+    expect(legacyClear).toBeTruthy();
+    expect(legacyClear!.maxAge).toBe(0);
+    expect(standaloneSet).toBeTruthy();
+    expect(standaloneSet!.value).toBeTruthy();
+  });
+
+  it('refresh с невалидным (legacy-форматом) токеном → 401 + очистка refresh_token по ОБОИМ путям', async () => {
+    const csrf = await getCsrf(app);
+    // Короткий токен legacy-формата (не 43 символа base64url) — как «осиротевшая» supabase-cookie.
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/auth/refresh',
+      cookies: { csrf_token: csrf, refresh_token: 'h6l4mbdodlqj' },
+      headers: { 'x-csrf-token': csrf },
+    });
+    expect(res.statusCode).toBe(401);
+    const cleared = cookiesByName(res, 'refresh_token');
+    const paths = cleared.map((c) => c.path).sort();
+    expect(paths).toContain('/api/auth');
+    expect(paths).toContain('/api/auth/refresh');
+    expect(cleared.every((c) => c.maxAge === 0)).toBe(true);
   });
 
   it('logout → 200 success', async () => {
