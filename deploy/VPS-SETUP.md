@@ -75,6 +75,12 @@ sudo nano /etc/billhub/migration.env     # DATABASE_MIGRATION_URL (DDL)
 # Деплой-скрипт в PATH:
 sudo ln -sf /opt/portals/billhub/deploy/deploy-billhub.sh /usr/local/bin/deploy-billhub
 sudo chmod +x /opt/portals/billhub/deploy/deploy-billhub.sh
+
+# Владелец /opt/portals/billhub и /var/lib/billhub — деплой-пользователь corpsu
+# (в группе docker). От него скрипт работает напрямую; от других пользователей
+# самоповышается через sudo. Беспарольный запуск от другого пользователя:
+echo '<логин> ALL=(corpsu) NOPASSWD: /opt/portals/billhub/deploy/deploy-billhub.sh' | sudo tee /etc/sudoers.d/billhub-deploy
+sudo chmod 440 /etc/sudoers.d/billhub-deploy
 ```
 
 ### 2.3. Первый запуск с миграциями (portal-scoped)

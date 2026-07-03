@@ -42,7 +42,17 @@ Registry/CI, Lockbox — этап 2 (явные отклонения, см. ADR-
 deploy-billhub                          # git pull + build + перезапуск web/api/worker (без миграций)
 deploy-billhub --migrate                # то же + накат НОВЫХ миграций (stop worker → migrate → up)
 deploy-billhub --migrate --maintenance  # миграции в окне обслуживания (несовместимые со старым кодом)
-BRANCH=hotfix deploy-billhub            # деплой другой ветки
+deploy-billhub --branch=hotfix          # деплой другой ветки (или BRANCH=hotfix deploy-billhub)
+```
+
+Владелец `/opt/portals/billhub` и `/var/lib/billhub` — деплой-пользователь `corpsu`:
+от него скрипт работает напрямую, без sudo. От другого пользователя скрипт сам
+перезапустится от `corpsu` через sudo. Чтобы sudo при этом не спрашивал пароль,
+добавьте drop-in (один раз, подставьте логин запускающего):
+
+```bash
+echo '<логин> ALL=(corpsu) NOPASSWD: /opt/portals/billhub/deploy/deploy-billhub.sh' | sudo tee /etc/sudoers.d/billhub-deploy
+sudo chmod 440 /etc/sudoers.d/billhub-deploy
 ```
 
 Поведение API во время миграции: по умолчанию политика **expand-contract** (только backward-compatible

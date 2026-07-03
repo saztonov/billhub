@@ -7,7 +7,12 @@
 #   deploy-billhub --migrate --maintenance
 #                                  — миграции в окне обслуживания (стоп api+worker, для несовместимых
 #                                    со старым кодом изменений; по умолчанию политика expand-contract)
-#   BRANCH=hotfix deploy-billhub   — деплой другой ветки
+#   deploy-billhub --branch=hotfix — деплой другой ветки (эквивалент BRANCH=hotfix deploy-billhub)
+#
+# Запускать можно от ЛЮБОГО пользователя: скрипт сам перезапустится от владельца
+# каталога портала (деплой-пользователь corpsu) через sudo; от самого владельца
+# работает напрямую без sudo. Беспарольный запуск от других пользователей —
+# drop-in /etc/sudoers.d/billhub-deploy (см. deploy/README.md).
 #
 # Контроли (codex): deploy-lock, immutable commit-SHA теги, pending-migrations guard,
 # failure-recovery (trap поднимает прежний worker), лёгкий deployment report.
@@ -34,9 +39,28 @@ for arg in "$@"; do
   case "$arg" in
     --migrate)     DO_MIGRATE=1 ;;
     --maintenance) DO_MAINTENANCE=1 ;;
+    --branch=*)    BRANCH="${arg#*=}" ;;
     *) echo "Неизвестный аргумент: $arg"; exit 2 ;;
   esac
 done
+
+# ----------------------------------------------------------------------------
+# Самоповышение: деплой должен идти от владельца каталога портала (corpsu).
+# От владельца скрипт работает напрямую; от другого пользователя перезапускается
+# через sudo. BRANCH передаётся флагом --branch (sudo не пропускает переменные
+# окружения). Исходный оператор сохраняется в отчёте (actor) через SUDO_USER.
+# Переопределение пользователя: BILLHUB_DEPLOY_USER=<user> deploy-billhub.
+# ----------------------------------------------------------------------------
+DEPLOY_USER="${BILLHUB_DEPLOY_USER:-$(stat -c %U "$PORTAL_DIR")}"
+if [ "$(id -un)" != "$DEPLOY_USER" ]; then
+  ELEVATE_ARGS=()
+  [ "$DO_MIGRATE" -eq 1 ] && ELEVATE_ARGS+=(--migrate)
+  [ "$DO_MAINTENANCE" -eq 1 ] && ELEVATE_ARGS+=(--maintenance)
+  [ -n "$BRANCH" ] && ELEVATE_ARGS+=("--branch=$BRANCH")
+  echo "==> перезапуск от пользователя $DEPLOY_USER (sudo)"
+  # ${arr[@]+...} — безопасное раскрытие пустого массива при set -u (bash < 4.4)
+  exec sudo -u "$DEPLOY_USER" -H "$SCRIPT" ${ELEVATE_ARGS[@]+"${ELEVATE_ARGS[@]}"}
+fi
 
 log() { echo "==> $*"; }
 fail() { echo "ОШИБКА: $*" >&2; exit 1; }
