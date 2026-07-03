@@ -34,10 +34,6 @@ async function contractRequestRoutes(fastify: FastifyInstance): Promise<void> {
       supplierId: query.supplierId,
       siteId: query.siteId,
       statusId: query.statusId,
-      pagination: {
-        page: parseInt(query.page ?? '1', 10),
-        pageSize: parseInt(query.pageSize ?? '50', 10),
-      },
     };
     if (user.role === 'counterparty_user' && user.counterpartyId) {
       filter.counterpartyId = user.counterpartyId;
@@ -49,6 +45,16 @@ async function contractRequestRoutes(fastify: FastifyInstance): Promise<void> {
       if (siteIds.length === 0) return reply.send([]);
       filter.siteIds = siteIds;
     }
+
+    // Серверная пагинация — только если клиент явно запросил (как в /api/payment-requests).
+    // Иначе отдаём полный список, а таблица листает его на клиенте.
+    if (query.page || query.pageSize) {
+      filter.pagination = {
+        page: parseInt(query.page ?? '1', 10),
+        pageSize: parseInt(query.pageSize ?? '50', 10),
+      };
+    }
+
     return reply.send(await repo.list(filter));
   });
 
