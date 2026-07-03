@@ -13,6 +13,7 @@ import {
   App,
   Dropdown,
 } from 'antd'
+import type { TableProps } from 'antd'
 import {
   EyeOutlined,
   DeleteOutlined,
@@ -87,6 +88,8 @@ export interface RequestsTableProps {
   unreadCounts?: Record<string, number>
   isMobile?: boolean
   columnConfig?: ColumnConfig
+  /** Опциональный выбор строк (режим «Создать РП» на странице РП). */
+  rowSelection?: TableProps<PaymentRequest>['rowSelection']
 }
 
 /** Возвращает первые 2 слова из ФИО (fallback на email) */
@@ -916,6 +919,7 @@ const RequestsTable = (props: RequestsTableProps) => {
         columns={columns as any}
         dataSource={paginatedData}
         rowKey="id"
+        rowSelection={props.rowSelection}
         loading={isLoading}
         scroll={isMobile ? { y: scrollY } : { x: 1700, y: scrollY }}
         pagination={false}

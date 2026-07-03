@@ -4,6 +4,7 @@ import PaymentRequestSettingsPage from './PaymentRequestSettingsPage'
 import UsersPage from './UsersPage'
 import ErrorLogsPage from './ErrorLogsPage'
 import OcrSettingsTab from '@/components/admin/OcrSettingsTab'
+import PayHubSettingsTab from '@/components/admin/PayHubSettingsTab'
 
 const { Title } = Typography
 
@@ -18,14 +19,26 @@ const AdminPage = () => {
   }
 
   const items = [
-    { key: 'payment-requests', label: 'Настройки заявок', children: <PaymentRequestSettingsPage /> },
+    {
+      key: 'payment-requests',
+      label: 'Настройки заявок',
+      children: <PaymentRequestSettingsPage />,
+    },
     { key: 'users', label: 'Пользователи', children: <UsersPage /> },
     { key: 'ocr', label: 'OCR', children: <OcrSettingsTab /> },
+    { key: 'payhub', label: 'PayHub', children: <PayHubSettingsTab /> },
     { key: 'error-logs', label: 'Логи ошибок', children: <ErrorLogsPage /> },
   ]
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px - 1px - 32px)', overflow: 'hidden' }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: 'calc(100vh - 64px - 1px - 32px)',
+        overflow: 'hidden',
+      }}
+    >
       <Tabs
         activeKey={activeTab}
         onChange={handleTabChange}
@@ -33,7 +46,9 @@ const AdminPage = () => {
         className="flex-tabs"
         renderTabBar={(props, DefaultTabBar) => (
           <div>
-            <Title level={2} style={{ marginBottom: 16 }}>Администрирование</Title>
+            <Title level={2} style={{ marginBottom: 16 }}>
+              Администрирование
+            </Title>
             <DefaultTabBar {...props} />
           </div>
         )}

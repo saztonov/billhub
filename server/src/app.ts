@@ -34,6 +34,7 @@ import maintenancePlugin from './plugins/maintenance.js';
 import repositoriesPlugin from './plugins/repositories.js';
 import authPlugin from './plugins/auth.js';
 import csrfPlugin from './plugins/csrf.js';
+import payhubPlugin from './plugins/payhub.js';
 
 /** Маршруты */
 import healthRoutes from './routes/health.js';
@@ -56,12 +57,14 @@ import notificationRoutes from './routes/notifications.js';
 import notificationActionRoutes from './routes/notification-actions.js';
 import assignmentRoutes from './routes/assignments.js';
 import omtsRpRoutes from './routes/omts-rp.js';
+import rpRoutes from './routes/rp.js';
 import paymentRoutes from './routes/payments.js';
 import errorLogRoutes from './routes/error-logs.js';
 import materialRoutes from './routes/materials.js';
 import ocrRoutes from './routes/ocr.js';
 import fileProxyRoutes from './routes/file-proxy.js';
 import foundingDocumentRoutes from './routes/founding-documents.js';
+import payhubRoutes from './routes/payhub.js';
 
 /** Импорт типов для расширения FastifyInstance */
 import './types/index.js';
@@ -234,6 +237,12 @@ export async function createApp(opts: CreateAppOptions = {}): Promise<FastifyIns
    */
   await fastify.register(authPlugin);
 
+  /**
+   * Клиент внешнего API PayHub. Регистрируется всегда (вне skipInfra): плагин не
+   * открывает соединений, а без PAYHUB_* декорирует payhub = null («не настроено»).
+   */
+  await fastify.register(payhubPlugin);
+
   /** Маршруты (health всегда; остальные — если не skipRoutes) */
   await fastify.register(healthRoutes);
 
@@ -257,12 +266,14 @@ export async function createApp(opts: CreateAppOptions = {}): Promise<FastifyIns
     await fastify.register(notificationActionRoutes);
     await fastify.register(assignmentRoutes);
     await fastify.register(omtsRpRoutes);
+    await fastify.register(rpRoutes);
     await fastify.register(paymentRoutes);
     await fastify.register(errorLogRoutes);
     await fastify.register(materialRoutes);
     await fastify.register(ocrRoutes);
     await fastify.register(fileProxyRoutes);
     await fastify.register(foundingDocumentRoutes, { prefix: '/api/founding-documents' });
+    await fastify.register(payhubRoutes);
   }
 
   await fastify.ready();

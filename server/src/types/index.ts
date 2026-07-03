@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { S3Client } from '@aws-sdk/client-s3';
 import type IORedis from 'ioredis';
+import type { PayHubClient } from '../services/payhub/payhub-client.js';
 
 /** Роли пользователей системы */
 export type UserRole = 'admin' | 'user' | 'counterparty_user' | 'security';
@@ -30,5 +31,7 @@ declare module 'fastify' {
     s3Client: S3Client;
     s3Bucket: string;
     redis: IORedis.default;
+    /** Клиент внешнего API PayHub; null — интеграция не настроена */
+    payhub: PayHubClient | null;
   }
 }

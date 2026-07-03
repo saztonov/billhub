@@ -17,3 +17,4 @@ export * from './invoices-ocr.js';
 export * from './documents.js';
 export * from './system.js';
 export * from './observability.js';
+export * from './rp.js';

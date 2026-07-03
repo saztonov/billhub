@@ -20,6 +20,7 @@
     "db:migrate:built": "node dist/cli/migrate.js",
     "db:latency": "tsx src/cli/check-pg-latency.ts",
     "smoke": "tsx src/cli/smoke-synthetic.ts",
+    "payhub:smoke": "tsx src/cli/payhub-smoke.ts",
     "drizzle:introspect": "drizzle-kit introspect"
   },
   "dependencies": {

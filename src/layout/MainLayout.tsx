@@ -1,6 +1,18 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
-import { Layout, Menu, Typography, Avatar, Flex, Dropdown, Badge, Popover, List, Button, Drawer } from 'antd'
+import {
+  Layout,
+  Menu,
+  Typography,
+  Avatar,
+  Flex,
+  Dropdown,
+  Badge,
+  Popover,
+  List,
+  Button,
+  Drawer,
+} from 'antd'
 import type { MenuProps } from 'antd'
 import {
   FileTextOutlined,
@@ -12,6 +24,7 @@ import {
   MenuOutlined,
   AppstoreOutlined,
   AuditOutlined,
+  SnippetsOutlined,
 } from '@ant-design/icons'
 import { useAuthStore } from '@/store/authStore'
 import { useNotificationStore } from '@/store/notificationStore'
@@ -45,6 +58,7 @@ function getMenuItems(role: UserRole, department?: string | null): MenuProps['it
   const items: MenuProps['items'] = [
     { key: '/payment-requests', icon: <FileTextOutlined />, label: 'Заявки на оплату' },
     { key: '/contract-requests', icon: <AuditOutlined />, label: 'Договора' },
+    { key: '/distribution-letters', icon: <SnippetsOutlined />, label: 'РП' },
   ]
 
   // Материалы видны admin и сметному отделу
@@ -111,40 +125,49 @@ const MainLayout = () => {
     updateFaviconBadge(unreadCount)
   }, [unreadCount])
 
-  const handleNotifOpen = useCallback((open: boolean) => {
-    setNotifOpen(open)
-    if (open && user?.id) {
-      fetchNotifications(user.id)
-    }
-  }, [user?.id, fetchNotifications])
+  const handleNotifOpen = useCallback(
+    (open: boolean) => {
+      setNotifOpen(open)
+      if (open && user?.id) {
+        fetchNotifications(user.id)
+      }
+    },
+    [user?.id, fetchNotifications],
+  )
 
-  const handleMobileNotifOpen = useCallback((open: boolean) => {
-    setMobileNotifOpen(open)
-    if (open && user?.id) {
-      fetchNotifications(user.id)
-    }
-  }, [user?.id, fetchNotifications])
+  const handleMobileNotifOpen = useCallback(
+    (open: boolean) => {
+      setMobileNotifOpen(open)
+      if (open && user?.id) {
+        fetchNotifications(user.id)
+      }
+    },
+    [user?.id, fetchNotifications],
+  )
 
-  const handleNotifClick = useCallback((notif: AppNotification) => {
-    if (!notif.isRead) {
-      markAsRead(notif.id)
-    }
-    setNotifOpen(false)
-    setMobileNotifOpen(false)
-    if (notif.supplierId) {
-      navigate('/references?tab=suppliers', {
-        state: { openSupplierId: notif.supplierId },
-      })
-    } else if (notif.contractRequestId) {
-      navigate('/contract-requests', {
-        state: { openContractRequestId: notif.contractRequestId },
-      })
-    } else {
-      navigate('/payment-requests', {
-        state: notif.paymentRequestId ? { openRequestId: notif.paymentRequestId } : undefined,
-      })
-    }
-  }, [markAsRead, navigate])
+  const handleNotifClick = useCallback(
+    (notif: AppNotification) => {
+      if (!notif.isRead) {
+        markAsRead(notif.id)
+      }
+      setNotifOpen(false)
+      setMobileNotifOpen(false)
+      if (notif.supplierId) {
+        navigate('/references?tab=suppliers', {
+          state: { openSupplierId: notif.supplierId },
+        })
+      } else if (notif.contractRequestId) {
+        navigate('/contract-requests', {
+          state: { openContractRequestId: notif.contractRequestId },
+        })
+      } else {
+        navigate('/payment-requests', {
+          state: notif.paymentRequestId ? { openRequestId: notif.paymentRequestId } : undefined,
+        })
+      }
+    },
+    [markAsRead, navigate],
+  )
 
   const handleMarkAllRead = useCallback(() => {
     if (user?.id) {
@@ -173,7 +196,11 @@ const MainLayout = () => {
   // Контент уведомлений (переиспользуется в Popover и Drawer)
   const notificationList = (
     <>
-      <Flex justify="space-between" align="center" style={{ padding: '8px 12px', borderBottom: '1px solid #f0f0f0' }}>
+      <Flex
+        justify="space-between"
+        align="center"
+        style={{ padding: '8px 12px', borderBottom: '1px solid #f0f0f0' }}
+      >
         <Text strong>Уведомления</Text>
         {unreadCount > 0 && (
           <Button type="link" size="small" onClick={handleMarkAllRead}>
@@ -193,7 +220,9 @@ const MainLayout = () => {
             onClick={() => handleNotifClick(item)}
           >
             <Flex vertical gap={2} style={{ width: '100%' }}>
-              <Text strong style={{ fontSize: 13 }}>{item.title}</Text>
+              <Text strong style={{ fontSize: 13 }}>
+                {item.title}
+              </Text>
               <Text style={{ fontSize: 12 }}>{item.message}</Text>
               <Text type="secondary" style={{ fontSize: 11 }}>
                 {new Date(item.createdAt).toLocaleString('ru-RU')}
@@ -341,7 +370,10 @@ const MainLayout = () => {
         >
           <Flex align="center" gap={12} style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
             {headerTitle && (
-              <Typography.Title level={5} style={{ margin: 0, whiteSpace: 'nowrap', flexShrink: 0 }}>
+              <Typography.Title
+                level={5}
+                style={{ margin: 0, whiteSpace: 'nowrap', flexShrink: 0 }}
+              >
                 {headerTitle}
               </Typography.Title>
             )}
@@ -365,36 +397,36 @@ const MainLayout = () => {
                 <BellOutlined style={{ fontSize: 20, cursor: 'pointer' }} />
               </Badge>
             </Popover>
-          <Dropdown
-            menu={{
-              items: [
-                {
-                  key: 'profile',
-                  icon: <UserOutlined />,
-                  label: 'Личный кабинет',
-                  onClick: () => navigate('/profile'),
-                },
-                { type: 'divider' },
-                {
-                  key: 'logout',
-                  icon: <LogoutOutlined />,
-                  label: 'Выход',
-                  onClick: handleLogout,
-                },
-              ],
-            }}
-            trigger={['click']}
-          >
-            <Flex align="center" gap={8} style={{ cursor: 'pointer' }}>
-              <Avatar icon={<UserOutlined />} />
-              <Flex vertical style={{ lineHeight: 1.3 }}>
-                <Text>{user?.email ?? ''}</Text>
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  {user ? getRoleLabel(user.role) : ''}
-                </Text>
+            <Dropdown
+              menu={{
+                items: [
+                  {
+                    key: 'profile',
+                    icon: <UserOutlined />,
+                    label: 'Личный кабинет',
+                    onClick: () => navigate('/profile'),
+                  },
+                  { type: 'divider' },
+                  {
+                    key: 'logout',
+                    icon: <LogoutOutlined />,
+                    label: 'Выход',
+                    onClick: handleLogout,
+                  },
+                ],
+              }}
+              trigger={['click']}
+            >
+              <Flex align="center" gap={8} style={{ cursor: 'pointer' }}>
+                <Avatar icon={<UserOutlined />} />
+                <Flex vertical style={{ lineHeight: 1.3 }}>
+                  <Text>{user?.email ?? ''}</Text>
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    {user ? getRoleLabel(user.role) : ''}
+                  </Text>
+                </Flex>
               </Flex>
-            </Flex>
-          </Dropdown>
+            </Dropdown>
           </Flex>
         </Header>
 

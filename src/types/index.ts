@@ -380,7 +380,16 @@ export const CONTRACT_STATUS_FALLBACK_LABELS: Record<string, string> = {
 
 /** Запись в истории статусов заявки на договор */
 export interface ContractStatusHistoryEntry {
-  event: 'created' | 'revision' | 'revision_complete' | 'approved' | 'original_received' | 'assigned' | 'reverted_to_waiting' | 'status_reverted' | 'rejected'
+  event:
+    | 'created'
+    | 'revision'
+    | 'revision_complete'
+    | 'approved'
+    | 'original_received'
+    | 'assigned'
+    | 'reverted_to_waiting'
+    | 'status_reverted'
+    | 'rejected'
   at: string
   userFullName?: string
   userEmail?: string
@@ -480,12 +489,7 @@ export interface Document {
 }
 
 /** Статус распределительного письма */
-export type DistributionLetterStatus =
-  | 'draft'
-  | 'pending'
-  | 'approved'
-  | 'rejected'
-  | 'ordered'
+export type DistributionLetterStatus = 'draft' | 'pending' | 'approved' | 'rejected' | 'ordered'
 
 /** Распределительное письмо (РП) — документ на согласование */
 export interface DistributionLetter {
@@ -644,7 +648,17 @@ export interface User {
 }
 
 /** Тип уведомления */
-export type NotificationType = 'missing_specialist' | 'info' | 'error' | 'status_changed' | 'new_request_pending' | 'request_assigned' | 'new_comment' | 'new_file' | 'sb_review_requested' | 'sb_review_decided'
+export type NotificationType =
+  | 'missing_specialist'
+  | 'info'
+  | 'error'
+  | 'status_changed'
+  | 'new_request_pending'
+  | 'request_assigned'
+  | 'new_comment'
+  | 'new_file'
+  | 'sb_review_requested'
+  | 'sb_review_decided'
 
 /** Уведомление */
 export interface AppNotification {
@@ -669,7 +683,13 @@ export interface AppNotification {
 }
 
 /** Тип ошибки в логах */
-export type ErrorLogType = 'js_error' | 'unhandled_rejection' | 'react_error' | 'api_error' | 'export_error' | 'chunk_load_error'
+export type ErrorLogType =
+  | 'js_error'
+  | 'unhandled_rejection'
+  | 'react_error'
+  | 'api_error'
+  | 'export_error'
+  | 'chunk_load_error'
 
 /** Запись лога ошибки */
 export interface ErrorLog {
@@ -698,4 +718,72 @@ export interface AuthState {
   user: User | null
   isAuthenticated: boolean
   isLoading: boolean
+}
+
+// ============ Реестр РП (распределительные письма) ============
+
+/** Статус оплаты РП (вычисляется из связанных заявок). */
+export type RpPaymentStatus = 'paid' | 'partial' | 'unpaid'
+
+/** Ссылка на заявку в записи реестра РП. */
+export interface RpRequestRef {
+  id: string
+  requestNumber: string
+}
+
+/** Строка реестра РП. */
+export interface RpLetter {
+  id: string
+  number: string
+  letterDate: string | null
+  createdAt: string
+  status: string
+  totalAmount: number
+  description: string
+  supplierId: string
+  supplierName: string
+  supplierInn: string
+  counterpartyId: string
+  counterpartyName: string
+  counterpartyInn: string
+  siteId: string
+  siteName: string
+  requests: RpRequestRef[]
+  paymentStatus: RpPaymentStatus
+}
+
+/** Документ договора для модалки создания РП. */
+export interface RpContractDoc {
+  id: string
+  fileKey: string
+  fileName: string
+  mimeType: string | null
+  contractNumber: string | null
+  contractDate: string | null
+  isSignedContract: boolean
+}
+
+/** Учредительный документ поставщика для модалки создания РП. */
+export interface RpFoundingDoc {
+  id: string
+  fileKey: string
+  fileName: string
+  mimeType: string | null
+  typeName: string
+}
+
+/** Документы для модалки создания РП (связка Поставщик+Подрядчик+Объект). */
+export interface RpDocumentsResult {
+  contract: RpContractDoc[]
+  founding: RpFoundingDoc[]
+}
+
+/** Снимок выбранного документа, сохраняемый в составе РП. */
+export interface RpDocumentRef {
+  source: 'contract' | 'founding'
+  fileKey: string
+  fileName: string
+  mimeType?: string | null
+  contractNumber?: string | null
+  contractDate?: string | null
 }

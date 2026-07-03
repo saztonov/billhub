@@ -30,6 +30,16 @@ interface Config {
   /** OpenRouter */
   openrouterApiKey: string;
 
+  /**
+   * PayHub — внешний API стороннего сервиса (/api/external/v1).
+   * Интеграция опциональна: если baseUrl или token пусты — клиент не создаётся,
+   * сервис работает в состоянии «интеграция не настроена».
+   */
+  payhubBaseUrl: string;
+  payhubApiToken: string;
+  /** Таймаут запросов к PayHub (мс). */
+  payhubTimeoutMs: number;
+
   /** Redis */
   redisUrl: string;
 
@@ -159,6 +169,10 @@ export const config: Config = {
   r2Bucket: envOptional('R2_BUCKET'),
 
   openrouterApiKey: envOptional('OPENROUTER_API_KEY'),
+
+  payhubBaseUrl: envOptional('PAYHUB_BASE_URL'),
+  payhubApiToken: envOptional('PAYHUB_API_TOKEN'),
+  payhubTimeoutMs: parseInt(envOptional('PAYHUB_TIMEOUT_MS', '15000'), 10),
 
   redisUrl: envOptional('REDIS_URL', 'redis://localhost:6379'),
 
