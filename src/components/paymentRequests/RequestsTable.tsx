@@ -452,6 +452,7 @@ const RequestsTable = (props: RequestsTableProps) => {
         title: 'Статус',
         key: 'status',
         width: 150,
+        onCell: () => ({ className: 'cell-keep-size' }),
         sorter: (a: PaymentRequest, b: PaymentRequest) =>
           (a.statusName || '').localeCompare(b.statusName || '', 'ru'),
         filters: statusFilters,
@@ -500,6 +501,7 @@ const RequestsTable = (props: RequestsTableProps) => {
         key: 'invoiceAmount',
         width: 180,
         align: 'right' as const,
+        onCell: () => ({ className: 'cell-keep-size' }),
         sorter: (a: PaymentRequest, b: PaymentRequest) =>
           (a.invoiceAmount ?? 0) - (b.invoiceAmount ?? 0),
         render: (_: unknown, record: PaymentRequest) => {
@@ -907,6 +909,7 @@ const RequestsTable = (props: RequestsTableProps) => {
   return (
     <div
       ref={containerRef}
+      className={isMobile ? undefined : 'requests-desktop-table'}
       style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
     >
       <Table
@@ -966,6 +969,10 @@ const RequestsTable = (props: RequestsTableProps) => {
         .row-upload-error td { background-color: #fff1f0 !important; }
         .row-upload-error:hover td { background-color: #ffccc7 !important; }
         .row-deleted td { opacity: 0.45; }
+        /* Мелкий шрифт текста ячеек десктопной таблицы, как ИНН в столбце Подрядчик */
+        .requests-desktop-table .ant-table-tbody > tr > td { font-size: 12px; }
+        /* Исключения: столбцы Статус и Сумма РП сохраняют обычный размер */
+        .requests-desktop-table .ant-table-tbody > tr > td.cell-keep-size { font-size: 14px; }
       `}</style>
 
       <RejectModal
