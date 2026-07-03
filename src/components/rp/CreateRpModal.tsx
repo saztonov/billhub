@@ -42,6 +42,7 @@ const CreateRpModal = ({ open, combo, requestIds, onClose, onCreated }: CreateRp
   const [downloadMode, setDownloadMode] = useState(false)
   const [selectedKeys, setSelectedKeys] = useState<string[]>([])
   const [downloading, setDownloading] = useState(false)
+  const [downloadingAll, setDownloadingAll] = useState(false)
   const [creating, setCreating] = useState(false)
 
   useEffect(() => {
@@ -91,6 +92,20 @@ const CreateRpModal = ({ open, combo, requestIds, onClose, onCreated }: CreateRp
       setSelectedKeys([])
     } finally {
       setDownloading(false)
+    }
+  }
+
+  const handleDownloadAll = async () => {
+    if (allRefs.length === 0) {
+      message.info('Нет документов для скачивания')
+      return
+    }
+    setDownloadingAll(true)
+    try {
+      const added = await downloadFilesAsZip(allRefs, 'РП-документы')
+      if (added === 0) message.error('Не удалось скачать документы')
+    } finally {
+      setDownloadingAll(false)
     }
   }
 
@@ -154,6 +169,16 @@ const CreateRpModal = ({ open, combo, requestIds, onClose, onCreated }: CreateRp
         open={open}
         title="Создание РП — документы"
         width={720}
+        centered
+        style={{ maxHeight: '90vh' }}
+        styles={{
+          body: {
+            height: 'calc(90vh - 110px)',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+          },
+        }}
         onCancel={onClose}
         footer={[
           <Button key="cancel" onClick={onClose}>
@@ -164,11 +189,20 @@ const CreateRpModal = ({ open, combo, requestIds, onClose, onCreated }: CreateRp
           </Button>,
         ]}
       >
-        <div style={{ marginBottom: 12, display: 'flex', gap: 8 }}>
+        <div style={{ marginBottom: 12, display: 'flex', gap: 8, flexShrink: 0 }}>
           {!downloadMode ? (
-            <Button icon={<DownloadOutlined />} onClick={() => setDownloadMode(true)}>
-              Скачать
-            </Button>
+            <>
+              <Button icon={<DownloadOutlined />} onClick={() => setDownloadMode(true)}>
+                Скачать
+              </Button>
+              <Button
+                icon={<DownloadOutlined />}
+                loading={downloadingAll}
+                onClick={handleDownloadAll}
+              >
+                Скачать все
+              </Button>
+            </>
           ) : (
             <>
               <Button type="primary" loading={downloading} onClick={handleDownload}>
@@ -186,51 +220,53 @@ const CreateRpModal = ({ open, combo, requestIds, onClose, onCreated }: CreateRp
           )}
         </div>
 
-        {documentsLoading ? (
-          <div style={{ textAlign: 'center', padding: 40 }}>
-            <Spin />
-          </div>
-        ) : (
-          <Space direction="vertical" size="large" style={{ width: '100%' }}>
-            <div>
-              <Text strong>Договор</Text>
-              {documents && documents.contract.length > 0 ? (
-                <List
-                  size="small"
-                  dataSource={documents.contract}
-                  renderItem={(d) =>
-                    renderDoc(
-                      d.fileKey,
-                      d.fileName,
-                      d.mimeType,
-                      [
-                        d.contractNumber ? `№ ${d.contractNumber}` : null,
-                        d.contractDate ? `от ${formatDateShort(d.contractDate)}` : null,
-                      ]
-                        .filter(Boolean)
-                        .join('  '),
-                    )
-                  }
-                />
-              ) : (
-                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Нет документов" />
-              )}
+        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+          {documentsLoading ? (
+            <div style={{ textAlign: 'center', padding: 40 }}>
+              <Spin />
             </div>
+          ) : (
+            <Space direction="vertical" size="large" style={{ width: '100%' }}>
+              <div>
+                <Text strong>Договор</Text>
+                {documents && documents.contract.length > 0 ? (
+                  <List
+                    size="small"
+                    dataSource={documents.contract}
+                    renderItem={(d) =>
+                      renderDoc(
+                        d.fileKey,
+                        d.fileName,
+                        d.mimeType,
+                        [
+                          d.contractNumber ? `№ ${d.contractNumber}` : null,
+                          d.contractDate ? `от ${formatDateShort(d.contractDate)}` : null,
+                        ]
+                          .filter(Boolean)
+                          .join('  '),
+                      )
+                    }
+                  />
+                ) : (
+                  <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Нет документов" />
+                )}
+              </div>
 
-            <div>
-              <Text strong>Документы поставщика</Text>
-              {documents && documents.founding.length > 0 ? (
-                <List
-                  size="small"
-                  dataSource={documents.founding}
-                  renderItem={(d) => renderDoc(d.fileKey, d.fileName, d.mimeType, d.typeName)}
-                />
-              ) : (
-                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Нет документов" />
-              )}
-            </div>
-          </Space>
-        )}
+              <div>
+                <Text strong>Документы поставщика</Text>
+                {documents && documents.founding.length > 0 ? (
+                  <List
+                    size="small"
+                    dataSource={documents.founding}
+                    renderItem={(d) => renderDoc(d.fileKey, d.fileName, d.mimeType, d.typeName)}
+                  />
+                ) : (
+                  <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Нет документов" />
+                )}
+              </div>
+            </Space>
+          )}
+        </div>
       </Modal>
 
       <FilePreviewModal
