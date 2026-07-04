@@ -120,7 +120,7 @@ const RpRegistryTable = ({
       {
         title: '№',
         key: 'index',
-        width: 60,
+        width: 42,
         fixed: 'left',
         render: (_: unknown, __: RpLetter, index: number) => (page - 1) * pageSize + index + 1,
       },
@@ -157,9 +157,9 @@ const RpRegistryTable = ({
       {
         title: 'Заявки',
         key: 'requests',
-        width: 200,
+        width: 100,
         render: (_: unknown, r: RpLetter) => (
-          <Space size={[4, 4]} wrap>
+          <Space direction="vertical" size={0}>
             {r.requests.map((req) => (
               <Button
                 key={req.id}
@@ -206,7 +206,7 @@ const RpRegistryTable = ({
       {
         title: 'Письмо',
         key: 'letter',
-        width: 190,
+        width: 95,
         render: (_: unknown, r: RpLetter) => (
           <LetterCell letter={r} onRetryLetter={onRetryLetter} />
         ),
@@ -287,7 +287,7 @@ const RpRegistryTable = ({
       rowKey="id"
       loading={isLoading}
       size="small"
-      scroll={{ x: 1840, y: 'calc(100vh - 320px)' }}
+      scroll={{ x: 1627, y: 'calc(100vh - 320px)' }}
       pagination={{
         current: page,
         pageSize,
