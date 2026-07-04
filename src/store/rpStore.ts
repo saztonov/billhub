@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { api } from '@/services/api'
 import { logError } from '@/services/errorLogger'
-import type { RpLetter, RpDocumentsResult, RpDocumentRef } from '@/types'
+import type { RpLetter, RpDocumentsResult, RpDocumentRef, RpFilesResult } from '@/types'
 
 /** Блок письма PayHub при создании РП (редактируемые поля формы). */
 export interface RpLetterFormBlock {
@@ -25,6 +25,16 @@ export interface CreateRpPayload {
 
 /** Ссылка на файл письма, загруженный в billhub S3 (контекст rp_letter). */
 export interface RpLetterAttachmentRef {
+  fileKey: string
+  fileName: string
+  mimeType?: string | null
+  sizeBytes?: number | null
+  /** 'rp' — скан чистовика (в поле «РП» заявок); 'other' (по умолчанию) — прочие. */
+  fileType?: 'rp' | 'other'
+}
+
+/** Ссылка на служебный файл РП (billhub S3, контекст rp_service). */
+export interface RpServiceFileRef {
   fileKey: string
   fileName: string
   mimeType?: string | null
@@ -73,6 +83,19 @@ interface RpStoreState {
   annulRp: (id: string) => Promise<void>
   /** Правка текста письма из реестра (PATCH письма в PayHub). Бросает ошибку при неудаче. */
   editLetterText: (id: string, letter: RpLetterTextBlock) => Promise<void>
+  /** Файлы РП (вложения письма PayHub + служебные) для модалки «Файлы». */
+  loadRpFiles: (id: string) => Promise<RpFilesResult>
+  /** Регистрация загруженных служебных файлов РП. */
+  registerServiceFiles: (id: string, refs: RpServiceFileRef[]) => Promise<void>
+  /** Удалить служебный файл РП. */
+  deleteServiceFile: (id: string, fileId: string) => Promise<void>
+}
+
+/** Обновляет счётчик файлов конкретной РП в реестре (delta может быть отрицательной). */
+function bumpFilesCount(letters: RpLetter[], id: string, delta: number): RpLetter[] {
+  return letters.map((l) =>
+    l.id === id ? { ...l, filesCount: Math.max(0, l.filesCount + delta) } : l,
+  )
 }
 
 export const useRpStore = create<RpStoreState>((set, get) => ({
@@ -260,6 +283,21 @@ export const useRpStore = create<RpStoreState>((set, get) => ({
       })
       return false
     }
+  },
+
+  loadRpFiles: async (id) => {
+    const data = await api.get<RpFilesResult>(`/api/rp/${id}/files`)
+    return data ?? { payhub: [], service: [] }
+  },
+
+  registerServiceFiles: async (id, refs) => {
+    await api.post(`/api/rp/${id}/service-files`, { files: refs })
+    set({ letters: bumpFilesCount(get().letters, id, refs.length) })
+  },
+
+  deleteServiceFile: async (id, fileId) => {
+    await api.delete(`/api/rp/${id}/service-files/${fileId}`)
+    set({ letters: bumpFilesCount(get().letters, id, -1) })
   },
 
   updateStatus: async (id, status) => {

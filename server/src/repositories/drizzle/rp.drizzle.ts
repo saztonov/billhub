@@ -2,7 +2,7 @@
  * DrizzleRpRepository — реестр распределительных писем (РП). Введён миграцией 0006.
  * Только Drizzle (без Supabase).
  */
-import { and, eq, inArray, desc, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import * as schema from '../../db/schema/index.js';
 import {
@@ -10,23 +10,15 @@ import {
   rpLetterRequests,
   rpLetterDocuments,
   rpLetterAttachments,
+  rpLetterServiceFiles,
   paymentRequests,
-  suppliers,
-  counterparties,
   constructionSites,
-  contractRequests,
-  contractRequestFiles,
-  supplierFoundingDocuments,
-  foundingDocumentFiles,
-  documentTypes,
 } from '../../db/schema/index.js';
 import { ValidationError, NotFoundError } from '../types.js';
 import type { RpLetterPayload } from '../../db/schema/rp.js';
 import type {
   RpRepository,
   RpRegistryRow,
-  RpRequestRef,
-  RpPaymentStatus,
   RpDocumentsResult,
   CreateRpInput,
   RpLetterAttachmentRef,
@@ -34,152 +26,39 @@ import type {
   RpLetterSyncStatus,
   RpLetterSyncedResult,
   RpMutationContext,
+  RpFilesResult,
+  RpServiceFileRef,
 } from '../rp.repository.js';
+import {
+  propagateDpNumberDate,
+  propagateDpFile,
+  clearDpAndUnlink,
+  getRpFiles as getRpFilesQuery,
+  addServiceFiles as addServiceFilesQuery,
+  deleteServiceFile as deleteServiceFileQuery,
+  listServiceFileKeys,
+} from './rp-files.drizzle.js';
+import {
+  computePaymentStatus,
+  listRegistry as listRegistryQuery,
+  getDocuments as getDocumentsQuery,
+} from './rp-registry.drizzle.js';
 
 type Db = PostgresJsDatabase<typeof schema>;
-
-/** Вычисляет статус оплаты РП по связанным заявкам. */
-function computePaymentStatus(
-  reqs: Array<{ invoiceAmount: number | null; totalPaid: number }>,
-): RpPaymentStatus {
-  if (reqs.length === 0) return 'unpaid';
-  const isPaid = (r: { invoiceAmount: number | null; totalPaid: number }) =>
-    r.invoiceAmount != null && r.invoiceAmount > 0 && r.totalPaid >= r.invoiceAmount;
-  const hasPayment = (r: { invoiceAmount: number | null; totalPaid: number }) => r.totalPaid > 0;
-
-  if (reqs.every(isPaid)) return 'paid';
-  if (reqs.some((r) => isPaid(r) || hasPayment(r))) return 'partial';
-  return 'unpaid';
-}
 
 export class DrizzleRpRepository implements RpRepository {
   constructor(private readonly db: Db) {}
 
-  async listRegistry(siteIds: string[] | null): Promise<RpRegistryRow[]> {
-    // Пустой список объектов у обычного user => реестр пуст.
-    if (siteIds !== null && siteIds.length === 0) return [];
-
-    const letters = await this.db
-      .select({
-        id: rpLetters.id,
-        number: rpLetters.number,
-        letterDate: rpLetters.letterDate,
-        createdAt: rpLetters.createdAt,
-        status: rpLetters.status,
-        totalAmount: rpLetters.totalAmount,
-        description: rpLetters.description,
-        supplierId: rpLetters.supplierId,
-        supplierName: suppliers.name,
-        supplierInn: suppliers.inn,
-        counterpartyId: rpLetters.counterpartyId,
-        counterpartyName: counterparties.name,
-        counterpartyInn: counterparties.inn,
-        siteId: rpLetters.siteId,
-        siteName: constructionSites.name,
-        createdBy: rpLetters.createdBy,
-        payhubLetterId: rpLetters.payhubLetterId,
-        payhubLetterRegNumber: rpLetters.payhubLetterRegNumber,
-        payhubLetterUrl: rpLetters.payhubLetterUrl,
-        payhubLetterStatus: rpLetters.payhubLetterStatus,
-        payhubLetterError: rpLetters.payhubLetterError,
-        payhubLetterPayload: rpLetters.payhubLetterPayload,
-      })
-      .from(rpLetters)
-      .innerJoin(suppliers, eq(suppliers.id, rpLetters.supplierId))
-      .innerJoin(counterparties, eq(counterparties.id, rpLetters.counterpartyId))
-      .innerJoin(constructionSites, eq(constructionSites.id, rpLetters.siteId))
-      .where(siteIds === null ? undefined : inArray(rpLetters.siteId, siteIds))
-      .orderBy(desc(rpLetters.createdAt));
-
-    if (letters.length === 0) return [];
-
-    const letterIds = letters.map((l) => l.id);
-    const links = await this.db
-      .select({
-        rpLetterId: rpLetterRequests.rpLetterId,
-        requestId: paymentRequests.id,
-        requestNumber: paymentRequests.requestNumber,
-        invoiceAmount: paymentRequests.invoiceAmount,
-        totalPaid: paymentRequests.totalPaid,
-      })
-      .from(rpLetterRequests)
-      .innerJoin(paymentRequests, eq(paymentRequests.id, rpLetterRequests.paymentRequestId))
-      .where(inArray(rpLetterRequests.rpLetterId, letterIds));
-
-    const refsByLetter = new Map<string, RpRequestRef[]>();
-    const payByLetter = new Map<
-      string,
-      Array<{ invoiceAmount: number | null; totalPaid: number }>
-    >();
-    for (const l of links) {
-      if (!refsByLetter.has(l.rpLetterId)) refsByLetter.set(l.rpLetterId, []);
-      if (!payByLetter.has(l.rpLetterId)) payByLetter.set(l.rpLetterId, []);
-      refsByLetter.get(l.rpLetterId)!.push({ id: l.requestId, requestNumber: l.requestNumber });
-      payByLetter
-        .get(l.rpLetterId)!
-        .push({ invoiceAmount: l.invoiceAmount, totalPaid: l.totalPaid });
-    }
-
-    return letters.map((l) => ({
-      ...l,
-      totalAmount: l.totalAmount ?? 0,
-      payhubLetterStatus: (l.payhubLetterStatus as RpLetterSyncStatus | null) ?? null,
-      requests: refsByLetter.get(l.id) ?? [],
-      paymentStatus: computePaymentStatus(payByLetter.get(l.id) ?? []),
-    }));
+  listRegistry(siteIds: string[] | null): Promise<RpRegistryRow[]> {
+    return listRegistryQuery(this.db, siteIds);
   }
 
-  async getDocuments(
+  getDocuments(
     supplierId: string,
     counterpartyId: string,
     siteId: string,
   ): Promise<RpDocumentsResult> {
-    // Договорные документы: не зачёркнутые файлы заявок на договор данной связки.
-    const contract = await this.db
-      .select({
-        id: contractRequestFiles.id,
-        fileKey: contractRequestFiles.fileKey,
-        fileName: contractRequestFiles.fileName,
-        mimeType: contractRequestFiles.mimeType,
-        contractNumber: contractRequests.contractNumber,
-        contractDate: contractRequests.contractSigningDate,
-        isSignedContract: contractRequestFiles.isSignedContract,
-      })
-      .from(contractRequestFiles)
-      .innerJoin(contractRequests, eq(contractRequests.id, contractRequestFiles.contractRequestId))
-      .where(
-        and(
-          eq(contractRequests.supplierId, supplierId),
-          eq(contractRequests.counterpartyId, counterpartyId),
-          eq(contractRequests.siteId, siteId),
-          eq(contractRequests.isDeleted, false),
-          eq(contractRequestFiles.isRejected, false),
-        ),
-      )
-      .orderBy(desc(contractRequestFiles.createdAt));
-
-    // Учредительные документы поставщика.
-    const founding = await this.db
-      .select({
-        id: foundingDocumentFiles.id,
-        fileKey: foundingDocumentFiles.fileKey,
-        fileName: foundingDocumentFiles.fileName,
-        mimeType: foundingDocumentFiles.mimeType,
-        typeName: documentTypes.name,
-      })
-      .from(foundingDocumentFiles)
-      .innerJoin(
-        supplierFoundingDocuments,
-        eq(supplierFoundingDocuments.id, foundingDocumentFiles.supplierFoundingDocumentId),
-      )
-      .innerJoin(
-        documentTypes,
-        eq(documentTypes.id, supplierFoundingDocuments.foundingDocumentTypeId),
-      )
-      .where(eq(supplierFoundingDocuments.supplierId, supplierId))
-      .orderBy(desc(foundingDocumentFiles.createdAt));
-
-    return { contract, founding };
+    return getDocumentsQuery(this.db, supplierId, counterpartyId, siteId);
   }
 
   async create(input: CreateRpInput): Promise<RpRegistryRow> {
@@ -203,6 +82,7 @@ export class DrizzleRpRepository implements RpRepository {
           rejectedAt: paymentRequests.rejectedAt,
           withdrawnAt: paymentRequests.withdrawnAt,
           isDeleted: paymentRequests.isDeleted,
+          dpNumber: paymentRequests.dpNumber,
         })
         .from(paymentRequests)
         .where(inArray(paymentRequests.id, paymentRequestIds));
@@ -214,6 +94,10 @@ export class DrizzleRpRepository implements RpRepository {
         if (r.isDeleted) throw new ValidationError('Нельзя включить удалённую заявку в РП');
         if (!r.approvedAt || r.rejectedAt || r.withdrawnAt) {
           throw new ValidationError('В РП можно включать только согласованные заявки');
+        }
+        // Заявка уже имеет РП (заполнено поле «РП») — в новую РП её включать нельзя.
+        if (r.dpNumber) {
+          throw new ValidationError('Заявка уже включена в РП — сначала удалите её из текущей РП');
         }
         if (
           r.supplierId !== supplierId ||
@@ -349,6 +233,27 @@ export class DrizzleRpRepository implements RpRepository {
       if (existingKeys.size + newRefs.length > 20) {
         throw new ValidationError('Не больше 20 файлов на письмо');
       }
+      // Файл типа «РП» (скан чистовика) — не более одного на письмо (плюс частичный
+      // unique-индекс на уровне БД). Проверка под FOR UPDATE — гонки исключены.
+      const newRpFiles = newRefs.filter((r) => r.fileType === 'rp');
+      if (newRpFiles.length > 1) {
+        throw new ValidationError('Можно приложить только один файл типа «РП»');
+      }
+      if (newRpFiles.length === 1) {
+        const existingRp = await tx
+          .select({ id: rpLetterAttachments.id })
+          .from(rpLetterAttachments)
+          .where(
+            and(
+              eq(rpLetterAttachments.rpLetterId, rpLetterId),
+              eq(rpLetterAttachments.fileType, 'rp'),
+            ),
+          )
+          .limit(1);
+        if (existingRp.length > 0) {
+          throw new ValidationError('У письма уже есть файл типа «РП»');
+        }
+      }
       // onConflictDoNothing по (rp_letter_id, file_key) — идемпотентность при гонке
       // (параллельный батч мог вставить тот же ключ между select и insert).
       await tx
@@ -360,11 +265,17 @@ export class DrizzleRpRepository implements RpRepository {
             fileName: r.fileName,
             mimeType: r.mimeType ?? null,
             sizeBytes: r.sizeBytes ?? null,
+            fileType: r.fileType ?? 'other',
           })),
         )
         .onConflictDoNothing({
           target: [rpLetterAttachments.rpLetterId, rpLetterAttachments.fileKey],
         });
+
+      // Файл типа «РП» → дублируем в поле «РП» связанных заявок (dp_file_key).
+      if (newRpFiles.length === 1) {
+        await propagateDpFile(tx, rpLetterId, newRpFiles[0]!.fileKey, newRpFiles[0]!.fileName);
+      }
     });
   }
 
@@ -459,15 +370,27 @@ export class DrizzleRpRepository implements RpRepository {
   }
 
   async setLetterLinked(rpLetterId: string, result: RpLetterSyncedResult): Promise<void> {
-    await this.db
-      .update(rpLetters)
-      .set({
-        payhubLetterId: result.payhubLetterId,
-        payhubLetterRegNumber: result.payhubLetterRegNumber,
-        payhubLetterUrl: result.payhubLetterUrl,
-        payhubLetterStatusUpdatedAt: sql`now()`,
-      })
-      .where(eq(rpLetters.id, rpLetterId));
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(rpLetters)
+        .set({
+          payhubLetterId: result.payhubLetterId,
+          payhubLetterRegNumber: result.payhubLetterRegNumber,
+          payhubLetterUrl: result.payhubLetterUrl,
+          payhubLetterStatusUpdatedAt: sql`now()`,
+        })
+        .where(eq(rpLetters.id, rpLetterId));
+      // Рег.номер и дату письма PayHub подтягиваем в поле «РП» связанных заявок.
+      // Только при наличии рег.номера (иначе «пустой РП» — дозаполнит повтор/воркер).
+      if (result.payhubLetterRegNumber) {
+        await propagateDpNumberDate(
+          tx,
+          rpLetterId,
+          result.payhubLetterRegNumber,
+          result.payhubLetterDate,
+        );
+      }
+    });
   }
 
   async setLetterSynced(rpLetterId: string, result: RpLetterSyncedResult): Promise<void> {
@@ -537,6 +460,7 @@ export class DrizzleRpRepository implements RpRepository {
       paymentStatus: computePaymentStatus(reqs),
       payhubLetterId: row.payhubLetterId,
       attachmentFileKeys: atts.map((a) => a.fileKey),
+      serviceFileKeys: await listServiceFileKeys(this.db, id),
     };
   }
 
@@ -556,21 +480,25 @@ export class DrizzleRpRepository implements RpRepository {
   async annulRp(id: string): Promise<void> {
     // Полная очистка полей письма PayHub и payload: строка перестаёт быть кандидатом
     // sweep (payhub_letter_status = NULL) и syncRpLetter (пустой payload -> skipped).
-    const res = await this.db
-      .update(rpLetters)
-      .set({
-        status: 'annulled',
-        payhubLetterId: null,
-        payhubLetterRegNumber: null,
-        payhubLetterUrl: null,
-        payhubLetterStatus: null,
-        payhubLetterError: null,
-        payhubLetterPayload: null,
-        payhubLetterStatusUpdatedAt: sql`now()`,
-      })
-      .where(eq(rpLetters.id, id))
-      .returning({ id: rpLetters.id });
-    if (res.length === 0) throw new NotFoundError('РП', id);
+    // Заявки освобождаем: очищаем поле «РП» и снимаем привязку (как при удалении).
+    await this.db.transaction(async (tx) => {
+      const res = await tx
+        .update(rpLetters)
+        .set({
+          status: 'annulled',
+          payhubLetterId: null,
+          payhubLetterRegNumber: null,
+          payhubLetterUrl: null,
+          payhubLetterStatus: null,
+          payhubLetterError: null,
+          payhubLetterPayload: null,
+          payhubLetterStatusUpdatedAt: sql`now()`,
+        })
+        .where(eq(rpLetters.id, id))
+        .returning({ id: rpLetters.id });
+      if (res.length === 0) throw new NotFoundError('РП', id);
+      await clearDpAndUnlink(tx, id);
+    });
   }
 
   async deleteRp(id: string): Promise<void> {
@@ -582,11 +510,29 @@ export class DrizzleRpRepository implements RpRepository {
         .for('update')
         .limit(1);
       if (!row) throw new NotFoundError('РП', id);
+      // Очистка поля «РП» связанных заявок + снятие привязки (rp_letter_requests).
+      await clearDpAndUnlink(tx, id);
       // Явное удаление связей (не полагаемся на каскады во всех дочерних таблицах).
-      await tx.delete(rpLetterRequests).where(eq(rpLetterRequests.rpLetterId, id));
       await tx.delete(rpLetterDocuments).where(eq(rpLetterDocuments.rpLetterId, id));
       await tx.delete(rpLetterAttachments).where(eq(rpLetterAttachments.rpLetterId, id));
+      await tx.delete(rpLetterServiceFiles).where(eq(rpLetterServiceFiles.rpLetterId, id));
       await tx.delete(rpLetters).where(eq(rpLetters.id, id));
     });
+  }
+
+  /* ------------------------------------------------------------------ */
+  /*  Файлы РП (0010): вложения письма PayHub + служебные файлы          */
+  /* ------------------------------------------------------------------ */
+
+  getRpFiles(id: string): Promise<RpFilesResult> {
+    return getRpFilesQuery(this.db, id);
+  }
+
+  addServiceFiles(id: string, createdBy: string, refs: RpServiceFileRef[]): Promise<void> {
+    return addServiceFilesQuery(this.db, id, createdBy, refs);
+  }
+
+  deleteServiceFile(id: string, fileId: string): Promise<string | null> {
+    return deleteServiceFileQuery(this.db, id, fileId);
   }
 }

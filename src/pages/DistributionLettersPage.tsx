@@ -18,6 +18,7 @@ import RpRegistryTable from '@/components/rp/RpRegistryTable'
 import CreateRpModal from '@/components/rp/CreateRpModal'
 import CreateRpLetterModal from '@/components/rp/CreateRpLetterModal'
 import EditRpLetterModal from '@/components/rp/EditRpLetterModal'
+import RpFilesModal from '@/components/rp/RpFilesModal'
 import { useRpLetterFiltering } from '@/hooks/useRpLetterFiltering'
 import type { RpCombo } from '@/components/rp/CreateRpModal'
 import type { FilterValues } from '@/components/paymentRequests/RequestFilters'
@@ -48,6 +49,8 @@ const DistributionLettersPage = () => {
   const [letterDocs, setLetterDocs] = useState<RpDocumentRef[]>([])
   // Редактирование текста письма из реестра
   const [editLetter, setEditLetter] = useState<RpLetter | null>(null)
+  // Модалка файлов РП (вложения PayHub + служебные)
+  const [filesLetter, setFilesLetter] = useState<RpLetter | null>(null)
 
   useEffect(() => {
     setHeader('Распред.письма')
@@ -206,8 +209,10 @@ const DistributionLettersPage = () => {
       preserveSelectedRowKeys: true,
       onChange: (keys: React.Key[]) => setSelectedKeys(keys as string[]),
       getCheckboxProps: (record: PaymentRequest) => ({
+        // record.dpNumber заполнено => заявка уже в РП (или ручной РП): в новую РП нельзя.
         disabled:
           membership.has(record.id) ||
+          !!record.dpNumber ||
           !record.supplierId ||
           (firstCombo !== null && comboKey(record) !== firstCombo),
       }),
@@ -288,6 +293,8 @@ const DistributionLettersPage = () => {
         try {
           await annulRp(letter.id)
           message.success('РП аннулирована')
+          // Заявки освобождены (dp очищен, привязка снята) — обновляем реестр и списки заявок.
+          setRefreshTrigger((n) => n + 1)
         } catch (err) {
           message.error(err instanceof Error ? err.message : 'Не удалось аннулировать РП')
         }
@@ -309,6 +316,8 @@ const DistributionLettersPage = () => {
         try {
           await deleteRp(letter.id)
           message.success('РП удалена')
+          // Заявки освобождены (dp очищен, привязка снята) — обновляем реестр и списки заявок.
+          setRefreshTrigger((n) => n + 1)
         } catch (err) {
           message.error(err instanceof Error ? err.message : 'Не удалось удалить РП')
         }
@@ -346,6 +355,7 @@ const DistributionLettersPage = () => {
           onEdit={setEditLetter}
           onAnnul={handleAnnulRp}
           onDelete={handleDeleteRp}
+          onFiles={setFilesLetter}
         />
       ),
     },
@@ -535,6 +545,12 @@ const DistributionLettersPage = () => {
         letter={editLetter}
         onClose={() => setEditLetter(null)}
         onSaved={() => setRefreshTrigger((n) => n + 1)}
+      />
+
+      <RpFilesModal
+        open={!!filesLetter}
+        letter={filesLetter}
+        onClose={() => setFilesLetter(null)}
       />
     </div>
   )

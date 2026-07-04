@@ -90,9 +90,11 @@ function makePayhub(overrides: Partial<Record<string, unknown>> = {}) {
     getLetter: vi.fn(),
     shareLetter: vi.fn().mockResolvedValue({ share_url: `${BASE_URL}/letter-share/abc` }),
     createLetter: vi.fn().mockResolvedValue({
-      letter: { id: 'L-1', reg_number: 'SU10-ИСХ-2607-0001' },
+      letter: { id: 'L-1', reg_number: 'SU10-ИСХ-2607-0001', letter_date: '2026-07-04' },
       share: { share_url: `${BASE_URL}/letter-share/abc` },
     }),
+    // number приводится к reg_number после создания (единый номер PayHub).
+    updateLetter: vi.fn().mockResolvedValue({}),
     listAttachments: vi.fn().mockResolvedValue([]),
     uploadAttachment: vi.fn().mockResolvedValue({ id: 'A-1' }),
     ...overrides,
@@ -129,12 +131,12 @@ describe('syncRpLetter — happy path', () => {
 
     expect(outcome).toBe('synced');
     expect(repo.attempts).toBe(1);
+    // Локальный номер РП НЕ отправляется — PayHub генерирует номер сам.
     expect(payhub.createLetter).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
         project_id: 12,
         direction: 'outgoing',
         letter_date: '2026-07-04',
-        number: 'РП-000123',
         subject: 'РП',
         content: '100 ₽, ООО Ромашка',
         responsible_person_name: 'Иванов И.И.',
@@ -146,10 +148,14 @@ describe('syncRpLetter — happy path', () => {
         ensure_share: true,
       }),
     );
+    expect(payhub.createLetter.mock.calls[0]?.[0]).not.toHaveProperty('number');
+    // number письма приводится к reg_number (единый номер на PayHub).
+    expect(payhub.updateLetter).toHaveBeenCalledWith('L-1', { number: 'SU10-ИСХ-2607-0001' });
     expect(repo.synced).toEqual({
       payhubLetterId: 'L-1',
       payhubLetterRegNumber: 'SU10-ИСХ-2607-0001',
       payhubLetterUrl: `${BASE_URL}/letter-share/abc`,
+      payhubLetterDate: '2026-07-04',
     });
     // Привязка письма зафиксирована ДО вложений (устойчивость к сбою на их этапе).
     expect(repo.linked).toEqual(repo.synced);

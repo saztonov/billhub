@@ -12,6 +12,7 @@ import {
   List,
   Image,
   Space,
+  Select,
   App,
 } from 'antd'
 import {
@@ -32,9 +33,17 @@ import { uploadRpLetterFile } from '@/services/s3'
 import { logError } from '@/services/errorLogger'
 import { buildRpLetterContent } from '@/components/rp/rpLetterContent'
 import { svgDataUrlToPngDataUrl, downloadDataUrl } from '@/utils/qrToPng'
+import FilePreviewModal from '@/components/paymentRequests/FilePreviewModal'
+import { getMimeFromFileName } from '@/utils/mimeFromExtension'
 import type { RpCombo } from '@/components/rp/CreateRpModal'
 import type { RpLetterAttachmentRef } from '@/store/rpStore'
-import type { ConstructionSite, PaymentRequest, RpDocumentRef, RpLetter } from '@/types'
+import type {
+  ConstructionSite,
+  PaymentRequest,
+  RpDocumentRef,
+  RpLetter,
+  RpAttachmentType,
+} from '@/types'
 
 const { Text } = Typography
 
@@ -105,6 +114,10 @@ const CreateRpLetterModal = ({
   const [senderState, setSenderState] = useState<'loading' | 'loaded' | 'error'>('loading')
   const [files, setFiles] = useState<File[]>([])
   const [fileStates, setFileStates] = useState<FileState[]>([])
+  /** Тип каждого файла (параллельно files): 'rp' — скан чистовика, 'other' — прочие. */
+  const [fileTypes, setFileTypes] = useState<RpAttachmentType[]>([])
+  /** Локальный файл для предпросмотра в модалке (не открываем новую вкладку). */
+  const [previewLocal, setPreviewLocal] = useState<File | null>(null)
   const [submitting, setSubmitting] = useState(false)
   /** РП с созданным письмом PayHub (1 этап sync) — дальше идёт 2 этап */
   const [createdRp, setCreatedRp] = useState<RpLetter | null>(null)
@@ -127,6 +140,8 @@ const CreateRpLetterModal = ({
     if (!open) return
     setFiles([])
     setFileStates([])
+    setFileTypes([])
+    setPreviewLocal(null)
     setCreatedRp(null)
     setRegNumber(null)
     setQrPng(null)
@@ -172,6 +187,7 @@ const CreateRpLetterModal = ({
 
   const addFiles = (incoming: File[]) => {
     const next = [...files]
+    const nextTypes = [...fileTypes]
     for (const f of incoming) {
       if (next.length >= MAX_FILES) {
         message.warning(`Не больше ${MAX_FILES} файлов`)
@@ -182,21 +198,28 @@ const CreateRpLetterModal = ({
         continue
       }
       next.push(f)
+      nextTypes.push('other')
     }
     setFiles(next)
+    setFileTypes(nextTypes)
     setFileStates(next.map((_, i) => fileStates[i] ?? 'pending'))
   }
 
   const removeFile = (index: number) => {
     setFiles(files.filter((_, i) => i !== index))
+    setFileTypes(fileTypes.filter((_, i) => i !== index))
     setFileStates(fileStates.filter((_, i) => i !== index))
   }
 
-  /** Просмотр локального (ещё не загруженного) файла в новой вкладке. */
-  const previewFile = (file: File) => {
-    const url = URL.createObjectURL(file)
-    window.open(url, '_blank', 'noopener,noreferrer')
-    setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  /** Смена типа файла; выбор «РП» сбрасывает прежний файл «РП» в «Другой» (не более одного). */
+  const setFileType = (index: number, type: RpAttachmentType) => {
+    setFileTypes((prev) =>
+      prev.map((t, i) => {
+        if (i === index) return type
+        if (type === 'rp' && t === 'rp') return 'other'
+        return t
+      }),
+    )
   }
 
   const collectValues = async (): Promise<LetterFormValues | null> => {
@@ -251,6 +274,7 @@ const CreateRpLetterModal = ({
           fileName: files[i].name,
           mimeType: files[i].type || null,
           sizeBytes: files[i].size,
+          fileType: fileTypes[i] ?? 'other',
         })
         states[i] = 'done'
       } catch (err) {
@@ -591,11 +615,28 @@ const CreateRpLetterModal = ({
       {files.length > 0 && (
         <List
           size="small"
-          dataSource={files.map((f, i) => ({ file: f, state: fileStates[i] ?? 'pending', i }))}
-          renderItem={({ file, state, i }) => (
+          dataSource={files.map((f, i) => ({
+            file: f,
+            state: fileStates[i] ?? 'pending',
+            type: fileTypes[i] ?? 'other',
+            i,
+          }))}
+          renderItem={({ file, state, type, i }) => (
             <List.Item
-              actions={
-                !submitting
+              actions={[
+                <Select<RpAttachmentType>
+                  key="type"
+                  size="small"
+                  value={type}
+                  disabled={submitting}
+                  style={{ width: 104 }}
+                  onChange={(v) => setFileType(i, v)}
+                  options={[
+                    { value: 'other', label: 'Другой' },
+                    { value: 'rp', label: 'РП' },
+                  ]}
+                />,
+                ...(!submitting
                   ? [
                       <Button
                         key="view"
@@ -603,7 +644,7 @@ const CreateRpLetterModal = ({
                         size="small"
                         icon={<EyeOutlined />}
                         title="Просмотр"
-                        onClick={() => previewFile(file)}
+                        onClick={() => setPreviewLocal(file)}
                       />,
                       <Button
                         key="rm"
@@ -615,8 +656,8 @@ const CreateRpLetterModal = ({
                         onClick={() => removeFile(i)}
                       />,
                     ]
-                  : undefined
-              }
+                  : []),
+              ]}
             >
               {fileIcon(state)}
               <Text style={{ marginLeft: 8 }} ellipsis>
@@ -629,6 +670,14 @@ const CreateRpLetterModal = ({
           )}
         />
       )}
+      <FilePreviewModal
+        open={!!previewLocal}
+        onClose={() => setPreviewLocal(null)}
+        fileKey={null}
+        file={previewLocal}
+        fileName={previewLocal?.name ?? ''}
+        mimeType={previewLocal ? previewLocal.type || getMimeFromFileName(previewLocal.name) : null}
+      />
     </Modal>
   )
 }

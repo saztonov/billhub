@@ -391,6 +391,16 @@ export class SupabasePaymentRequestRepository implements PaymentRequestRepositor
     if (error) throw error;
   }
 
+  /** РП-реестр реализован только на Drizzle — в supabase-bridge заявка в РП не входит. */
+  async isInRpLetter(_id: string): Promise<boolean> {
+    return false;
+  }
+
+  /** РП-реестр реализован только на Drizzle — файлов «РП» из rp-letters/… в supabase-bridge нет. */
+  async isDpFileOfCounterparty(_fileKey: string, _counterpartyId: string): Promise<boolean> {
+    return false;
+  }
+
   async listFiles(paymentRequestId: string): Promise<PaymentRequestRow[]> {
     const { data, error } = await this.supabase
       .from('payment_request_files')

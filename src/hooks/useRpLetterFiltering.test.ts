@@ -31,6 +31,7 @@ function letter(overrides: Partial<RpLetter>): RpLetter {
     payhubLetterStatus: null,
     payhubLetterError: null,
     payhubLetterPayload: null,
+    filesCount: 0,
     ...overrides,
   }
 }

@@ -87,6 +87,15 @@ export interface PaymentRequestRepository {
   /** Сохранить данные РП/ДП. */
   setDpData(id: string, dp: DpDataBody): Promise<void>;
 
+  /** Входит ли заявка в РП (rp_letter_requests) — поле «РП» заполняется автоматически (0010). */
+  isInRpLetter(id: string): Promise<boolean>;
+
+  /**
+   * Является ли fileKey файлом «РП» (dp_file_key) заявки данного контрагента —
+   * для доступа counterparty_user к файлу письма РП из папки rp-letters/… (0010).
+   */
+  isDpFileOfCounterparty(fileKey: string, counterpartyId: string): Promise<boolean>;
+
   /** Файлы заявки с join-полями (тип документа + загрузивший). */
   listFiles(paymentRequestId: string): Promise<PaymentRequestRow[]>;
 

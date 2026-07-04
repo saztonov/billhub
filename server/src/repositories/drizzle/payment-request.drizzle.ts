@@ -19,6 +19,7 @@ import {
   users,
   documentTypes,
   userConstructionSitesMapping,
+  rpLetterRequests,
 } from '../../db/schema/index.js';
 import { joinedPaymentRequests } from './payment-request-projection.js';
 import type {
@@ -415,6 +416,29 @@ export class DrizzlePaymentRequestRepository implements PaymentRequestRepository
         })
         .where(eq(paymentRequests.id, id));
     });
+  }
+
+  async isInRpLetter(id: string): Promise<boolean> {
+    const [row] = await this.db
+      .select({ id: rpLetterRequests.paymentRequestId })
+      .from(rpLetterRequests)
+      .where(eq(rpLetterRequests.paymentRequestId, id))
+      .limit(1);
+    return !!row;
+  }
+
+  async isDpFileOfCounterparty(fileKey: string, counterpartyId: string): Promise<boolean> {
+    const [row] = await this.db
+      .select({ id: paymentRequests.id })
+      .from(paymentRequests)
+      .where(
+        and(
+          eq(paymentRequests.dpFileKey, fileKey),
+          eq(paymentRequests.counterpartyId, counterpartyId),
+        ),
+      )
+      .limit(1);
+    return !!row;
   }
 
   async listFiles(paymentRequestId: string): Promise<PaymentRequestRow[]> {

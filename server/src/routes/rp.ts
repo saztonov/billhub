@@ -16,6 +16,8 @@ import {
   updateRpStatusBodySchema,
   rpDocumentsQuerySchema,
   rpLetterAttachmentsBodySchema,
+  rpServiceFilesBodySchema,
+  rpServiceFileParamsSchema,
   rpStage1BodySchema,
   finalizeLetterBodySchema,
   editLetterTextBodySchema,
@@ -256,8 +258,51 @@ async function rpRoutes(fastify: FastifyInstance): Promise<void> {
         fileName: sanitizeAttachmentName(a.fileName),
         mimeType: a.mimeType ?? null,
         sizeBytes: a.sizeBytes ?? null,
+        fileType: a.fileType,
       })),
     );
+    return { success: true };
+  });
+
+  /* ---------- GET /api/rp/:id/files — файлы РП (PayHub + служебные) ---------- */
+  fastify.get('/api/rp/:id/files', adminOrUser, async (request) => {
+    const { id } = rpIdParamsSchema.parse(request.params);
+    await assertRpInScope(id, request.user!);
+    return getRepo().getRpFiles(id);
+  });
+
+  /* ---------- POST /api/rp/:id/service-files — регистрация служебных файлов ---------- */
+  fastify.post('/api/rp/:id/service-files', adminOrUser, async (request) => {
+    const { id } = rpIdParamsSchema.parse(request.params);
+    const body = rpServiceFilesBodySchema.parse(request.body);
+    await assertRpInScope(id, request.user!);
+    // Файлы должны быть загружены чанковым аплоадом в папку служебных файлов ИМЕННО этой РП.
+    const prefix = `rp-letters/${id}/service/`;
+    for (const f of body.files) {
+      if (!f.fileKey.startsWith(prefix)) {
+        throw new ValidationError('Файл не принадлежит этой РП');
+      }
+    }
+    await getRepo().addServiceFiles(
+      id,
+      request.user!.id,
+      body.files.map((f) => ({
+        fileKey: f.fileKey,
+        fileName: sanitizeAttachmentName(f.fileName),
+        mimeType: f.mimeType ?? null,
+        sizeBytes: f.sizeBytes ?? null,
+      })),
+    );
+    return { success: true };
+  });
+
+  /* ---------- DELETE /api/rp/:id/service-files/:fileId — удалить служебный файл ---------- */
+  fastify.delete('/api/rp/:id/service-files/:fileId', adminOrUser, async (request) => {
+    const { id, fileId } = rpServiceFileParamsSchema.parse(request.params);
+    await assertRpInScope(id, request.user!);
+    const fileKey = await getRepo().deleteServiceFile(id, fileId);
+    if (!fileKey) throw new NotFoundError('Служебный файл РП', fileId);
+    await deleteStagingFiles([fileKey]);
     return { success: true };
   });
 
@@ -367,7 +412,7 @@ async function rpRoutes(fastify: FastifyInstance): Promise<void> {
       await deletePayhubLetterStrict(fastify.payhub, ctx.payhubLetterId);
     }
     await repo.deleteRp(id);
-    await deleteStagingFiles(ctx.attachmentFileKeys);
+    await deleteStagingFiles([...ctx.attachmentFileKeys, ...ctx.serviceFileKeys]);
     return { success: true };
   });
 

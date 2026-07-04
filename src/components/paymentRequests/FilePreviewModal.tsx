@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { Modal, Spin, Typography, Flex, Button, Tooltip } from 'antd'
 import { ZoomInOutlined, ZoomOutOutlined, ExpandOutlined } from '@ant-design/icons'
 import { getDownloadUrl } from '@/services/s3'
-import OfficeFileViewer from '@/components/common/OfficeFileViewer'
+import OfficeFileViewer, { type OfficeFileSource } from '@/components/common/OfficeFileViewer'
 import { isImageMime, isPdfMime, isOfficeMime } from '@/utils/mimeFromExtension'
 
 const { Text } = Typography
@@ -13,33 +13,57 @@ interface FilePreviewModalProps {
   fileKey: string | null
   fileName: string
   mimeType: string | null
+  /** Локальный ещё не загруженный файл (взаимоисключим с fileKey) — предпросмотр без S3. */
+  file?: File | null
 }
 
 /** Шаги зума */
 const ZOOM_STEPS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3]
 const DEFAULT_ZOOM_INDEX = 3 // 100%
 
-const FilePreviewModal = ({ open, onClose, fileKey, fileName, mimeType }: FilePreviewModalProps) => {
+const FilePreviewModal = ({
+  open,
+  onClose,
+  fileKey,
+  fileName,
+  mimeType,
+  file,
+}: FilePreviewModalProps) => {
   const [url, setUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [zoomIndex, setZoomIndex] = useState(DEFAULT_ZOOM_INDEX)
 
   useEffect(() => {
-    if (!open || !fileKey) return
-    // Для офисных файлов URL не нужен — рендеринг идёт через OfficeFileViewer (скачивание blob внутри)
+    if (!open) return
+    // Для офисных файлов URL не нужен — рендеринг идёт через OfficeFileViewer (blob/File внутри)
     if (isOfficeMime(mimeType)) return
+    // Локальный файл — object URL без обращения к S3.
+    if (file) {
+      const objUrl = URL.createObjectURL(file)
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setUrl(objUrl)
+      return () => {
+        URL.revokeObjectURL(objUrl)
+        setUrl(null)
+        setZoomIndex(DEFAULT_ZOOM_INDEX)
+      }
+    }
+    if (!fileKey) return
     let cancelled = false
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true)
     getDownloadUrl(fileKey)
-      .then((u) => { if (!cancelled) setUrl(u) })
-      .finally(() => { if (!cancelled) setLoading(false) })
+      .then((u) => {
+        if (!cancelled) setUrl(u)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
     return () => {
       cancelled = true
       setUrl(null)
       setZoomIndex(DEFAULT_ZOOM_INDEX)
     }
-  }, [open, fileKey, mimeType])
+  }, [open, fileKey, file, mimeType])
 
   const zoomIn = useCallback(() => {
     setZoomIndex((i) => Math.min(i + 1, ZOOM_STEPS.length - 1))
@@ -60,14 +84,19 @@ const FilePreviewModal = ({ open, onClose, fileKey, fileName, mimeType }: FilePr
   /** Рендер содержимого по типу файла */
   const renderContent = () => {
     if (isOfficeMime(mimeType)) {
-      if (!fileKey) {
+      const officeSource: OfficeFileSource | null = file
+        ? { type: 'file', file }
+        : fileKey
+          ? { type: 'key', fileKey }
+          : null
+      if (!officeSource) {
         return (
           <div style={{ textAlign: 'center', padding: 40 }}>
             <Text type="secondary">Файл не найден</Text>
           </div>
         )
       }
-      return <OfficeFileViewer source={{ type: 'key', fileKey }} fileName={fileName} height="80vh" />
+      return <OfficeFileViewer source={officeSource} fileName={fileName} height="80vh" />
     }
 
     if (loading || !url) {
@@ -117,7 +146,9 @@ const FilePreviewModal = ({ open, onClose, fileKey, fileName, mimeType }: FilePr
     <Modal
       title={
         <Flex justify="space-between" align="center" style={{ paddingRight: 32 }}>
-          <Text ellipsis style={{ maxWidth: '60%' }}>{fileName}</Text>
+          <Text ellipsis style={{ maxWidth: '60%' }}>
+            {fileName}
+          </Text>
           {showZoomControls && (
             <Flex gap={4} align="center">
               <Tooltip title="Уменьшить">
@@ -128,7 +159,9 @@ const FilePreviewModal = ({ open, onClose, fileKey, fileName, mimeType }: FilePr
                   disabled={zoomIndex === 0}
                 />
               </Tooltip>
-              <Text style={{ fontSize: 12, minWidth: 40, textAlign: 'center' }}>{zoomPercent}%</Text>
+              <Text style={{ fontSize: 12, minWidth: 40, textAlign: 'center' }}>
+                {zoomPercent}%
+              </Text>
               <Tooltip title="Увеличить">
                 <Button
                   size="small"
@@ -138,11 +171,7 @@ const FilePreviewModal = ({ open, onClose, fileKey, fileName, mimeType }: FilePr
                 />
               </Tooltip>
               <Tooltip title="Сбросить">
-                <Button
-                  size="small"
-                  icon={<ExpandOutlined />}
-                  onClick={zoomReset}
-                />
+                <Button size="small" icon={<ExpandOutlined />} onClick={zoomReset} />
               </Tooltip>
             </Flex>
           )}

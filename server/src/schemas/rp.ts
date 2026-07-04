@@ -40,10 +40,33 @@ export const rpLetterAttachmentsBodySchema = z.object({
         fileName: z.string().min(1).max(255),
         mimeType: z.string().max(255).nullish(),
         sizeBytes: z.number().int().positive().nullish(),
+        /** 'rp' — скан чистовика (в поле «РП» заявок); 'other' (по умолчанию) — прочие (0010). */
+        fileType: z.enum(['rp', 'other']).default('other'),
       }),
     )
     .min(1)
     .max(20),
+});
+
+/** Регистрация служебных файлов РП (загружены чанковым аплоадом в контексте rp_service) (0010). */
+export const rpServiceFilesBodySchema = z.object({
+  files: z
+    .array(
+      z.object({
+        fileKey: z.string().min(1).max(1024),
+        fileName: z.string().min(1).max(255),
+        mimeType: z.string().max(255).nullish(),
+        sizeBytes: z.number().int().positive().nullish(),
+      }),
+    )
+    .min(1)
+    .max(20),
+});
+
+/** Параметры удаления служебного файла РП (0010). */
+export const rpServiceFileParamsSchema = z.object({
+  id: z.string().uuid(),
+  fileId: z.string().uuid(),
 });
 
 /** Текстовые поля письма (finalize с текстом и редактирование из реестра). */

@@ -294,6 +294,11 @@ async function verifyCounterpartyOwnership(
     return true;
   }
 
+  // Файл «РП» письма (rp-letters/…) доступен поставщику, если это dp_file_key его заявки (0010).
+  if (fileKey.startsWith('rp-letters/')) {
+    return fastify.repos.paymentRequests.isDpFileOfCounterparty(fileKey, counterpartyId);
+  }
+
   const folder = await getCounterpartyFolder(fastify, counterpartyId);
   return fileKey.startsWith(`${folder}/`);
 }

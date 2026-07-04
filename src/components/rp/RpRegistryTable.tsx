@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Table, Tag, Space, Button, Tooltip, Typography } from 'antd'
-import { EditOutlined, StopOutlined, DeleteOutlined } from '@ant-design/icons'
+import { Table, Tag, Space, Button, Tooltip, Typography, Badge } from 'antd'
+import { EditOutlined, StopOutlined, DeleteOutlined, PaperClipOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { formatDateShort } from '@/utils/requestFormatters'
 import type { RpLetter, RpPaymentStatus } from '@/types'
@@ -27,6 +27,8 @@ interface RpRegistryTableProps {
   onAnnul: (letter: RpLetter) => void
   /** Удалить РП (удаляет письмо в PayHub) */
   onDelete: (letter: RpLetter) => void
+  /** Открыть модалку файлов РП (вложения PayHub + служебные) */
+  onFiles: (letter: RpLetter) => void
 }
 
 /** Колонка «Письмо»: ссылка на PayHub либо статус синхронизации с действием. */
@@ -107,6 +109,7 @@ const RpRegistryTable = ({
   onEdit,
   onAnnul,
   onDelete,
+  onFiles,
 }: RpRegistryTableProps) => {
   // Пагинация — в состоянии, чтобы столбец «№» нумеровал сквозь страницы.
   const [page, setPage] = useState(1)
@@ -217,13 +220,23 @@ const RpRegistryTable = ({
       {
         title: 'Действия',
         key: 'actions',
-        width: 120,
+        width: 150,
         fixed: 'right',
         render: (_: unknown, r: RpLetter) => {
           const annulled = r.status === 'annulled'
           const canAnnul = !annulled && r.paymentStatus === 'unpaid'
           return (
             <Space size={0}>
+              <Tooltip title="Файлы РП">
+                <Badge count={r.filesCount} size="small" color="blue" offset={[-4, 4]}>
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<PaperClipOutlined />}
+                    onClick={() => onFiles(r)}
+                  />
+                </Badge>
+              </Tooltip>
               <Tooltip title="Редактировать письмо">
                 <Button
                   type="text"
@@ -264,7 +277,7 @@ const RpRegistryTable = ({
         },
       },
     ],
-    [onOpenRequest, onRetryLetter, onEdit, onAnnul, onDelete, page, pageSize],
+    [onOpenRequest, onRetryLetter, onEdit, onAnnul, onDelete, onFiles, page, pageSize],
   )
 
   return (
@@ -274,7 +287,7 @@ const RpRegistryTable = ({
       rowKey="id"
       loading={isLoading}
       size="small"
-      scroll={{ x: 1810, y: 'calc(100vh - 320px)' }}
+      scroll={{ x: 1840, y: 'calc(100vh - 320px)' }}
       pagination={{
         current: page,
         pageSize,

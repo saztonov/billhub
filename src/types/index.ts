@@ -230,6 +230,7 @@ export interface PaymentRequest {
   dpAmount: number | null // Сумма РП
   dpFileKey: string | null // Ключ файла РП в S3
   dpFileName: string | null // Имя файла РП
+  rpLinked?: boolean // Заявка входит в РП: поле «РП» заполняется автоматически (ручная правка скрыта)
   omtsEnteredAt: string | null // Дата попадания на этап ОМТС
   omtsApprovedAt: string | null // Дата согласования обычным ОМТС
   costTypeId: string | null // Вид затрат
@@ -777,6 +778,39 @@ export interface RpLetter {
   payhubLetterError: string | null
   /** Снимок текста письма (для префилла редактирования из реестра). */
   payhubLetterPayload: RpLetterPayload | null
+  /** Всего файлов РП (вложения письма PayHub + служебные) — счётчик в реестре. */
+  filesCount: number
+}
+
+/** Тип файла вложения письма РП: 'rp' — скан чистовика; 'other' — прочие. */
+export type RpAttachmentType = 'rp' | 'other'
+
+/** Вложение письма PayHub для модалки «Файлы РП». */
+export interface RpAttachmentView {
+  id: string
+  fileKey: string
+  fileName: string
+  mimeType: string | null
+  sizeBytes: number | null
+  fileType: string
+  payhubAttachmentId: string | null
+  createdAt: string
+}
+
+/** Служебный файл РП (billhub, в PayHub не уходит) для модалки «Файлы РП». */
+export interface RpServiceFile {
+  id: string
+  fileKey: string
+  fileName: string
+  mimeType: string | null
+  sizeBytes: number | null
+  createdAt: string
+}
+
+/** Файлы РП: вложения письма PayHub + служебные файлы. */
+export interface RpFilesResult {
+  payhub: RpAttachmentView[]
+  service: RpServiceFile[]
 }
 
 /** Документ договора для модалки создания РП. */

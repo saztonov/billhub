@@ -204,8 +204,47 @@ async function lookupExisting(
   }
 }
 
-/** Находит письмо (lookup/усыновление) либо создаёт новое; возвращает письмо + share */
+/**
+ * Выравнивает номер письма PayHub с рег.номером: на PayHub «Номер письма» (number) и
+ * «Рег.номер» (reg_number) должны совпадать — оба берут сгенерированный PayHub номер.
+ * Идемпотентно (PATCH только при рассинхроне). Best-effort: сбой правки номера (косметика)
+ * не срывает синхронизацию — на следующем проходе (ветка «уже привязано») номер выровняется.
+ */
+async function normalizeLetterNumber(
+  payhub: PayHubClient,
+  letter: PayHubLetter,
+  log: Logger,
+): Promise<PayHubLetter> {
+  const reg = letter.reg_number;
+  if (!reg || letter.number === reg) return letter;
+  try {
+    await payhub.updateLetter(letter.id, { number: reg });
+  } catch (error) {
+    log.warn(
+      { letterId: letter.id, err: error },
+      'PayHub: не удалось выровнять number=reg_number (повтор на следующей синхронизации)',
+    );
+  }
+  // Источник правды — письмо из create/lookup/get; PATCH меняет только number на PayHub.
+  return { ...letter, number: reg };
+}
+
+/**
+ * Находит письмо (lookup/усыновление) либо создаёт новое, затем выравнивает его номер
+ * с рег.номером (normalizeLetterNumber). Возвращает письмо + share.
+ */
 async function ensureLetter(
+  deps: RpLetterSyncDeps,
+  ctx: RpLetterSyncContext,
+  cfg: { payhub: PayHubClient; senderId: number; recipientId: number; projectId: number },
+): Promise<{ letter: PayHubLetter; share?: PayHubShare }> {
+  const resolved = await resolveLetter(deps, ctx, cfg);
+  const letter = await normalizeLetterNumber(cfg.payhub, resolved.letter, deps.log);
+  return { letter, share: resolved.share };
+}
+
+/** Находит письмо (lookup/усыновление) либо создаёт новое; возвращает письмо + share */
+async function resolveLetter(
   deps: RpLetterSyncDeps,
   ctx: RpLetterSyncContext,
   cfg: { payhub: PayHubClient; senderId: number; recipientId: number; projectId: number },
@@ -240,7 +279,8 @@ async function ensureLetter(
         project_id: cfg.projectId,
         direction: 'outgoing',
         letter_date: ctx.letterDate ?? new Date().toISOString().slice(0, 10),
-        number: ctx.number,
+        // Локальный номер РП не отправляем: PayHub генерирует номер сам, затем мы
+        // выравниваем number = reg_number (normalizeLetterNumber). Оба поля совпадают.
         subject: payload.subject,
         content: payload.content,
         responsible_person_name: payload.responsiblePersonName ?? undefined,
@@ -374,6 +414,7 @@ export async function createRpLetterStage1(
       payhubLetterId: letter.id,
       payhubLetterRegNumber: letter.reg_number ?? null,
       payhubLetterUrl: shareUrl ?? ctx.payhubLetterUrl,
+      payhubLetterDate: letter.letter_date ?? null,
     };
     try {
       await deps.repo.setLetterLinked(rpLetterId, linked);
@@ -449,6 +490,7 @@ export async function syncRpLetter(
       payhubLetterId: letter.id,
       payhubLetterRegNumber: letter.reg_number ?? null,
       payhubLetterUrl: shareUrl ?? ctx.payhubLetterUrl,
+      payhubLetterDate: letter.letter_date ?? null,
     };
     // Привязываем письмо сразу (статус ещё pending) — повтор после сбоя вложений
     // не будет искать/создавать его заново даже без поддержки external_ref на PayHub.

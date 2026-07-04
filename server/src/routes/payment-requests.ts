@@ -76,7 +76,9 @@ async function paymentRequestRoutes(fastify: FastifyInstance): Promise<void> {
       }
     }
 
-    return reply.send(pr);
+    // rpLinked — заявка входит в РП: фронт скрывает ручную правку поля «РП» (0010).
+    const rpLinked = await repo.isInRpLetter(id);
+    return reply.send({ ...pr, rpLinked });
   });
 
   /* ---------- POST /api/payment-requests ---------- */
@@ -179,10 +181,17 @@ async function paymentRequestRoutes(fastify: FastifyInstance): Promise<void> {
   );
 
   /* ---------- PUT /api/payment-requests/:id/dp-data ---------- */
-  fastify.put('/api/payment-requests/:id/dp-data', adminOrUser, async (request) => {
+  fastify.put('/api/payment-requests/:id/dp-data', adminOrUser, async (request, reply) => {
     const { id } = request.params as { id: string };
     const body = dpDataBodySchema.parse(request.body);
-    await request.server.repos.paymentRequests.setDpData(id, body);
+    const repo = request.server.repos.paymentRequests;
+    // Заявка в РП — поле «РП» заполняется автоматически, ручная правка запрещена (0010).
+    if (await repo.isInRpLetter(id)) {
+      return reply.status(400).send({
+        error: 'Поле «РП» этой заявки заполняется автоматически из РП — ручная правка недоступна',
+      });
+    }
+    await repo.setDpData(id, body);
     return { success: true };
   });
 }

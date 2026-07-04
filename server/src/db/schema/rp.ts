@@ -1,7 +1,9 @@
 /**
  * Drizzle-схема домена «rp» (распределительные письма / реестр РП). Введена миграцией 0006,
- * дополнена миграцией 0008 (интеграция с письмами PayHub).
- * Источник правды — sql/migrations/0006_rp_letters.sql и 0008_rp_letters_payhub.sql (принцип 6).
+ * дополнена миграцией 0008 (интеграция с письмами PayHub) и 0010 (тип файла вложения +
+ * служебные файлы РП).
+ * Источник правды — sql/migrations/0006_rp_letters.sql, 0008_rp_letters_payhub.sql,
+ * 0010_rp_letter_files.sql (принцип 6).
  */
 import {
   bigint,
@@ -81,5 +83,19 @@ export const rpLetterAttachments = pgTable('rp_letter_attachments', {
   mimeType: text('mime_type'),
   sizeBytes: bigint('size_bytes', { mode: 'number' }),
   payhubAttachmentId: text('payhub_attachment_id'),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
+  // Тип файла (0010): 'rp' — скан чистовика письма (идёт в поле «РП» заявок), 'other' — прочие.
+  fileType: text('file_type').notNull().default('other'),
+});
+
+/** Служебные файлы РП (0010): billhub S3, в PayHub НЕ уходят; управление из реестра. */
+export const rpLetterServiceFiles = pgTable('rp_letter_service_files', {
+  id: uuid('id').primaryKey().notNull().defaultRandom(),
+  rpLetterId: uuid('rp_letter_id').notNull(),
+  fileKey: text('file_key').notNull(),
+  fileName: text('file_name').notNull(),
+  mimeType: text('mime_type'),
+  sizeBytes: bigint('size_bytes', { mode: 'number' }),
+  createdBy: uuid('created_by').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
 });

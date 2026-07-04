@@ -70,7 +70,8 @@ type UploadContext =
   | 'contract'
   | 'general'
   | 'founding'
-  | 'rp_letter';
+  | 'rp_letter'
+  | 'rp_service';
 
 /* ------------------------------------------------------------------ */
 /*  Типы                                                               */
@@ -133,7 +134,16 @@ const initSchema = {
       fileSize: { type: 'number' as const, minimum: 1 },
       context: {
         type: 'string' as const,
-        enum: ['request', 'decision', 'payment', 'contract', 'general', 'founding', 'rp_letter'],
+        enum: [
+          'request',
+          'decision',
+          'payment',
+          'contract',
+          'general',
+          'founding',
+          'rp_letter',
+          'rp_service',
+        ],
       },
       counterpartyName: { type: 'string' as const, minLength: 1 },
       requestNumber: { type: 'string' as const, minLength: 1 },
@@ -252,6 +262,13 @@ function buildFileKey(body: InitBody): string {
       }
       return `rp-letters/${body.entityId}/${timestamp}_${safeName}`;
     }
+    case 'rp_service': {
+      // Служебные файлы РП (в PayHub не уходят); entityId — id РП.
+      if (!body.entityId) {
+        throw new Error('entityId обязателен для контекста rp_service');
+      }
+      return `rp-letters/${body.entityId}/service/${timestamp}_${safeName}`;
+    }
   }
 }
 
@@ -275,6 +292,10 @@ async function verifyCounterpartyOwnership(
 ): Promise<boolean> {
   if (fileKey.startsWith('approval-decisions/')) {
     return true;
+  }
+  // Файл «РП» письма (rp-letters/…) доступен поставщику, если это dp_file_key его заявки (0010).
+  if (fileKey.startsWith('rp-letters/')) {
+    return fastify.repos.paymentRequests.isDpFileOfCounterparty(fileKey, counterpartyId);
   }
   const folder = await getCounterpartyFolder(fastify, counterpartyId);
   return fileKey.startsWith(`${folder}/`);
@@ -351,8 +372,12 @@ async function fileProxyRoutes(fastify: FastifyInstance): Promise<void> {
         });
       }
 
-      /** Файлы письма РП загружают только внутренние роли (admin/user) */
-      if (body.context === 'rp_letter' && user.role !== 'admin' && user.role !== 'user') {
+      /** Файлы письма РП и служебные файлы РП загружают только внутренние роли (admin/user) */
+      if (
+        (body.context === 'rp_letter' || body.context === 'rp_service') &&
+        user.role !== 'admin' &&
+        user.role !== 'user'
+      ) {
         return reply.status(403).send({ error: 'Доступ запрещён' });
       }
 

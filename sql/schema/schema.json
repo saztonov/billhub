@@ -2916,6 +2916,92 @@
               "position": 8,
               "max_length": null,
               "numeric_precision": null
+            },
+            {
+              "name": "file_type",
+              "type": "text",
+              "default": "'other'::text",
+              "nullable": false,
+              "position": 9,
+              "max_length": null,
+              "numeric_precision": null
+            }
+          ]
+        },
+        {
+          "name": "rp_letter_service_files",
+          "columns": [
+            {
+              "name": "id",
+              "type": "uuid",
+              "default": "gen_random_uuid()",
+              "nullable": false,
+              "position": 1,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "rp_letter_id",
+              "type": "uuid",
+              "default": null,
+              "nullable": false,
+              "position": 2,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "file_key",
+              "type": "text",
+              "default": null,
+              "nullable": false,
+              "position": 3,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "file_name",
+              "type": "text",
+              "default": null,
+              "nullable": false,
+              "position": 4,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "mime_type",
+              "type": "text",
+              "default": null,
+              "nullable": true,
+              "position": 5,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "size_bytes",
+              "type": "bigint",
+              "default": null,
+              "nullable": true,
+              "position": 6,
+              "max_length": null,
+              "numeric_precision": 64
+            },
+            {
+              "name": "created_by",
+              "type": "uuid",
+              "default": null,
+              "nullable": false,
+              "position": 7,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "created_at",
+              "type": "timestamp with time zone",
+              "default": "now()",
+              "nullable": false,
+              "position": 8,
+              "max_length": null,
+              "numeric_precision": null
             }
           ]
         },
@@ -4642,6 +4728,21 @@
           "name": "rp_letter_attachments_pkey",
           "definition": "CREATE UNIQUE INDEX rp_letter_attachments_pkey ON public.rp_letter_attachments USING btree (id)",
           "table_name": "rp_letter_attachments"
+        },
+        {
+          "name": "uq_rp_letter_attachments_one_rp",
+          "definition": "CREATE UNIQUE INDEX uq_rp_letter_attachments_one_rp ON public.rp_letter_attachments USING btree (rp_letter_id) WHERE (file_type = 'rp'::text)",
+          "table_name": "rp_letter_attachments"
+        },
+        {
+          "name": "idx_rp_letter_service_files_rp_letter_id",
+          "definition": "CREATE INDEX idx_rp_letter_service_files_rp_letter_id ON public.rp_letter_service_files USING btree (rp_letter_id)",
+          "table_name": "rp_letter_service_files"
+        },
+        {
+          "name": "rp_letter_service_files_pkey",
+          "definition": "CREATE UNIQUE INDEX rp_letter_service_files_pkey ON public.rp_letter_service_files USING btree (id)",
+          "table_name": "rp_letter_service_files"
         },
         {
           "name": "idx_rp_letter_documents_rp_letter_id",

@@ -49,6 +49,8 @@ export interface RpRegistryRow {
   payhubLetterError: string | null;
   /** Снимок полей письма (для префилла редактирования из реестра). */
   payhubLetterPayload: RpLetterPayload | null;
+  /** Всего файлов РП (вложения письма PayHub + служебные файлы) — для счётчика в реестре (0010). */
+  filesCount: number;
 }
 
 /** Документ договора для модалки создания РП. */
@@ -112,6 +114,44 @@ export interface RpLetterAttachmentRef {
   fileName: string;
   mimeType?: string | null;
   sizeBytes?: number | null;
+  /** 'rp' — скан чистовика письма (идёт в поле «РП» заявок); 'other' (по умолчанию) — прочие (0010). */
+  fileType?: 'rp' | 'other';
+}
+
+/** Служебный файл РП (billhub S3, в PayHub не уходит) — вход регистрации (0010). */
+export interface RpServiceFileRef {
+  fileKey: string;
+  fileName: string;
+  mimeType?: string | null;
+  sizeBytes?: number | null;
+}
+
+/** Вложение письма PayHub для модалки «Файлы РП» (0010). */
+export interface RpAttachmentView {
+  id: string;
+  fileKey: string;
+  fileName: string;
+  mimeType: string | null;
+  sizeBytes: number | null;
+  fileType: string;
+  payhubAttachmentId: string | null;
+  createdAt: string;
+}
+
+/** Служебный файл РП для модалки «Файлы РП» (0010). */
+export interface RpServiceFileView {
+  id: string;
+  fileKey: string;
+  fileName: string;
+  mimeType: string | null;
+  sizeBytes: number | null;
+  createdAt: string;
+}
+
+/** Файлы РП: вложения письма PayHub + служебные файлы (0010). */
+export interface RpFilesResult {
+  payhub: RpAttachmentView[];
+  service: RpServiceFileView[];
 }
 
 /** Вложение письма из БД (для воркера). */
@@ -144,6 +184,11 @@ export interface RpLetterSyncedResult {
   payhubLetterId: string;
   payhubLetterRegNumber: string | null;
   payhubLetterUrl: string | null;
+  /**
+   * Фактическая дата письма PayHub (letter_date из ответа). Вместе с рег.номером
+   * подтягивается в поле «РП» связанных заявок при привязке письма (setLetterLinked).
+   */
+  payhubLetterDate: string | null;
 }
 
 /** Контекст для действий из реестра (удаление/аннулирование/редактирование). */
@@ -157,6 +202,8 @@ export interface RpMutationContext {
   payhubLetterId: string | null;
   /** Ключи файлов вложений в billhub S3 (для best-effort очистки при удалении). */
   attachmentFileKeys: string[];
+  /** Ключи служебных файлов РП в billhub S3 (для best-effort очистки при удалении) (0010). */
+  serviceFileKeys: string[];
 }
 
 export interface RpRepository {
@@ -210,10 +257,20 @@ export interface RpRepository {
   /** Обновить текст письма (дата + снимок формы) без обращения к PayHub. */
   updateLetterText(id: string, letterDate: string | null, payload: RpLetterPayload): Promise<void>;
   /**
-   * Аннулировать РП: статус annulled + очистка всех полей письма PayHub и payload
-   * (чтобы sweep не пересоздал письмо). Письмо в PayHub удаляет вызывающий роут ДО этого.
+   * Аннулировать РП: статус annulled + очистка всех полей письма PayHub и payload,
+   * очистка поля «РП» связанных заявок и снятие привязки (заявки освобождаются).
+   * Письмо в PayHub удаляет вызывающий роут ДО этого.
    */
   annulRp(id: string): Promise<void>;
-  /** Удалить РП со всеми связями (заявки/документы/вложения) в транзакции. */
+  /** Удалить РП со всеми связями (заявки/документы/вложения/служебные файлы) в транзакции. */
   deleteRp(id: string): Promise<void>;
+
+  /* ---------- Файлы РП (0010) ---------- */
+
+  /** Файлы РП для модалки: вложения письма PayHub + служебные файлы. */
+  getRpFiles(id: string): Promise<RpFilesResult>;
+  /** Зарегистрировать служебные файлы РП (уже загружены в billhub S3). */
+  addServiceFiles(id: string, createdBy: string, refs: RpServiceFileRef[]): Promise<void>;
+  /** Удалить служебный файл РП; возвращает его file_key для очистки S3 (null — не найден). */
+  deleteServiceFile(id: string, fileId: string): Promise<string | null>;
 }

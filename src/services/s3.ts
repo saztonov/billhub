@@ -92,6 +92,7 @@ type UploadContext =
   | 'general'
   | 'founding'
   | 'rp_letter'
+  | 'rp_service'
 
 interface UploadOptions {
   context: UploadContext
@@ -182,6 +183,14 @@ export async function uploadFoundingFile(entityId: string, file: File): Promise<
 /** Загружает файл письма РП (PayHub); entityId — id РП */
 export async function uploadRpLetterFile(rpLetterId: string, file: File): Promise<{ key: string }> {
   return chunkedUpload(file, { context: 'rp_letter', entityId: rpLetterId })
+}
+
+/** Загружает служебный файл РП (в PayHub не уходит); entityId — id РП */
+export async function uploadRpServiceFile(
+  rpLetterId: string,
+  file: File,
+): Promise<{ key: string }> {
+  return chunkedUpload(file, { context: 'rp_service', entityId: rpLetterId })
 }
 
 /** Загружает файл оплаты */
