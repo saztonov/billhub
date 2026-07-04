@@ -1,8 +1,10 @@
-import { useMemo } from 'react'
-import { Table, Tag, Space, Select, Button } from 'antd'
+import { useMemo, useState } from 'react'
+import { Table, Tag, Space, Select, Button, Tooltip, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { formatDateShort } from '@/utils/requestFormatters'
 import type { RpLetter, RpPaymentStatus } from '@/types'
+
+const { Text } = Typography
 
 /** Опции статуса РП (собственный workflow). */
 export const RP_STATUS_OPTIONS: { label: string; value: string }[] = [
@@ -25,6 +27,64 @@ interface RpRegistryTableProps {
   isLoading: boolean
   onOpenRequest: (requestId: string) => void
   onStatusChange: (id: string, status: string) => void
+  /** «Создать письмо» (uploading) / «Повторить» (failed) — постановка в очередь */
+  onRetryLetter: (id: string) => void
+}
+
+/** Колонка «Письмо»: ссылка на PayHub либо статус синхронизации с действием. */
+const LetterCell = ({
+  letter,
+  onRetryLetter,
+}: {
+  letter: RpLetter
+  onRetryLetter: (id: string) => void
+}) => {
+  const status = letter.payhubLetterStatus
+  if (status === null) return <Text type="secondary">—</Text>
+  switch (status) {
+    case 'synced':
+      return letter.payhubLetterUrl ? (
+        <a href={letter.payhubLetterUrl} target="_blank" rel="noopener noreferrer">
+          Открыть
+        </a>
+      ) : (
+        <Tag color="green">создано</Tag>
+      )
+    case 'pending':
+      return (
+        <Tooltip title={letter.payhubLetterError ?? undefined}>
+          <Tag color="processing">создаётся…</Tag>
+        </Tooltip>
+      )
+    case 'waiting_config':
+      return (
+        <Tooltip title={letter.payhubLetterError ?? 'Ожидание настройки PayHub'}>
+          <Tag color="warning">ждёт настройки</Tag>
+        </Tooltip>
+      )
+    case 'uploading':
+      return (
+        <Space size={4}>
+          <Tooltip title="Загрузка файлов не была завершена">
+            <Tag color="orange">файлы не догружены</Tag>
+          </Tooltip>
+          <Button size="small" onClick={() => onRetryLetter(letter.id)}>
+            Создать письмо
+          </Button>
+        </Space>
+      )
+    case 'failed':
+      return (
+        <Space size={4}>
+          <Tooltip title={letter.payhubLetterError ?? undefined}>
+            <Tag color="error">ошибка</Tag>
+          </Tooltip>
+          <Button size="small" onClick={() => onRetryLetter(letter.id)}>
+            Повторить
+          </Button>
+        </Space>
+      )
+  }
 }
 
 /** Таблица реестра распределительных писем. */
@@ -33,15 +93,36 @@ const RpRegistryTable = ({
   isLoading,
   onOpenRequest,
   onStatusChange,
+  onRetryLetter,
 }: RpRegistryTableProps) => {
+  // Пагинация — в состоянии, чтобы столбец «№» нумеровал сквозь страницы.
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(50)
+
   const columns = useMemo<ColumnsType<RpLetter>>(
     () => [
       {
-        title: 'Номер',
-        dataIndex: 'number',
-        key: 'number',
-        width: 120,
+        title: '№',
+        key: 'index',
+        width: 60,
         fixed: 'left',
+        render: (_: unknown, __: RpLetter, index: number) => (page - 1) * pageSize + index + 1,
+      },
+      {
+        // Основной номер — рег.номер письма PayHub; у черновика пусто.
+        // Локальный номер РП остаётся внутренним идентификатором (вторая строка).
+        title: 'Номер',
+        key: 'number',
+        width: 170,
+        fixed: 'left',
+        render: (_: unknown, r: RpLetter) => (
+          <div>
+            <div>{r.payhubLetterRegNumber ?? <Text type="secondary">—</Text>}</div>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              {r.number}
+            </Text>
+          </div>
+        ),
       },
       {
         title: 'Дата создания',
@@ -107,6 +188,14 @@ const RpRegistryTable = ({
         ellipsis: true,
       },
       {
+        title: 'Письмо',
+        key: 'letter',
+        width: 190,
+        render: (_: unknown, r: RpLetter) => (
+          <LetterCell letter={r} onRetryLetter={onRetryLetter} />
+        ),
+      },
+      {
         title: 'Статус оплаты',
         dataIndex: 'paymentStatus',
         key: 'paymentStatus',
@@ -132,7 +221,7 @@ const RpRegistryTable = ({
         ),
       },
     ],
-    [onOpenRequest, onStatusChange],
+    [onOpenRequest, onStatusChange, onRetryLetter, page, pageSize],
   )
 
   return (
@@ -142,8 +231,17 @@ const RpRegistryTable = ({
       rowKey="id"
       loading={isLoading}
       size="small"
-      scroll={{ x: 1540, y: 'calc(100vh - 320px)' }}
-      pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100] }}
+      scroll={{ x: 1840, y: 'calc(100vh - 320px)' }}
+      pagination={{
+        current: page,
+        pageSize,
+        showSizeChanger: true,
+        pageSizeOptions: [10, 20, 50, 100],
+        onChange: (p, ps) => {
+          setPage(p)
+          setPageSize(ps)
+        },
+      }}
     />
   )
 }

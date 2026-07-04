@@ -2,6 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import { authenticate } from '../middleware/authenticate.js';
 import { requireRole } from '../middleware/requireRole.js';
 import { PayHubApiError } from '../services/payhub/payhub-errors.js';
+import { getRpSenderSetting, setRpSenderSetting } from '../services/rp/rp-sender-setting.js';
+import { rpSenderPutBodySchema } from '../schemas/payhub.js';
 
 /**
  * Маршруты интеграции PayHub.
@@ -110,6 +112,25 @@ async function payhubRoutes(fastify: FastifyInstance): Promise<void> {
         error: toCatalogError(error),
       });
     }
+  });
+
+  /* ---------- GET /api/payhub/rp-sender — отправитель РП ---------- */
+  /* Читают admin и user: форма письма РП показывает отправителя (секретов нет). */
+  const adminOrUser = { preHandler: [authenticate, requireRole('admin', 'user')] };
+  fastify.get('/api/payhub/rp-sender', adminOrUser, async (_request, reply) => {
+    const db = fastify.db;
+    if (!db) return reply.status(500).send({ error: 'Настройки требуют DB_PROVIDER=drizzle' });
+    const sender = await getRpSenderSetting(db);
+    return reply.send({ sender });
+  });
+
+  /* ---------- PUT /api/payhub/rp-sender — сохранить отправителя РП ---------- */
+  fastify.put('/api/payhub/rp-sender', adminOnly, async (request, reply) => {
+    const db = fastify.db;
+    if (!db) return reply.status(500).send({ error: 'Настройки требуют DB_PROVIDER=drizzle' });
+    const body = rpSenderPutBodySchema.parse(request.body);
+    await setRpSenderSetting(db, body.sender);
+    return reply.send({ sender: body.sender });
   });
 
   /* ---------- GET /api/payhub/status ---------- */

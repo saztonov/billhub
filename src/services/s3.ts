@@ -84,7 +84,14 @@ async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
 /* ------------------------------------------------------------------ */
 
 /** Контексты загрузки (совпадают с серверными) */
-type UploadContext = 'request' | 'decision' | 'payment' | 'contract' | 'general' | 'founding'
+type UploadContext =
+  | 'request'
+  | 'decision'
+  | 'payment'
+  | 'contract'
+  | 'general'
+  | 'founding'
+  | 'rp_letter'
 
 interface UploadOptions {
   context: UploadContext
@@ -170,6 +177,11 @@ export async function uploadDecisionFile(decisionId: string, file: File): Promis
 /** Загружает файл учредительного документа */
 export async function uploadFoundingFile(entityId: string, file: File): Promise<{ key: string }> {
   return chunkedUpload(file, { context: 'founding', entityId })
+}
+
+/** Загружает файл письма РП (PayHub); entityId — id РП */
+export async function uploadRpLetterFile(rpLetterId: string, file: File): Promise<{ key: string }> {
+  return chunkedUpload(file, { context: 'rp_letter', entityId: rpLetterId })
 }
 
 /** Загружает файл оплаты */

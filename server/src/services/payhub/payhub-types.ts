@@ -44,6 +44,9 @@ export interface PayHubLetterStatus {
 /*  Письма                                                             */
 /* ------------------------------------------------------------------ */
 
+/** Тип участника письма (отправитель/получатель) */
+export type PayHubParticipantType = 'individual' | 'contractor';
+
 /** Письмо PayHub */
 export interface PayHubLetter {
   id: string;
@@ -56,6 +59,8 @@ export interface PayHubLetter {
   /** Регистрационный номер — генерируется сервером PayHub */
   reg_number?: string | null;
   subject?: string | null;
+  /** Внешний ключ идемпотентности (например billhub:rp:<uuid>) */
+  external_ref?: string | null;
   created_by?: string | null;
   [key: string]: unknown;
 }
@@ -84,6 +89,18 @@ export interface CreatePayHubLetterInput {
   /** Собственный номер письма (рекомендуется) */
   number?: string;
   subject?: string;
+  /** Содержание письма */
+  content?: string;
+  /** Ответственный — свободный текст (ФИО) */
+  responsible_person_name?: string;
+  /** Отправитель: тип + контрагент PayHub (id из catalog/contractors) */
+  sender_type?: PayHubParticipantType;
+  sender_contractor_id?: number;
+  /** Получатель: тип + контрагент PayHub */
+  recipient_type?: PayHubParticipantType;
+  recipient_contractor_id?: number;
+  /** Внешний ключ идемпотентности (billhub:rp:<uuid>); требует поддержки на PayHub */
+  external_ref?: string;
   /** true — в ответе будет share (ссылка + QR) */
   ensure_share?: boolean;
   /** Запрещено: генерирует сервер PayHub */
@@ -126,6 +143,8 @@ export interface PayHubLetterList {
 export interface LookupPayHubLetterParams {
   reg_number?: string;
   number?: string;
+  /** Точный поиск по внешнему ключу идемпотентности (приоритетнее остальных) */
+  external_ref?: string;
   /** Уточнение при 409 ambiguous_letter_lookup */
   project_id?: number;
 }
@@ -146,6 +165,8 @@ export interface PayHubAttachment {
   original_name?: string | null;
   size_bytes?: number | null;
   mime_type?: string | null;
+  /** Описание; BillHub кладёт сюда метку billhub:att:<uuid> для дедупа при повторе */
+  description?: string | null;
   [key: string]: unknown;
 }
 
@@ -169,6 +190,8 @@ export interface RegisterAttachmentInput {
   storage_path: string;
   size_bytes: number;
   mime_type?: string;
+  /** Описание вложения (метка для дедупа при повторе) */
+  description?: string;
 }
 
 /** Файл для высокоуровневой загрузки одним вызовом */
@@ -176,6 +199,8 @@ export interface UploadAttachmentFileInput {
   name: string;
   bytes: Buffer | Uint8Array;
   mime_type?: string;
+  /** Описание вложения (метка для дедупа при повторе) */
+  description?: string;
 }
 
 /* ------------------------------------------------------------------ */

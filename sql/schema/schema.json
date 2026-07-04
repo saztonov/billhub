@@ -2843,6 +2843,368 @@
           ]
         },
         {
+          "name": "rp_letter_attachments",
+          "columns": [
+            {
+              "name": "id",
+              "type": "uuid",
+              "default": "gen_random_uuid()",
+              "nullable": false,
+              "position": 1,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "rp_letter_id",
+              "type": "uuid",
+              "default": null,
+              "nullable": false,
+              "position": 2,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "file_key",
+              "type": "text",
+              "default": null,
+              "nullable": false,
+              "position": 3,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "file_name",
+              "type": "text",
+              "default": null,
+              "nullable": false,
+              "position": 4,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "mime_type",
+              "type": "text",
+              "default": null,
+              "nullable": true,
+              "position": 5,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "size_bytes",
+              "type": "bigint",
+              "default": null,
+              "nullable": true,
+              "position": 6,
+              "max_length": null,
+              "numeric_precision": 64
+            },
+            {
+              "name": "payhub_attachment_id",
+              "type": "text",
+              "default": null,
+              "nullable": true,
+              "position": 7,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "created_at",
+              "type": "timestamp with time zone",
+              "default": "now()",
+              "nullable": false,
+              "position": 8,
+              "max_length": null,
+              "numeric_precision": null
+            }
+          ]
+        },
+        {
+          "name": "rp_letter_documents",
+          "columns": [
+            {
+              "name": "id",
+              "type": "uuid",
+              "default": "gen_random_uuid()",
+              "nullable": false,
+              "position": 1,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "rp_letter_id",
+              "type": "uuid",
+              "default": null,
+              "nullable": false,
+              "position": 2,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "source",
+              "type": "text",
+              "default": null,
+              "nullable": false,
+              "position": 3,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "file_key",
+              "type": "text",
+              "default": null,
+              "nullable": false,
+              "position": 4,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "file_name",
+              "type": "text",
+              "default": null,
+              "nullable": false,
+              "position": 5,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "mime_type",
+              "type": "text",
+              "default": null,
+              "nullable": true,
+              "position": 6,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "contract_number",
+              "type": "text",
+              "default": null,
+              "nullable": true,
+              "position": 7,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "contract_date",
+              "type": "date",
+              "default": null,
+              "nullable": true,
+              "position": 8,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "created_at",
+              "type": "timestamp with time zone",
+              "default": "now()",
+              "nullable": false,
+              "position": 9,
+              "max_length": null,
+              "numeric_precision": null
+            }
+          ]
+        },
+        {
+          "name": "rp_letter_requests",
+          "columns": [
+            {
+              "name": "rp_letter_id",
+              "type": "uuid",
+              "default": null,
+              "nullable": false,
+              "position": 1,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "payment_request_id",
+              "type": "uuid",
+              "default": null,
+              "nullable": false,
+              "position": 2,
+              "max_length": null,
+              "numeric_precision": null
+            }
+          ]
+        },
+        {
+          "name": "rp_letters",
+          "columns": [
+            {
+              "name": "id",
+              "type": "uuid",
+              "default": "gen_random_uuid()",
+              "nullable": false,
+              "position": 1,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "number",
+              "type": "text",
+              "default": null,
+              "nullable": false,
+              "position": 2,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "letter_date",
+              "type": "date",
+              "default": null,
+              "nullable": true,
+              "position": 3,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "supplier_id",
+              "type": "uuid",
+              "default": null,
+              "nullable": false,
+              "position": 4,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "counterparty_id",
+              "type": "uuid",
+              "default": null,
+              "nullable": false,
+              "position": 5,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "site_id",
+              "type": "uuid",
+              "default": null,
+              "nullable": false,
+              "position": 6,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "total_amount",
+              "type": "numeric",
+              "default": "0",
+              "nullable": false,
+              "position": 7,
+              "max_length": null,
+              "numeric_precision": 15
+            },
+            {
+              "name": "description",
+              "type": "text",
+              "default": "''::text",
+              "nullable": false,
+              "position": 8,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "status",
+              "type": "text",
+              "default": "'draft'::text",
+              "nullable": false,
+              "position": 9,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "created_by",
+              "type": "uuid",
+              "default": null,
+              "nullable": false,
+              "position": 10,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "created_at",
+              "type": "timestamp with time zone",
+              "default": "now()",
+              "nullable": false,
+              "position": 11,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "payhub_letter_id",
+              "type": "text",
+              "default": null,
+              "nullable": true,
+              "position": 12,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "payhub_letter_reg_number",
+              "type": "text",
+              "default": null,
+              "nullable": true,
+              "position": 13,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "payhub_letter_url",
+              "type": "text",
+              "default": null,
+              "nullable": true,
+              "position": 14,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "payhub_letter_status",
+              "type": "text",
+              "default": null,
+              "nullable": true,
+              "position": 15,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "payhub_letter_error",
+              "type": "text",
+              "default": null,
+              "nullable": true,
+              "position": 16,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "payhub_letter_payload",
+              "type": "jsonb",
+              "default": null,
+              "nullable": true,
+              "position": 17,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "payhub_letter_status_updated_at",
+              "type": "timestamp with time zone",
+              "default": null,
+              "nullable": true,
+              "position": 18,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "payhub_letter_sync_attempts",
+              "type": "integer",
+              "default": "0",
+              "nullable": false,
+              "position": 19,
+              "max_length": null,
+              "numeric_precision": 32
+            }
+          ]
+        },
+        {
           "name": "settings",
           "columns": [
             {
@@ -4199,6 +4561,81 @@
           "table_name": "request_number_sequence"
         },
         {
+          "name": "idx_rp_letter_attachments_rp_letter_id",
+          "definition": "CREATE INDEX idx_rp_letter_attachments_rp_letter_id ON public.rp_letter_attachments USING btree (rp_letter_id)",
+          "table_name": "rp_letter_attachments"
+        },
+        {
+          "name": "rp_letter_attachments_letter_file_unique",
+          "definition": "CREATE UNIQUE INDEX rp_letter_attachments_letter_file_unique ON public.rp_letter_attachments USING btree (rp_letter_id, file_key)",
+          "table_name": "rp_letter_attachments"
+        },
+        {
+          "name": "rp_letter_attachments_pkey",
+          "definition": "CREATE UNIQUE INDEX rp_letter_attachments_pkey ON public.rp_letter_attachments USING btree (id)",
+          "table_name": "rp_letter_attachments"
+        },
+        {
+          "name": "idx_rp_letter_documents_rp_letter_id",
+          "definition": "CREATE INDEX idx_rp_letter_documents_rp_letter_id ON public.rp_letter_documents USING btree (rp_letter_id)",
+          "table_name": "rp_letter_documents"
+        },
+        {
+          "name": "rp_letter_documents_pkey",
+          "definition": "CREATE UNIQUE INDEX rp_letter_documents_pkey ON public.rp_letter_documents USING btree (id)",
+          "table_name": "rp_letter_documents"
+        },
+        {
+          "name": "idx_rp_letter_requests_payment_request_id",
+          "definition": "CREATE INDEX idx_rp_letter_requests_payment_request_id ON public.rp_letter_requests USING btree (payment_request_id)",
+          "table_name": "rp_letter_requests"
+        },
+        {
+          "name": "rp_letter_requests_payment_request_unique",
+          "definition": "CREATE UNIQUE INDEX rp_letter_requests_payment_request_unique ON public.rp_letter_requests USING btree (payment_request_id)",
+          "table_name": "rp_letter_requests"
+        },
+        {
+          "name": "rp_letter_requests_pkey",
+          "definition": "CREATE UNIQUE INDEX rp_letter_requests_pkey ON public.rp_letter_requests USING btree (rp_letter_id, payment_request_id)",
+          "table_name": "rp_letter_requests"
+        },
+        {
+          "name": "idx_rp_letters_counterparty_id",
+          "definition": "CREATE INDEX idx_rp_letters_counterparty_id ON public.rp_letters USING btree (counterparty_id)",
+          "table_name": "rp_letters"
+        },
+        {
+          "name": "idx_rp_letters_created_at",
+          "definition": "CREATE INDEX idx_rp_letters_created_at ON public.rp_letters USING btree (created_at)",
+          "table_name": "rp_letters"
+        },
+        {
+          "name": "idx_rp_letters_payhub_letter_status",
+          "definition": "CREATE INDEX idx_rp_letters_payhub_letter_status ON public.rp_letters USING btree (payhub_letter_status)",
+          "table_name": "rp_letters"
+        },
+        {
+          "name": "idx_rp_letters_site_id",
+          "definition": "CREATE INDEX idx_rp_letters_site_id ON public.rp_letters USING btree (site_id)",
+          "table_name": "rp_letters"
+        },
+        {
+          "name": "idx_rp_letters_status",
+          "definition": "CREATE INDEX idx_rp_letters_status ON public.rp_letters USING btree (status)",
+          "table_name": "rp_letters"
+        },
+        {
+          "name": "idx_rp_letters_supplier_id",
+          "definition": "CREATE INDEX idx_rp_letters_supplier_id ON public.rp_letters USING btree (supplier_id)",
+          "table_name": "rp_letters"
+        },
+        {
+          "name": "rp_letters_pkey",
+          "definition": "CREATE UNIQUE INDEX rp_letters_pkey ON public.rp_letters USING btree (id)",
+          "table_name": "rp_letters"
+        },
+        {
           "name": "settings_pkey",
           "definition": "CREATE UNIQUE INDEX settings_pkey ON public.settings USING btree (key)",
           "table_name": "settings"
@@ -4451,6 +4888,14 @@
       "sequences": [
         {
           "name": "contract_request_number_seq",
+          "data_type": "bigint",
+          "increment": "1",
+          "max_value": "9223372036854775807",
+          "min_value": "1",
+          "start_value": "1"
+        },
+        {
+          "name": "rp_letters_number_seq",
           "data_type": "bigint",
           "increment": "1",
           "max_value": "9223372036854775807",
@@ -5154,6 +5599,94 @@
         },
         {
           "columns": [
+            "rp_letter_id"
+          ],
+          "table_name": "rp_letter_attachments",
+          "constraint_name": "rp_letter_attachments_rp_letter_id_fkey",
+          "references_table": "rp_letters",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "rp_letter_id"
+          ],
+          "table_name": "rp_letter_documents",
+          "constraint_name": "rp_letter_documents_rp_letter_id_fkey",
+          "references_table": "rp_letters",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "payment_request_id"
+          ],
+          "table_name": "rp_letter_requests",
+          "constraint_name": "rp_letter_requests_payment_request_id_fkey",
+          "references_table": "payment_requests",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "rp_letter_id"
+          ],
+          "table_name": "rp_letter_requests",
+          "constraint_name": "rp_letter_requests_rp_letter_id_fkey",
+          "references_table": "rp_letters",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "counterparty_id"
+          ],
+          "table_name": "rp_letters",
+          "constraint_name": "rp_letters_counterparty_id_fkey",
+          "references_table": "counterparties",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "created_by"
+          ],
+          "table_name": "rp_letters",
+          "constraint_name": "rp_letters_created_by_fkey",
+          "references_table": "users",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "site_id"
+          ],
+          "table_name": "rp_letters",
+          "constraint_name": "rp_letters_site_id_fkey",
+          "references_table": "construction_sites",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "supplier_id"
+          ],
+          "table_name": "rp_letters",
+          "constraint_name": "rp_letters_supplier_id_fkey",
+          "references_table": "suppliers",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
             "site_id"
           ],
           "table_name": "site_required_documents_mapping",
@@ -5589,6 +6122,35 @@
           ],
           "table_name": "request_number_sequence",
           "constraint_name": "request_number_sequence_pkey"
+        },
+        {
+          "columns": [
+            "id"
+          ],
+          "table_name": "rp_letter_attachments",
+          "constraint_name": "rp_letter_attachments_pkey"
+        },
+        {
+          "columns": [
+            "id"
+          ],
+          "table_name": "rp_letter_documents",
+          "constraint_name": "rp_letter_documents_pkey"
+        },
+        {
+          "columns": [
+            "rp_letter_id",
+            "payment_request_id"
+          ],
+          "table_name": "rp_letter_requests",
+          "constraint_name": "rp_letter_requests_pkey"
+        },
+        {
+          "columns": [
+            "id"
+          ],
+          "table_name": "rp_letters",
+          "constraint_name": "rp_letters_pkey"
         },
         {
           "columns": [
@@ -6709,6 +7271,11 @@
           "constraint_name": "2200_19026_1_not_null"
         },
         {
+          "table_name": "rp_letter_documents",
+          "check_clause": "(source = ANY (ARRAY['contract'::text, 'founding'::text]))",
+          "constraint_name": "rp_letter_documents_source_check"
+        },
+        {
           "table_name": "settings",
           "check_clause": "key IS NOT NULL",
           "constraint_name": "2200_43041_1_not_null"
@@ -7033,6 +7600,21 @@
           ],
           "table_name": "payment_requests",
           "constraint_name": "payment_requests_request_number_key"
+        },
+        {
+          "columns": [
+            "rp_letter_id",
+            "file_key"
+          ],
+          "table_name": "rp_letter_attachments",
+          "constraint_name": "rp_letter_attachments_letter_file_unique"
+        },
+        {
+          "columns": [
+            "payment_request_id"
+          ],
+          "table_name": "rp_letter_requests",
+          "constraint_name": "rp_letter_requests_payment_request_unique"
         },
         {
           "columns": [

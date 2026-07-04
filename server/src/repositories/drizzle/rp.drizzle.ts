@@ -9,6 +9,7 @@ import {
   rpLetters,
   rpLetterRequests,
   rpLetterDocuments,
+  rpLetterAttachments,
   paymentRequests,
   suppliers,
   counterparties,
@@ -27,6 +28,10 @@ import type {
   RpPaymentStatus,
   RpDocumentsResult,
   CreateRpInput,
+  RpLetterAttachmentRef,
+  RpLetterSyncContext,
+  RpLetterSyncStatus,
+  RpLetterSyncedResult,
 } from '../rp.repository.js';
 
 type Db = PostgresJsDatabase<typeof schema>;
@@ -69,6 +74,12 @@ export class DrizzleRpRepository implements RpRepository {
         counterpartyInn: counterparties.inn,
         siteId: rpLetters.siteId,
         siteName: constructionSites.name,
+        createdBy: rpLetters.createdBy,
+        payhubLetterId: rpLetters.payhubLetterId,
+        payhubLetterRegNumber: rpLetters.payhubLetterRegNumber,
+        payhubLetterUrl: rpLetters.payhubLetterUrl,
+        payhubLetterStatus: rpLetters.payhubLetterStatus,
+        payhubLetterError: rpLetters.payhubLetterError,
       })
       .from(rpLetters)
       .innerJoin(suppliers, eq(suppliers.id, rpLetters.supplierId))
@@ -109,6 +120,7 @@ export class DrizzleRpRepository implements RpRepository {
     return letters.map((l) => ({
       ...l,
       totalAmount: l.totalAmount ?? 0,
+      payhubLetterStatus: (l.payhubLetterStatus as RpLetterSyncStatus | null) ?? null,
       requests: refsByLetter.get(l.id) ?? [],
       paymentStatus: computePaymentStatus(payByLetter.get(l.id) ?? []),
     }));
@@ -231,6 +243,15 @@ export class DrizzleRpRepository implements RpRepository {
       const n = Number((seq as unknown as Array<{ n: string | number }>)[0]?.n ?? 0);
       const number = `РП-${String(n).padStart(6, '0')}`;
 
+      // Письмо PayHub: снимок формы + начальный статус синхронизации (0008).
+      const letterFields = input.letter
+        ? {
+            payhubLetterPayload: input.letter,
+            payhubLetterStatus: input.letterInitialStatus ?? 'pending',
+            payhubLetterStatusUpdatedAt: sql`now()`,
+          }
+        : {};
+
       const [letter] = await tx
         .insert(rpLetters)
         .values({
@@ -243,6 +264,7 @@ export class DrizzleRpRepository implements RpRepository {
           description,
           status: 'draft',
           createdBy,
+          ...letterFields,
         })
         .returning({ id: rpLetters.id });
 
@@ -282,5 +304,196 @@ export class DrizzleRpRepository implements RpRepository {
       .where(eq(rpLetters.id, id))
       .returning({ id: rpLetters.id });
     if (res.length === 0) throw new NotFoundError('РП', id);
+  }
+
+  async getRpSiteId(id: string): Promise<string | null> {
+    const [row] = await this.db
+      .select({ siteId: rpLetters.siteId })
+      .from(rpLetters)
+      .where(eq(rpLetters.id, id))
+      .limit(1);
+    return row?.siteId ?? null;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /*  Письмо PayHub (0008)                                               */
+  /* ------------------------------------------------------------------ */
+
+  async addLetterAttachments(rpLetterId: string, refs: RpLetterAttachmentRef[]): Promise<void> {
+    if (refs.length === 0) return;
+    // Транзакция с блокировкой строки письма (FOR UPDATE): сериализует регистрацию
+    // вложений с finalize и параллельными батчами — окно «insert после чтения
+    // контекста воркером» и обход лимита 20 исключены.
+    await this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .select({ status: rpLetters.payhubLetterStatus })
+        .from(rpLetters)
+        .where(eq(rpLetters.id, rpLetterId))
+        .for('update')
+        .limit(1);
+      if (!row) throw new NotFoundError('РП', rpLetterId);
+      if (row.status !== 'uploading') {
+        throw new ValidationError('Файлы письма можно регистрировать только до его отправки');
+      }
+      // Уже зарегистрированные ключи — чтобы повтор тех же файлов не считался за лимит.
+      const existing = await tx
+        .select({ fileKey: rpLetterAttachments.fileKey })
+        .from(rpLetterAttachments)
+        .where(eq(rpLetterAttachments.rpLetterId, rpLetterId));
+      const existingKeys = new Set(existing.map((e) => e.fileKey));
+      const newRefs = refs.filter((r) => !existingKeys.has(r.fileKey));
+      if (newRefs.length === 0) return; // всё уже зарегистрировано — идемпотентно
+      if (existingKeys.size + newRefs.length > 20) {
+        throw new ValidationError('Не больше 20 файлов на письмо');
+      }
+      // onConflictDoNothing по (rp_letter_id, file_key) — идемпотентность при гонке
+      // (параллельный батч мог вставить тот же ключ между select и insert).
+      await tx
+        .insert(rpLetterAttachments)
+        .values(
+          newRefs.map((r) => ({
+            rpLetterId,
+            fileKey: r.fileKey,
+            fileName: r.fileName,
+            mimeType: r.mimeType ?? null,
+            sizeBytes: r.sizeBytes ?? null,
+          })),
+        )
+        .onConflictDoNothing({
+          target: [rpLetterAttachments.rpLetterId, rpLetterAttachments.fileKey],
+        });
+    });
+  }
+
+  async finalizeLetter(rpLetterId: string): Promise<void> {
+    // FOR UPDATE — сериализация с addLetterAttachments: finalize дождётся коммита
+    // регистрации вложений, воркер не прочитает контекст раньше вставки.
+    await this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .select({ status: rpLetters.payhubLetterStatus, payload: rpLetters.payhubLetterPayload })
+        .from(rpLetters)
+        .where(eq(rpLetters.id, rpLetterId))
+        .for('update')
+        .limit(1);
+      if (!row) throw new NotFoundError('РП', rpLetterId);
+      if (row.status === 'synced') throw new ValidationError('Письмо уже создано в PayHub');
+      if (row.status === null || !row.payload) {
+        throw new ValidationError('Для этой РП письмо не оформлялось');
+      }
+      if (row.status === 'pending') return; // уже в очереди — идемпотентно
+      await tx
+        .update(rpLetters)
+        .set({
+          payhubLetterStatus: 'pending',
+          payhubLetterError: null,
+          payhubLetterStatusUpdatedAt: sql`now()`,
+        })
+        .where(eq(rpLetters.id, rpLetterId));
+    });
+  }
+
+  async getLetterSyncContext(rpLetterId: string): Promise<RpLetterSyncContext | null> {
+    const [row] = await this.db
+      .select({
+        id: rpLetters.id,
+        number: rpLetters.number,
+        letterDate: rpLetters.letterDate,
+        payload: rpLetters.payhubLetterPayload,
+        payhubLetterId: rpLetters.payhubLetterId,
+        payhubLetterUrl: rpLetters.payhubLetterUrl,
+        payhubLetterStatus: rpLetters.payhubLetterStatus,
+        sitePayhubProjectId: constructionSites.payhubProjectId,
+        sitePayhubContractorId: constructionSites.payhubContractorId,
+      })
+      .from(rpLetters)
+      .innerJoin(constructionSites, eq(constructionSites.id, rpLetters.siteId))
+      .where(eq(rpLetters.id, rpLetterId))
+      .limit(1);
+    if (!row) return null;
+
+    const attachments = await this.db
+      .select({
+        id: rpLetterAttachments.id,
+        fileKey: rpLetterAttachments.fileKey,
+        fileName: rpLetterAttachments.fileName,
+        mimeType: rpLetterAttachments.mimeType,
+        sizeBytes: rpLetterAttachments.sizeBytes,
+        payhubAttachmentId: rpLetterAttachments.payhubAttachmentId,
+      })
+      .from(rpLetterAttachments)
+      .where(eq(rpLetterAttachments.rpLetterId, rpLetterId));
+
+    return {
+      ...row,
+      payhubLetterStatus: (row.payhubLetterStatus as RpLetterSyncStatus | null) ?? null,
+      attachments,
+    };
+  }
+
+  async recordLetterSyncAttempt(rpLetterId: string): Promise<void> {
+    await this.db
+      .update(rpLetters)
+      .set({
+        payhubLetterSyncAttempts: sql`${rpLetters.payhubLetterSyncAttempts} + 1`,
+        payhubLetterStatusUpdatedAt: sql`now()`,
+      })
+      .where(eq(rpLetters.id, rpLetterId));
+  }
+
+  async setLetterSyncStatus(
+    rpLetterId: string,
+    status: RpLetterSyncStatus,
+    error?: string | null,
+  ): Promise<void> {
+    await this.db
+      .update(rpLetters)
+      .set({
+        payhubLetterStatus: status,
+        payhubLetterError: error ?? null,
+        payhubLetterStatusUpdatedAt: sql`now()`,
+      })
+      .where(eq(rpLetters.id, rpLetterId));
+  }
+
+  async setLetterLinked(rpLetterId: string, result: RpLetterSyncedResult): Promise<void> {
+    await this.db
+      .update(rpLetters)
+      .set({
+        payhubLetterId: result.payhubLetterId,
+        payhubLetterRegNumber: result.payhubLetterRegNumber,
+        payhubLetterUrl: result.payhubLetterUrl,
+        payhubLetterStatusUpdatedAt: sql`now()`,
+      })
+      .where(eq(rpLetters.id, rpLetterId));
+  }
+
+  async setLetterSynced(rpLetterId: string, result: RpLetterSyncedResult): Promise<void> {
+    await this.db
+      .update(rpLetters)
+      .set({
+        payhubLetterId: result.payhubLetterId,
+        payhubLetterRegNumber: result.payhubLetterRegNumber,
+        payhubLetterUrl: result.payhubLetterUrl,
+        payhubLetterStatus: 'synced',
+        payhubLetterError: null,
+        payhubLetterStatusUpdatedAt: sql`now()`,
+      })
+      .where(eq(rpLetters.id, rpLetterId));
+  }
+
+  async setAttachmentPayhubId(attachmentId: string, payhubAttachmentId: string): Promise<void> {
+    await this.db
+      .update(rpLetterAttachments)
+      .set({ payhubAttachmentId })
+      .where(eq(rpLetterAttachments.id, attachmentId));
+  }
+
+  async listLetterSyncCandidates(statuses: RpLetterSyncStatus[]): Promise<string[]> {
+    if (statuses.length === 0) return [];
+    const rows = await this.db
+      .select({ id: rpLetters.id })
+      .from(rpLetters)
+      .where(inArray(rpLetters.payhubLetterStatus, statuses));
+    return rows.map((r) => r.id);
   }
 }

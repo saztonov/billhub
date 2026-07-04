@@ -28,6 +28,8 @@ interface UsePaymentRequestsDataParams {
   showDeleted: boolean
   setFilters: (filters: FilterValues | ((prev: FilterValues) => FilterValues)) => void
   isMobile: boolean
+  /** Не применять авто-дефолт «мои заявки» для ОМТС (на странице РП фильтр иной семантики). */
+  skipDefaultMyFilter?: boolean
 }
 
 /**
@@ -41,6 +43,7 @@ export function usePaymentRequestsData({
   showDeleted,
   setFilters,
   isMobile,
+  skipDefaultMyFilter = false,
 }: UsePaymentRequestsDataParams) {
   const user = useAuthStore((s) => s.user)
 
@@ -114,12 +117,12 @@ export function usePaymentRequestsData({
 
   // Устанавливаем фильтры по умолчанию для ОМТС (если не восстановлены из localStorage)
   useEffect(() => {
-    if (isUser && isOmtsUser && !isMobile) {
+    if (isUser && isOmtsUser && !isMobile && !skipDefaultMyFilter) {
       setFilters((prev: FilterValues) =>
         prev.myRequestsFilter ? prev : { ...prev, myRequestsFilter: 'assigned_to_me' },
       )
     }
-  }, [isUser, isOmtsUser, isMobile, setFilters])
+  }, [isUser, isOmtsUser, isMobile, setFilters, skipDefaultMyFilter])
 
   // Загружаем объекты пользователя для role=user
   useEffect(() => {

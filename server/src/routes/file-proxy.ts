@@ -63,7 +63,14 @@ const ALLOWED_CONTENT_TYPES = new Set([
 ]);
 
 /** Контексты загрузки файлов */
-type UploadContext = 'request' | 'decision' | 'payment' | 'contract' | 'general' | 'founding';
+type UploadContext =
+  | 'request'
+  | 'decision'
+  | 'payment'
+  | 'contract'
+  | 'general'
+  | 'founding'
+  | 'rp_letter';
 
 /* ------------------------------------------------------------------ */
 /*  Типы                                                               */
@@ -126,7 +133,7 @@ const initSchema = {
       fileSize: { type: 'number' as const, minimum: 1 },
       context: {
         type: 'string' as const,
-        enum: ['request', 'decision', 'payment', 'contract', 'general', 'founding'],
+        enum: ['request', 'decision', 'payment', 'contract', 'general', 'founding', 'rp_letter'],
       },
       counterpartyName: { type: 'string' as const, minLength: 1 },
       requestNumber: { type: 'string' as const, minLength: 1 },
@@ -238,6 +245,13 @@ function buildFileKey(body: InitBody): string {
       }
       return `founding-docs/${body.entityId}/${timestamp}_${safeName}`;
     }
+    case 'rp_letter': {
+      // Файлы письма РП (PayHub); entityId — id РП (uuid валидируется схемой).
+      if (!body.entityId) {
+        throw new Error('entityId обязателен для контекста rp_letter');
+      }
+      return `rp-letters/${body.entityId}/${timestamp}_${safeName}`;
+    }
   }
 }
 
@@ -335,6 +349,11 @@ async function fileProxyRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(400).send({
           error: `Размер файла превышает лимит ${config.maxFileSizeMb} МБ`,
         });
+      }
+
+      /** Файлы письма РП загружают только внутренние роли (admin/user) */
+      if (body.context === 'rp_letter' && user.role !== 'admin' && user.role !== 'user') {
+        return reply.status(403).send({ error: 'Доступ запрещён' });
       }
 
       /** Проверка принадлежности контрагенту */

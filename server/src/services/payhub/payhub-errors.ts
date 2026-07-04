@@ -17,6 +17,7 @@ export type PayHubErrorCode =
   | 'not_owner'
   | 'forbidden_project'
   | 'ambiguous_letter_lookup'
+  | 'external_ref_conflict'
   | 'not_found'
   | 'validation_error'
   | 'unknown';
@@ -30,6 +31,7 @@ const KNOWN_CODES: ReadonlySet<string> = new Set([
   'not_owner',
   'forbidden_project',
   'ambiguous_letter_lookup',
+  'external_ref_conflict',
   'not_found',
   'validation_error',
 ]);

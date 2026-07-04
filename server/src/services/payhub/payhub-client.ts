@@ -165,12 +165,14 @@ export class PayHubClient {
   /**
    * Поиск письма по реквизитам (scope letters:read).
    * 404 not_found — не найдено; 409 ambiguous_letter_lookup — уточните project_id.
+   * external_ref — точный поиск по внешнему ключу идемпотентности (приоритетнее остальных).
    */
   async lookupLetter(params: LookupPayHubLetterParams): Promise<PayHubLetterLookupResult> {
     const payload = await this.http.request<Record<string, unknown>>('GET', '/letters/lookup', {
       query: {
         reg_number: params.reg_number,
         number: params.number,
+        external_ref: params.external_ref,
         project_id: params.project_id,
       },
     });
@@ -234,6 +236,7 @@ export class PayHubClient {
       storage_path: presign.storage_path,
       size_bytes: sizeBytes,
       mime_type: file.mime_type,
+      description: file.description,
     });
   }
 

@@ -3,6 +3,7 @@ import { Card, Descriptions, Tag, Button, Typography, Space, App } from 'antd'
 import { ReloadOutlined, ApiOutlined } from '@ant-design/icons'
 import { api } from '@/services/api'
 import { logError } from '@/services/errorLogger'
+import RpSenderSettingCard from '@/components/admin/RpSenderSettingCard'
 
 const { Text, Paragraph } = Typography
 
@@ -56,69 +57,73 @@ const PayHubSettingsTab = () => {
   }, [checkStatus])
 
   return (
-    <Card
-      title={
-        <Space>
-          <ApiOutlined />
-          Интеграция PayHub
-        </Space>
-      }
-      extra={
-        <Button icon={<ReloadOutlined />} loading={loading} onClick={() => checkStatus(true)}>
-          Проверить подключение
-        </Button>
-      }
-      style={{ maxWidth: 720 }}
-    >
-      <Descriptions column={1} bordered size="small">
-        <Descriptions.Item label="Настройка">
-          {status === null ? (
-            <Tag>нет данных</Tag>
-          ) : status.configured ? (
-            <Tag color="green">настроено</Tag>
-          ) : (
-            <Tag>не настроено</Tag>
-          )}
-        </Descriptions.Item>
-        {status?.baseUrl && (
-          <Descriptions.Item label="Базовый URL">
-            <Text code>{status.baseUrl}</Text>
-          </Descriptions.Item>
-        )}
-        {status?.configured && (
-          <Descriptions.Item label="Доступность">
-            {status.ok ? (
-              <Space>
-                <Tag color="green">доступно</Tag>
-                {status.latencyMs !== undefined && (
-                  <Text type="secondary">{status.latencyMs} мс</Text>
-                )}
-              </Space>
+    <>
+      <Card
+        title={
+          <Space>
+            <ApiOutlined />
+            Интеграция PayHub
+          </Space>
+        }
+        extra={
+          <Button icon={<ReloadOutlined />} loading={loading} onClick={() => checkStatus(true)}>
+            Проверить подключение
+          </Button>
+        }
+        style={{ maxWidth: 720 }}
+      >
+        <Descriptions column={1} bordered size="small">
+          <Descriptions.Item label="Настройка">
+            {status === null ? (
+              <Tag>нет данных</Tag>
+            ) : status.configured ? (
+              <Tag color="green">настроено</Tag>
             ) : (
-              <Space direction="vertical" size={4}>
-                <Tag color="red">ошибка</Tag>
-                {status.error && (
-                  <Text type="danger">
-                    {status.error.code}
-                    {status.error.httpStatus !== undefined && ` (HTTP ${status.error.httpStatus})`}
-                    {': '}
-                    {status.error.message}
-                  </Text>
-                )}
-              </Space>
+              <Tag>не настроено</Tag>
             )}
           </Descriptions.Item>
-        )}
-      </Descriptions>
+          {status?.baseUrl && (
+            <Descriptions.Item label="Базовый URL">
+              <Text code>{status.baseUrl}</Text>
+            </Descriptions.Item>
+          )}
+          {status?.configured && (
+            <Descriptions.Item label="Доступность">
+              {status.ok ? (
+                <Space>
+                  <Tag color="green">доступно</Tag>
+                  {status.latencyMs !== undefined && (
+                    <Text type="secondary">{status.latencyMs} мс</Text>
+                  )}
+                </Space>
+              ) : (
+                <Space direction="vertical" size={4}>
+                  <Tag color="red">ошибка</Tag>
+                  {status.error && (
+                    <Text type="danger">
+                      {status.error.code}
+                      {status.error.httpStatus !== undefined &&
+                        ` (HTTP ${status.error.httpStatus})`}
+                      {': '}
+                      {status.error.message}
+                    </Text>
+                  )}
+                </Space>
+              )}
+            </Descriptions.Item>
+          )}
+        </Descriptions>
 
-      {status !== null && !status.configured && (
-        <Paragraph type="secondary" style={{ marginTop: 16, marginBottom: 0 }}>
-          Для подключения задайте переменные окружения бэкенда <Text code>PAYHUB_BASE_URL</Text> и{' '}
-          <Text code>PAYHUB_API_TOKEN</Text> (токен выпускается в PayHub: Администрирование →
-          API-ключи), затем пересоздайте контейнер API.
-        </Paragraph>
-      )}
-    </Card>
+        {status !== null && !status.configured && (
+          <Paragraph type="secondary" style={{ marginTop: 16, marginBottom: 0 }}>
+            Для подключения задайте переменные окружения бэкенда <Text code>PAYHUB_BASE_URL</Text> и{' '}
+            <Text code>PAYHUB_API_TOKEN</Text> (токен выпускается в PayHub: Администрирование →
+            API-ключи), затем пересоздайте контейнер API.
+          </Paragraph>
+        )}
+      </Card>
+      <RpSenderSettingCard />
+    </>
   )
 }
 

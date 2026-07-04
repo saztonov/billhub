@@ -20,7 +20,8 @@ interface CreateRpModalProps {
   combo: RpCombo | null
   requestIds: string[]
   onClose: () => void
-  onCreated: () => void
+  /** Переход к форме письма PayHub; передаёт снимок всех документов для состава РП. */
+  onNext: (documents: RpDocumentRef[]) => void
 }
 
 interface PreviewTarget {
@@ -29,21 +30,19 @@ interface PreviewTarget {
   mimeType: string | null
 }
 
-/** Модалка создания РП: выбор/просмотр/скачивание документов договора и поставщика. */
-const CreateRpModal = ({ open, combo, requestIds, onClose, onCreated }: CreateRpModalProps) => {
+/** Модалка создания РП, шаг 1: просмотр/скачивание документов договора и поставщика. */
+const CreateRpModal = ({ open, combo, requestIds, onClose, onNext }: CreateRpModalProps) => {
   const { message } = App.useApp()
   const documents = useRpStore((s) => s.documents)
   const documentsLoading = useRpStore((s) => s.documentsLoading)
   const loadDocuments = useRpStore((s) => s.loadDocuments)
   const clearDocuments = useRpStore((s) => s.clearDocuments)
-  const createLetter = useRpStore((s) => s.createLetter)
 
   const [preview, setPreview] = useState<PreviewTarget | null>(null)
   const [downloadMode, setDownloadMode] = useState(false)
   const [selectedKeys, setSelectedKeys] = useState<string[]>([])
   const [downloading, setDownloading] = useState(false)
   const [downloadingAll, setDownloadingAll] = useState(false)
-  const [creating, setCreating] = useState(false)
 
   useEffect(() => {
     if (open && combo) {
@@ -109,28 +108,6 @@ const CreateRpModal = ({ open, combo, requestIds, onClose, onCreated }: CreateRp
     }
   }
 
-  const handleCreate = async () => {
-    if (!combo) return
-    setCreating(true)
-    try {
-      const letter = await createLetter({
-        supplierId: combo.supplierId,
-        counterpartyId: combo.counterpartyId,
-        siteId: combo.siteId,
-        paymentRequestIds: requestIds,
-        documents: allRefs,
-      })
-      if (letter) {
-        message.success(`РП ${letter.number} создана`)
-        onCreated()
-      }
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : 'Ошибка создания РП')
-    } finally {
-      setCreating(false)
-    }
-  }
-
   const renderDoc = (
     key: string,
     fileName: string,
@@ -184,8 +161,14 @@ const CreateRpModal = ({ open, combo, requestIds, onClose, onCreated }: CreateRp
           <Button key="cancel" onClick={onClose}>
             Отмена
           </Button>,
-          <Button key="create" type="primary" loading={creating} onClick={handleCreate}>
-            Создать РП ({requestIds.length})
+          <Button
+            key="next"
+            type="primary"
+            loading={documentsLoading}
+            disabled={documentsLoading || !documents}
+            onClick={() => onNext(allRefs)}
+          >
+            Далее ({requestIds.length})
           </Button>,
         ]}
       >

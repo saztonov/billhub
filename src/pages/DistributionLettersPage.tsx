@@ -12,12 +12,15 @@ import { useCommentStore } from '@/store/commentStore'
 import useIsMobile from '@/hooks/useIsMobile'
 import RequestsTable from '@/components/paymentRequests/RequestsTable'
 import RequestFilters from '@/components/paymentRequests/RequestFilters'
+import MobileFiltersDrawer from '@/components/paymentRequests/MobileFiltersDrawer'
 import ViewRequestModal from '@/components/paymentRequests/ViewRequestModal'
 import RpRegistryTable from '@/components/rp/RpRegistryTable'
 import CreateRpModal from '@/components/rp/CreateRpModal'
+import CreateRpLetterModal from '@/components/rp/CreateRpLetterModal'
+import { useRpLetterFiltering } from '@/hooks/useRpLetterFiltering'
 import type { RpCombo } from '@/components/rp/CreateRpModal'
 import type { FilterValues } from '@/components/paymentRequests/RequestFilters'
-import type { PaymentRequest } from '@/types'
+import type { PaymentRequest, RpDocumentRef } from '@/types'
 
 const comboKey = (r: PaymentRequest) => `${r.supplierId ?? ''}|${r.counterpartyId}|${r.siteId}`
 
@@ -31,6 +34,7 @@ const DistributionLettersPage = () => {
   const [resubmitRecord, setResubmitRecord] = useState<PaymentRequest | null>(null)
   const [filters, setFilters] = useState<FilterValues>({})
   const [filtersOpen, setFiltersOpen] = useState(true)
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   // Режим выбора заявок для создания РП (на вкладке «Согласовано»)
@@ -38,9 +42,12 @@ const DistributionLettersPage = () => {
   const [selectedKeys, setSelectedKeys] = useState<string[]>([])
   const [createOpen, setCreateOpen] = useState(false)
   const [createCombo, setCreateCombo] = useState<RpCombo | null>(null)
+  // Шаг 2 создания: форма письма PayHub (документы — снимок из шага 1)
+  const [letterOpen, setLetterOpen] = useState(false)
+  const [letterDocs, setLetterDocs] = useState<RpDocumentRef[]>([])
 
   useEffect(() => {
-    setHeader('РП')
+    setHeader('Распред.письма')
   }, [setHeader])
 
   // Реестр РП + членство заявок в РП
@@ -48,6 +55,7 @@ const DistributionLettersPage = () => {
   const lettersLoading = useRpStore((s) => s.lettersLoading)
   const loadRegistry = useRpStore((s) => s.loadRegistry)
   const updateStatus = useRpStore((s) => s.updateStatus)
+  const finalizeLetter = useRpStore((s) => s.finalizeLetter)
 
   useEffect(() => {
     loadRegistry()
@@ -105,6 +113,8 @@ const DistributionLettersPage = () => {
     showDeleted: false,
     setFilters,
     isMobile,
+    // На странице РП «мои» = созданные мной РП (иная семантика) — авто-дефолт не нужен.
+    skipDefaultMyFilter: true,
   })
 
   const unreadCounts = useCommentStore((s) => s.unreadCounts)
@@ -228,10 +238,40 @@ const DistributionLettersPage = () => {
   }
   const onCreated = () => {
     setCreateOpen(false)
+    setLetterOpen(false)
     cancelSelection()
     setRefreshTrigger((n) => n + 1)
     setActiveTab('registry')
   }
+
+  // Шаг 1 (документы) -> шаг 2 (форма письма); снимок документов идёт в состав РП.
+  const openLetterStep = (docs: RpDocumentRef[]) => {
+    setLetterDocs(docs)
+    setCreateOpen(false)
+    setLetterOpen(true)
+  }
+
+  // Выбранные заявки — для автозаполнения содержания письма.
+  const selectedRequests = useMemo(
+    () => approvedRequests.filter((r) => selectedKeys.includes(r.id)),
+    [approvedRequests, selectedKeys],
+  )
+
+  // Объект выбранной связки — payhub-сопоставление (проект + заказчик) для формы письма.
+  const comboSite = useMemo(
+    () => sites.find((s) => s.id === createCombo?.siteId),
+    [sites, createCombo],
+  )
+
+  // «Создать письмо» (файлы не догружены) / «Повторить» (ошибка) из реестра.
+  const retryLetter = async (id: string) => {
+    const ok = await finalizeLetter(id)
+    if (ok) message.success('Письмо отправлено в обработку')
+    else message.error('Не удалось отправить письмо в обработку')
+  }
+
+  // Фильтрация реестра тем же блоком фильтров (см. useRpLetterFiltering).
+  const filteredLetters = useRpLetterFiltering(letters, filters, user?.id)
 
   const filterProps = {
     counterparties,
@@ -244,21 +284,23 @@ const DistributionLettersPage = () => {
     omtsUsers,
   }
 
-  const showRequestFilters = activeTab !== 'registry' && !isMobile && filtersOpen
+  // Блок фильтров одинаков для всех вкладок, включая «Реестр РП».
+  const showRequestFilters = !isMobile && filtersOpen
 
   const tabItems = [
     {
       key: 'registry',
-      label: `Реестр РП (${letters.length})`,
+      label: isMobile ? 'Реестр' : `Реестр РП (${filteredLetters.length})`,
       children: (
         <RpRegistryTable
-          letters={letters}
+          letters={filteredLetters}
           isLoading={lettersLoading}
           onOpenRequest={openRequestById}
           onStatusChange={async (id, status) => {
             const ok = await updateStatus(id, status)
             if (!ok) message.error('Не удалось изменить статус РП')
           }}
+          onRetryLetter={retryLetter}
         />
       ),
     },
@@ -367,15 +409,15 @@ const DistributionLettersPage = () => {
                   )}
                 </Space>
               )}
-              {activeTab !== 'registry' && !isMobile && (
-                <Button
-                  icon={<FilterOutlined />}
-                  onClick={() => setFiltersOpen(!filtersOpen)}
-                  type={filtersOpen ? 'primary' : 'default'}
-                  size="small"
-                  style={{ flexShrink: 0 }}
-                />
-              )}
+              <Button
+                icon={<FilterOutlined />}
+                onClick={() =>
+                  isMobile ? setMobileFiltersOpen(true) : setFiltersOpen(!filtersOpen)
+                }
+                type={!isMobile && filtersOpen ? 'primary' : 'default'}
+                size="small"
+                style={{ flexShrink: 0 }}
+              />
             </div>
           </div>
         )}
@@ -412,11 +454,34 @@ const DistributionLettersPage = () => {
         }}
       />
 
+      {isMobile && (
+        <MobileFiltersDrawer
+          open={mobileFiltersOpen}
+          onClose={() => setMobileFiltersOpen(false)}
+          {...filterProps}
+          statuses={statuses}
+          values={filters}
+          onChange={setFilters}
+          onReset={() => setFilters({})}
+        />
+      )}
+
       <CreateRpModal
         open={createOpen}
         combo={createCombo}
         requestIds={selectedKeys}
         onClose={() => setCreateOpen(false)}
+        onNext={openLetterStep}
+      />
+
+      <CreateRpLetterModal
+        open={letterOpen}
+        combo={createCombo}
+        requestIds={selectedKeys}
+        documents={letterDocs}
+        selectedRequests={selectedRequests}
+        site={comboSite}
+        onClose={() => setLetterOpen(false)}
         onCreated={onCreated}
       />
     </div>

@@ -3,6 +3,15 @@ import { api } from '@/services/api'
 import { logError } from '@/services/errorLogger'
 import type { RpLetter, RpDocumentsResult, RpDocumentRef } from '@/types'
 
+/** Блок письма PayHub при создании РП (редактируемые поля формы). */
+export interface RpLetterFormBlock {
+  subject: string
+  content: string
+  responsiblePersonName: string | null
+  /** true — файлы будут догружены отдельно, задача синхронизации ставится после finalize */
+  hasAttachments: boolean
+}
+
 /** Вход создания РП. */
 export interface CreateRpPayload {
   supplierId: string
@@ -11,6 +20,15 @@ export interface CreateRpPayload {
   paymentRequestIds: string[]
   documents: RpDocumentRef[]
   letterDate?: string | null
+  letter?: RpLetterFormBlock
+}
+
+/** Ссылка на файл письма, загруженный в billhub S3 (контекст rp_letter). */
+export interface RpLetterAttachmentRef {
+  fileKey: string
+  fileName: string
+  mimeType?: string | null
+  sizeBytes?: number | null
 }
 
 interface RpStoreState {
@@ -24,6 +42,10 @@ interface RpStoreState {
   clearDocuments: () => void
   createLetter: (payload: CreateRpPayload) => Promise<RpLetter | null>
   updateStatus: (id: string, status: string) => Promise<boolean>
+  /** Регистрация загруженных файлов письма за РП. */
+  registerLetterAttachments: (rpLetterId: string, refs: RpLetterAttachmentRef[]) => Promise<void>
+  /** Поставить синхронизацию письма в очередь (finalize / ручной «Повторить»). */
+  finalizeLetter: (rpLetterId: string) => Promise<boolean>
 }
 
 export const useRpStore = create<RpStoreState>((set, get) => ({
@@ -83,6 +105,43 @@ export const useRpStore = create<RpStoreState>((set, get) => ({
         metadata: { action: 'createLetter' },
       })
       throw err
+    }
+  },
+
+  registerLetterAttachments: async (rpLetterId, refs) => {
+    try {
+      await api.post(`/api/rp/${rpLetterId}/letter/attachments`, { attachments: refs })
+    } catch (err) {
+      logError({
+        errorType: 'api_error',
+        errorMessage: err instanceof Error ? err.message : 'Ошибка регистрации файлов письма',
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'registerLetterAttachments', rpLetterId },
+      })
+      throw err
+    }
+  },
+
+  finalizeLetter: async (rpLetterId) => {
+    try {
+      await api.post(`/api/rp/${rpLetterId}/letter/finalize`)
+      // Локально переводим письмо в pending — реестр покажет «создаётся…» без refetch.
+      set({
+        letters: get().letters.map((l) =>
+          l.id === rpLetterId
+            ? { ...l, payhubLetterStatus: 'pending' as const, payhubLetterError: null }
+            : l,
+        ),
+      })
+      return true
+    } catch (err) {
+      logError({
+        errorType: 'api_error',
+        errorMessage: err instanceof Error ? err.message : 'Ошибка отправки письма',
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'finalizeLetter', rpLetterId },
+      })
+      return false
     }
   },
 
