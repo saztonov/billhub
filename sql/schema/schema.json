@@ -265,6 +265,60 @@
               "position": 6,
               "max_length": null,
               "numeric_precision": null
+            },
+            {
+              "name": "payhub_project_id",
+              "type": "integer",
+              "default": null,
+              "nullable": true,
+              "position": 7,
+              "max_length": null,
+              "numeric_precision": 32
+            },
+            {
+              "name": "payhub_project_code",
+              "type": "text",
+              "default": null,
+              "nullable": true,
+              "position": 8,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "payhub_project_name",
+              "type": "text",
+              "default": null,
+              "nullable": true,
+              "position": 9,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "payhub_contractor_id",
+              "type": "text",
+              "default": null,
+              "nullable": true,
+              "position": 10,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "payhub_contractor_name",
+              "type": "text",
+              "default": null,
+              "nullable": true,
+              "position": 11,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "payhub_contractor_inn",
+              "type": "text",
+              "default": null,
+              "nullable": true,
+              "position": 12,
+              "max_length": null,
+              "numeric_precision": null
             }
           ]
         },

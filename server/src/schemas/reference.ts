@@ -7,23 +7,49 @@ import { uuidSchema, nonEmptyString } from './common.js';
 
 /* ---------------------------- Объект строительства ---------------------------- */
 
+/**
+ * Поля сопоставления с PayHub (read): канонический внешний ID + снимок для отображения.
+ * project_id — целое (PayHubProject.id), contractor_id — строка (PayHubContractor.id).
+ */
+const payhubMappingReadShape = {
+  payhubProjectId: z.number().int().nullable(),
+  payhubProjectCode: z.string().nullable(),
+  payhubProjectName: z.string().nullable(),
+  payhubContractorId: z.string().nullable(),
+  payhubContractorName: z.string().nullable(),
+  payhubContractorInn: z.string().nullable(),
+};
+
+/** Те же поля для create/update: optional (не передано — не менять) + nullable (null — очистить). */
+const payhubMappingWriteShape = {
+  payhubProjectId: z.number().int().nullable().optional(),
+  payhubProjectCode: z.string().nullable().optional(),
+  payhubProjectName: z.string().nullable().optional(),
+  payhubContractorId: z.string().nullable().optional(),
+  payhubContractorName: z.string().nullable().optional(),
+  payhubContractorInn: z.string().nullable().optional(),
+};
+
 export const constructionSiteSchema = z.object({
   id: uuidSchema,
   name: nonEmptyString,
   isActive: z.boolean(),
   createdAt: z.iso.datetime({ offset: true }),
+  ...payhubMappingReadShape,
 });
 export type ConstructionSite = z.infer<typeof constructionSiteSchema>;
 
 export const createConstructionSiteBodySchema = z.object({
   name: nonEmptyString,
   isActive: z.boolean().optional(),
+  ...payhubMappingWriteShape,
 });
 export type CreateConstructionSiteBody = z.infer<typeof createConstructionSiteBodySchema>;
 
 export const updateConstructionSiteBodySchema = z.object({
   name: nonEmptyString.optional(),
   isActive: z.boolean().optional(),
+  ...payhubMappingWriteShape,
 });
 export type UpdateConstructionSiteBody = z.infer<typeof updateConstructionSiteBodySchema>;
 

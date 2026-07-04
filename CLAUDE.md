@@ -40,7 +40,7 @@ npm run dev:worker  # BullMQ worker (tsx watch src/worker.ts)
 npm run build       # tsc
 npm run test        # vitest run
 npm run typecheck   # tsc --noEmit
-npm run db:migrate  # накат новых миграций (tsx src/cli/migrate.ts)
+npm run db:migrate  # внутренний runner (tsx src/cli/migrate.ts); НЕ использовать напрямую — накат только через `deploy-billhub --migrate`
 ```
 
 ## Архитектура
@@ -278,7 +278,12 @@ server/src/         # Backend (Fastify)
 
 ### РАЗРЕШЕНО:
 
-- Изменения только через миграции в `sql/migrations/` (нумерация с `0001`): показать -> одобрить -> запустить
+- Изменения только через миграции в `sql/migrations/` (нумерация с `0001`): показать -> одобрить -> накатить через `deploy-billhub --migrate`
+
+### Накат миграций:
+
+- Миграции ВСЕГДА применяются командой `deploy-billhub --migrate`. Другие способы (`npm run db:migrate`, прямой запуск `src/cli/migrate.ts` и т.п.) НЕ предлагать.
+- Накат выполняет разработчик. Не запускать миграции самостоятельно.
 
 ### ВАЖНО по миграциям:
 

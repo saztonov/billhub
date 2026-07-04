@@ -37,7 +37,32 @@ import { getPgErrorCode, PG_FOREIGN_KEY_VIOLATION } from './errors.js';
 type Db = PostgresJsDatabase<typeof schema>;
 
 function siteToDto(r: typeof constructionSites.$inferSelect): ConstructionSite {
-  return { id: r.id, name: r.name, isActive: r.isActive, createdAt: r.createdAt };
+  return {
+    id: r.id,
+    name: r.name,
+    isActive: r.isActive,
+    createdAt: r.createdAt,
+    payhubProjectId: r.payhubProjectId,
+    payhubProjectCode: r.payhubProjectCode,
+    payhubProjectName: r.payhubProjectName,
+    payhubContractorId: r.payhubContractorId,
+    payhubContractorName: r.payhubContractorName,
+    payhubContractorInn: r.payhubContractorInn,
+  };
+}
+
+/** Переносит переданные поля сопоставления PayHub в patch (undefined — не менять, null — очистить) */
+function applyPayhubPatch(
+  patch: Partial<typeof constructionSites.$inferInsert>,
+  body: Partial<CreateConstructionSiteBody & UpdateConstructionSiteBody>,
+): void {
+  if (body.payhubProjectId !== undefined) patch.payhubProjectId = body.payhubProjectId;
+  if (body.payhubProjectCode !== undefined) patch.payhubProjectCode = body.payhubProjectCode;
+  if (body.payhubProjectName !== undefined) patch.payhubProjectName = body.payhubProjectName;
+  if (body.payhubContractorId !== undefined) patch.payhubContractorId = body.payhubContractorId;
+  if (body.payhubContractorName !== undefined)
+    patch.payhubContractorName = body.payhubContractorName;
+  if (body.payhubContractorInn !== undefined) patch.payhubContractorInn = body.payhubContractorInn;
 }
 function costToDto(r: typeof costTypes.$inferSelect): CostType {
   return { id: r.id, name: r.name, isActive: r.isActive, createdAt: r.createdAt };
@@ -93,11 +118,13 @@ export class DrizzleReferenceRepository implements ReferenceRepository {
   }
 
   async createConstructionSite(body: CreateConstructionSiteBody): Promise<ConstructionSite> {
+    const values: typeof constructionSites.$inferInsert = {
+      name: body.name,
+      isActive: body.isActive ?? true,
+    };
+    applyPayhubPatch(values, body);
     return this.db.transaction(async (tx) => {
-      const [row] = await tx
-        .insert(constructionSites)
-        .values({ name: body.name, isActive: body.isActive ?? true })
-        .returning();
+      const [row] = await tx.insert(constructionSites).values(values).returning();
       return siteToDto(row!);
     });
   }
@@ -109,6 +136,7 @@ export class DrizzleReferenceRepository implements ReferenceRepository {
     const patch: Partial<typeof constructionSites.$inferInsert> = {};
     if (body.name !== undefined) patch.name = body.name;
     if (body.isActive !== undefined) patch.isActive = body.isActive;
+    applyPayhubPatch(patch, body);
     if (Object.keys(patch).length === 0) return this.getConstructionSite(id);
     return this.db.transaction(async (tx) => {
       const [row] = await tx

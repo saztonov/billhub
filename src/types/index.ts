@@ -88,6 +88,14 @@ export interface ConstructionSite {
   name: string
   isActive: boolean
   createdAt: string
+  // Сопоставление с PayHub: канонический внешний ID + снимок для отображения.
+  // Отсутствуют для роли counterparty_user (API их не отдаёт).
+  payhubProjectId?: number | null
+  payhubProjectCode?: string | null
+  payhubProjectName?: string | null
+  payhubContractorId?: string | null
+  payhubContractorName?: string | null
+  payhubContractorInn?: string | null
 }
 
 /** Подразделение (enum) */

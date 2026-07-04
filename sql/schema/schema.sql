@@ -393,7 +393,13 @@ CREATE TABLE public.construction_sites (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     name text NOT NULL,
     is_active boolean DEFAULT true NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    payhub_project_id integer,
+    payhub_project_code text,
+    payhub_project_name text,
+    payhub_contractor_id text,
+    payhub_contractor_name text,
+    payhub_contractor_inn text
 );
 
 

@@ -27,8 +27,90 @@ interface PayHubStatusResponse {
   };
 }
 
+/** Ошибка каталога в формате, совместимом со статусом */
+interface PayHubCatalogError {
+  code: string;
+  httpStatus?: number;
+  message: string;
+}
+
+/** Нормализованный проект PayHub для клиента (без индексной сигнатуры внешнего DTO) */
+interface NormalizedProject {
+  id: number;
+  code: string | null;
+  name: string | null;
+}
+
+/** Нормализованный заказчик/контрагент PayHub для клиента */
+interface NormalizedContractor {
+  id: string;
+  name: string | null;
+  inn: string | null;
+}
+
+/** Приводит ошибку вызова PayHub к формату каталога (всегда HTTP 200) */
+function toCatalogError(error: unknown): PayHubCatalogError {
+  return error instanceof PayHubApiError
+    ? { code: error.code, httpStatus: error.status, message: error.message }
+    : { code: 'network_error', message: error instanceof Error ? error.message : 'Сетевая ошибка' };
+}
+
 async function payhubRoutes(fastify: FastifyInstance): Promise<void> {
   const adminOnly = { preHandler: [authenticate, requireRole('admin')] };
+
+  /* ---------- GET /api/payhub/projects ---------- */
+  fastify.get('/api/payhub/projects', adminOnly, async (request, reply) => {
+    const client = fastify.payhub;
+    if (!client) {
+      return reply.send({ configured: false, ok: false, projects: [] as NormalizedProject[] });
+    }
+    try {
+      const projects = await client.listProjects();
+      const normalized: NormalizedProject[] = projects.map((p) => ({
+        id: p.id,
+        code: p.code ?? null,
+        name: p.name ?? null,
+      }));
+      return reply.send({ configured: true, ok: true, projects: normalized });
+    } catch (error) {
+      request.log.warn({ err: error }, 'PayHub: получение проектов не удалось');
+      return reply.send({
+        configured: true,
+        ok: false,
+        projects: [] as NormalizedProject[],
+        error: toCatalogError(error),
+      });
+    }
+  });
+
+  /* ---------- GET /api/payhub/contractors ---------- */
+  fastify.get('/api/payhub/contractors', adminOnly, async (request, reply) => {
+    const client = fastify.payhub;
+    if (!client) {
+      return reply.send({
+        configured: false,
+        ok: false,
+        contractors: [] as NormalizedContractor[],
+      });
+    }
+    try {
+      const contractors = await client.listContractors();
+      const normalized: NormalizedContractor[] = contractors.map((c) => ({
+        id: String(c.id),
+        name: c.name ?? null,
+        inn: c.inn ?? null,
+      }));
+      return reply.send({ configured: true, ok: true, contractors: normalized });
+    } catch (error) {
+      request.log.warn({ err: error }, 'PayHub: получение контрагентов не удалось');
+      return reply.send({
+        configured: true,
+        ok: false,
+        contractors: [] as NormalizedContractor[],
+        error: toCatalogError(error),
+      });
+    }
+  });
 
   /* ---------- GET /api/payhub/status ---------- */
   fastify.get('/api/payhub/status', adminOnly, async (request, reply) => {

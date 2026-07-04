@@ -22,7 +22,8 @@ import type {
 } from '../../schemas/reference.js';
 import { NotFoundError, ForeignKeyConstraintError } from '../types.js';
 
-const SITE_FIELDS = 'id, name, is_active, created_at';
+const SITE_FIELDS =
+  'id, name, is_active, created_at, payhub_project_id, payhub_project_code, payhub_project_name, payhub_contractor_id, payhub_contractor_name, payhub_contractor_inn';
 const COST_FIELDS = 'id, name, is_active, created_at';
 const DOC_FIELDS = 'id, name, category, created_at';
 const STATUS_FIELDS =
@@ -54,6 +55,15 @@ interface SiteRow {
   is_active: boolean;
   created_at: string;
 }
+/** Строка объекта строительства с полями сопоставления PayHub (не протекают в другие справочники) */
+interface ConstructionSiteRow extends SiteRow {
+  payhub_project_id: number | null;
+  payhub_project_code: string | null;
+  payhub_project_name: string | null;
+  payhub_contractor_id: string | null;
+  payhub_contractor_name: string | null;
+  payhub_contractor_inn: string | null;
+}
 interface DocRow {
   id: string;
   name: string;
@@ -72,8 +82,34 @@ interface StatusRow {
   created_at: string;
 }
 
-function siteToDto(r: SiteRow): ConstructionSite {
-  return { id: r.id, name: r.name, isActive: r.is_active, createdAt: r.created_at };
+function siteToDto(r: ConstructionSiteRow): ConstructionSite {
+  return {
+    id: r.id,
+    name: r.name,
+    isActive: r.is_active,
+    createdAt: r.created_at,
+    payhubProjectId: r.payhub_project_id,
+    payhubProjectCode: r.payhub_project_code,
+    payhubProjectName: r.payhub_project_name,
+    payhubContractorId: r.payhub_contractor_id,
+    payhubContractorName: r.payhub_contractor_name,
+    payhubContractorInn: r.payhub_contractor_inn,
+  };
+}
+
+/** Переносит переданные поля сопоставления PayHub в snake_case patch (undefined — не менять, null — очистить) */
+function applyPayhubPatch(
+  patch: Record<string, unknown>,
+  body: Partial<CreateConstructionSiteBody & UpdateConstructionSiteBody>,
+): void {
+  if (body.payhubProjectId !== undefined) patch.payhub_project_id = body.payhubProjectId;
+  if (body.payhubProjectCode !== undefined) patch.payhub_project_code = body.payhubProjectCode;
+  if (body.payhubProjectName !== undefined) patch.payhub_project_name = body.payhubProjectName;
+  if (body.payhubContractorId !== undefined) patch.payhub_contractor_id = body.payhubContractorId;
+  if (body.payhubContractorName !== undefined)
+    patch.payhub_contractor_name = body.payhubContractorName;
+  if (body.payhubContractorInn !== undefined)
+    patch.payhub_contractor_inn = body.payhubContractorInn;
 }
 function costToDto(r: SiteRow): CostType {
   return { id: r.id, name: r.name, isActive: r.is_active, createdAt: r.created_at };
@@ -110,7 +146,7 @@ export class SupabaseReferenceRepository implements ReferenceRepository {
       .select(SITE_FIELDS)
       .order('created_at', { ascending: false });
     if (error) throw error;
-    return (data as SiteRow[]).map(siteToDto);
+    return (data as ConstructionSiteRow[]).map(siteToDto);
   }
 
   async getConstructionSite(id: string): Promise<ConstructionSite> {
@@ -121,17 +157,19 @@ export class SupabaseReferenceRepository implements ReferenceRepository {
       .maybeSingle();
     if (error) throw error;
     if (!data) throw new NotFoundError('ConstructionSite', id);
-    return siteToDto(data as SiteRow);
+    return siteToDto(data as ConstructionSiteRow);
   }
 
   async createConstructionSite(body: CreateConstructionSiteBody): Promise<ConstructionSite> {
+    const insert: Record<string, unknown> = { name: body.name, is_active: body.isActive ?? true };
+    applyPayhubPatch(insert, body);
     const { data, error } = await this.supabase
       .from('construction_sites')
-      .insert({ name: body.name, is_active: body.isActive ?? true })
+      .insert(insert)
       .select(SITE_FIELDS)
       .single();
     if (error) throw error;
-    return siteToDto(data as SiteRow);
+    return siteToDto(data as ConstructionSiteRow);
   }
 
   async updateConstructionSite(
@@ -141,6 +179,7 @@ export class SupabaseReferenceRepository implements ReferenceRepository {
     const patch: Record<string, unknown> = {};
     if (body.name !== undefined) patch.name = body.name;
     if (body.isActive !== undefined) patch.is_active = body.isActive;
+    applyPayhubPatch(patch, body);
     const { data, error } = await this.supabase
       .from('construction_sites')
       .update(patch)
@@ -151,7 +190,7 @@ export class SupabaseReferenceRepository implements ReferenceRepository {
       if (code(error) === 'PGRST116') throw new NotFoundError('ConstructionSite', id);
       throw error;
     }
-    return siteToDto(data as SiteRow);
+    return siteToDto(data as ConstructionSiteRow);
   }
 
   async deleteConstructionSite(id: string): Promise<void> {

@@ -4,7 +4,27 @@ import { requireRole } from '../../middleware/requireRole.js';
 import {
   createConstructionSiteBodySchema,
   updateConstructionSiteBodySchema,
+  type ConstructionSite,
 } from '../../schemas/reference.js';
+
+/**
+ * Убирает поля сопоставления PayHub из объекта для роли counterparty_user
+ * (внешний пользователь не должен видеть внутреннюю привязку к PayHub).
+ * Для admin/user поля отдаются как есть.
+ */
+function stripPayhubForRole(site: ConstructionSite, role: string | undefined): ConstructionSite {
+  if (role !== 'counterparty_user') return site;
+  const {
+    payhubProjectId: _pid,
+    payhubProjectCode: _pcode,
+    payhubProjectName: _pname,
+    payhubContractorId: _cid,
+    payhubContractorName: _cname,
+    payhubContractorInn: _cinn,
+    ...rest
+  } = site;
+  return rest as ConstructionSite;
+}
 
 /* ------------------------------------------------------------------ */
 /*  Параметры пути                                                     */
@@ -32,7 +52,8 @@ async function constructionSiteRoutes(fastify: FastifyInstance): Promise<void> {
     '/',
     { preHandler: [authenticate, requireRole('admin', 'user', 'counterparty_user')] },
     async (request) => {
-      return request.server.repos.references.listConstructionSites();
+      const sites = await request.server.repos.references.listConstructionSites();
+      return sites.map((site) => stripPayhubForRole(site, request.user?.role));
     },
   );
 
@@ -41,7 +62,8 @@ async function constructionSiteRoutes(fastify: FastifyInstance): Promise<void> {
     '/:id',
     { schema: idParamsSchema, preHandler: [authenticate, requireRole('admin', 'user')] },
     async (request) => {
-      return request.server.repos.references.getConstructionSite(request.params.id);
+      const site = await request.server.repos.references.getConstructionSite(request.params.id);
+      return stripPayhubForRole(site, request.user?.role);
     },
   );
 

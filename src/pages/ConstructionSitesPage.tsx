@@ -1,20 +1,12 @@
-import { useEffect, useState } from 'react'
-import {
-  Table,
-  Button,
-  Space,
-  Modal,
-  Form,
-  Input,
-  Switch,
-  Tag,
-  Popconfirm,
-  App,
-} from 'antd'
+import { useEffect, useMemo, useState } from 'react'
+import { Table, Button, Space, Modal, Form, Input, Switch, Tag, Popconfirm, App } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useTableScrollY } from '@/hooks/useTableScrollY'
 import { useConstructionSiteStore } from '@/store/constructionSiteStore'
+import { usePayHubCatalogStore } from '@/store/payhubCatalogStore'
 import { useAuthStore } from '@/store/authStore'
+import { PayhubReferenceSelect } from '@/components/references/PayhubReferenceSelect'
+import { projectLabel, contractorLabel, type PayhubOption } from '@/utils/payhubLabels'
 import type { ConstructionSite } from '@/types'
 
 const ConstructionSitesPage = () => {
@@ -25,19 +17,81 @@ const ConstructionSitesPage = () => {
 
   const user = useAuthStore((s) => s.user)
   const isAdmin = user?.role === 'admin'
+  // Столбцы PayHub видят внутренние роли; counterparty_user их не получает (API их не отдаёт)
+  const canSeePayhub = user?.role === 'admin' || user?.role === 'user'
+
+  const { sites, isLoading, fetchSites, createSite, updateSite, deleteSite } =
+    useConstructionSiteStore()
 
   const {
-    sites,
-    isLoading,
-    fetchSites,
-    createSite,
-    updateSite,
-    deleteSite,
-  } = useConstructionSiteStore()
+    projects,
+    contractors,
+    configured: payhubConfigured,
+    ok: payhubOk,
+    fetchCatalog,
+  } = usePayHubCatalogStore()
+  const catalogReady = payhubConfigured && payhubOk
 
   useEffect(() => {
     fetchSites()
   }, [fetchSites])
+
+  // Каталоги PayHub нужны только admin (для инлайн-выбора); user видит снимки из объекта
+  useEffect(() => {
+    if (isAdmin) fetchCatalog()
+  }, [isAdmin, fetchCatalog])
+
+  const projectOptions = useMemo<PayhubOption[]>(
+    () => projects.map((p) => ({ value: p.id, label: projectLabel(p.code, p.name, p.id) })),
+    [projects],
+  )
+  const contractorOptions = useMemo<PayhubOption[]>(
+    () => contractors.map((c) => ({ value: c.id, label: contractorLabel(c.name, c.inn, c.id) })),
+    [contractors],
+  )
+
+  // Плейсхолдер зависит от состояния интеграции PayHub
+  const payhubPlaceholder = catalogReady
+    ? undefined
+    : payhubConfigured
+      ? 'PayHub недоступен'
+      : 'PayHub не настроен'
+
+  const handleProjectChange = async (
+    record: ConstructionSite,
+    value: number | string | undefined,
+  ) => {
+    const proj = value !== undefined ? projects.find((p) => p.id === value) : undefined
+    const ok = await updateSite(
+      record.id,
+      value === undefined
+        ? { payhubProjectId: null, payhubProjectCode: null, payhubProjectName: null }
+        : {
+            payhubProjectId: value as number,
+            payhubProjectCode: proj?.code ?? null,
+            payhubProjectName: proj?.name ?? null,
+          },
+    )
+    if (!ok) message.error('Не удалось сохранить проект PayHub')
+  }
+
+  const handleContractorChange = async (
+    record: ConstructionSite,
+    value: number | string | undefined,
+  ) => {
+    const c = value !== undefined ? contractors.find((x) => x.id === value) : undefined
+    const ok = await updateSite(
+      record.id,
+      value === undefined
+        ? { payhubContractorId: null, payhubContractorName: null, payhubContractorInn: null }
+        : {
+            payhubContractorId: String(value),
+            payhubContractorName: c?.name ?? null,
+            payhubContractorInn: c?.inn ?? null,
+          },
+    )
+    if (!ok) message.error('Не удалось сохранить заказчика PayHub')
+  }
 
   const handleCreate = () => {
     setEditingRecord(null)
@@ -81,10 +135,90 @@ const ConstructionSitesPage = () => {
       dataIndex: 'isActive',
       key: 'isActive',
       width: 100,
-      render: (val: boolean) => (
-        <Tag color={val ? 'green' : 'default'}>{val ? 'Да' : 'Нет'}</Tag>
-      ),
+      render: (val: boolean) => <Tag color={val ? 'green' : 'default'}>{val ? 'Да' : 'Нет'}</Tag>,
     },
+    ...(canSeePayhub
+      ? [
+          {
+            title: 'PayHub-проект',
+            key: 'payhubProject',
+            width: 240,
+            render: (_: unknown, record: ConstructionSite) => {
+              if (!isAdmin) {
+                return record.payhubProjectId != null
+                  ? projectLabel(
+                      record.payhubProjectCode,
+                      record.payhubProjectName,
+                      record.payhubProjectId,
+                    )
+                  : '—'
+              }
+              const opts = [...projectOptions]
+              if (
+                record.payhubProjectId != null &&
+                !projects.some((p) => p.id === record.payhubProjectId)
+              ) {
+                opts.unshift({
+                  value: record.payhubProjectId,
+                  label: projectLabel(
+                    record.payhubProjectCode,
+                    record.payhubProjectName,
+                    record.payhubProjectId,
+                  ),
+                })
+              }
+              return (
+                <PayhubReferenceSelect
+                  value={record.payhubProjectId}
+                  options={opts}
+                  disabled={!catalogReady}
+                  placeholder={payhubPlaceholder ?? 'Выберите проект'}
+                  onChange={(v) => handleProjectChange(record, v)}
+                />
+              )
+            },
+          },
+          {
+            title: 'Заказчик',
+            key: 'payhubContractor',
+            width: 240,
+            render: (_: unknown, record: ConstructionSite) => {
+              if (!isAdmin) {
+                return record.payhubContractorId != null
+                  ? contractorLabel(
+                      record.payhubContractorName,
+                      record.payhubContractorInn,
+                      record.payhubContractorId,
+                    )
+                  : '—'
+              }
+              const opts = [...contractorOptions]
+              if (
+                record.payhubContractorId != null &&
+                !contractors.some((c) => c.id === record.payhubContractorId)
+              ) {
+                opts.unshift({
+                  value: record.payhubContractorId,
+                  label: contractorLabel(
+                    record.payhubContractorName,
+                    record.payhubContractorInn,
+                    record.payhubContractorId,
+                  ),
+                })
+              }
+              return (
+                <PayhubReferenceSelect
+                  value={record.payhubContractorId}
+                  options={opts}
+                  disabled={!catalogReady}
+                  placeholder={payhubPlaceholder ?? 'Выберите заказчика'}
+                  onChange={(v) => handleContractorChange(record, v)}
+                />
+              )
+            },
+          },
+        ]
+      : []),
     ...(isAdmin
       ? [
           {
@@ -93,15 +227,8 @@ const ConstructionSitesPage = () => {
             width: 120,
             render: (_: unknown, record: ConstructionSite) => (
               <Space>
-                <Button
-                  icon={<EditOutlined />}
-                  onClick={() => handleEdit(record)}
-                  size="small"
-                />
-                <Popconfirm
-                  title="Удалить объект?"
-                  onConfirm={() => handleDelete(record.id)}
-                >
+                <Button icon={<EditOutlined />} onClick={() => handleEdit(record)} size="small" />
+                <Popconfirm title="Удалить объект?" onConfirm={() => handleDelete(record.id)}>
                   <Button icon={<DeleteOutlined />} danger size="small" />
                 </Popconfirm>
               </Space>
@@ -116,7 +243,9 @@ const ConstructionSitesPage = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
       {isAdmin && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16, flexShrink: 0 }}>
+        <div
+          style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16, flexShrink: 0 }}
+        >
           <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
             Добавить
           </Button>
@@ -129,7 +258,7 @@ const ConstructionSitesPage = () => {
           dataSource={sites}
           rowKey="id"
           loading={isLoading}
-          scroll={{ x: 800, y: scrollY }}
+          scroll={{ x: canSeePayhub ? 1200 : 800, y: scrollY }}
           pagination={{
             defaultPageSize: 20,
             showSizeChanger: true,

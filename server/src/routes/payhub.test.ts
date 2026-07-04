@@ -174,3 +174,154 @@ describe('GET /api/payhub/status', () => {
     expect(body.error.code).toBe('network_error');
   });
 });
+
+/** JSON-ответ PayHub с заданным телом и статусом */
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+describe('GET /api/payhub/projects', () => {
+  let savedMode: string | undefined;
+
+  beforeAll(() => {
+    savedMode = process.env.AUTH_MODE;
+    process.env.AUTH_MODE = 'standalone';
+  });
+  afterAll(() => {
+    if (savedMode === undefined) delete process.env.AUTH_MODE;
+    else process.env.AUTH_MODE = savedMode;
+  });
+  beforeEach(() => {
+    _clearUserCache();
+  });
+
+  it('без авторизации -> 401', async () => {
+    const app = await buildApp(null);
+    const res = await app.inject({ method: 'GET', url: '/api/payhub/projects' });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('не-admin -> 403', async () => {
+    const app = await buildApp(null);
+    const token = await seedAndSign(app, { id: 'user-1', email: 'u@example.com', role: 'user' });
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/payhub/projects',
+      cookies: { access_token: token },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('интеграция не настроена -> configured:false, пустой список', async () => {
+    const app = await buildApp(null);
+    const token = await seedAndSign(app);
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/payhub/projects',
+      cookies: { access_token: token },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ configured: false, ok: false, projects: [] });
+  });
+
+  it('успех -> нормализованные проекты {id,code,name}', async () => {
+    const client = clientWithResponse(
+      jsonResponse({ projects: [{ id: 12, code: 'СУ10', name: 'Проект X', extra: 'скрыто' }] }),
+    );
+    const app = await buildApp(client);
+    const token = await seedAndSign(app);
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/payhub/projects',
+      cookies: { access_token: token },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({
+      configured: true,
+      ok: true,
+      projects: [{ id: 12, code: 'СУ10', name: 'Проект X' }],
+    });
+  });
+
+  it('PayHub возвращает 403 -> ok:false с кодом insufficient_scope', async () => {
+    const client = clientWithResponse(
+      jsonResponse({ error: { code: 'insufficient_scope', message: 'нет catalog:read' } }, 403),
+    );
+    const app = await buildApp(client);
+    const token = await seedAndSign(app);
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/payhub/projects',
+      cookies: { access_token: token },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body).toMatchObject({
+      configured: true,
+      ok: false,
+      projects: [],
+      error: { code: 'insufficient_scope', httpStatus: 403 },
+    });
+  });
+});
+
+describe('GET /api/payhub/contractors', () => {
+  let savedMode: string | undefined;
+
+  beforeAll(() => {
+    savedMode = process.env.AUTH_MODE;
+    process.env.AUTH_MODE = 'standalone';
+  });
+  afterAll(() => {
+    if (savedMode === undefined) delete process.env.AUTH_MODE;
+    else process.env.AUTH_MODE = savedMode;
+  });
+  beforeEach(() => {
+    _clearUserCache();
+  });
+
+  it('не-admin -> 403', async () => {
+    const app = await buildApp(null);
+    const token = await seedAndSign(app, { id: 'user-1', email: 'u@example.com', role: 'user' });
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/payhub/contractors',
+      cookies: { access_token: token },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('интеграция не настроена -> configured:false, пустой список', async () => {
+    const app = await buildApp(null);
+    const token = await seedAndSign(app);
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/payhub/contractors',
+      cookies: { access_token: token },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ configured: false, ok: false, contractors: [] });
+  });
+
+  it('успех -> нормализованные заказчики {id:string,name,inn}', async () => {
+    const client = clientWithResponse(
+      jsonResponse({ contractors: [{ id: 5, name: 'ООО Ромашка', inn: '7701234567' }] }),
+    );
+    const app = await buildApp(client);
+    const token = await seedAndSign(app);
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/payhub/contractors',
+      cookies: { access_token: token },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({
+      configured: true,
+      ok: true,
+      contractors: [{ id: '5', name: 'ООО Ромашка', inn: '7701234567' }],
+    });
+  });
+});
