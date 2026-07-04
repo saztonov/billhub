@@ -125,6 +125,19 @@ const ConstructionSitesPage = () => {
   }
 
   const columns = [
+    // Самый левый столбец «КОД» — код сопоставленного PayHub-проекта (снимок); только admin/user
+    ...(canSeePayhub
+      ? [
+          {
+            title: 'КОД',
+            dataIndex: 'payhubProjectCode',
+            key: 'payhubProjectCode',
+            width: 100,
+            fixed: 'left' as const,
+            render: (val: string | null | undefined) => val ?? '—',
+          },
+        ]
+      : []),
     {
       title: 'Наименование',
       dataIndex: 'name',
