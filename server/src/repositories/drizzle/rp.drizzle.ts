@@ -21,6 +21,7 @@ import {
   documentTypes,
 } from '../../db/schema/index.js';
 import { ValidationError, NotFoundError } from '../types.js';
+import type { RpLetterPayload } from '../../db/schema/rp.js';
 import type {
   RpRepository,
   RpRegistryRow,
@@ -32,6 +33,7 @@ import type {
   RpLetterSyncContext,
   RpLetterSyncStatus,
   RpLetterSyncedResult,
+  RpMutationContext,
 } from '../rp.repository.js';
 
 type Db = PostgresJsDatabase<typeof schema>;
@@ -80,6 +82,7 @@ export class DrizzleRpRepository implements RpRepository {
         payhubLetterUrl: rpLetters.payhubLetterUrl,
         payhubLetterStatus: rpLetters.payhubLetterStatus,
         payhubLetterError: rpLetters.payhubLetterError,
+        payhubLetterPayload: rpLetters.payhubLetterPayload,
       })
       .from(rpLetters)
       .innerJoin(suppliers, eq(suppliers.id, rpLetters.supplierId))
@@ -495,5 +498,95 @@ export class DrizzleRpRepository implements RpRepository {
       .from(rpLetters)
       .where(inArray(rpLetters.payhubLetterStatus, statuses));
     return rows.map((r) => r.id);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /*  Действия из реестра (удаление / аннулирование / редактирование)    */
+  /* ------------------------------------------------------------------ */
+
+  async getRpMutationContext(id: string): Promise<RpMutationContext | null> {
+    const [row] = await this.db
+      .select({
+        id: rpLetters.id,
+        status: rpLetters.status,
+        payhubLetterId: rpLetters.payhubLetterId,
+      })
+      .from(rpLetters)
+      .where(eq(rpLetters.id, id))
+      .limit(1);
+    if (!row) return null;
+
+    // Платёжный статус — из связанных заявок (как в listRegistry).
+    const reqs = await this.db
+      .select({
+        invoiceAmount: paymentRequests.invoiceAmount,
+        totalPaid: paymentRequests.totalPaid,
+      })
+      .from(rpLetterRequests)
+      .innerJoin(paymentRequests, eq(paymentRequests.id, rpLetterRequests.paymentRequestId))
+      .where(eq(rpLetterRequests.rpLetterId, id));
+
+    const atts = await this.db
+      .select({ fileKey: rpLetterAttachments.fileKey })
+      .from(rpLetterAttachments)
+      .where(eq(rpLetterAttachments.rpLetterId, id));
+
+    return {
+      id: row.id,
+      status: row.status,
+      paymentStatus: computePaymentStatus(reqs),
+      payhubLetterId: row.payhubLetterId,
+      attachmentFileKeys: atts.map((a) => a.fileKey),
+    };
+  }
+
+  async updateLetterText(
+    id: string,
+    letterDate: string | null,
+    payload: RpLetterPayload,
+  ): Promise<void> {
+    const res = await this.db
+      .update(rpLetters)
+      .set({ letterDate: letterDate ?? null, payhubLetterPayload: payload })
+      .where(eq(rpLetters.id, id))
+      .returning({ id: rpLetters.id });
+    if (res.length === 0) throw new NotFoundError('РП', id);
+  }
+
+  async annulRp(id: string): Promise<void> {
+    // Полная очистка полей письма PayHub и payload: строка перестаёт быть кандидатом
+    // sweep (payhub_letter_status = NULL) и syncRpLetter (пустой payload -> skipped).
+    const res = await this.db
+      .update(rpLetters)
+      .set({
+        status: 'annulled',
+        payhubLetterId: null,
+        payhubLetterRegNumber: null,
+        payhubLetterUrl: null,
+        payhubLetterStatus: null,
+        payhubLetterError: null,
+        payhubLetterPayload: null,
+        payhubLetterStatusUpdatedAt: sql`now()`,
+      })
+      .where(eq(rpLetters.id, id))
+      .returning({ id: rpLetters.id });
+    if (res.length === 0) throw new NotFoundError('РП', id);
+  }
+
+  async deleteRp(id: string): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .select({ id: rpLetters.id })
+        .from(rpLetters)
+        .where(eq(rpLetters.id, id))
+        .for('update')
+        .limit(1);
+      if (!row) throw new NotFoundError('РП', id);
+      // Явное удаление связей (не полагаемся на каскады во всех дочерних таблицах).
+      await tx.delete(rpLetterRequests).where(eq(rpLetterRequests.rpLetterId, id));
+      await tx.delete(rpLetterDocuments).where(eq(rpLetterDocuments.rpLetterId, id));
+      await tx.delete(rpLetterAttachments).where(eq(rpLetterAttachments.rpLetterId, id));
+      await tx.delete(rpLetters).where(eq(rpLetters.id, id));
+    });
   }
 }

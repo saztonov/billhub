@@ -31,6 +31,25 @@ export interface RpLetterAttachmentRef {
   sizeBytes?: number | null
 }
 
+/** Текстовые поля письма (для finalize со 2 этапа и правки из реестра). */
+export interface RpLetterTextBlock {
+  letterDate?: string | null
+  subject: string
+  content: string
+  responsiblePersonName: string | null
+}
+
+/** Ответ 1 этапа: sync — письмо создано (рег.номер + QR); async — конфигурация не готова. */
+export type RpStage1Response =
+  | {
+      mode: 'sync'
+      rp: RpLetter
+      regNumber: string | null
+      url: string | null
+      qrSvgDataUrl: string | null
+    }
+  | { mode: 'async'; rp: RpLetter; reason: string }
+
 interface RpStoreState {
   letters: RpLetter[]
   lettersLoading: boolean
@@ -41,11 +60,19 @@ interface RpStoreState {
   loadDocuments: (supplierId: string, counterpartyId: string, siteId: string) => Promise<void>
   clearDocuments: () => void
   createLetter: (payload: CreateRpPayload) => Promise<RpLetter | null>
+  /** 1 этап: создать РП и синхронно письмо PayHub (рег.номер + QR) либо async-fallback. */
+  createLetterStage1: (payload: CreateRpPayload) => Promise<RpStage1Response | null>
   updateStatus: (id: string, status: string) => Promise<boolean>
   /** Регистрация загруженных файлов письма за РП. */
   registerLetterAttachments: (rpLetterId: string, refs: RpLetterAttachmentRef[]) => Promise<void>
-  /** Поставить синхронизацию письма в очередь (finalize / ручной «Повторить»). */
-  finalizeLetter: (rpLetterId: string) => Promise<boolean>
+  /** Поставить синхронизацию письма в очередь (finalize; опц. актуальный текст со 2 этапа). */
+  finalizeLetter: (rpLetterId: string, letter?: RpLetterTextBlock) => Promise<boolean>
+  /** Удалить РП (и письмо в PayHub). Бросает ошибку при неудаче удаления письма. */
+  deleteRp: (id: string) => Promise<void>
+  /** Аннулировать РП (удалить письмо в PayHub). Бросает ошибку при неудаче. */
+  annulRp: (id: string) => Promise<void>
+  /** Правка текста письма из реестра (PATCH письма в PayHub). Бросает ошибку при неудаче. */
+  editLetterText: (id: string, letter: RpLetterTextBlock) => Promise<void>
 }
 
 export const useRpStore = create<RpStoreState>((set, get) => ({
@@ -108,6 +135,96 @@ export const useRpStore = create<RpStoreState>((set, get) => ({
     }
   },
 
+  createLetterStage1: async (payload) => {
+    try {
+      const res = await api.post<RpStage1Response>('/api/rp/letter-stage1', payload)
+      if (res?.rp) set({ letters: [res.rp, ...get().letters] })
+      return res ?? null
+    } catch (err) {
+      logError({
+        errorType: 'api_error',
+        errorMessage: err instanceof Error ? err.message : 'Ошибка создания письма (1 этап)',
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'createLetterStage1' },
+      })
+      throw err
+    }
+  },
+
+  deleteRp: async (id) => {
+    try {
+      await api.delete(`/api/rp/${id}`)
+      set({ letters: get().letters.filter((l) => l.id !== id) })
+    } catch (err) {
+      logError({
+        errorType: 'api_error',
+        errorMessage: err instanceof Error ? err.message : 'Ошибка удаления РП',
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'deleteRp', id },
+      })
+      throw err
+    }
+  },
+
+  annulRp: async (id) => {
+    try {
+      await api.post(`/api/rp/${id}/annul`)
+      set({
+        letters: get().letters.map((l) =>
+          l.id === id
+            ? {
+                ...l,
+                status: 'annulled',
+                payhubLetterId: null,
+                payhubLetterRegNumber: null,
+                payhubLetterUrl: null,
+                payhubLetterStatus: null,
+                payhubLetterError: null,
+                payhubLetterPayload: null,
+              }
+            : l,
+        ),
+      })
+    } catch (err) {
+      logError({
+        errorType: 'api_error',
+        errorMessage: err instanceof Error ? err.message : 'Ошибка аннулирования РП',
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'annulRp', id },
+      })
+      throw err
+    }
+  },
+
+  editLetterText: async (id, letter) => {
+    try {
+      await api.patch(`/api/rp/${id}/letter-text`, letter)
+      set({
+        letters: get().letters.map((l) =>
+          l.id === id
+            ? {
+                ...l,
+                letterDate: letter.letterDate ?? null,
+                payhubLetterPayload: {
+                  subject: letter.subject,
+                  content: letter.content,
+                  responsiblePersonName: letter.responsiblePersonName,
+                },
+              }
+            : l,
+        ),
+      })
+    } catch (err) {
+      logError({
+        errorType: 'api_error',
+        errorMessage: err instanceof Error ? err.message : 'Ошибка редактирования письма',
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'editLetterText', id },
+      })
+      throw err
+    }
+  },
+
   registerLetterAttachments: async (rpLetterId, refs) => {
     try {
       await api.post(`/api/rp/${rpLetterId}/letter/attachments`, { attachments: refs })
@@ -122,9 +239,9 @@ export const useRpStore = create<RpStoreState>((set, get) => ({
     }
   },
 
-  finalizeLetter: async (rpLetterId) => {
+  finalizeLetter: async (rpLetterId, letter) => {
     try {
-      await api.post(`/api/rp/${rpLetterId}/letter/finalize`)
+      await api.post(`/api/rp/${rpLetterId}/letter/finalize`, letter ? { letter } : undefined)
       // Локально переводим письмо в pending — реестр покажет «создаётся…» без refetch.
       set({
         letters: get().letters.map((l) =>

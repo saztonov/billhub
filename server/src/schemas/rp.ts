@@ -46,6 +46,27 @@ export const rpLetterAttachmentsBodySchema = z.object({
     .max(20),
 });
 
+/** Текстовые поля письма (finalize с текстом и редактирование из реестра). */
+export const rpLetterTextSchema = z.object({
+  letterDate: z.string().nullish(),
+  subject: z.string().min(1).max(500),
+  content: z.string().max(4000).default(''),
+  responsiblePersonName: z.string().max(200).nullish(),
+});
+
+/** 1 этап модалки: создать РП и синхронно письмо PayHub (letter обязателен). */
+export const rpStage1BodySchema = createRpBodySchema.extend({
+  letter: rpLetterBlockSchema,
+});
+
+/** finalize: опциональный актуальный текст письма (PATCH PayHub перед постановкой в очередь). */
+export const finalizeLetterBodySchema = z.object({
+  letter: rpLetterTextSchema.optional(),
+});
+
+/** Редактирование текста письма из реестра. */
+export const editLetterTextBodySchema = rpLetterTextSchema;
+
 export const rpIdParamsSchema = z.object({ id: z.string().uuid() });
 
 export const updateRpStatusBodySchema = z.object({

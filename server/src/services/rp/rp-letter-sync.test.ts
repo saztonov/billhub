@@ -4,7 +4,12 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Logger } from 'pino';
-import { syncRpLetter, validateShareUrl, rpLetterExternalRef } from './rp-letter-sync.js';
+import {
+  syncRpLetter,
+  createRpLetterStage1,
+  validateShareUrl,
+  rpLetterExternalRef,
+} from './rp-letter-sync.js';
 import type { RpLetterSyncDeps, RpLetterSyncRepo } from './rp-letter-sync.js';
 import { PayHubApiError } from '../payhub/payhub-errors.js';
 import type { PayHubClient } from '../payhub/payhub-client.js';
@@ -454,6 +459,67 @@ describe('syncRpLetter — ошибки и пропуски', () => {
       expect(outcome).toBe('skipped');
       expect(payhub.createLetter).not.toHaveBeenCalled();
     }
+  });
+});
+
+describe('createRpLetterStage1 — синхронное создание письма (1 этап)', () => {
+  it('sync: создаёт письмо, привязывает и возвращает рег.номер + QR', async () => {
+    const repo = makeRepo(makeCtx({ payhubLetterStatus: 'uploading' }));
+    const payhub = makePayhub({
+      createLetter: vi.fn().mockResolvedValue({
+        letter: { id: 'L-1', reg_number: 'SU10-ИСХ-2607-0001' },
+        share: {
+          share_url: `${BASE_URL}/letter-share/abc`,
+          qr_svg_data_url: 'data:image/svg+xml;base64,QR',
+        },
+      }),
+    });
+    const res = await createRpLetterStage1(makeDeps(repo, payhub), RP_ID);
+
+    expect(res.mode).toBe('sync');
+    if (res.mode === 'sync') {
+      expect(res.payhubLetterId).toBe('L-1');
+      expect(res.regNumber).toBe('SU10-ИСХ-2607-0001');
+      expect(res.url).toBe(`${BASE_URL}/letter-share/abc`);
+      expect(res.qrSvgDataUrl).toBe('data:image/svg+xml;base64,QR');
+    }
+    expect(repo.linked?.payhubLetterId).toBe('L-1');
+  });
+
+  it('async_fallback: интеграция не настроена (payhub=null) — без создания и привязки', async () => {
+    const repo = makeRepo(makeCtx());
+    const res = await createRpLetterStage1(makeDeps(repo, null), RP_ID);
+    expect(res.mode).toBe('async_fallback');
+    expect(repo.linked).toBeNull();
+  });
+
+  it('async_fallback: отправитель не настроен', async () => {
+    const repo = makeRepo(makeCtx());
+    const payhub = makePayhub();
+    const res = await createRpLetterStage1(
+      makeDeps(repo, payhub, { getSender: async () => null }),
+      RP_ID,
+    );
+    expect(res.mode).toBe('async_fallback');
+    expect(payhub.createLetter).not.toHaveBeenCalled();
+  });
+
+  it('сбой привязки: удаляет осиротевшее письмо в PayHub и пробрасывает', async () => {
+    const repo = makeRepo(makeCtx());
+    repo.setLetterLinked = vi.fn().mockRejectedValue(new Error('db down'));
+    const deleteLetter = vi.fn().mockResolvedValue(undefined);
+    const payhub = makePayhub({ deleteLetter });
+    await expect(createRpLetterStage1(makeDeps(repo, payhub), RP_ID)).rejects.toThrow('db down');
+    expect(deleteLetter).toHaveBeenCalledWith('L-1');
+  });
+
+  it('временная ошибка PayHub (500) пробрасывается (роут откатит РП)', async () => {
+    const repo = makeRepo(makeCtx());
+    const payhub = makePayhub({
+      createLetter: vi.fn().mockRejectedValue(new PayHubApiError(500, 'unknown', 'внутренняя')),
+    });
+    await expect(createRpLetterStage1(makeDeps(repo, payhub), RP_ID)).rejects.toThrow('внутренняя');
+    expect(repo.linked).toBeNull();
   });
 });
 

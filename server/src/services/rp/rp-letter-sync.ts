@@ -336,6 +336,76 @@ async function syncAttachments(
 }
 
 /**
+ * Результат синхронного создания письма (1 этап модалки).
+ * sync — письмо создано в PayHub, есть рег.номер и QR; async_fallback — конфигурация
+ * не готова (интеграция/отправитель/сопоставление), письмо будет синхронизировано позже.
+ */
+export type RpLetterStage1Result =
+  | {
+      mode: 'sync';
+      payhubLetterId: string;
+      regNumber: string | null;
+      url: string | null;
+      qrSvgDataUrl: string | null;
+    }
+  | { mode: 'async_fallback'; reason: string };
+
+/**
+ * Синхронное создание письма PayHub для 1 этапа модалки: переиспользует
+ * resolveConfig/ensureLetter (создание + share). При готовой конфигурации создаёт
+ * письмо, привязывает его к РП (setLetterLinked, статус не меняется — остаётся
+ * uploading) и возвращает рег.номер + QR. При неготовой конфигурации возвращает
+ * async_fallback (WaitingConfigError), НЕ бросая исключение — вызывающий роут
+ * доводит РП старым асинхронным путём. Прочие ошибки пробрасываются (роут откатит РП).
+ */
+export async function createRpLetterStage1(
+  deps: RpLetterSyncDeps,
+  rpLetterId: string,
+): Promise<RpLetterStage1Result> {
+  const ctx = await deps.repo.getLetterSyncContext(rpLetterId);
+  if (!ctx) throw new Error(`RP-письмо: РП ${rpLetterId} не найдена при создании письма`);
+  if (!ctx.payload) throw new Error(`RP-письмо: у РП ${rpLetterId} нет снимка формы письма`);
+
+  try {
+    const cfg = await resolveConfig(deps, ctx);
+    const { letter, share } = await ensureLetter(deps, ctx, cfg);
+    const shareUrl = validateShareUrl(share?.share_url, cfg.payhub.baseUrl);
+    const linked = {
+      payhubLetterId: letter.id,
+      payhubLetterRegNumber: letter.reg_number ?? null,
+      payhubLetterUrl: shareUrl ?? ctx.payhubLetterUrl,
+    };
+    try {
+      await deps.repo.setLetterLinked(rpLetterId, linked);
+    } catch (linkErr) {
+      // Привязка не удалась — иначе письмо осиротело бы в PayHub. Удаляем его (best-effort)
+      // и пробрасываем ошибку: роут откатит локальную РП.
+      await cfg.payhub
+        .deleteLetter(letter.id)
+        .catch((delErr) =>
+          deps.log.error(
+            { err: delErr, payhubLetterId: letter.id },
+            'RP-письмо: не удалось удалить осиротевшее письмо после сбоя привязки',
+          ),
+        );
+      throw linkErr;
+    }
+    return {
+      mode: 'sync',
+      payhubLetterId: letter.id,
+      regNumber: linked.payhubLetterRegNumber,
+      url: linked.payhubLetterUrl,
+      qrSvgDataUrl: share?.qr_svg_data_url ?? null,
+    };
+  } catch (error) {
+    if (error instanceof WaitingConfigError) {
+      return { mode: 'async_fallback', reason: error.message };
+    }
+    throw error;
+  }
+}
+
+/**
  * Синхронизация одного письма РП. Возвращает исход; бросает исключение только
  * при временных ошибках (для ретрая BullMQ).
  */

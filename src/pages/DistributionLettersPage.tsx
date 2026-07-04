@@ -17,15 +17,16 @@ import ViewRequestModal from '@/components/paymentRequests/ViewRequestModal'
 import RpRegistryTable from '@/components/rp/RpRegistryTable'
 import CreateRpModal from '@/components/rp/CreateRpModal'
 import CreateRpLetterModal from '@/components/rp/CreateRpLetterModal'
+import EditRpLetterModal from '@/components/rp/EditRpLetterModal'
 import { useRpLetterFiltering } from '@/hooks/useRpLetterFiltering'
 import type { RpCombo } from '@/components/rp/CreateRpModal'
 import type { FilterValues } from '@/components/paymentRequests/RequestFilters'
-import type { PaymentRequest, RpDocumentRef } from '@/types'
+import type { PaymentRequest, RpDocumentRef, RpLetter } from '@/types'
 
 const comboKey = (r: PaymentRequest) => `${r.supplierId ?? ''}|${r.counterpartyId}|${r.siteId}`
 
 const DistributionLettersPage = () => {
-  const { message } = App.useApp()
+  const { message, modal } = App.useApp()
   const isMobile = useIsMobile()
   const setHeader = useHeaderStore((s) => s.setHeader)
 
@@ -45,6 +46,8 @@ const DistributionLettersPage = () => {
   // Шаг 2 создания: форма письма PayHub (документы — снимок из шага 1)
   const [letterOpen, setLetterOpen] = useState(false)
   const [letterDocs, setLetterDocs] = useState<RpDocumentRef[]>([])
+  // Редактирование текста письма из реестра
+  const [editLetter, setEditLetter] = useState<RpLetter | null>(null)
 
   useEffect(() => {
     setHeader('Распред.письма')
@@ -54,8 +57,9 @@ const DistributionLettersPage = () => {
   const letters = useRpStore((s) => s.letters)
   const lettersLoading = useRpStore((s) => s.lettersLoading)
   const loadRegistry = useRpStore((s) => s.loadRegistry)
-  const updateStatus = useRpStore((s) => s.updateStatus)
   const finalizeLetter = useRpStore((s) => s.finalizeLetter)
+  const deleteRp = useRpStore((s) => s.deleteRp)
+  const annulRp = useRpStore((s) => s.annulRp)
 
   useEffect(() => {
     loadRegistry()
@@ -270,6 +274,48 @@ const DistributionLettersPage = () => {
     else message.error('Не удалось отправить письмо в обработку')
   }
 
+  // Аннулирование РП (удаляет письмо в PayHub, статус -> «Аннулировано»).
+  const handleAnnulRp = (letter: RpLetter) => {
+    modal.confirm({
+      title: 'Аннулировать РП?',
+      content: letter.payhubLetterId
+        ? 'Письмо в PayHub будет удалено, статус станет «Аннулировано».'
+        : 'Статус станет «Аннулировано».',
+      okText: 'Аннулировать',
+      okButtonProps: { danger: true },
+      cancelText: 'Отмена',
+      onOk: async () => {
+        try {
+          await annulRp(letter.id)
+          message.success('РП аннулирована')
+        } catch (err) {
+          message.error(err instanceof Error ? err.message : 'Не удалось аннулировать РП')
+        }
+      },
+    })
+  }
+
+  // Удаление РП (удаляет письмо в PayHub и запись РП).
+  const handleDeleteRp = (letter: RpLetter) => {
+    modal.confirm({
+      title: 'Удалить РП?',
+      content: letter.payhubLetterId
+        ? 'Письмо в PayHub тоже будет удалено. Действие необратимо.'
+        : 'Действие необратимо.',
+      okText: 'Удалить',
+      okButtonProps: { danger: true },
+      cancelText: 'Отмена',
+      onOk: async () => {
+        try {
+          await deleteRp(letter.id)
+          message.success('РП удалена')
+        } catch (err) {
+          message.error(err instanceof Error ? err.message : 'Не удалось удалить РП')
+        }
+      },
+    })
+  }
+
   // Фильтрация реестра тем же блоком фильтров (см. useRpLetterFiltering).
   const filteredLetters = useRpLetterFiltering(letters, filters, user?.id)
 
@@ -296,11 +342,10 @@ const DistributionLettersPage = () => {
           letters={filteredLetters}
           isLoading={lettersLoading}
           onOpenRequest={openRequestById}
-          onStatusChange={async (id, status) => {
-            const ok = await updateStatus(id, status)
-            if (!ok) message.error('Не удалось изменить статус РП')
-          }}
           onRetryLetter={retryLetter}
+          onEdit={setEditLetter}
+          onAnnul={handleAnnulRp}
+          onDelete={handleDeleteRp}
         />
       ),
     },
@@ -483,6 +528,13 @@ const DistributionLettersPage = () => {
         site={comboSite}
         onClose={() => setLetterOpen(false)}
         onCreated={onCreated}
+      />
+
+      <EditRpLetterModal
+        open={!!editLetter}
+        letter={editLetter}
+        onClose={() => setEditLetter(null)}
+        onSaved={() => setRefreshTrigger((n) => n + 1)}
       />
     </div>
   )

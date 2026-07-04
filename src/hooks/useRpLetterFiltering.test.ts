@@ -30,6 +30,7 @@ function letter(overrides: Partial<RpLetter>): RpLetter {
     payhubLetterUrl: null,
     payhubLetterStatus: null,
     payhubLetterError: null,
+    payhubLetterPayload: null,
     ...overrides,
   }
 }

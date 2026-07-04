@@ -153,6 +153,15 @@ export class PayHubClient {
     return unwrapLetter(payload);
   }
 
+  /**
+   * Удаление СВОЕГО письма и его вложений (scope letters:write).
+   * 204 — успех; 404 not_found — письма нет (для cleanup трактуется как «уже удалено»);
+   * 403 not_owner — чужое письмо. Мутация: транспорт не повторяет запрос.
+   */
+  async deleteLetter(id: string): Promise<void> {
+    await this.http.request<void>('DELETE', `/letters/${encodeURIComponent(id)}`);
+  }
+
   /** Ссылка + QR по id письма, идемпотентно (scope letters:share) */
   async shareLetter(id: string): Promise<PayHubShare> {
     const payload = await this.http.request<Record<string, unknown>>(

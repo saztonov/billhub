@@ -47,6 +47,8 @@ export interface RpRegistryRow {
   payhubLetterUrl: string | null;
   payhubLetterStatus: RpLetterSyncStatus | null;
   payhubLetterError: string | null;
+  /** Снимок полей письма (для префилла редактирования из реестра). */
+  payhubLetterPayload: RpLetterPayload | null;
 }
 
 /** Документ договора для модалки создания РП. */
@@ -144,6 +146,19 @@ export interface RpLetterSyncedResult {
   payhubLetterUrl: string | null;
 }
 
+/** Контекст для действий из реестра (удаление/аннулирование/редактирование). */
+export interface RpMutationContext {
+  id: string;
+  /** Локальный статус РП (draft/annulled/...). */
+  status: string;
+  /** Платёжный статус, вычисленный из связанных заявок. */
+  paymentStatus: RpPaymentStatus;
+  /** id письма PayHub (для удаления письма перед изменением РП). */
+  payhubLetterId: string | null;
+  /** Ключи файлов вложений в billhub S3 (для best-effort очистки при удалении). */
+  attachmentFileKeys: string[];
+}
+
 export interface RpRepository {
   /** Реестр РП; siteIds=null => все объекты (admin/allSites), иначе фильтр по объектам. */
   listRegistry(siteIds: string[] | null): Promise<RpRegistryRow[]>;
@@ -187,4 +202,18 @@ export interface RpRepository {
   setAttachmentPayhubId(attachmentId: string, payhubAttachmentId: string): Promise<void>;
   /** id РП со статусами pending/waiting_config для sweep-задачи (переустановка в очередь). */
   listLetterSyncCandidates(statuses: RpLetterSyncStatus[]): Promise<string[]>;
+
+  /* ---------- Действия из реестра ---------- */
+
+  /** Контекст РП для действий из реестра (статус, платёж, id письма, ключи вложений). */
+  getRpMutationContext(id: string): Promise<RpMutationContext | null>;
+  /** Обновить текст письма (дата + снимок формы) без обращения к PayHub. */
+  updateLetterText(id: string, letterDate: string | null, payload: RpLetterPayload): Promise<void>;
+  /**
+   * Аннулировать РП: статус annulled + очистка всех полей письма PayHub и payload
+   * (чтобы sweep не пересоздал письмо). Письмо в PayHub удаляет вызывающий роут ДО этого.
+   */
+  annulRp(id: string): Promise<void>;
+  /** Удалить РП со всеми связями (заявки/документы/вложения) в транзакции. */
+  deleteRp(id: string): Promise<void>;
 }

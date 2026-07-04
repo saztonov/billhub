@@ -742,6 +742,13 @@ export interface RpRequestRef {
 /** Статус синхронизации письма PayHub (null — письмо не запрашивалось, старые РП). */
 export type RpLetterSyncStatus = 'uploading' | 'pending' | 'waiting_config' | 'synced' | 'failed'
 
+/** Снимок текстовых полей письма PayHub (для префилла редактирования). */
+export interface RpLetterPayload {
+  subject: string
+  content: string
+  responsiblePersonName: string | null
+}
+
 /** Строка реестра РП. */
 export interface RpLetter {
   id: string
@@ -768,6 +775,8 @@ export interface RpLetter {
   payhubLetterUrl: string | null
   payhubLetterStatus: RpLetterSyncStatus | null
   payhubLetterError: string | null
+  /** Снимок текста письма (для префилла редактирования из реестра). */
+  payhubLetterPayload: RpLetterPayload | null
 }
 
 /** Документ договора для модалки создания РП. */

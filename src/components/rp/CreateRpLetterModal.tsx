@@ -10,6 +10,8 @@ import {
   Typography,
   Alert,
   List,
+  Image,
+  Space,
   App,
 } from 'antd'
 import {
@@ -18,6 +20,9 @@ import {
   CloseCircleTwoTone,
   LoadingOutlined,
   PaperClipOutlined,
+  DeleteOutlined,
+  EyeOutlined,
+  DownloadOutlined,
 } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import { useRpStore } from '@/store/rpStore'
@@ -26,6 +31,7 @@ import { api } from '@/services/api'
 import { uploadRpLetterFile } from '@/services/s3'
 import { logError } from '@/services/errorLogger'
 import { buildRpLetterContent } from '@/components/rp/rpLetterContent'
+import { svgDataUrlToPngDataUrl, downloadDataUrl } from '@/utils/qrToPng'
 import type { RpCombo } from '@/components/rp/CreateRpModal'
 import type { RpLetterAttachmentRef } from '@/store/rpStore'
 import type { ConstructionSite, PaymentRequest, RpDocumentRef, RpLetter } from '@/types'
@@ -70,10 +76,11 @@ interface CreateRpLetterModalProps {
 }
 
 /**
- * Модалка создания РП, шаг 2: форма письма PayHub (по образцу формы письма PayHub).
- * Автозаполнение: исходящее, проект/получатель — из объекта, отправитель — из настройки,
- * дата — сегодня, тема «РП», содержание — сумма/поставщик/описания, ответственный — ФИО.
- * Редактируются только текстовые поля и файлы; участники и проект фиксированы.
+ * Модалка создания РП, шаг 2: форма письма PayHub. Два этапа:
+ *   1 этап — синхронно создаётся письмо в PayHub, возвращаются рег.номер и QR (PNG);
+ *   2 этап — к письму догружаются приложенные файлы и (при правке) перезаписывается текст.
+ * Между этапами отмена/крестик удаляют черновое письмо в PayHub. Если PayHub не готов —
+ * 1 этап откатывается на старый асинхронный путь (без QR).
  */
 const CreateRpLetterModal = ({
   open,
@@ -88,9 +95,10 @@ const CreateRpLetterModal = ({
   const { message, modal } = App.useApp()
   const [form] = Form.useForm<LetterFormValues>()
   const fullName = useAuthStore((s) => s.user?.fullName)
-  const createLetter = useRpStore((s) => s.createLetter)
+  const createLetterStage1 = useRpStore((s) => s.createLetterStage1)
   const registerLetterAttachments = useRpStore((s) => s.registerLetterAttachments)
   const finalizeLetter = useRpStore((s) => s.finalizeLetter)
+  const deleteRp = useRpStore((s) => s.deleteRp)
 
   const [sender, setSender] = useState<RpSender | null>(null)
   /** Состояние загрузки настройки отправителя: сбой сети != «не настроен» */
@@ -98,8 +106,13 @@ const CreateRpLetterModal = ({
   const [files, setFiles] = useState<File[]>([])
   const [fileStates, setFileStates] = useState<FileState[]>([])
   const [submitting, setSubmitting] = useState(false)
-  /** РП уже создана (id) — дальше идёт этап файлов/finalize */
+  /** РП с созданным письмом PayHub (1 этап sync) — дальше идёт 2 этап */
   const [createdRp, setCreatedRp] = useState<RpLetter | null>(null)
+  /** Рег.номер письма PayHub (после 1 этапа) */
+  const [regNumber, setRegNumber] = useState<string | null>(null)
+  /** QR письма: PNG (для показа/скачивания) и исходный SVG (фолбэк) */
+  const [qrPng, setQrPng] = useState<string | null>(null)
+  const [qrSvg, setQrSvg] = useState<string | null>(null)
   /** Успешно загруженные, но ещё не зарегистрированные за РП файлы */
   const [uploadedRefs, setUploadedRefs] = useState<RpLetterAttachmentRef[]>([])
   /** Файлы уже зарегистрированы (защита от дублей при повторе finalize) */
@@ -115,6 +128,9 @@ const CreateRpLetterModal = ({
     setFiles([])
     setFileStates([])
     setCreatedRp(null)
+    setRegNumber(null)
+    setQrPng(null)
+    setQrSvg(null)
     setSubmitting(false)
     setUploadedRefs([])
     setRegistered(false)
@@ -168,12 +184,49 @@ const CreateRpLetterModal = ({
       next.push(f)
     }
     setFiles(next)
-    setFileStates(next.map(() => 'pending'))
+    setFileStates(next.map((_, i) => fileStates[i] ?? 'pending'))
   }
 
   const removeFile = (index: number) => {
     setFiles(files.filter((_, i) => i !== index))
     setFileStates(fileStates.filter((_, i) => i !== index))
+  }
+
+  /** Просмотр локального (ещё не загруженного) файла в новой вкладке. */
+  const previewFile = (file: File) => {
+    const url = URL.createObjectURL(file)
+    window.open(url, '_blank', 'noopener,noreferrer')
+    setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  }
+
+  const collectValues = async (): Promise<LetterFormValues | null> => {
+    try {
+      return await form.validateFields()
+    } catch {
+      return null
+    }
+  }
+
+  /** Готовит QR: сначала PNG (canvas), при сбое — исходный SVG. */
+  const prepareQr = async (svgDataUrl: string | null) => {
+    setQrSvg(svgDataUrl)
+    setQrPng(null)
+    if (!svgDataUrl) return
+    try {
+      setQrPng(await svgDataUrlToPngDataUrl(svgDataUrl))
+    } catch (err) {
+      logError({
+        errorType: 'js_error',
+        errorMessage: err instanceof Error ? err.message : 'Не удалось конвертировать QR в PNG',
+        component: 'CreateRpLetterModal',
+      })
+    }
+  }
+
+  const handleDownloadQr = () => {
+    const base = regNumber ? `QR_${regNumber}` : 'QR_письмо'
+    if (qrPng) downloadDataUrl(qrPng, `${base}.png`)
+    else if (qrSvg) downloadDataUrl(qrSvg, `${base}.svg`)
   }
 
   /** Последовательная загрузка файлов (пропускает уже загруженные при повторе). */
@@ -184,7 +237,6 @@ const CreateRpLetterModal = ({
     const refs: RpLetterAttachmentRef[] = []
     for (let i = 0; i < files.length; i++) {
       if (states[i] === 'done') continue
-      // Прервано закрытием модалки — оставшиеся файлы помечаем ошибкой и выходим.
       if (abortedRef.current) {
         states[i] = 'error'
         setFileStates([...states])
@@ -215,72 +267,108 @@ const CreateRpLetterModal = ({
     return refs
   }
 
-  /** Завершение: регистрация загруженных файлов + постановка письма в очередь. */
-  const finishLetter = async (rp: RpLetter, refs: RpLetterAttachmentRef[], suffix = '') => {
-    if (!registered && refs.length > 0) {
-      await registerLetterAttachments(rp.id, refs)
-      setRegistered(true)
-      setUploadedRefs([])
+  /** Текст письма из формы для finalize/PATCH. */
+  const letterTextFrom = (values: LetterFormValues) => ({
+    letterDate: values.letterDate.format('YYYY-MM-DD'),
+    subject: values.subject.trim(),
+    content: values.content.trim(),
+    responsiblePersonName: values.responsiblePersonName.trim() || null,
+  })
+
+  /** 1 этап: создать РП и синхронно письмо PayHub (или откат на async). */
+  const handleStage1 = async () => {
+    if (!combo) return
+    const values = await collectValues()
+    if (!values) return
+    setSubmitting(true)
+    try {
+      const res = await createLetterStage1({
+        supplierId: combo.supplierId,
+        counterpartyId: combo.counterpartyId,
+        siteId: combo.siteId,
+        paymentRequestIds: requestIds,
+        documents,
+        letterDate: values.letterDate.format('YYYY-MM-DD'),
+        letter: {
+          subject: values.subject.trim(),
+          content: values.content.trim(),
+          responsiblePersonName: values.responsiblePersonName.trim() || null,
+          hasAttachments: files.length > 0,
+        },
+      })
+      if (!res) return
+      if (res.mode === 'sync') {
+        setCreatedRp(res.rp)
+        setRegNumber(res.regNumber)
+        await prepareQr(res.qrSvgDataUrl)
+        message.success(
+          `Письмо создано${res.regNumber ? `: ${res.regNumber}` : ''}. Приложите файлы и завершите (2 этап).`,
+        )
+      } else {
+        message.warning(
+          'PayHub недоступен: QR недоступен, письмо синхронизируется автоматически позже.',
+        )
+        await completeAsyncFallback(res.rp)
+      }
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : 'Ошибка создания письма')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  /** async-fallback: письмо PayHub не создано — довершаем старым путём (файлы + finalize). */
+  const completeAsyncFallback = async (rp: RpLetter) => {
+    abortedRef.current = false
+    if (files.length > 0) {
+      const states = [...fileStates]
+      const newRefs = await uploadFiles(rp.id, states)
+      if (newRefs.length > 0) await registerLetterAttachments(rp.id, newRefs)
     }
     const ok = await finalizeLetter(rp.id)
-    if (!ok) {
-      message.error('Не удалось отправить письмо в обработку — повторите из реестра РП')
-    } else {
-      message.success(`РП создана, письмо отправлено в обработку${suffix}`)
-    }
+    if (!ok) message.error('Не удалось отправить письмо в обработку — повторите из реестра РП')
+    else message.success('РП создана, письмо синхронизируется автоматически')
     onCreated()
   }
 
-  const handleSubmit = async () => {
-    if (!combo) return
-    let values: LetterFormValues
-    try {
-      values = await form.validateFields()
-    } catch {
+  /** 2 этап: загрузка файлов + перезапись текста + постановка в очередь. */
+  const finishStage2 = async (
+    rp: RpLetter,
+    values: LetterFormValues,
+    refs: RpLetterAttachmentRef[],
+    suffix = '',
+  ) => {
+    if (!registered && refs.length > 0) {
+      await registerLetterAttachments(rp.id, refs)
+      setRegistered(true)
+    }
+    const ok = await finalizeLetter(rp.id, letterTextFrom(values))
+    if (!ok) {
+      message.error('Не удалось завершить — повторите из реестра РП')
       return
     }
+    message.success(`РП создана, файлы догружаются в письмо${suffix}`)
+    onCreated()
+  }
+
+  const handleStage2 = async () => {
+    if (!createdRp) return
+    const values = await collectValues()
+    if (!values) return
     setSubmitting(true)
     abortedRef.current = false
     try {
-      // Шаг 1: создание РП (письмо — снимком, синхронизация асинхронная).
-      let rp = createdRp
-      if (!rp) {
-        rp = await createLetter({
-          supplierId: combo.supplierId,
-          counterpartyId: combo.counterpartyId,
-          siteId: combo.siteId,
-          paymentRequestIds: requestIds,
-          documents,
-          letterDate: values.letterDate.format('YYYY-MM-DD'),
-          letter: {
-            subject: values.subject.trim(),
-            content: values.content.trim(),
-            responsiblePersonName: values.responsiblePersonName.trim() || null,
-            hasAttachments: files.length > 0,
-          },
-        })
-        if (!rp) return
-        setCreatedRp(rp)
-      }
-
-      // Шаг 2: файлы (если есть) + finalize.
-      if (files.length === 0) {
-        // hasAttachments=false — задача синхронизации поставлена сервером при создании
-        message.success('РП создана, письмо отправлено в обработку')
-        onCreated()
-        return
-      }
       const states = [...fileStates]
-      const newRefs = await uploadFiles(rp.id, states)
+      const newRefs = files.length > 0 ? await uploadFiles(createdRp.id, states) : []
       const allRefs = [...uploadedRefs, ...newRefs]
       setUploadedRefs(allRefs)
       if (states.some((s) => s === 'error')) {
         message.warning('Часть файлов не загрузилась — повторите или отправьте без них')
         return
       }
-      await finishLetter(rp, allRefs)
+      await finishStage2(createdRp, values, allRefs)
     } catch (err) {
-      message.error(err instanceof Error ? err.message : 'Ошибка создания РП')
+      message.error(err instanceof Error ? err.message : 'Ошибка завершения РП')
     } finally {
       setSubmitting(false)
     }
@@ -289,9 +377,11 @@ const CreateRpLetterModal = ({
   /** «Отправить без недогруженных файлов»: регистрируются только успешно загруженные. */
   const handleFinishWithoutFailed = async () => {
     if (!createdRp) return
+    const values = await collectValues()
+    if (!values) return
     setSubmitting(true)
     try {
-      await finishLetter(createdRp, uploadedRefs, ' (без недогруженных файлов)')
+      await finishStage2(createdRp, values, uploadedRefs, ' (без недогруженных файлов)')
     } catch (err) {
       message.error(err instanceof Error ? err.message : 'Ошибка отправки письма')
     } finally {
@@ -300,30 +390,38 @@ const CreateRpLetterModal = ({
   }
 
   const handleClose = () => {
-    // Во время загрузки — предложить прервать (между файлами), не запирать пользователя.
     if (submitting) {
       modal.confirm({
         title: 'Прервать загрузку файлов?',
         content:
-          'Недогруженные файлы не будут приложены к письму. РП уже создана — письмо можно отправить кнопкой в реестре РП.',
+          'Недогруженные файлы не будут приложены. Письмо уже создано — завершить или удалить его можно в реестре РП.',
         okText: 'Прервать',
         okButtonProps: { danger: true },
         cancelText: 'Продолжить',
         onOk: () => {
           abortedRef.current = true
-          if (createdRp) onCreated()
-          else onClose()
         },
       })
       return
     }
+    // Письмо PayHub создано (1 этап), но 2 этап не завершён — удаляем письмо и черновик РП.
     if (createdRp) {
       modal.confirm({
-        title: 'РП уже создана',
-        content: 'Письмо ещё не отправлено в обработку. Отправить его можно кнопкой в реестре РП.',
-        okText: 'Закрыть',
-        cancelText: 'Остаться',
-        onOk: () => onCreated(),
+        title: 'Отменить создание РП?',
+        content: 'Письмо в PayHub будет удалено, черновик РП — тоже.',
+        okText: 'Удалить',
+        okButtonProps: { danger: true },
+        cancelText: 'Не отменять',
+        onOk: async () => {
+          try {
+            await deleteRp(createdRp.id)
+            onClose()
+          } catch (err) {
+            message.error(
+              err instanceof Error ? err.message : 'Не удалось удалить письмо в PayHub — повторите',
+            )
+          }
+        },
       })
       return
     }
@@ -345,6 +443,8 @@ const CreateRpLetterModal = ({
       title="Создание РП — письмо PayHub"
       width={680}
       centered
+      maskClosable={false}
+      keyboard={false}
       style={{ maxHeight: '90vh' }}
       styles={{ body: { maxHeight: 'calc(90vh - 110px)', overflowY: 'auto' } }}
       onCancel={handleClose}
@@ -357,29 +457,34 @@ const CreateRpLetterModal = ({
             Отправить без недогруженных
           </Button>
         ) : null,
-        <Button key="create" type="primary" loading={submitting} onClick={handleSubmit}>
-          {createdRp ? 'Повторить' : `Создать (${requestIds.length})`}
+        <Button
+          key="primary"
+          type="primary"
+          loading={submitting}
+          onClick={createdRp ? handleStage2 : handleStage1}
+        >
+          {createdRp ? 'Создать РП, 2 этап' : 'Создать письмо, 1 этап'}
         </Button>,
       ]}
     >
-      {!siteMapped && (
+      {!siteMapped && !createdRp && (
         <Alert
           type="warning"
           showIcon
           style={{ marginBottom: 12 }}
           message="Объект не сопоставлен с PayHub"
-          description="Проект или заказчик PayHub не заданы в справочнике «Объекты строительства». РП будет создана, а письмо — автоматически после заполнения сопоставления администратором."
+          description="Проект или заказчик PayHub не заданы в справочнике «Объекты строительства». Письмо и QR создать нельзя — РП будет создана, а письмо синхронизируется автоматически после заполнения сопоставления администратором."
         />
       )}
-      {senderState === 'loaded' && !sender && (
+      {senderState === 'loaded' && !sender && !createdRp && (
         <Alert
           type="warning"
           showIcon
           style={{ marginBottom: 12 }}
-          message="Отправитель РП не настроен (Администрирование → PayHub). РП будет создана, письмо — после настройки."
+          message="Отправитель РП не настроен (Администрирование → PayHub). Письмо синхронизируется после настройки."
         />
       )}
-      {senderState === 'error' && (
+      {senderState === 'error' && !createdRp && (
         <Alert
           type="error"
           showIcon
@@ -387,8 +492,17 @@ const CreateRpLetterModal = ({
           message="Не удалось загрузить отправителя РП. РП можно создать — письмо синхронизируется автоматически."
         />
       )}
+      {createdRp && (
+        <Alert
+          type="success"
+          showIcon
+          style={{ marginBottom: 12 }}
+          message={`Письмо создано${regNumber ? `: ${regNumber}` : ''}`}
+          description="Скачайте QR, вставьте его в документ письма, приложите файлы ниже и нажмите «Создать РП, 2 этап»."
+        />
+      )}
 
-      <Form form={form} layout="vertical" disabled={submitting || !!createdRp}>
+      <Form form={form} layout="vertical" disabled={submitting}>
         <Form.Item label="Направление">
           <Tag color="blue">Исходящее</Tag>
         </Form.Item>
@@ -396,8 +510,27 @@ const CreateRpLetterModal = ({
           <Text>{projectLabel ?? <Text type="secondary">не сопоставлен</Text>}</Text>
         </Form.Item>
         <Form.Item label="Номер письма">
-          <Input disabled placeholder="Присваивается автоматически генератором PayHub" />
+          <Input
+            disabled
+            value={regNumber ?? undefined}
+            placeholder="Присваивается автоматически генератором PayHub"
+          />
         </Form.Item>
+        {createdRp && (qrPng || qrSvg) && (
+          <Form.Item label="QR-код письма">
+            <Space direction="vertical" size={8}>
+              <Image
+                src={qrPng ?? qrSvg ?? undefined}
+                width={160}
+                alt="QR-код письма PayHub"
+                style={{ border: '1px solid #f0f0f0', background: '#fff' }}
+              />
+              <Button icon={<DownloadOutlined />} onClick={handleDownloadQr}>
+                Скачать {qrPng ? 'PNG' : 'SVG'}
+              </Button>
+            </Space>
+          </Form.Item>
+        )}
         <Form.Item
           label="Дата письма"
           name="letterDate"
@@ -448,7 +581,7 @@ const CreateRpLetterModal = ({
               return false
             }}
           >
-            <Button icon={<UploadOutlined />} disabled={submitting || !!createdRp}>
+            <Button icon={<UploadOutlined />} disabled={submitting}>
               Добавить файлы
             </Button>
           </Upload>
@@ -462,11 +595,25 @@ const CreateRpLetterModal = ({
           renderItem={({ file, state, i }) => (
             <List.Item
               actions={
-                !createdRp && !submitting
+                !submitting
                   ? [
-                      <Button key="rm" type="text" size="small" onClick={() => removeFile(i)}>
-                        Убрать
-                      </Button>,
+                      <Button
+                        key="view"
+                        type="text"
+                        size="small"
+                        icon={<EyeOutlined />}
+                        title="Просмотр"
+                        onClick={() => previewFile(file)}
+                      />,
+                      <Button
+                        key="rm"
+                        type="text"
+                        size="small"
+                        danger
+                        icon={<DeleteOutlined />}
+                        title="Убрать"
+                        onClick={() => removeFile(i)}
+                      />,
                     ]
                   : undefined
               }

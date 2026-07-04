@@ -1,18 +1,11 @@
 import { useMemo, useState } from 'react'
-import { Table, Tag, Space, Select, Button, Tooltip, Typography } from 'antd'
+import { Table, Tag, Space, Button, Tooltip, Typography } from 'antd'
+import { EditOutlined, StopOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { formatDateShort } from '@/utils/requestFormatters'
 import type { RpLetter, RpPaymentStatus } from '@/types'
 
 const { Text } = Typography
-
-/** Опции статуса РП (собственный workflow). */
-export const RP_STATUS_OPTIONS: { label: string; value: string }[] = [
-  { label: 'Черновик', value: 'draft' },
-  { label: 'В работе', value: 'in_progress' },
-  { label: 'Отправлено в заказ', value: 'ordered' },
-  { label: 'Завершено', value: 'done' },
-]
 
 const PAYMENT_STATUS_META: Record<RpPaymentStatus, { label: string; color: string }> = {
   paid: { label: 'Оплачено', color: 'green' },
@@ -26,9 +19,14 @@ interface RpRegistryTableProps {
   letters: RpLetter[]
   isLoading: boolean
   onOpenRequest: (requestId: string) => void
-  onStatusChange: (id: string, status: string) => void
   /** «Создать письмо» (uploading) / «Повторить» (failed) — постановка в очередь */
   onRetryLetter: (id: string) => void
+  /** Правка текста письма */
+  onEdit: (letter: RpLetter) => void
+  /** Аннулировать РП (удаляет письмо в PayHub) */
+  onAnnul: (letter: RpLetter) => void
+  /** Удалить РП (удаляет письмо в PayHub) */
+  onDelete: (letter: RpLetter) => void
 }
 
 /** Колонка «Письмо»: ссылка на PayHub либо статус синхронизации с действием. */
@@ -87,13 +85,28 @@ const LetterCell = ({
   }
 }
 
+/** Колонка «Статус»: платёжный/аннулирование (1 строка) + синхронизация (2 строка, авто). */
+const StatusCell = ({ letter }: { letter: RpLetter }) => {
+  const annulled = letter.status === 'annulled'
+  const pay = PAYMENT_STATUS_META[letter.paymentStatus] ?? PAYMENT_STATUS_META.unpaid
+  const synced = letter.payhubLetterStatus === 'synced'
+  return (
+    <Space direction="vertical" size={2}>
+      {annulled ? <Tag color="red">Аннулировано</Tag> : <Tag color={pay.color}>{pay.label}</Tag>}
+      <Tag color={synced ? 'green' : 'default'}>{synced ? 'Синхронизировано' : 'Черновик'}</Tag>
+    </Space>
+  )
+}
+
 /** Таблица реестра распределительных писем. */
 const RpRegistryTable = ({
   letters,
   isLoading,
   onOpenRequest,
-  onStatusChange,
   onRetryLetter,
+  onEdit,
+  onAnnul,
+  onDelete,
 }: RpRegistryTableProps) => {
   // Пагинация — в состоянии, чтобы столбец «№» нумеровал сквозь страницы.
   const [page, setPage] = useState(1)
@@ -196,32 +209,62 @@ const RpRegistryTable = ({
         ),
       },
       {
-        title: 'Статус оплаты',
-        dataIndex: 'paymentStatus',
-        key: 'paymentStatus',
-        width: 130,
-        render: (v: RpPaymentStatus) => {
-          const meta = PAYMENT_STATUS_META[v] ?? PAYMENT_STATUS_META.unpaid
-          return <Tag color={meta.color}>{meta.label}</Tag>
-        },
+        title: 'Статус',
+        key: 'status',
+        width: 150,
+        render: (_: unknown, r: RpLetter) => <StatusCell letter={r} />,
       },
       {
-        title: 'Статус РП',
-        dataIndex: 'status',
-        key: 'status',
-        width: 170,
-        render: (v: string, r: RpLetter) => (
-          <Select
-            value={v}
-            options={RP_STATUS_OPTIONS}
-            size="small"
-            style={{ width: '100%' }}
-            onChange={(next) => onStatusChange(r.id, next)}
-          />
-        ),
+        title: 'Действия',
+        key: 'actions',
+        width: 120,
+        fixed: 'right',
+        render: (_: unknown, r: RpLetter) => {
+          const annulled = r.status === 'annulled'
+          const canAnnul = !annulled && r.paymentStatus === 'unpaid'
+          return (
+            <Space size={0}>
+              <Tooltip title="Редактировать письмо">
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<EditOutlined />}
+                  disabled={annulled}
+                  onClick={() => onEdit(r)}
+                />
+              </Tooltip>
+              <Tooltip
+                title={
+                  canAnnul
+                    ? 'Аннулировать'
+                    : annulled
+                      ? 'Уже аннулирована'
+                      : 'Аннулировать можно только полностью неоплаченную РП'
+                }
+              >
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<StopOutlined />}
+                  disabled={!canAnnul}
+                  onClick={() => onAnnul(r)}
+                />
+              </Tooltip>
+              <Tooltip title="Удалить РП">
+                <Button
+                  type="text"
+                  size="small"
+                  danger
+                  icon={<DeleteOutlined />}
+                  onClick={() => onDelete(r)}
+                />
+              </Tooltip>
+            </Space>
+          )
+        },
       },
     ],
-    [onOpenRequest, onStatusChange, onRetryLetter, page, pageSize],
+    [onOpenRequest, onRetryLetter, onEdit, onAnnul, onDelete, page, pageSize],
   )
 
   return (
@@ -231,7 +274,7 @@ const RpRegistryTable = ({
       rowKey="id"
       loading={isLoading}
       size="small"
-      scroll={{ x: 1840, y: 'calc(100vh - 320px)' }}
+      scroll={{ x: 1810, y: 'calc(100vh - 320px)' }}
       pagination={{
         current: page,
         pageSize,

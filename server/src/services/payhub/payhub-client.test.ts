@@ -202,6 +202,37 @@ describe('PayHubClient: письма', () => {
   });
 });
 
+describe('PayHubClient: удаление письма', () => {
+  it('deleteLetter: DELETE /letters/:id, 204 -> без тела', async () => {
+    const { client, calls } = makeClient([new Response(null, { status: 204 })]);
+    await expect(client.deleteLetter('abc')).resolves.toBeUndefined();
+    expect(calls[0]!.method).toBe('DELETE');
+    expect(calls[0]!.url).toBe(`${BASE}/api/external/v1/letters/abc`);
+    expect(calls[0]!.headers.Authorization).toBe(`Bearer ${TOKEN}`);
+  });
+
+  it('deleteLetter: 404 -> PayHubApiError not_found (трактуется как «уже удалено»)', async () => {
+    const { client } = makeClient([errorResponse(404, 'not_found')]);
+    const error = (await client.deleteLetter('abc').catch((e: unknown) => e)) as PayHubApiError;
+    expect(error).toBeInstanceOf(PayHubApiError);
+    expect(error.status).toBe(404);
+    expect(error.code).toBe('not_found');
+  });
+
+  it('deleteLetter: 403 not_owner пробрасывается', async () => {
+    const { client } = makeClient([errorResponse(403, 'not_owner')]);
+    const error = (await client.deleteLetter('abc').catch((e: unknown) => e)) as PayHubApiError;
+    expect(error.code).toBe('not_owner');
+  });
+
+  it('deleteLetter: 500 НЕ ретраится (мутация)', async () => {
+    const { client, calls } = makeClient([errorResponse(500, 'internal')]);
+    const error = (await client.deleteLetter('abc').catch((e: unknown) => e)) as PayHubApiError;
+    expect(error.status).toBe(500);
+    expect(calls.length).toBe(1);
+  });
+});
+
 describe('PayHubClient: ретраи', () => {
   it('429 ретраится для POST с учётом Retry-After', async () => {
     const letter = { id: 'abc', project_id: 1, direction: 'outgoing', letter_date: '2026-07-03' };
