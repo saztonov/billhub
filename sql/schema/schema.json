@@ -4122,6 +4122,74 @@
               "numeric_precision": null
             }
           ]
+        },
+        {
+          "name": "user_identity_links",
+          "columns": [
+            {
+              "name": "id",
+              "type": "uuid",
+              "default": "gen_random_uuid()",
+              "nullable": false,
+              "position": 1,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "user_id",
+              "type": "uuid",
+              "default": null,
+              "nullable": false,
+              "position": 2,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "provider",
+              "type": "text",
+              "default": null,
+              "nullable": false,
+              "position": 3,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "subject",
+              "type": "text",
+              "default": null,
+              "nullable": false,
+              "position": 4,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "email_at_link",
+              "type": "text",
+              "default": null,
+              "nullable": true,
+              "position": 5,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "linked_at",
+              "type": "timestamp with time zone",
+              "default": "now()",
+              "nullable": false,
+              "position": 6,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "last_seen_at",
+              "type": "timestamp with time zone",
+              "default": null,
+              "nullable": true,
+              "position": 7,
+              "max_length": null,
+              "numeric_precision": null
+            }
+          ]
         }
       ],
       "indexes": [
@@ -4834,6 +4902,26 @@
           "name": "password_reset_tokens_user_id_idx",
           "definition": "CREATE INDEX password_reset_tokens_user_id_idx ON public.password_reset_tokens USING btree (user_id)",
           "table_name": "password_reset_tokens"
+        },
+        {
+          "name": "user_identity_links_pkey",
+          "definition": "CREATE UNIQUE INDEX user_identity_links_pkey ON public.user_identity_links USING btree (id)",
+          "table_name": "user_identity_links"
+        },
+        {
+          "name": "uidx_user_identity_links_provider_subject",
+          "definition": "CREATE UNIQUE INDEX uidx_user_identity_links_provider_subject ON public.user_identity_links USING btree (provider, subject)",
+          "table_name": "user_identity_links"
+        },
+        {
+          "name": "idx_user_identity_links_user_id",
+          "definition": "CREATE INDEX idx_user_identity_links_user_id ON public.user_identity_links USING btree (user_id)",
+          "table_name": "user_identity_links"
+        },
+        {
+          "name": "idx_user_identity_links_email_lower",
+          "definition": "CREATE INDEX idx_user_identity_links_email_lower ON public.user_identity_links USING btree (lower(email_at_link))",
+          "table_name": "user_identity_links"
         }
       ],
       "policies": [],

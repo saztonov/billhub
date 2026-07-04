@@ -26,6 +26,33 @@ export interface UserAuthStore {
   setPasswordHash(userId: string, hash: string, changedAtIso: string): Promise<void>;
 }
 
+/** Связь идентичности Keycloak (provider, subject) с пользователем BillHub (миграция 0009). */
+export interface IdentityLinkRecord {
+  id: string;
+  userId: string;
+  provider: string;
+  subject: string;
+  emailAtLink: string | null;
+  linkedAt: string;
+  lastSeenAt: string | null;
+}
+
+export interface IdentityLinkStore {
+  /** Найти связь по (provider, subject) — рабочий ключ steady-state. */
+  findBySubject(provider: string, subject: string): Promise<IdentityLinkRecord | null>;
+  /** Keycloak subject по (provider, userId) — для управления группами при активации. */
+  findSubjectByUserId(provider: string, userId: string): Promise<string | null>;
+  /** Создать связь (идемпотентно по UNIQUE (provider, subject)). Возвращает id связи. */
+  link(input: {
+    userId: string;
+    provider: string;
+    subject: string;
+    emailAtLink: string | null;
+  }): Promise<string>;
+  /** Обновить last_seen_at (throttling — на стороне вызывающего). */
+  touchLastSeen(provider: string, subject: string, atIso: string): Promise<void>;
+}
+
 /** Строка refresh_tokens (без секретного ip/user_agent — они не нужны логике). */
 export interface RefreshTokenRow {
   id: string;
@@ -95,4 +122,5 @@ export interface AuthStores {
   users: UserAuthStore;
   refreshTokens: RefreshTokenStore;
   passwordResets: PasswordResetStore;
+  identityLinks: IdentityLinkStore;
 }

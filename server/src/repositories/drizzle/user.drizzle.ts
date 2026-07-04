@@ -395,6 +395,9 @@ export class DrizzleUserRepository implements UserRepository {
         role: 'counterparty_user',
         counterpartyId: input.counterpartyId,
         allSites: false,
+        // Новые пользователи по умолчанию неактивны (активирует админ). Таблица имеет
+        // default is_active=true, поэтому задаём явно.
+        isActive: input.isActive ?? false,
       });
     });
   }

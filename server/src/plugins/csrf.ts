@@ -39,8 +39,11 @@ function csrfCookieOptions(): CookieSerializeOptions {
 }
 
 async function csrfPlugin(fastify: FastifyInstance): Promise<void> {
-  if (resolveAuthMode(process.env) !== 'standalone') {
-    fastify.log.info('csrf: AUTH_MODE!=standalone — CSRF неактивен (no-op)');
+  const mode = resolveAuthMode(process.env);
+  // Активна в standalone и keycloak (write-запросы через double-submit). No-op только в
+  // legacy supabase-bridge — не менять поведение старого окружения и тестов.
+  if (mode !== 'standalone' && mode !== 'keycloak') {
+    fastify.log.info('csrf: AUTH_MODE=supabase-bridge — CSRF неактивен (no-op)');
     return;
   }
 
@@ -68,7 +71,7 @@ async function csrfPlugin(fastify: FastifyInstance): Promise<void> {
     request.csrfToken = existing;
   });
 
-  fastify.log.info('csrf: double-submit cookie активна (AUTH_MODE=standalone)');
+  fastify.log.info({ authMode: mode }, 'csrf: double-submit cookie активна');
 }
 
 export default fp(csrfPlugin, { name: 'csrf' });

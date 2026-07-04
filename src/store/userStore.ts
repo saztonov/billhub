@@ -63,7 +63,7 @@ interface UserStoreState {
   changePassword: (userId: string, newPassword: string) => Promise<void>
   batchCreateCounterpartyUsers: (
     rows: BatchImportUserRow[],
-    onProgress: (done: number, total: number) => void
+    onProgress: (done: number, total: number) => void,
   ) => Promise<BatchImportUserResult[]>
 }
 
@@ -107,7 +107,9 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
         allSites: data.all_sites,
         siteIds: data.site_ids,
       }
-      await api.post('/api/auth/create-user', payload)
+      // Канонический admin-create (заменяет legacy /api/auth/create-user; работает в
+      // standalone и keycloak). В keycloak пользователь создаётся неактивным, пароль игнорируется.
+      await api.post('/api/users', payload)
       await get().fetchUsers()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка создания пользователя'

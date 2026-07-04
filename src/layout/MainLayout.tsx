@@ -189,8 +189,11 @@ const MainLayout = () => {
   }
 
   const handleLogout = useCallback(async () => {
+    // В keycloak-режиме logout() сам делает top-level переход на end-session Keycloak —
+    // локальный navigate('/login') не нужен (и не должен мигать перед уходом со страницы).
+    const isKeycloak = useAuthStore.getState().authMode === 'keycloak'
     await logout()
-    navigate('/login')
+    if (!isKeycloak) navigate('/login')
   }, [logout, navigate])
 
   // Контент уведомлений (переиспользуется в Popover и Drawer)

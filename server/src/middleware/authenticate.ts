@@ -25,6 +25,23 @@ function getSupabaseJwks(): ReturnType<typeof createRemoteJWKSet> {
   return supabaseJwks;
 }
 
+/** JWKS Keycloak (режим keycloak). Лениво: в других режимах URL не строится. */
+let keycloakJwks: ReturnType<typeof createRemoteJWKSet> | null = null;
+function getKeycloakJwks(): ReturnType<typeof createRemoteJWKSet> {
+  if (!keycloakJwks) {
+    keycloakJwks = createRemoteJWKSet(
+      new URL(`${config.oidcIssuer}/protocol/openid-connect/certs`),
+    );
+  }
+  return keycloakJwks;
+}
+
+/** Членство в группе портала: совпадение по имени или полному пути `/<name>`. */
+function hasPortalGroup(groups: unknown, name: string): boolean {
+  if (!Array.isArray(groups)) return false;
+  return groups.some((g) => typeof g === 'string' && (g === name || g.endsWith(`/${name}`)));
+}
+
 /** UserAuthRecord (standalone-хранилище) → RequestUser. */
 function recordToRequestUser(rec: UserAuthRecord): RequestUser {
   return {
@@ -61,7 +78,84 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
     return;
   }
 
+  if (mode === 'keycloak') {
+    await authenticateKeycloak(request, reply, token);
+    return;
+  }
+
   await authenticateSupabaseBridge(request, reply, token);
+}
+
+/**
+ * Keycloak: верификация access-токена по JWKS (iss/aud/azp/exp), гейт доступа по группе
+ * портала (billhub-active) и резолв локального профиля через user_identity_links (роль из БД).
+ */
+async function authenticateKeycloak(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  token: string,
+): Promise<void> {
+  let sub: string;
+  let groups: unknown;
+  try {
+    const { payload } = await jwtVerify(token, getKeycloakJwks(), {
+      issuer: config.oidcIssuer,
+      audience: config.oidcClientId,
+    });
+    sub = payload.sub as string;
+    // azp (authorized party) должен быть нашим клиентом.
+    if (!sub || payload.azp !== config.oidcClientId) {
+      reply.status(401).send({ error: 'Не авторизован' });
+      return;
+    }
+    if (typeof payload.exp === 'number') request.accessTokenExp = payload.exp;
+    groups = (payload as Record<string, unknown>).groups;
+  } catch {
+    reply.status(401).send({ error: 'Не авторизован' });
+    return;
+  }
+
+  // Гейт доступа к порталу — по группе Keycloak (из токена, каждый запрос: деактивация в
+  // Keycloak/BillHub вступает в силу на следующем токене).
+  if (!hasPortalGroup(groups, config.kcPortalGroupActive)) {
+    if (hasPortalGroup(groups, config.kcPortalGroupPending)) {
+      reply
+        .status(403)
+        .send({ error: 'Доступ ожидает активации администратором', code: 'pending_activation' });
+    } else {
+      reply.status(403).send({ error: 'Нет доступа к порталу' });
+    }
+    return;
+  }
+
+  const provider = config.authIdentityProvider;
+  const cacheKey = `${provider}:${sub}`;
+  const cached = userCache.get(cacheKey);
+  if (cached) {
+    request.user = cached;
+    return;
+  }
+
+  const link = await request.server.authServices.identityLinks.findBySubject(provider, sub);
+  if (!link) {
+    // Активная группа, но нет связи/строки в BillHub — профиль ещё не заведён (нужен онбординг).
+    reply.status(403).send({ error: 'Профиль не заведён в портале' });
+    return;
+  }
+  const rec = await request.server.authServices.users.findById(link.userId);
+  if (!rec) {
+    reply.status(403).send({ error: 'Профиль не заведён в портале' });
+    return;
+  }
+
+  const user = recordToRequestUser(rec);
+  userCache.set(cacheKey, user);
+  request.user = user;
+
+  // last_seen_at обновляем на cache-miss (естественный throttle ~раз в TTL кеша), fire-and-forget.
+  void request.server.authServices.identityLinks
+    .touchLastSeen(provider, sub, new Date().toISOString())
+    .catch(() => {});
 }
 
 /** Standalone: собственный access JWT + профиль из authServices.users. */

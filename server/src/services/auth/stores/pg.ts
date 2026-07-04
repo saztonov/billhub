@@ -11,8 +11,15 @@
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import * as schema from '../../../db/schema/index.js';
-import { passwordResetTokens, refreshTokens, users } from '../../../db/schema/index.js';
+import {
+  passwordResetTokens,
+  refreshTokens,
+  userIdentityLinks,
+  users,
+} from '../../../db/schema/index.js';
 import type {
+  IdentityLinkRecord,
+  IdentityLinkStore,
   NewRefreshToken,
   PasswordResetRow,
   PasswordResetStore,
@@ -200,5 +207,74 @@ export class DrizzlePasswordResetStore implements PasswordResetStore {
       .update(passwordResetTokens)
       .set({ usedAt: usedAtIso })
       .where(eq(passwordResetTokens.id, id));
+  }
+}
+
+function identityCols() {
+  return {
+    id: userIdentityLinks.id,
+    userId: userIdentityLinks.userId,
+    provider: userIdentityLinks.provider,
+    subject: userIdentityLinks.subject,
+    emailAtLink: userIdentityLinks.emailAtLink,
+    linkedAt: userIdentityLinks.linkedAt,
+    lastSeenAt: userIdentityLinks.lastSeenAt,
+  };
+}
+
+export class DrizzleIdentityLinkStore implements IdentityLinkStore {
+  constructor(private readonly db: Db) {}
+
+  async findBySubject(provider: string, subject: string): Promise<IdentityLinkRecord | null> {
+    const [r] = await this.db
+      .select(identityCols())
+      .from(userIdentityLinks)
+      .where(and(eq(userIdentityLinks.provider, provider), eq(userIdentityLinks.subject, subject)))
+      .limit(1);
+    return r ?? null;
+  }
+
+  async findSubjectByUserId(provider: string, userId: string): Promise<string | null> {
+    const [r] = await this.db
+      .select({ subject: userIdentityLinks.subject })
+      .from(userIdentityLinks)
+      .where(and(eq(userIdentityLinks.provider, provider), eq(userIdentityLinks.userId, userId)))
+      .limit(1);
+    return r ? r.subject : null;
+  }
+
+  async link(input: {
+    userId: string;
+    provider: string;
+    subject: string;
+    emailAtLink: string | null;
+  }): Promise<string> {
+    // Идемпотентно по UNIQUE (provider, subject): при гонке первый вход побеждает,
+    // повтор возвращает id существующей связи.
+    const [ins] = await this.db
+      .insert(userIdentityLinks)
+      .values({
+        userId: input.userId,
+        provider: input.provider,
+        subject: input.subject,
+        emailAtLink: input.emailAtLink,
+      })
+      .onConflictDoNothing({
+        target: [userIdentityLinks.provider, userIdentityLinks.subject],
+      })
+      .returning({ id: userIdentityLinks.id });
+    if (ins) return ins.id;
+    const existing = await this.findBySubject(input.provider, input.subject);
+    if (!existing) {
+      throw new Error('identity link: конфликт вставки без существующей строки');
+    }
+    return existing.id;
+  }
+
+  async touchLastSeen(provider: string, subject: string, atIso: string): Promise<void> {
+    await this.db
+      .update(userIdentityLinks)
+      .set({ lastSeenAt: atIso })
+      .where(and(eq(userIdentityLinks.provider, provider), eq(userIdentityLinks.subject, subject)));
   }
 }

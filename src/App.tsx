@@ -6,6 +6,8 @@ import AuthLayout from '@/layout/AuthLayout'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import RoleGuard from '@/components/RoleGuard'
 import LoginPage from '@/pages/LoginPage'
+import PendingActivationPage from '@/pages/PendingActivationPage'
+import RegisterPage from '@/pages/RegisterPage'
 import AppUpdateBanner from '@/components/AppUpdateBanner'
 import { useAuthStore } from '@/store/authStore'
 import { lazyWithRetry } from '@/utils/lazyWithRetry'
@@ -36,18 +38,23 @@ const App = () => {
   // Фоновая проверка сессии при старте — не блокирует рендер публичных маршрутов.
   // ProtectedRoute сам подождёт завершения через флаг isInitialized.
   const checkAuth = useAuthStore((s) => s.checkAuth)
+  const loadAuthConfig = useAuthStore((s) => s.loadAuthConfig)
   useEffect(() => {
+    // Режим аутентификации (standalone/keycloak) — влияет на страницу входа/выхода.
+    loadAuthConfig()
     checkAuth()
-  }, [checkAuth])
+  }, [checkAuth, loadAuthConfig])
 
   return (
     <AntdApp>
       {/* Глобальный баннер обновления фронта — виден на всех маршрутах */}
       <AppUpdateBanner />
       <Routes>
-        {/* Авторизация и регистрация */}
+        {/* Авторизация и регистрация (публичные) */}
         <Route element={<AuthLayout />}>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/pending-activation" element={<PendingActivationPage />} />
         </Route>
 
         {/* Основное приложение (защищено авторизацией) */}

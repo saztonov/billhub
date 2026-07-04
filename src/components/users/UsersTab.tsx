@@ -11,10 +11,10 @@ import {
   Checkbox,
   Alert,
   App,
-  Popconfirm,
   Segmented,
+  Switch,
 } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined, KeyOutlined, CheckCircleOutlined, UploadOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, KeyOutlined, UploadOutlined } from '@ant-design/icons'
 import { useTableScrollY } from '@/hooks/useTableScrollY'
 import { useUserStore } from '@/store/userStore'
 import { useAuthStore } from '@/store/authStore'
@@ -57,12 +57,24 @@ const UsersTab = () => {
   const [searchCounterparty, setSearchCounterparty] = useState('')
   const [filterDepartment, setFilterDepartment] = useState<Department | undefined>(undefined)
   const [filterSiteId, setFilterSiteId] = useState<string | undefined>(undefined)
-  const [filterActive, setFilterActive] = useState<string>('active')
+  // По умолчанию показываем всех, включая неактивных: новые пользователи заводятся неактивными,
+  // админ находит их для активации.
+  const [filterActive, setFilterActive] = useState<string>('all')
   const [form] = Form.useForm()
   const [passwordForm] = Form.useForm()
 
-  const { users, isLoading, error, fetchUsers, updateUser, deactivateUser, activateUser, changePassword } = useUserStore()
+  const {
+    users,
+    isLoading,
+    error,
+    fetchUsers,
+    updateUser,
+    deactivateUser,
+    activateUser,
+    changePassword,
+  } = useUserStore()
   const currentUser = useAuthStore((s) => s.user)
+  const authMode = useAuthStore((s) => s.authMode)
   const { counterparties, fetchCounterparties } = useCounterpartyStore()
   const { sites, fetchSites } = useConstructionSiteStore()
 
@@ -96,7 +108,7 @@ const UsersTab = () => {
       full_name: values.full_name ?? '',
       role: values.role,
       counterparty_id: values.role === 'counterparty_user' ? values.counterparty_id : null,
-      department: values.role === 'security' ? null : (values.department || null),
+      department: values.role === 'security' ? null : values.department || null,
       all_sites: isLimitedRole ? false : (values.all_sites ?? false),
       site_ids: isLimitedRole ? [] : (values.site_ids ?? []),
     })
@@ -105,14 +117,15 @@ const UsersTab = () => {
     form.resetFields()
   }
 
-  const handleDeactivate = async (id: string) => {
-    await deactivateUser(id)
-    message.success('Пользователь деактивирован')
-  }
-
-  const handleActivate = async (id: string) => {
-    await activateUser(id)
-    message.success('Пользователь активирован')
+  /** Переключатель активности пользователя (Switch в таблице). */
+  const handleToggleActive = async (record: UserRecord, checked: boolean) => {
+    if (checked) {
+      await activateUser(record.id)
+      message.success('Пользователь активирован')
+    } else {
+      await deactivateUser(record.id)
+      message.success('Пользователь деактивирован')
+    }
   }
 
   const handleCancel = () => {
@@ -143,24 +156,26 @@ const UsersTab = () => {
   // Генерация фильтров для объектов
   const siteFilters = useMemo(() => {
     const uniqueSites = new Set<string>()
-    users.forEach(user => {
+    users.forEach((user) => {
       if (user.allSites) {
         uniqueSites.add('__ALL__')
       } else {
-        user.siteNames.forEach(name => uniqueSites.add(name))
+        user.siteNames.forEach((name) => uniqueSites.add(name))
       }
     })
 
-    const filters = Array.from(uniqueSites).map(name => {
-      if (name === '__ALL__') {
-        return { text: 'Все объекты', value: '__ALL__' }
-      }
-      return { text: name, value: name }
-    }).sort((a, b) => {
-      if (a.value === '__ALL__') return -1
-      if (b.value === '__ALL__') return 1
-      return a.text.localeCompare(b.text)
-    })
+    const filters = Array.from(uniqueSites)
+      .map((name) => {
+        if (name === '__ALL__') {
+          return { text: 'Все объекты', value: '__ALL__' }
+        }
+        return { text: name, value: name }
+      })
+      .sort((a, b) => {
+        if (a.value === '__ALL__') return -1
+        if (b.value === '__ALL__') return 1
+        return a.text.localeCompare(b.text)
+      })
 
     filters.push({ text: 'Не указано', value: '__NONE__' })
 
@@ -169,16 +184,19 @@ const UsersTab = () => {
 
   // Фильтрация данных по поисковым полям и фильтрам
   const filteredUsers = useMemo(() => {
-    return users.filter(user => {
+    return users.filter((user) => {
       const searchLower = searchFullName.toLowerCase()
-      const matchFullName = !searchFullName ||
+      const matchFullName =
+        !searchFullName ||
         (user.fullName?.toLowerCase() || '').includes(searchLower) ||
         (user.email?.toLowerCase() || '').includes(searchLower)
-      const matchCounterparty = !searchCounterparty ||
+      const matchCounterparty =
+        !searchCounterparty ||
         (user.counterpartyName?.toLowerCase() || '').includes(searchCounterparty.toLowerCase())
       const matchDepartment = !filterDepartment || user.department === filterDepartment
       const matchSite = !filterSiteId || user.allSites || user.siteIds.includes(filterSiteId)
-      const matchActive = filterActive === 'all' ||
+      const matchActive =
+        filterActive === 'all' ||
         (filterActive === 'active' && user.isActive) ||
         (filterActive === 'inactive' && !user.isActive)
       return matchFullName && matchCounterparty && matchDepartment && matchSite && matchActive
@@ -220,9 +238,7 @@ const UsersTab = () => {
         { text: 'Отдел СБ', value: 'security' },
       ],
       onFilter: (value: boolean | Key, record: UserRecord) => record.role === value,
-      render: (role: UserRole) => (
-        <Tag color={roleColors[role]}>{roleLabels[role]}</Tag>
-      ),
+      render: (role: UserRole) => <Tag color={roleColors[role]}>{roleLabels[role]}</Tag>,
     },
     {
       title: 'Подрядчик',
@@ -255,7 +271,7 @@ const UsersTab = () => {
         if (value === '__NULL__') return record.department === null
         return record.department === value
       },
-      render: (dept: Department | null) => dept ? DEPARTMENT_LABELS[dept] : '—',
+      render: (dept: Department | null) => (dept ? DEPARTMENT_LABELS[dept] : '—'),
     },
     {
       title: 'Объекты',
@@ -264,8 +280,10 @@ const UsersTab = () => {
       onFilter: (value: boolean | Key, record: UserRecord) => {
         if (value === '__ALL__') return record.allSites
         if (value === '__NONE__') {
-          return record.role === 'counterparty_user' ||
+          return (
+            record.role === 'counterparty_user' ||
             (!record.allSites && record.siteNames.length === 0)
+          )
         }
         return record.siteNames.includes(value as string)
       },
@@ -283,35 +301,32 @@ const UsersTab = () => {
       },
     },
     {
+      title: 'Активен',
+      key: 'active',
+      width: 90,
+      render: (_: unknown, record: UserRecord) => (
+        <Switch
+          size="small"
+          checked={record.isActive}
+          disabled={record.id === currentUser?.id}
+          onChange={(checked) => handleToggleActive(record, checked)}
+        />
+      ),
+    },
+    {
       title: 'Действия',
       key: 'actions',
       render: (_: unknown, record: UserRecord) => (
         <Space>
           <Button icon={<EditOutlined />} onClick={() => handleEdit(record)} size="small" />
-          {record.isActive && (
-            <Button icon={<KeyOutlined />} onClick={() => handlePasswordChange(record)} size="small" title="Сменить пароль" />
-          )}
-          {record.isActive && record.id !== currentUser?.id && (
-            <Popconfirm
-              title="Деактивировать пользователя?"
-              description="Пользователь не сможет войти в систему"
-              onConfirm={() => handleDeactivate(record.id)}
-              okText="Да"
-              cancelText="Нет"
-            >
-              <Button icon={<DeleteOutlined />} danger size="small" />
-            </Popconfirm>
-          )}
-          {!record.isActive && (
-            <Popconfirm
-              title="Активировать пользователя?"
-              description="Пользователь снова сможет войти в систему"
-              onConfirm={() => handleActivate(record.id)}
-              okText="Да"
-              cancelText="Нет"
-            >
-              <Button icon={<CheckCircleOutlined />} size="small" title="Активировать" style={{ color: '#52c41a' }} />
-            </Popconfirm>
+          {/* Смена пароля — только standalone: в keycloak пароль в Keycloak Account Console. */}
+          {record.isActive && authMode !== 'keycloak' && (
+            <Button
+              icon={<KeyOutlined />}
+              onClick={() => handlePasswordChange(record)}
+              size="small"
+              title="Сменить пароль"
+            />
           )}
         </Space>
       ),
@@ -328,7 +343,16 @@ const UsersTab = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16, alignItems: 'center', flexShrink: 0 }}>
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 8,
+          marginBottom: 16,
+          alignItems: 'center',
+          flexShrink: 0,
+        }}
+      >
         <Input.Search
           placeholder="Поиск по ФИО или email"
           allowClear
@@ -383,7 +407,11 @@ const UsersTab = () => {
             <Button icon={<UploadOutlined />} onClick={() => setIsImportModalOpen(true)}>
               Импорт из Excel
             </Button>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsCreateModalOpen(true)}>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => setIsCreateModalOpen(true)}
+            >
               Добавить
             </Button>
           </Space>
@@ -405,7 +433,7 @@ const UsersTab = () => {
           rowKey="id"
           loading={isLoading}
           scroll={{ x: 900, y: scrollY }}
-          rowClassName={(record: UserRecord) => !record.isActive ? 'deactivated-row' : ''}
+          rowClassName={(record: UserRecord) => (!record.isActive ? 'deactivated-row' : '')}
           pagination={{
             showSizeChanger: true,
             pageSizeOptions: ['10', '20', '50', '100', '200'],
@@ -440,10 +468,7 @@ const UsersTab = () => {
           </div>
         )}
         <Form form={form} layout="vertical">
-          <Form.Item
-            name="full_name"
-            label="ФИО"
-          >
+          <Form.Item name="full_name" label="ФИО">
             <Input />
           </Form.Item>
           <Form.Item
@@ -451,14 +476,16 @@ const UsersTab = () => {
             label="Роль"
             rules={[{ required: true, message: 'Выберите роль' }]}
           >
-            <Select onChange={(value: UserRole) => {
-              setSelectedRole(value)
-              if (value === 'counterparty_user' || value === 'security') {
-                setAllSitesChecked(false)
-                setSelectedDepartment(null)
-                form.setFieldsValue({ all_sites: false, site_ids: [], department: undefined })
-              }
-            }}>
+            <Select
+              onChange={(value: UserRole) => {
+                setSelectedRole(value)
+                if (value === 'counterparty_user' || value === 'security') {
+                  setAllSitesChecked(false)
+                  setSelectedDepartment(null)
+                  form.setFieldsValue({ all_sites: false, site_ids: [], department: undefined })
+                }
+              }}
+            >
               <Select.Option value="admin">Администратор</Select.Option>
               <Select.Option value="user">Пользователь</Select.Option>
               <Select.Option value="counterparty_user">Подрядчик</Select.Option>
@@ -471,11 +498,7 @@ const UsersTab = () => {
               label="Подрядчик"
               rules={[{ required: true, message: 'Выберите подрядчика' }]}
             >
-              <Select
-                placeholder="Выберите подрядчика"
-                showSearch
-                optionFilterProp="children"
-              >
+              <Select placeholder="Выберите подрядчика" showSearch optionFilterProp="children">
                 {counterparties.map((c) => (
                   <Select.Option key={c.id} value={c.id}>
                     {c.name}
@@ -524,17 +547,26 @@ const UsersTab = () => {
                 <Form.Item
                   name="site_ids"
                   label="Объекты строительства"
-                  rules={isShtab ? [
-                    { required: true, message: 'Для подразделения Штаб выберите объекты (1-2)' },
-                    () => ({
-                      validator(_, value) {
-                        if (value && value.length > 2) {
-                          return Promise.reject(new Error('Для подразделения Штаб максимум 2 объекта'))
-                        }
-                        return Promise.resolve()
-                      },
-                    }),
-                  ] : []}
+                  rules={
+                    isShtab
+                      ? [
+                          {
+                            required: true,
+                            message: 'Для подразделения Штаб выберите объекты (1-2)',
+                          },
+                          () => ({
+                            validator(_, value) {
+                              if (value && value.length > 2) {
+                                return Promise.reject(
+                                  new Error('Для подразделения Штаб максимум 2 объекта'),
+                                )
+                              }
+                              return Promise.resolve()
+                            },
+                          }),
+                        ]
+                      : []
+                  }
                 >
                   <Select
                     mode="multiple"
@@ -560,7 +592,10 @@ const UsersTab = () => {
         title={`Смена пароля: ${passwordTarget?.fullName || passwordTarget?.email || ''}`}
         open={isPasswordModalOpen}
         onOk={handlePasswordSubmit}
-        onCancel={() => { setIsPasswordModalOpen(false); passwordForm.resetFields() }}
+        onCancel={() => {
+          setIsPasswordModalOpen(false)
+          passwordForm.resetFields()
+        }}
         okText="Сменить"
         cancelText="Отмена"
       >

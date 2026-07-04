@@ -68,12 +68,13 @@ interface Config {
   databaseConnLimit: number;
 
   /**
-   * Режим аутентификации (Iteration 6). Это ОБЫЧНЫЙ feature-флаг, НЕ startup-инвариант
-   * (в отличие от DB_PROVIDER): план не объявляет AUTH_MODE инвариантом.
+   * Режим аутентификации. Это ОБЫЧНЫЙ feature-флаг, НЕ startup-инвариант
+   * (в отличие от DB_PROVIDER).
    *   supabase-bridge — legacy-путь (Supabase Auth), default для старого окружения.
-   *   standalone      — собственный стек (раздел 13): bcrypt + access JWT + refresh rotation.
+   *   standalone      — собственный стек: bcrypt + access JWT + refresh rotation.
+   *   keycloak        — корпоративный Keycloak (OIDC, Authorization Code + PKCE, BFF).
    */
-  authMode: 'supabase-bridge' | 'standalone';
+  authMode: 'supabase-bridge' | 'standalone' | 'keycloak';
 
   /** Standalone JWT (HS256). issuer/audience проверяются в authenticate. */
   authJwtSecret: string;
@@ -90,6 +91,34 @@ interface Config {
 
   /** Ключ HMAC для псевдонимизации email в audit_log и ключах rate-limit. */
   auditHmacKey: string;
+
+  /**
+   * Keycloak OIDC (активны при AUTH_MODE=keycloak). Паттерн BFF: с Keycloak общается только
+   * бэкенд, браузер токены не видит. issuer — базовый URL realm su10.
+   */
+  oidcIssuer: string;
+  oidcClientId: string;
+  oidcClientSecret: string;
+  oidcRedirectUri: string;
+  oidcPostLogoutRedirectUri: string;
+  oidcScopes: string;
+
+  /**
+   * Keycloak Admin REST (сервис-аккаунт через client-credentials). В grant-only режиме BillHub
+   * читает пользователей (для линковки) и управляет членством в группах портала. Base/realm —
+   * если пусты, выводятся из oidcIssuer; clientId/secret — если пусты, берётся OIDC-клиент.
+   */
+  kcAdminBaseUrl: string;
+  kcAdminRealm: string;
+  kcAdminClientId: string;
+  kcAdminClientSecret: string;
+
+  /** Имена групп портала в Keycloak — gate доступа (pending — заведён, active — активен). */
+  kcPortalGroupPending: string;
+  kcPortalGroupActive: string;
+
+  /** Провайдер идентичности для user_identity_links (steady-state ключ). */
+  authIdentityProvider: string;
 }
 
 /** Получение переменной окружения с значением по умолчанию */
@@ -127,6 +156,25 @@ export function isSupabaseNeeded(env: NodeJS.ProcessEnv = process.env): boolean 
 const supabaseNeeded = isSupabaseNeeded();
 if (supabaseNeeded) {
   validateRequired(['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_JWT_SECRET']);
+}
+
+/**
+ * Keycloak-режим (AUTH_MODE=keycloak) требует набор OIDC-переменных, у которых нет безопасного
+ * дефолта. CSRF_SECRET/AUDIT_HMAC_KEY/AUTH_JWT_SECRET имеют dev-дефолты и проверяются на
+ * production-заглушку в plugins/auth.ts (нужны, в т.ч. для отката на standalone).
+ */
+export function isKeycloakMode(env: NodeJS.ProcessEnv = process.env): boolean {
+  return (env.AUTH_MODE ?? 'supabase-bridge') === 'keycloak';
+}
+
+if (isKeycloakMode()) {
+  validateRequired([
+    'OIDC_ISSUER',
+    'OIDC_CLIENT_ID',
+    'OIDC_CLIENT_SECRET',
+    'OIDC_REDIRECT_URI',
+    'OIDC_POST_LOGOUT_REDIRECT_URI',
+  ]);
 }
 
 /**
@@ -199,4 +247,21 @@ export const config: Config = {
   refreshGraceMs: parseInt(envOptional('REFRESH_GRACE_MS', '5000'), 10),
   csrfSecret: envOptional('CSRF_SECRET', 'dev-insecure-csrf-secret-change-me'),
   auditHmacKey: envOptional('AUDIT_HMAC_KEY', 'dev-insecure-audit-hmac-key-change-me'),
+
+  oidcIssuer: envOptional('OIDC_ISSUER'),
+  oidcClientId: envOptional('OIDC_CLIENT_ID', 'billhub'),
+  oidcClientSecret: envOptional('OIDC_CLIENT_SECRET'),
+  oidcRedirectUri: envOptional('OIDC_REDIRECT_URI'),
+  oidcPostLogoutRedirectUri: envOptional('OIDC_POST_LOGOUT_REDIRECT_URI'),
+  oidcScopes: envOptional('OIDC_SCOPES', 'openid email profile'),
+
+  kcAdminBaseUrl: envOptional('KC_ADMIN_BASE_URL'),
+  kcAdminRealm: envOptional('KC_ADMIN_REALM'),
+  kcAdminClientId: envOptional('KC_ADMIN_CLIENT_ID'),
+  kcAdminClientSecret: envOptional('KC_ADMIN_CLIENT_SECRET'),
+
+  kcPortalGroupPending: envOptional('KC_PORTAL_GROUP_PENDING', 'billhub-pending'),
+  kcPortalGroupActive: envOptional('KC_PORTAL_GROUP_ACTIVE', 'billhub-active'),
+
+  authIdentityProvider: envOptional('AUTH_IDENTITY_PROVIDER', 'keycloak-local'),
 };

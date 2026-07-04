@@ -16,6 +16,8 @@ const roleLabels: Record<UserRole, string> = {
 const ProfilePage = () => {
   const { message } = App.useApp()
   const user = useAuthStore((s) => s.user)
+  const authMode = useAuthStore((s) => s.authMode)
+  const accountUrl = useAuthStore((s) => s.accountUrl)
   const changeOwnPassword = useAuthStore((s) => s.changeOwnPassword)
   const [loading, setLoading] = useState(false)
   const [form] = Form.useForm()
@@ -39,7 +41,9 @@ const ProfilePage = () => {
   return (
     <div>
       <div className="sticky-page-header">
-        <Title level={2} style={{ marginBottom: 24 }}>Личный кабинет</Title>
+        <Title level={2} style={{ marginBottom: 24 }}>
+          Личный кабинет
+        </Title>
       </div>
       <Space direction="vertical" size="large" style={{ width: '100%', maxWidth: 600 }}>
         <Card title="Информация о пользователе">
@@ -54,48 +58,66 @@ const ProfilePage = () => {
           </Descriptions>
         </Card>
 
-        <Card title="Смена пароля">
-          <Form form={form} layout="vertical" style={{ maxWidth: 400 }}>
-            <Form.Item
-              name="current_password"
-              label="Текущий пароль"
-              rules={[{ required: true, message: 'Введите текущий пароль' }]}
+        {authMode === 'keycloak' ? (
+          <Card title="Смена пароля">
+            <Typography.Paragraph type="secondary">
+              Пароль и настройки безопасности управляются в корпоративном аккаунте.
+            </Typography.Paragraph>
+            <Button
+              type="primary"
+              href={accountUrl ?? undefined}
+              target="_blank"
+              rel="noopener noreferrer"
+              disabled={!accountUrl}
             >
-              <Input.Password />
-            </Form.Item>
-            <Form.Item
-              name="new_password"
-              label="Новый пароль"
-              rules={[
-                { required: true, message: 'Введите новый пароль' },
-                { min: 6, message: 'Минимум 6 символов' },
-              ]}
-            >
-              <Input.Password />
-            </Form.Item>
-            <Form.Item
-              name="confirm_password"
-              label="Подтверждение пароля"
-              dependencies={['new_password']}
-              rules={[
-                { required: true, message: 'Подтвердите пароль' },
-                ({ getFieldValue }) => ({
-                  validator(_, value) {
-                    if (!value || getFieldValue('new_password') === value) return Promise.resolve()
-                    return Promise.reject(new Error('Пароли не совпадают'))
-                  },
-                }),
-              ]}
-            >
-              <Input.Password />
-            </Form.Item>
-            <Form.Item>
-              <Button type="primary" onClick={handlePasswordChange} loading={loading}>
-                Сменить пароль
-              </Button>
-            </Form.Item>
-          </Form>
-        </Card>
+              Управление аккаунтом
+            </Button>
+          </Card>
+        ) : (
+          <Card title="Смена пароля">
+            <Form form={form} layout="vertical" style={{ maxWidth: 400 }}>
+              <Form.Item
+                name="current_password"
+                label="Текущий пароль"
+                rules={[{ required: true, message: 'Введите текущий пароль' }]}
+              >
+                <Input.Password />
+              </Form.Item>
+              <Form.Item
+                name="new_password"
+                label="Новый пароль"
+                rules={[
+                  { required: true, message: 'Введите новый пароль' },
+                  { min: 6, message: 'Минимум 6 символов' },
+                ]}
+              >
+                <Input.Password />
+              </Form.Item>
+              <Form.Item
+                name="confirm_password"
+                label="Подтверждение пароля"
+                dependencies={['new_password']}
+                rules={[
+                  { required: true, message: 'Подтвердите пароль' },
+                  ({ getFieldValue }) => ({
+                    validator(_, value) {
+                      if (!value || getFieldValue('new_password') === value)
+                        return Promise.resolve()
+                      return Promise.reject(new Error('Пароли не совпадают'))
+                    },
+                  }),
+                ]}
+              >
+                <Input.Password />
+              </Form.Item>
+              <Form.Item>
+                <Button type="primary" onClick={handlePasswordChange} loading={loading}>
+                  Сменить пароль
+                </Button>
+              </Form.Item>
+            </Form>
+          </Card>
+        )}
       </Space>
     </div>
   )

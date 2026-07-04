@@ -8,6 +8,8 @@
  */
 import { randomUUID } from 'node:crypto';
 import type {
+  IdentityLinkRecord,
+  IdentityLinkStore,
   NewRefreshToken,
   PasswordResetRow,
   PasswordResetStore,
@@ -177,5 +179,51 @@ export class InMemoryPasswordResetStore implements PasswordResetStore {
   async markUsed(id: string, usedAtIso: string): Promise<void> {
     const r = this.rows.get(id);
     if (r) r.usedAt = usedAtIso;
+  }
+}
+
+export class InMemoryIdentityLinkStore implements IdentityLinkStore {
+  private readonly rows: IdentityLinkRecord[] = [];
+
+  constructor(initial: IdentityLinkRecord[] = []) {
+    for (const r of initial) this.rows.push({ ...r });
+  }
+
+  async findBySubject(provider: string, subject: string): Promise<IdentityLinkRecord | null> {
+    const r = this.rows.find((x) => x.provider === provider && x.subject === subject);
+    return r ? { ...r } : null;
+  }
+
+  async findSubjectByUserId(provider: string, userId: string): Promise<string | null> {
+    const r = this.rows.find((x) => x.provider === provider && x.userId === userId);
+    return r ? r.subject : null;
+  }
+
+  async link(input: {
+    userId: string;
+    provider: string;
+    subject: string;
+    emailAtLink: string | null;
+  }): Promise<string> {
+    const existing = this.rows.find(
+      (x) => x.provider === input.provider && x.subject === input.subject,
+    );
+    if (existing) return existing.id;
+    const id = randomUUID();
+    this.rows.push({
+      id,
+      userId: input.userId,
+      provider: input.provider,
+      subject: input.subject,
+      emailAtLink: input.emailAtLink,
+      linkedAt: new Date().toISOString(),
+      lastSeenAt: null,
+    });
+    return id;
+  }
+
+  async touchLastSeen(provider: string, subject: string, atIso: string): Promise<void> {
+    const r = this.rows.find((x) => x.provider === provider && x.subject === subject);
+    if (r) r.lastSeenAt = atIso;
   }
 }

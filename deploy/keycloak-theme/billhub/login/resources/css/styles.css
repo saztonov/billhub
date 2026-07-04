@@ -1,0 +1,211 @@
+/*
+ * BillHub login-тема — брендинг СУ_10 (дизайн 07/08) + light/dark.
+ * Тумблер темы и hero-колонку инжектит theme.js; здесь — только стили.
+ * Тема выбирается через [data-theme] на <html> (ставит theme.js); дефолт — prefers-color-scheme.
+ */
+
+:root {
+  --bh-bg: #ffffff;
+  --bh-bg-hero: #ffffff;
+  --bh-fg: #1c1a19;
+  --bh-fg-muted: #6b6560;
+  --bh-brand: #a95a4d;
+  --bh-brand-hover: #94493d;
+  --bh-card-bg: #ffffff;
+  --bh-card-border: #e7e2dd;
+  --bh-input-bg: #ffffff;
+  --bh-input-border: #d9d3cd;
+  --bh-shadow: 0 12px 40px rgba(28, 26, 25, 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bh-bg: #14110e;
+    --bh-bg-hero: #14110e;
+    --bh-fg: #f1ece6;
+    --bh-fg-muted: #a89f97;
+    --bh-brand: #c07564;
+    --bh-brand-hover: #cd8474;
+    --bh-card-bg: #201c19;
+    --bh-card-border: #322c27;
+    --bh-input-bg: #1a1613;
+    --bh-input-border: #3a332d;
+    --bh-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  }
+}
+
+/* Явный выбор темы тумблером — перебивает media. */
+:root[data-theme='light'] {
+  --bh-bg: #ffffff;
+  --bh-bg-hero: #ffffff;
+  --bh-fg: #1c1a19;
+  --bh-fg-muted: #6b6560;
+  --bh-brand: #a95a4d;
+  --bh-brand-hover: #94493d;
+  --bh-card-bg: #ffffff;
+  --bh-card-border: #e7e2dd;
+  --bh-input-bg: #ffffff;
+  --bh-input-border: #d9d3cd;
+  --bh-shadow: 0 12px 40px rgba(28, 26, 25, 0.1);
+}
+:root[data-theme='dark'] {
+  --bh-bg: #14110e;
+  --bh-bg-hero: #14110e;
+  --bh-fg: #f1ece6;
+  --bh-fg-muted: #a89f97;
+  --bh-brand: #c07564;
+  --bh-brand-hover: #cd8474;
+  --bh-card-bg: #201c19;
+  --bh-card-border: #322c27;
+  --bh-input-bg: #1a1613;
+  --bh-input-border: #3a332d;
+  --bh-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+html,
+body,
+body.login-pf,
+.login-pf body {
+  background: var(--bh-bg) !important;
+  color: var(--bh-fg);
+}
+body::before {
+  content: none !important;
+}
+
+/* --- Hero-колонка (инжектит theme.js) --- */
+.billhub-hero {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: 46%;
+  padding: 0 clamp(32px, 6vw, 120px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 28px;
+  pointer-events: none;
+  z-index: 0;
+}
+.billhub-hero__logo {
+  font-weight: 800;
+  font-size: 40px;
+  letter-spacing: 2px;
+  color: var(--bh-brand);
+  line-height: 1;
+}
+.billhub-hero__logo::after {
+  content: '';
+  display: block;
+  width: 64px;
+  height: 4px;
+  margin-top: 14px;
+  background: var(--bh-brand);
+}
+.billhub-hero__tag {
+  font-size: 12px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--bh-fg-muted);
+  margin-top: 8px;
+}
+.billhub-hero__title {
+  font-weight: 800;
+  font-size: clamp(32px, 4vw, 56px);
+  line-height: 1.05;
+  color: var(--bh-fg);
+  max-width: 12ch;
+}
+
+/* --- Тумблер light/dark (инжектит theme.js) --- */
+.billhub-theme-toggle {
+  position: fixed;
+  top: 20px;
+  right: 24px;
+  z-index: 100;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--bh-card-border);
+  background: var(--bh-card-bg);
+  color: var(--bh-fg);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--bh-shadow);
+}
+.billhub-theme-toggle:hover {
+  border-color: var(--bh-brand);
+}
+
+/* --- Карточка формы: смещаем вправо, брендируем (селекторы keycloak.v2 + generic) --- */
+.login-pf-page,
+#kc-container,
+#kc-container-wrapper,
+.pf-v5-c-login,
+.pf-c-login {
+  background: transparent !important;
+}
+.login-pf-page .card-pf,
+#kc-content,
+.pf-v5-c-login__main,
+.pf-c-login__main {
+  background: var(--bh-card-bg) !important;
+  border: 1px solid var(--bh-card-border) !important;
+  border-radius: 14px !important;
+  box-shadow: var(--bh-shadow) !important;
+  color: var(--bh-fg) !important;
+}
+
+/* Поля ввода */
+input[type='text'],
+input[type='email'],
+input[type='password'],
+.pf-v5-c-form-control,
+.pf-c-form-control,
+#kc-form input {
+  background: var(--bh-input-bg) !important;
+  border: 1px solid var(--bh-input-border) !important;
+  color: var(--bh-fg) !important;
+  border-radius: 8px !important;
+}
+input:focus {
+  border-color: var(--bh-brand) !important;
+  outline: none !important;
+}
+
+/* Основная кнопка «Войти» */
+input[type='submit'],
+button[type='submit'],
+.pf-v5-c-button.pf-m-primary,
+.pf-c-button.pf-m-primary,
+#kc-login {
+  background: var(--bh-brand) !important;
+  border-color: var(--bh-brand) !important;
+  color: #fff !important;
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+}
+input[type='submit']:hover,
+button[type='submit']:hover,
+.pf-v5-c-button.pf-m-primary:hover,
+#kc-login:hover {
+  background: var(--bh-brand-hover) !important;
+  border-color: var(--bh-brand-hover) !important;
+}
+
+/* Ссылки (Забыли пароль, Регистрация) */
+a,
+#kc-registration a,
+#kc-info-wrapper a {
+  color: var(--bh-brand) !important;
+}
+
+/* Узкие экраны: прячем hero, карточка по центру. */
+@media (max-width: 991px) {
+  .billhub-hero {
+    display: none;
+  }
+}

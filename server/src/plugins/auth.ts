@@ -21,11 +21,13 @@ import {
 import { AuditLogService } from '../services/auth/audit-log.service.js';
 import { DrizzleAuditLogRepository } from '../repositories/drizzle/audit-log.drizzle.js';
 import {
+  InMemoryIdentityLinkStore,
   InMemoryPasswordResetStore,
   InMemoryRefreshTokenStore,
   InMemoryUserAuthStore,
 } from '../services/auth/stores/memory.js';
 import {
+  DrizzleIdentityLinkStore,
   DrizzlePasswordResetStore,
   DrizzleRefreshTokenStore,
   DrizzleUserAuthStore,
@@ -33,14 +35,14 @@ import {
 import type { AuthStores } from '../services/auth/stores/types.js';
 import { MailStub, DEFAULT_MAIL_STUB_LOG } from '../services/mail/mail-stub.js';
 
-export type AuthMode = 'supabase-bridge' | 'standalone';
+export type AuthMode = 'supabase-bridge' | 'standalone' | 'keycloak';
 
 /** Резолюция AUTH_MODE из env (валидация значения; НЕ startup-инвариант). */
 export function resolveAuthMode(env: NodeJS.ProcessEnv): AuthMode {
   const mode = (env.AUTH_MODE ?? 'supabase-bridge') as AuthMode;
-  if (mode !== 'supabase-bridge' && mode !== 'standalone') {
+  if (mode !== 'supabase-bridge' && mode !== 'standalone' && mode !== 'keycloak') {
     throw new Error(
-      `Недопустимое значение AUTH_MODE=${mode}. Ожидается "supabase-bridge" или "standalone".`,
+      `Недопустимое значение AUTH_MODE=${mode}. Ожидается "supabase-bridge", "standalone" или "keycloak".`,
     );
   }
   return mode;
@@ -56,7 +58,7 @@ declare module 'fastify' {
 async function authPlugin(fastify: FastifyInstance): Promise<void> {
   const mode = resolveAuthMode(process.env);
 
-  // Минимальная production-проверка секрета (полные startup checks — Iteration 7).
+  // Минимальная production-проверка секретов (полные startup checks — Iteration 7).
   if (
     mode === 'standalone' &&
     config.nodeEnv === 'production' &&
@@ -66,17 +68,37 @@ async function authPlugin(fastify: FastifyInstance): Promise<void> {
       'AUTH_MODE=standalone в production требует заданный AUTH_JWT_SECRET (не dev-placeholder).',
     );
   }
+  // keycloak в production: CSRF активен, audit используется, AUTH_JWT_SECRET нужен для отката —
+  // ни один из этих секретов не должен оставаться dev-заглушкой.
+  if (mode === 'keycloak' && config.nodeEnv === 'production') {
+    const devSecrets = (
+      [
+        ['CSRF_SECRET', config.csrfSecret],
+        ['AUDIT_HMAC_KEY', config.auditHmacKey],
+        ['AUTH_JWT_SECRET', config.authJwtSecret],
+      ] as const
+    )
+      .filter(([, value]) => value.startsWith('dev-insecure'))
+      .map(([key]) => key);
+    if (devSecrets.length > 0) {
+      throw new Error(
+        `AUTH_MODE=keycloak в production требует заданные секреты (не dev-placeholder): ${devSecrets.join(', ')}.`,
+      );
+    }
+  }
 
   const stores: AuthStores = fastify.db
     ? {
         users: new DrizzleUserAuthStore(fastify.db),
         refreshTokens: new DrizzleRefreshTokenStore(fastify.db),
         passwordResets: new DrizzlePasswordResetStore(fastify.db),
+        identityLinks: new DrizzleIdentityLinkStore(fastify.db),
       }
     : {
         users: new InMemoryUserAuthStore(),
         refreshTokens: new InMemoryRefreshTokenStore(),
         passwordResets: new InMemoryPasswordResetStore(),
+        identityLinks: new InMemoryIdentityLinkStore(),
       };
 
   // Iteration 7: при наличии Drizzle (production standalone) security-события пишутся в audit_log

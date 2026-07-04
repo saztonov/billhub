@@ -8,7 +8,7 @@ import { TokenService } from './token.service.js';
 import { RefreshTokenService } from './refresh-token.service.js';
 import { PasswordResetService } from './password-reset.service.js';
 import type { AuditLogger } from './audit.js';
-import type { AuthStores, UserAuthStore } from './stores/types.js';
+import type { AuthStores, IdentityLinkStore, UserAuthStore } from './stores/types.js';
 import type { MailPort } from '../mail/mail-port.js';
 
 export * from './password.service.js';
@@ -23,6 +23,8 @@ export type {
   UserAuthRecord,
   RefreshTokenStore,
   PasswordResetStore,
+  IdentityLinkStore,
+  IdentityLinkRecord,
 } from './stores/types.js';
 
 /** Конфигурация криптопараметров auth. */
@@ -52,6 +54,8 @@ export interface AuthServiceBundle {
   refresh: RefreshTokenService;
   passwordReset: PasswordResetService;
   users: UserAuthStore;
+  /** Связи идентичностей Keycloak (keycloak-режим). */
+  identityLinks: IdentityLinkStore;
   audit: AuditLogger;
   mail: MailPort;
 }
@@ -83,5 +87,14 @@ export function buildAuthServices(opts: BuildAuthServicesOptions): AuthServiceBu
     now,
     audit,
   });
-  return { passwords, tokens, refresh, passwordReset, users: stores.users, audit, mail };
+  return {
+    passwords,
+    tokens,
+    refresh,
+    passwordReset,
+    users: stores.users,
+    identityLinks: stores.identityLinks,
+    audit,
+    mail,
+  };
 }

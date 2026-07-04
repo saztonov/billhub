@@ -39,6 +39,13 @@ export const SENSITIVE_KEYS: string[] = [
   'password_hash',
   'authorization',
   'cookie',
+  // OIDC / Keycloak (keycloak-режим)
+  'idToken',
+  'id_token',
+  'clientSecret',
+  'client_secret',
+  'codeVerifier',
+  'code_verifier',
   // presigned-URL
   'presignedUrl',
   'presigned_url',

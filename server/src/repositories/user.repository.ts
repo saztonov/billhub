@@ -24,12 +24,17 @@ export interface UserSitesUpdate {
   siteIds: string[];
 }
 
-/** Данные создания профиля пользователя-подрядчика (id берётся из Supabase Auth, Iteration 5). */
+/** Данные создания профиля пользователя-подрядчика. */
 export interface CounterpartyUserRecord {
   id: string;
   email: string;
   fullName: string;
   counterpartyId: string;
+  /**
+   * Активность строки. По умолчанию false: новые пользователи заводятся неактивными и
+   * активируются админом (переключатель в UsersTab / группа Keycloak). См. решение v4.
+   */
+  isActive?: boolean;
 }
 
 export interface UserRepository {

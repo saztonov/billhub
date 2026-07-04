@@ -1,10 +1,43 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
+import { config } from '../config.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { requireRole } from '../middleware/requireRole.js';
 import { PasswordService } from '../services/auth/password.service.js';
-import { updateUserWithSitesBodySchema, updateUserSitesBodySchema } from '../schemas/user.js';
+import { keycloakAdminClient } from '../services/auth/keycloak/admin-client.js';
+import {
+  updateUserWithSitesBodySchema,
+  updateUserSitesBodySchema,
+  type CreateUserBody,
+} from '../schemas/user.js';
+
+/**
+ * В keycloak-режиме активность доступа к порталу — членство в группе billhub-active. При
+ * активации/деактивации из BillHub двигаем группу через Admin API (subject берём из
+ * user_identity_links). Если связи ещё нет (пользователь не логинился) — no-op: группа
+ * выставится в callback при первом входе.
+ */
+async function syncPortalGroup(
+  request: FastifyRequest,
+  userId: string,
+  active: boolean,
+): Promise<void> {
+  if (request.server.authMode !== 'keycloak') return;
+  const subject = await request.server.authServices.identityLinks.findSubjectByUserId(
+    config.authIdentityProvider,
+    userId,
+  );
+  if (!subject) return;
+  try {
+    await keycloakAdminClient.setPortalActive(subject, active);
+  } catch (err) {
+    request.log.error(
+      { err, userId },
+      'setPortalActive: не удалось синхронизировать группу Keycloak',
+    );
+  }
+}
 
 /* ------------------------------------------------------------------ */
 /*  Параметры пути и тела                                              */
@@ -42,11 +75,77 @@ const batchImportBodySchema = z.union([
 /*  bcrypt-хэш в public.users, без Supabase.                           */
 /* ------------------------------------------------------------------ */
 
+/** Тело канонического admin-create (POST /api/users). Соответствует payload фронта. */
+const createUserRequestSchema = z.object({
+  email: z.string().min(1),
+  password: z.string().optional(),
+  fullName: z.string().min(1),
+  role: z.enum(['admin', 'user', 'counterparty_user', 'security']),
+  counterpartyId: z.string().nullish(),
+  departmentId: z.string().nullish(),
+  allSites: z.boolean().optional(),
+  siteIds: z.array(z.string()).optional(),
+});
+
 async function userRoutes(fastify: FastifyInstance): Promise<void> {
   /** GET /api/users — список пользователей с контрагентами и объектами */
   fastify.get('/', { preHandler: [authenticate, requireRole('admin')] }, async (request) => {
     return request.server.repos.users.listWithDetails();
   });
+
+  /**
+   * POST /api/users — канонический admin-create (заменяет legacy /api/auth/create-user).
+   * Пользователь создаётся неактивным (см. решение v4). В standalone — с bcrypt-паролем;
+   * в keycloak — без пароля (идентичность/пароль в Keycloak, связь по email при первом входе,
+   * группа billhub-active — при активации).
+   */
+  fastify.post(
+    '/',
+    { preHandler: [authenticate, requireRole('admin')] },
+    async (request, reply) => {
+      const parsed = createUserRequestSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: 'Неверный формат данных' });
+      }
+      const b = parsed.data;
+      const mode = request.server.authMode;
+      if (mode === 'standalone') {
+        if (!b.password) return reply.status(400).send({ error: 'Пароль обязателен' });
+        PasswordService.assertStrong(b.password);
+      }
+      try {
+        const user = await request.server.repos.users.create({
+          email: b.email,
+          // password не персистится методом create (хэш ставится отдельно); поле нужно для типа.
+          password: b.password ?? '',
+          fullName: b.fullName,
+          role: b.role,
+          counterpartyId: b.counterpartyId ?? null,
+          department: (b.departmentId ?? undefined) as CreateUserBody['department'],
+          allSites: b.allSites ?? false,
+          isActive: false,
+        });
+        if (b.siteIds && b.siteIds.length > 0) {
+          await request.server.repos.users.setSiteMappings(user.id, b.siteIds);
+        }
+        if (mode === 'standalone' && b.password) {
+          const hash = await request.server.authServices.passwords.hash(b.password);
+          await request.server.authServices.users.setPasswordHash(
+            user.id,
+            hash,
+            new Date().toISOString(),
+          );
+        }
+        return { id: user.id, success: true };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Ошибка создания пользователя';
+        const errorMessage = /unique|duplicate|users_email_lower_unique_idx/i.test(msg)
+          ? `Пользователь с email ${b.email} уже существует`
+          : msg;
+        return reply.status(400).send({ error: errorMessage });
+      }
+    },
+  );
 
   /** GET /api/users/:id/site-ids — объекты пользователя (allSites + siteIds) */
   fastify.get<{ Params: IdParams }>(
@@ -99,6 +198,7 @@ async function userRoutes(fastify: FastifyInstance): Promise<void> {
     { schema: idParamsSchema, preHandler: [authenticate, requireRole('admin')] },
     async (request) => {
       await request.server.repos.users.setActive(request.params.id, false);
+      await syncPortalGroup(request, request.params.id, false);
       return { success: true };
     },
   );
@@ -111,6 +211,7 @@ async function userRoutes(fastify: FastifyInstance): Promise<void> {
       const body = patchBodySchema.parse(request.body ?? {});
       if (body.isActive !== undefined) {
         await request.server.repos.users.setActive(request.params.id, body.isActive);
+        await syncPortalGroup(request, request.params.id, body.isActive);
       }
       return { success: true };
     },
@@ -122,6 +223,7 @@ async function userRoutes(fastify: FastifyInstance): Promise<void> {
     { schema: idParamsSchema, preHandler: [authenticate, requireRole('admin')] },
     async (request) => {
       await request.server.repos.users.setActive(request.params.id, true);
+      await syncPortalGroup(request, request.params.id, true);
       return { success: true };
     },
   );

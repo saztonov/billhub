@@ -18,6 +18,15 @@ interface AuthUserResponse {
   accessTokenExpiresAt?: number
 }
 
+/** Режим аутентификации (из GET /api/auth/config). keycloak → вход/выход через редирект. */
+export type AuthMode = 'standalone' | 'keycloak' | 'supabase-bridge'
+
+interface AuthConfigResponse {
+  mode: AuthMode
+  loginUrl?: string
+  accountUrl?: string
+}
+
 interface AuthStoreState {
   user: User | null
   isAuthenticated: boolean
@@ -27,9 +36,14 @@ interface AuthStoreState {
   error: string | null
   /** Время истечения access_token (unix ms) — для проактивного refresh */
   accessTokenExpiresAt: number | null
+  /** Режим аутентификации (rollback-safe: фронт следует за флипом AUTH_MODE без пересборки). */
+  authMode: AuthMode
+  /** URL Keycloak Account Console (смена пароля/профиль) — в keycloak-режиме. */
+  accountUrl: string | null
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
   checkAuth: () => Promise<void>
+  loadAuthConfig: () => Promise<void>
   clearError: () => void
   changeOwnPassword: (currentPassword: string, newPassword: string) => Promise<void>
   setAccessTokenExpiresAt: (expiresAt: number | null) => void
@@ -56,15 +70,27 @@ export const useAuthStore = create<AuthStoreState>((set) => ({
   isInitialized: false,
   error: null,
   accessTokenExpiresAt: null,
+  authMode: 'standalone',
+  accountUrl: null,
 
   login: async (email: string, password: string) => {
     set({ isLoading: true, error: null })
     try {
-      const response = await api.post<AuthUserResponse>('/api/auth/login', { email, password }, { skipAuthRedirect: true })
+      const response = await api.post<AuthUserResponse>(
+        '/api/auth/login',
+        { email, password },
+        { skipAuthRedirect: true },
+      )
       const user = mapResponseToUser(response.user)
 
       if (!user.isActive) {
-        set({ user: null, isAuthenticated: false, isLoading: false, error: 'Ваш аккаунт деактивирован', accessTokenExpiresAt: null })
+        set({
+          user: null,
+          isAuthenticated: false,
+          isLoading: false,
+          error: 'Ваш аккаунт деактивирован',
+          accessTokenExpiresAt: null,
+        })
         return
       }
 
@@ -82,24 +108,36 @@ export const useAuthStore = create<AuthStoreState>((set) => ({
 
   logout: async () => {
     set({ isLoading: true })
+    let logoutUrl: string | undefined
     try {
-      await api.post('/api/auth/logout')
+      // keycloak-режим возвращает { logoutUrl } для top-level end-session Keycloak.
+      const res = await api.post<{ success?: boolean; logoutUrl?: string }>('/api/auth/logout')
+      logoutUrl = res?.logoutUrl
     } catch {
       // Очищаем состояние даже при ошибке сети
-    } finally {
-      set({ user: null, isAuthenticated: false, isLoading: false, accessTokenExpiresAt: null })
     }
+    set({ user: null, isAuthenticated: false, isLoading: false, accessTokenExpiresAt: null })
+    // Полноэкранная навигация на Keycloak (гасит SSO-сессию). Только top-level, не fetch.
+    if (logoutUrl) window.location.assign(logoutUrl)
   },
 
   checkAuth: async () => {
     set({ isLoading: true })
     try {
       // skipAuthRedirect: не редиректим на логин при 401 — это задача ProtectedRoute
-      const response = await api.get<AuthUserResponse>('/api/auth/me', undefined, { skipAuthRedirect: true })
+      const response = await api.get<AuthUserResponse>('/api/auth/me', undefined, {
+        skipAuthRedirect: true,
+      })
       const user = mapResponseToUser(response.user)
 
       if (!user.isActive) {
-        set({ user: null, isAuthenticated: false, isLoading: false, isInitialized: true, accessTokenExpiresAt: null })
+        set({
+          user: null,
+          isAuthenticated: false,
+          isLoading: false,
+          isInitialized: true,
+          accessTokenExpiresAt: null,
+        })
         return
       }
 
@@ -112,7 +150,25 @@ export const useAuthStore = create<AuthStoreState>((set) => ({
       })
     } catch {
       // Любая ошибка (401, сеть и т.д.) — просто сбрасываем состояние без редиректа
-      set({ user: null, isAuthenticated: false, isLoading: false, isInitialized: true, accessTokenExpiresAt: null })
+      set({
+        user: null,
+        isAuthenticated: false,
+        isLoading: false,
+        isInitialized: true,
+        accessTokenExpiresAt: null,
+      })
+    }
+  },
+
+  loadAuthConfig: async () => {
+    try {
+      // /api/auth/config существует только в keycloak-режиме; 404/ошибка → non-keycloak.
+      const res = await api.get<AuthConfigResponse>('/api/auth/config', undefined, {
+        skipAuthRedirect: true,
+      })
+      set({ authMode: res.mode, accountUrl: res.accountUrl ?? null })
+    } catch {
+      set({ authMode: 'standalone', accountUrl: null })
     }
   },
 
