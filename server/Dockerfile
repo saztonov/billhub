@@ -13,6 +13,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev libpixman-1-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# Фиксируем npm под версию dev-окружения (11.x). Базовый node:20 несёт npm 10.x,
+# а lock генерируется на dev под npm 11.x — из-за разной трактовки optional peer-
+# зависимостей (@emnapi/*) строгий `npm ci` ловит мнимый рассинхрон lock и падает.
+# Совпадение версий npm в сборке и на dev убирает этот класс поломок.
+RUN npm install -g npm@11.6.2
+
 WORKDIR /app
 
 COPY server/package*.json ./
