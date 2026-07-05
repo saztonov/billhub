@@ -36,7 +36,12 @@ export const useOmtsRpStore = create<OmtsRpStoreState>((set, get) => ({
       set({ sites: data ?? [], isLoading: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка загрузки объектов ОМТС РП'
-      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'fetchOmtsRpSites' } })
+      logError({
+        errorType: 'api_error',
+        errorMessage: message,
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'fetchOmtsRpSites' },
+      })
       set({ error: message, isLoading: false })
     }
   },
@@ -44,12 +49,17 @@ export const useOmtsRpStore = create<OmtsRpStoreState>((set, get) => ({
   addSite: async (constructionSiteId) => {
     set({ error: null })
     try {
-      await api.post('/api/omts-rp/sites', { constructionSiteId })
+      await api.put('/api/omts-rp/sites', { action: 'add', siteId: constructionSiteId })
 
       await get().fetchSites()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка добавления объекта'
-      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'addOmtsRpSite' } })
+      logError({
+        errorType: 'api_error',
+        errorMessage: message,
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'addOmtsRpSite' },
+      })
       set({ error: message })
       throw err
     }
@@ -58,12 +68,17 @@ export const useOmtsRpStore = create<OmtsRpStoreState>((set, get) => ({
   removeSite: async (siteId) => {
     set({ error: null })
     try {
-      await api.delete(`/api/omts-rp/sites/${siteId}`)
+      await api.put('/api/omts-rp/sites', { action: 'remove', siteId })
 
       await get().fetchSites()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка удаления объекта'
-      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'removeOmtsRpSite' } })
+      logError({
+        errorType: 'api_error',
+        errorMessage: message,
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'removeOmtsRpSite' },
+      })
       set({ error: message })
       throw err
     }
@@ -76,7 +91,12 @@ export const useOmtsRpStore = create<OmtsRpStoreState>((set, get) => ({
       set({ responsibleUserId: data?.responsibleUserId ?? null })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка загрузки конфигурации ОМТС РП'
-      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'fetchOmtsRpConfig' } })
+      logError({
+        errorType: 'api_error',
+        errorMessage: message,
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'fetchOmtsRpConfig' },
+      })
       set({ error: message })
     }
   },
@@ -89,7 +109,12 @@ export const useOmtsRpStore = create<OmtsRpStoreState>((set, get) => ({
       set({ responsibleUserId: userId })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка обновления ответственного'
-      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'updateOmtsRpResponsible' } })
+      logError({
+        errorType: 'api_error',
+        errorMessage: message,
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'updateOmtsRpResponsible' },
+      })
       set({ error: message })
       throw err
     }
@@ -107,7 +132,7 @@ export const useOmtsRpStore = create<OmtsRpStoreState>((set, get) => ({
   },
 
   isOmtsRpSite: (siteId) => {
-    return get().sites.some((s) => s.constructionSiteId === siteId)
+    return get().sites.some((s) => s.id === siteId)
   },
 
   getResponsibleUserId: () => {

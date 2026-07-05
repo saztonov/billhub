@@ -10,9 +10,16 @@ const { Text } = Typography
 const OmtsRpSettingsTab = () => {
   const { message } = App.useApp()
   const {
-    sites, responsibleUserId, omtsUsers, isLoading,
-    fetchSites, addSite, removeSite,
-    fetchConfig, updateResponsible, fetchOmtsUsers,
+    sites,
+    responsibleUserId,
+    omtsUsers,
+    isLoading,
+    fetchSites,
+    addSite,
+    removeSite,
+    fetchConfig,
+    updateResponsible,
+    fetchOmtsUsers,
   } = useOmtsRpStore()
   const { sites: allSites, fetchSites: fetchConstructionSites } = useConstructionSiteStore()
 
@@ -26,9 +33,7 @@ const OmtsRpSettingsTab = () => {
   }, [fetchSites, fetchConfig, fetchOmtsUsers, fetchConstructionSites])
 
   // Объекты, которые ещё не добавлены в список ОМТС РП
-  const availableSites = allSites.filter(
-    (s) => s.isActive && !sites.some((rs) => rs.constructionSiteId === s.id)
-  )
+  const availableSites = allSites.filter((s) => s.isActive && !sites.some((rs) => rs.id === s.id))
 
   const handleAddSite = async () => {
     if (!selectedSiteId) return
@@ -62,16 +67,16 @@ const OmtsRpSettingsTab = () => {
   const columns = [
     {
       title: 'Объект строительства',
-      dataIndex: 'siteName',
-      key: 'siteName',
-      sorter: (a: OmtsRpSite, b: OmtsRpSite) => (a.siteName ?? '').localeCompare(b.siteName ?? ''),
+      dataIndex: 'name',
+      key: 'name',
+      sorter: (a: OmtsRpSite, b: OmtsRpSite) => a.name.localeCompare(b.name),
     },
     {
       title: 'Действия',
       key: 'actions',
       width: 100,
       render: (_: unknown, record: OmtsRpSite) => (
-        <Popconfirm title="Удалить объект из списка?" onConfirm={() => handleRemoveSite(record.constructionSiteId)}>
+        <Popconfirm title="Удалить объект из списка?" onConfirm={() => handleRemoveSite(record.id)}>
           <Button icon={<DeleteOutlined />} danger size="small" />
         </Popconfirm>
       ),
@@ -105,7 +110,8 @@ const OmtsRpSettingsTab = () => {
       <Card size="small" title="Объекты с двойным согласованием ОМТС">
         <Space direction="vertical" style={{ width: '100%' }}>
           <Text type="secondary">
-            Для этих объектов после согласования ответственным ОМТС заявка дополнительно согласовывается специальным лицом
+            Для этих объектов после согласования ответственным ОМТС заявка дополнительно
+            согласовывается специальным лицом
           </Text>
           <Space>
             <Select
@@ -133,7 +139,7 @@ const OmtsRpSettingsTab = () => {
           <Table
             columns={columns}
             dataSource={sites}
-            rowKey="constructionSiteId"
+            rowKey="id"
             loading={isLoading}
             pagination={false}
             size="small"

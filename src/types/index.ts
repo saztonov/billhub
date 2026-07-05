@@ -717,10 +717,7 @@ export interface ErrorLog {
 }
 
 /** Объект ОМТС РП (привязка к объекту строительства) */
-export interface OmtsRpSite {
-  constructionSiteId: string
-  siteName?: string
-}
+export type OmtsRpSite = Pick<ConstructionSite, 'id' | 'name'>
 
 /** Состояние аутентификации */
 export interface AuthState {
