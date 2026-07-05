@@ -41,6 +41,8 @@ function usage(): void {
       '  --report-file <file>      сохранить JSON-отчёт\n' +
       '  --approved-mapping <file> JSON {"<userId>":"<kcSub>"} для разрешённых mismatch\n' +
       '  --batch N                 размер батча import (по умолчанию 400)\n' +
+      '  --limit N                 import: обработать не более N (пробный сэмпл; resume продолжит)\n' +
+      '  --check-kc                preflight: сверить существование email в KC (AD-коллизии), read-креды\n' +
       '  --ack-backup              подтверждение backup БД + realm-export (обязателен для import)\n' +
       '  --json                    печать отчёта в JSON',
   );
@@ -50,6 +52,7 @@ async function readJsonFile<T>(file: string): Promise<T> {
   return JSON.parse(await readFile(file, 'utf8')) as T;
 }
 
+/** Write-клиент импорта: billhub-import (manage-realm) — только для partialImport (import-режим). */
 function importClient(): KeycloakImportClient {
   return new KeycloakImportClient({
     clientId: config.kcImportClientId || undefined,
@@ -57,6 +60,16 @@ function importClient(): KeycloakImportClient {
     baseUrl: config.kcImportBaseUrl || undefined,
     realm: config.kcImportRealm || undefined,
   });
+}
+
+/** Read-клиент: сервис-аккаунт billhub (view-users) — для preflight/verify/reconcile (не мощный import). */
+function readClient(): KeycloakImportClient {
+  return new KeycloakImportClient();
+}
+
+/** Есть ли KC read-креды (kcAdmin* или oidc*). */
+function hasKcReadCreds(): boolean {
+  return !!(config.kcAdminClientSecret || config.oidcClientSecret);
 }
 
 function output(args: CliArgs, human: string, data: unknown): void {
@@ -77,9 +90,16 @@ async function dispatch(mode: Mode, args: CliArgs, pg: PgAdapters): Promise<numb
   const groupPending = config.kcPortalGroupPending;
 
   if (mode === 'preflight') {
+    if (args.checkKc && !hasKcReadCreds()) {
+      console.error(
+        'preflight --check-kc: нужны KC read-креды (KC_ADMIN_CLIENT_SECRET или OIDC_CLIENT_SECRET, сервис-аккаунт billhub view-users).',
+      );
+      return 1;
+    }
     const { report, blocked } = await runPreflight({
       source: pg.source,
       allowAnomalies: args.allowAnomalies,
+      kc: args.checkKc ? buildKeycloakAdminPort(readClient()) : undefined,
     });
     output(
       args,
@@ -104,12 +124,10 @@ async function dispatch(mode: Mode, args: CliArgs, pg: PgAdapters): Promise<numb
     return 0;
   }
 
-  const kc = buildKeycloakAdminPort(importClient());
-
   if (mode === 'verify') {
     const report = await runVerify({
       source: pg.source,
-      kc,
+      kc: buildKeycloakAdminPort(readClient()),
       links: pg.links,
       provider,
       groupActive,
@@ -127,7 +145,7 @@ async function dispatch(mode: Mode, args: CliArgs, pg: PgAdapters): Promise<numb
   if (mode === 'reconcile') {
     const report = await runReconcile({
       source: pg.source,
-      kc,
+      kc: buildKeycloakAdminPort(readClient()),
       links: pg.links,
       mirror: pg.mirror,
       provider,
@@ -166,7 +184,7 @@ async function dispatch(mode: Mode, args: CliArgs, pg: PgAdapters): Promise<numb
 
   const report = await runImport({
     source: pg.source,
-    kc,
+    kc: buildKeycloakAdminPort(importClient()),
     links: pg.links,
     provider,
     groupActive,
@@ -174,6 +192,7 @@ async function dispatch(mode: Mode, args: CliArgs, pg: PgAdapters): Promise<numb
     checkpoint: args.state ? new FileCheckpoint(args.state) : undefined,
     approvedMapping,
     batch: args.batch,
+    limit: args.limit,
     dryRun: args.dryRun,
   });
 

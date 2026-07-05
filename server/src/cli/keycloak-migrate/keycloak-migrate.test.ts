@@ -6,7 +6,7 @@ import { bcryptCost, buildBcryptCredential } from './bcrypt-credential.js';
 import { splitFullName } from './name-split.js';
 import { buildUserPayload } from './payload-builder.js';
 import { analyzePreflight } from './preflight.js';
-import { runImport, runReconcile, runVerify } from './runners.js';
+import { runImport, runPreflight, runReconcile, runVerify } from './runners.js';
 import type {
   IfResourceExists,
   KcGroupRef,
@@ -476,5 +476,56 @@ describe('runReconcile', () => {
     });
     expect(mirror.calls).toHaveLength(0);
     expect(rep.updated).toBe(1);
+  });
+});
+
+/* ---------------------------- runPreflight --check-kc ---------------------- */
+
+describe('runPreflight --check-kc', () => {
+  it('email уже в KC без нашего billhub_user_id (AD-коллизия) → blocker kc_email_exists', async () => {
+    const u = user({ email: 'ad@x.com' });
+    const kc = new MockKc({ resolve: () => ({ id: 'ad-sub', email: 'ad@x.com', attributes: {} }) });
+    const { report, blocked } = await runPreflight({
+      source: mockSource([u]),
+      allowAnomalies: 0,
+      kc,
+    });
+    expect(
+      report.anomalies.some((a) => a.kind === 'kc_email_exists' && a.level === 'blocker'),
+    ).toBe(true);
+    expect(blocked).toBe(true);
+  });
+
+  it('email в KC уже с нашим billhub_user_id → не блокер', async () => {
+    const u = user({ email: 'me@x.com' });
+    const kc = new MockKc({
+      resolve: () => ({ id: 'sub', email: 'me@x.com', attributes: { billhub_user_id: [u.id] } }),
+    });
+    const { report } = await runPreflight({ source: mockSource([u]), allowAnomalies: 0, kc });
+    expect(report.anomalies.some((a) => a.kind === 'kc_email_exists')).toBe(false);
+  });
+});
+
+/* -------------------------------- runImport --limit ------------------------ */
+
+describe('runImport --limit', () => {
+  it('обрабатывает не более N за прогон (resume продолжит остальное)', async () => {
+    const u1 = user({ id: 'aaa', email: 'a1@x.com' });
+    const u2 = user({ id: 'bbb', email: 'b1@x.com' });
+    const kc = new MockKc({
+      resolve: (email) => (email === 'a1@x.com' ? resolvedSelf(u1) : resolvedSelf(u2)),
+    });
+    const rep = await runImport({
+      source: mockSource([u1, u2]),
+      kc,
+      links: new MockLinks(),
+      provider: 'keycloak-local',
+      groupActive: 'billhub-active',
+      groupPending: 'billhub-pending',
+      limit: 1,
+      now: NOW,
+    });
+    expect(rep.counters.processed).toBe(1);
+    expect(rep.cursor).toBe('aaa');
   });
 });

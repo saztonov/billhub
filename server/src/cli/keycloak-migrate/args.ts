@@ -15,6 +15,10 @@ export interface CliArgs {
   batch: number;
   ackBackup: boolean;
   json: boolean;
+  /** preflight: сверять существование email в KC (ловит AD-коллизии заранее; требует KC read-креды). */
+  checkKc: boolean;
+  /** import: обработать не более N пользователей за прогон (пробный сэмпл; resume продолжит остальное). */
+  limit?: number;
 }
 
 function isMode(v: string | undefined): v is Mode {
@@ -28,6 +32,7 @@ export function parseArgs(argv: string[]): CliArgs {
     batch: 400,
     ackBackup: false,
     json: false,
+    checkKc: false,
   };
   // Режим — первый позиционный аргумент (не начинается с '--').
   let i = 0;
@@ -63,6 +68,13 @@ export function parseArgs(argv: string[]): CliArgs {
       case '--batch':
         out.batch = Number.parseInt(next ?? '400', 10) || 400;
         i += 1;
+        break;
+      case '--limit':
+        out.limit = Number.parseInt(next ?? '0', 10) || undefined;
+        i += 1;
+        break;
+      case '--check-kc':
+        out.checkKc = true;
         break;
       case '--dry-run':
         out.dryRun = true;

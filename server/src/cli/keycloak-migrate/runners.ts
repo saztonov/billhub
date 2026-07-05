@@ -43,10 +43,43 @@ export interface PreflightRunResult {
 export async function runPreflight(opts: {
   source: SourceReader;
   allowAnomalies: number;
+  /** Опц. KC read-порт (view-users): сверить, что email уже есть в KC (AD-коллизии) — раньше импорта. */
+  kc?: KeycloakAdminPort;
   logger?: Logger;
 }): Promise<PreflightRunResult> {
   const users = await opts.source.readUsers();
   const report = analyzePreflight(users);
+
+  if (opts.kc) {
+    for (const u of users) {
+      if (!u.email) continue;
+      try {
+        const kcUser = await opts.kc.findUserByEmail(u.email);
+        // Существующий KC-юзер, не связанный с этим users.id (в т.ч. AD-федерация) → блокер:
+        // partialImport(SKIP) не создаст нашего, sub будет чужой → нужен approved-mapping/ревью.
+        if (kcUser && !(kcUser.attributes?.billhub_user_id ?? []).includes(u.id)) {
+          report.anomalies.push({
+            level: 'blocker',
+            kind: 'kc_email_exists',
+            userId: u.id,
+            email: u.email,
+            detail: `KC sub ${kcUser.id}`,
+          });
+        }
+      } catch (e) {
+        report.anomalies.push({
+          level: 'blocker',
+          kind: 'kc_check_failed',
+          userId: u.id,
+          email: u.email,
+          detail: errMsg(e),
+        });
+      }
+    }
+    report.blockers = report.anomalies.filter((a) => a.level === 'blocker').length;
+    report.warnings = report.anomalies.filter((a) => a.level === 'warning').length;
+  }
+
   const blocked = report.blockers > 0 || report.warnings > opts.allowAnomalies;
   return { report, blocked };
 }
@@ -63,6 +96,8 @@ export interface ImportRunOptions {
   checkpoint?: Checkpoint;
   approvedMapping?: Record<string, string>;
   batch?: number;
+  /** Обработать не более N пользователей за прогон (пробный сэмпл; resume продолжит остальное). */
+  limit?: number;
   dryRun?: boolean;
   logger?: Logger;
   now?: () => string;
@@ -92,7 +127,11 @@ export async function runImport(opts: ImportRunOptions): Promise<ImportRunReport
   const startedAt = prev?.startedAt ?? now();
   let cursor = prev?.cursor ?? null;
 
-  const pending = cursor ? all.filter((u) => u.id > cursor!) : all;
+  const afterCursor = cursor ? all.filter((u) => u.id > cursor!) : all;
+  const pending =
+    typeof opts.limit === 'number' && opts.limit > 0
+      ? afterCursor.slice(0, opts.limit)
+      : afterCursor;
   const errors: { userId: string; email: string; error: string }[] = [];
   let stopped = false;
 
