@@ -36,8 +36,8 @@ function letter(overrides: Partial<RpLetter>): RpLetter {
   }
 }
 
-function run(letters: RpLetter[], filters: FilterValues, userId?: string) {
-  return renderHook(() => useRpLetterFiltering(letters, filters, userId)).result.current
+function run(letters: RpLetter[], filters: FilterValues) {
+  return renderHook(() => useRpLetterFiltering(letters, filters)).result.current
 }
 
 describe('useRpLetterFiltering', () => {
@@ -83,14 +83,10 @@ describe('useRpLetterFiltering', () => {
     expect(run(items, { dateTo: '2026-07-01' }).map((l) => l.id)).toEqual(['1'])
   })
 
-  it('«мои» и «ответственный» — по создателю РП', () => {
-    expect(run(items, { myRequestsFilter: 'assigned_to_me' }, 'user-2').map((l) => l.id)).toEqual([
-      '2',
-    ])
-    expect(run(items, { responsibleUserId: 'user-1' }).map((l) => l.id)).toEqual(['1'])
-  })
-
-  it('responsibleFilter (назначен/не назначен) к реестру не применяется', () => {
+  it('request-only фильтры к реестру не применяются («мои», «ответственный»)', () => {
+    // Авто-дефолт ОМТС «назначенные мне» не должен скрывать реестр.
+    expect(run(items, { myRequestsFilter: 'assigned_to_me' })).toHaveLength(2)
+    expect(run(items, { responsibleUserId: 'user-1' })).toHaveLength(2)
     expect(run(items, { responsibleFilter: 'unassigned' })).toHaveLength(2)
   })
 })

@@ -24,7 +24,6 @@ import {
   MenuOutlined,
   AppstoreOutlined,
   AuditOutlined,
-  SnippetsOutlined,
 } from '@ant-design/icons'
 import { useAuthStore } from '@/store/authStore'
 import { useNotificationStore } from '@/store/notificationStore'
@@ -58,7 +57,6 @@ function getMenuItems(role: UserRole, department?: string | null): MenuProps['it
   const items: MenuProps['items'] = [
     { key: '/payment-requests', icon: <FileTextOutlined />, label: 'Заявки на оплату' },
     { key: '/contract-requests', icon: <AuditOutlined />, label: 'Договора' },
-    { key: '/distribution-letters', icon: <SnippetsOutlined />, label: 'РП' },
   ]
 
   // Материалы видны admin и сметному отделу

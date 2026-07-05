@@ -26,7 +26,6 @@ const RootRedirect = () => {
 // Ленивая загрузка страниц с retry при сетевых сбоях
 const PaymentRequestsPage = lazyWithRetry(() => import('@/pages/PaymentRequestsPage'))
 const ContractRequestsPage = lazyWithRetry(() => import('@/pages/ContractRequestsPage'))
-const DistributionLettersPage = lazyWithRetry(() => import('@/pages/DistributionLettersPage'))
 const EmployeesPage = lazyWithRetry(() => import('@/pages/EmployeesPage'))
 const ReferencesPage = lazyWithRetry(() => import('@/pages/ReferencesPage'))
 const AdminPage = lazyWithRetry(() => import('@/pages/AdminPage'))
@@ -110,20 +109,6 @@ const App = () => {
 
             {/* Только admin и user (внутренние сотрудники) */}
             <Route element={<RoleGuard allowedRoles={['admin', 'user']} />}>
-              <Route
-                path="/distribution-letters"
-                element={
-                  <Suspense
-                    fallback={
-                      <Flex align="center" justify="center" style={{ padding: 48 }}>
-                        <Spin size="large" />
-                      </Flex>
-                    }
-                  >
-                    <DistributionLettersPage />
-                  </Suspense>
-                }
-              />
               <Route
                 path="/employees"
                 element={

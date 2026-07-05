@@ -4,17 +4,15 @@ import type { FilterValues } from '@/components/paymentRequests/RequestFilters'
 
 /**
  * Клиентская фильтрация реестра РП тем же блоком фильтров, что и вкладки заявок.
- * Маппинг полей на РП: подрядчик/объект/поставщик — по id; сумма — totalAmount РП;
- * номер — совпадение по номеру заявки в составе РП, локальному номеру РП или
- * рег.номеру письма PayHub; даты — по createdAt (до следующего дня, как у заявок);
- * «мои» и «ответственный» — по создателю РП (у РП нет назначенного ответственного).
- * responsibleFilter (назначен/не назначен) к РП неприменим — игнорируется.
+ * Применяются только letter-native поля: подрядчик/объект/поставщик — по id;
+ * сумма — totalAmount РП; номер — совпадение по номеру заявки в составе РП,
+ * локальному номеру РП или рег.номеру письма PayHub; даты — по createdAt
+ * (до следующего дня, как у заявок).
+ * Request-only фильтры к реестру НЕ применяются: «мои» (myRequestsFilter),
+ * «ответственный» (responsibleFilter/responsibleUserId) — у писем нет назначенного
+ * ответственного, а авто-дефолт ОМТС «назначенные мне» не должен скрывать реестр.
  */
-export function useRpLetterFiltering(
-  letters: RpLetter[],
-  filters: FilterValues,
-  userId?: string,
-): RpLetter[] {
+export function useRpLetterFiltering(letters: RpLetter[], filters: FilterValues): RpLetter[] {
   return useMemo(() => {
     let filtered = letters
 
@@ -52,13 +50,6 @@ export function useRpLetterFiltering(
         return l.totalAmount === val
       })
     }
-    if (filters.responsibleUserId) {
-      filtered = filtered.filter((l) => l.createdBy === filters.responsibleUserId)
-    }
-    if (filters.myRequestsFilter === 'assigned_to_me' && userId) {
-      filtered = filtered.filter((l) => l.createdBy === userId)
-    }
-
     return filtered
-  }, [letters, filters, userId])
+  }, [letters, filters])
 }

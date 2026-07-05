@@ -21,7 +21,11 @@ import CounterpartyRequestsView from '@/components/paymentRequests/CounterpartyR
 import MobileFiltersDrawer from '@/components/paymentRequests/MobileFiltersDrawer'
 import MobileActionBar from '@/components/paymentRequests/MobileActionBar'
 import ExportRegistryModal from '@/components/paymentRequests/ExportRegistryModal'
-import type { FilterValues } from '@/components/paymentRequests/RequestFilters'
+import RpRegistryTable from '@/components/rp/RpRegistryTable'
+import RpModals from '@/components/rp/RpModals'
+import RpCreateToolbar from '@/components/rp/RpCreateToolbar'
+import { useRpManagement } from '@/hooks/useRpManagement'
+import { usePersistentRequestFilters } from '@/hooks/usePersistentRequestFilters'
 import type { PaymentRequest, Department } from '@/types'
 
 const PaymentRequestsPage = () => {
@@ -29,54 +33,18 @@ const PaymentRequestsPage = () => {
   const location = useLocation()
   const nav = useNavigate()
   const isMobile = useIsMobile()
-  const { config: columnConfig, setConfig: setColumnConfig, resetConfig: resetColumnConfig } = useColumnConfig()
+  const {
+    config: columnConfig,
+    setConfig: setColumnConfig,
+    resetConfig: resetColumnConfig,
+  } = useColumnConfig()
 
   // UI state
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [viewRecord, setViewRecord] = useState<PaymentRequest | null>(null)
   const [resubmitRecord, setResubmitRecord] = useState<PaymentRequest | null>(null)
   const [activeTab, setActiveTab] = useState('all')
-  const [filters, setFiltersState] = useState<FilterValues>(() => {
-    try {
-      // Миграция старых ключей
-      const oldMyRequests = localStorage.getItem('billhub_my_requests_filter')
-      const oldResponsible = localStorage.getItem('billhub_responsible_filter')
-      const oldResponsibleUserId = localStorage.getItem('billhub_responsible_user_id')
-      if (oldMyRequests || oldResponsible || oldResponsibleUserId) {
-        const migrated: FilterValues = {}
-        if (oldMyRequests) migrated.myRequestsFilter = oldMyRequests as FilterValues['myRequestsFilter']
-        if (oldResponsible) migrated.responsibleFilter = oldResponsible as FilterValues['responsibleFilter']
-        if (oldResponsibleUserId) migrated.responsibleUserId = oldResponsibleUserId
-        localStorage.setItem('billhub_filters', JSON.stringify(migrated))
-        localStorage.removeItem('billhub_my_requests_filter')
-        localStorage.removeItem('billhub_responsible_filter')
-        localStorage.removeItem('billhub_responsible_user_id')
-        return migrated
-      }
-      const saved = localStorage.getItem('billhub_filters')
-      if (saved) return JSON.parse(saved) as FilterValues
-    } catch { /* ignore */ }
-    return {}
-  })
-
-  const setFilters = useCallback((val: FilterValues | ((prev: FilterValues) => FilterValues)) => {
-    setFiltersState((prev) => {
-      const next = typeof val === 'function' ? val(prev) : { ...prev, ...val }
-      try {
-        // Сохраняем только непустые значения
-        const toSave: Record<string, unknown> = {}
-        for (const [k, v] of Object.entries(next)) {
-          if (v !== undefined && v !== null && v !== '') toSave[k] = v
-        }
-        if (Object.keys(toSave).length > 0) {
-          localStorage.setItem('billhub_filters', JSON.stringify(toSave))
-        } else {
-          localStorage.removeItem('billhub_filters')
-        }
-      } catch { /* ignore */ }
-      return next
-    })
-  }, [])
+  const { filters, setFilters } = usePersistentRequestFilters()
   const [filtersOpen, setFiltersOpen] = useState(true)
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
   const [adminSelectedStage, setAdminSelectedStage] = useState<Department>('omts')
@@ -86,20 +54,48 @@ const PaymentRequestsPage = () => {
 
   // Данные
   const {
-    user, isCounterpartyUser, isAdmin, isUser, isOmtsUser, isShtabUser, isOmtsRpUser,
-    userDeptInChain, totalStages,
-    requests, pendingRequests, approvedRequests, rejectedRequests, omtsRpPendingRequests,
-    approvedCount, rejectedCount,
-    isLoading, approvalLoading,
-    counterparties, sites, statuses, suppliers, omtsUsers, uploadTasks,
-    siteFilterParams, canEditRequest,
-    fetchRequests, fetchCounterparties, fetchPendingRequests, fetchOmtsRpPendingRequests,
-    fetchApprovedCount, fetchRejectedCount,
-    approveRequest, rejectRequest,
-    deleteRequest, withdrawRequest, resubmitRequest, updateRequest,
+    user,
+    isCounterpartyUser,
+    isAdmin,
+    isUser,
+    isOmtsUser,
+    isShtabUser,
+    isOmtsRpUser,
+    userDeptInChain,
+    totalStages,
+    requests,
+    pendingRequests,
+    approvedRequests,
+    rejectedRequests,
+    omtsRpPendingRequests,
+    approvedCount,
+    rejectedCount,
+    isLoading,
+    approvalLoading,
+    counterparties,
+    sites,
+    statuses,
+    suppliers,
+    omtsUsers,
+    uploadTasks,
+    siteFilterParams,
+    canEditRequest,
+    fetchRequests,
+    fetchCounterparties,
+    fetchPendingRequests,
+    fetchOmtsRpPendingRequests,
+    fetchApprovedCount,
+    fetchRejectedCount,
+    approveRequest,
+    rejectRequest,
+    deleteRequest,
+    withdrawRequest,
+    resubmitRequest,
+    updateRequest,
     assignResponsible,
   } = usePaymentRequestsData({
-    activeTab,
+    // Реестр РП использует данные согласованных заявок (свежесть списка при enrichment).
+    activeTab: activeTab === 'rp_registry' ? 'approved' : activeTab,
     refreshTrigger,
     adminSelectedStage,
     showDeleted,
@@ -117,16 +113,54 @@ const PaymentRequestsPage = () => {
 
   // Фильтрация
   const {
-    filteredRequests, filteredPendingRequests, filteredApprovedRequests, filteredRejectedRequests,
+    filteredRequests,
+    filteredPendingRequests,
+    filteredApprovedRequests,
+    filteredRejectedRequests,
     filteredOmtsRpPendingRequests,
-    filteredCounterpartyAll, filteredCounterpartyRevision, filteredCounterpartyPending, filteredCounterpartyApproved, filteredCounterpartyRejected,
-    counterpartyAllCount, counterpartyRevisionCount, counterpartyPendingCount, counterpartyApprovedCount, counterpartyRejectedCount,
-    totalInvoiceAmount, totalInvoiceAmountAll, totalPaidAll, totalPendingAmountAll,
-    totalCounterpartyInvoiceAmountAll, totalCounterpartyPaidAll, totalCounterpartyPendingAmountAll,
+    filteredCounterpartyAll,
+    filteredCounterpartyRevision,
+    filteredCounterpartyPending,
+    filteredCounterpartyApproved,
+    filteredCounterpartyRejected,
+    counterpartyAllCount,
+    counterpartyRevisionCount,
+    counterpartyPendingCount,
+    counterpartyApprovedCount,
+    counterpartyRejectedCount,
+    totalInvoiceAmount,
+    totalInvoiceAmountAll,
+    totalPaidAll,
+    totalPendingAmountAll,
+    totalCounterpartyInvoiceAmountAll,
+    totalCounterpartyPaidAll,
+    totalCounterpartyPendingAmountAll,
     unassignedOmtsCount,
   } = useRequestFiltering({
-    requests, pendingRequests, approvedRequests, rejectedRequests, omtsRpPendingRequests,
-    filters, userId: user?.id, isAdmin: !!isAdmin,
+    requests,
+    pendingRequests,
+    approvedRequests,
+    rejectedRequests,
+    omtsRpPendingRequests,
+    filters,
+    userId: user?.id,
+    isAdmin: !!isAdmin,
+  })
+
+  // РП: реестр писем + мастер создания РП из согласованных заявок.
+  // Активна только для внутренних сотрудников (counterparty идёт своей веткой ниже).
+  const bumpRefresh = useCallback(() => setRefreshTrigger((n) => n + 1), [])
+  const rp = useRpManagement({
+    enabled: !isCounterpartyUser,
+    activeTab,
+    approvedRequests,
+    filteredApprovedRequests,
+    sites,
+    filters,
+    setViewRecord,
+    refreshTrigger,
+    bumpRefresh,
+    setActiveTab,
   })
 
   // Открытие заявки по клику на уведомление
@@ -137,13 +171,16 @@ const PaymentRequestsPage = () => {
 
     const loadRequest = async () => {
       try {
-        const data = await api.get<PaymentRequest>(
-          `/api/payment-requests/${state.openRequestId}`,
-        )
+        const data = await api.get<PaymentRequest>(`/api/payment-requests/${state.openRequestId}`)
         if (!data) return
         setViewRecord(data)
       } catch (err) {
-        logError({ errorType: 'api_error', errorMessage: err instanceof Error ? err.message : 'Ошибка загрузки заявки', errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'openRequestFromNotification' } })
+        logError({
+          errorType: 'api_error',
+          errorMessage: err instanceof Error ? err.message : 'Ошибка загрузки заявки',
+          errorStack: err instanceof Error ? err.stack : null,
+          metadata: { action: 'openRequestFromNotification' },
+        })
       }
     }
     loadRequest()
@@ -179,10 +216,20 @@ const PaymentRequestsPage = () => {
     user,
     message,
     storeFunctions: {
-      fetchRequests, fetchCounterparties, fetchPendingRequests,
-      fetchOmtsRpPendingRequests, fetchApprovedCount, fetchRejectedCount,
-      approveRequest, rejectRequest, deleteRequest, withdrawRequest,
-      resubmitRequest, updateRequest, assignResponsible, siteFilterParams,
+      fetchRequests,
+      fetchCounterparties,
+      fetchPendingRequests,
+      fetchOmtsRpPendingRequests,
+      fetchApprovedCount,
+      fetchRejectedCount,
+      approveRequest,
+      rejectRequest,
+      deleteRequest,
+      withdrawRequest,
+      resubmitRequest,
+      updateRequest,
+      assignResponsible,
+      siteFilterParams,
     },
     uiSetters: { setViewRecord, setResubmitRecord },
     roleFlags: {
@@ -211,7 +258,14 @@ const PaymentRequestsPage = () => {
   // --- Counterparty UI ---
   if (isCounterpartyUser) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: isMobile ? 'calc(100vh - 48px - 8px)' : 'calc(100vh - 64px - 1px - 32px)', overflow: 'hidden' }}>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          height: isMobile ? 'calc(100vh - 48px - 8px)' : 'calc(100vh - 64px - 1px - 32px)',
+          overflow: 'hidden',
+        }}
+      >
         <CounterpartyRequestsView
           filteredAll={filteredCounterpartyAll}
           filteredRevision={filteredCounterpartyRevision}
@@ -230,10 +284,14 @@ const PaymentRequestsPage = () => {
           filters={filters}
           onFiltersChange={setFilters}
           filtersOpen={isMobile ? false : filtersOpen}
-          onFiltersToggle={() => isMobile ? setMobileFiltersOpen(true) : setFiltersOpen(!filtersOpen)}
+          onFiltersToggle={() =>
+            isMobile ? setMobileFiltersOpen(true) : setFiltersOpen(!filtersOpen)
+          }
           activeTab={activeTab}
           onTabChange={setActiveTab}
-          onTabClick={(key) => { if (key === activeTab) setRefreshTrigger((n) => n + 1) }}
+          onTabClick={(key) => {
+            if (key === activeTab) setRefreshTrigger((n) => n + 1)
+          }}
           totalInvoiceAmountAll={totalCounterpartyInvoiceAmountAll}
           totalPendingAmountAll={totalCounterpartyPendingAmountAll}
           totalPaidAll={totalCounterpartyPaidAll}
@@ -306,7 +364,9 @@ const PaymentRequestsPage = () => {
   }
 
   // --- Admin/User UI ---
-  const statusFilters = statuses.filter((s) => s.isActive).map((s) => ({ text: s.name, value: s.id }))
+  const statusFilters = statuses
+    .filter((s) => s.isActive)
+    .map((s) => ({ text: s.name, value: s.id }))
 
   const tabItems = [
     {
@@ -361,7 +421,9 @@ const PaymentRequestsPage = () => {
             showApprovalActions
             onApprove={handleApprove}
             onReject={handleReject}
-            showResponsibleColumn={!isMobile && (isOmtsUser || (isAdmin && adminSelectedStage === 'omts'))}
+            showResponsibleColumn={
+              !isMobile && (isOmtsUser || (isAdmin && adminSelectedStage === 'omts'))
+            }
             canAssignResponsible={isAdmin}
             omtsUsers={omtsUsers}
             onAssignResponsible={handleAssignResponsible}
@@ -408,7 +470,7 @@ const PaymentRequestsPage = () => {
       label: isMobile ? 'Согл.' : `Согласовано (${approvedCount})`,
       children: (
         <RequestsTable
-          requests={filteredApprovedRequests}
+          requests={rp.approvedForTable}
           isLoading={approvalLoading}
           onView={setViewRecord}
           showApprovedDate={!isMobile}
@@ -421,6 +483,7 @@ const PaymentRequestsPage = () => {
           unreadCounts={unreadCounts}
           isMobile={isMobile}
           columnConfig={columnConfig}
+          rowSelection={rp.rowSelection}
         />
       ),
     },
@@ -445,14 +508,39 @@ const PaymentRequestsPage = () => {
         />
       ),
     },
+    {
+      key: 'rp_registry',
+      label: isMobile ? 'Реестр' : `Реестр РП (${rp.filteredLetters.length})`,
+      children: (
+        <RpRegistryTable
+          letters={rp.filteredLetters}
+          isLoading={rp.lettersLoading}
+          onOpenRequest={rp.registryHandlers.onOpenRequest}
+          onRetryLetter={rp.registryHandlers.onRetryLetter}
+          onEdit={rp.registryHandlers.onEdit}
+          onAnnul={rp.registryHandlers.onAnnul}
+          onDelete={rp.registryHandlers.onDelete}
+          onFiles={rp.registryHandlers.onFiles}
+        />
+      ),
+    },
   )
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: isMobile ? 'calc(100vh - 48px - 8px)' : 'calc(100vh - 64px - 1px - 32px)', overflow: 'hidden' }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: isMobile ? 'calc(100vh - 48px - 8px)' : 'calc(100vh - 64px - 1px - 32px)',
+        overflow: 'hidden',
+      }}
+    >
       <Tabs
         activeKey={activeTab}
         onChange={setActiveTab}
-        onTabClick={(key) => { if (key === activeTab) setRefreshTrigger((n) => n + 1) }}
+        onTabClick={(key) => {
+          if (key === activeTab) setRefreshTrigger((n) => n + 1)
+        }}
         items={tabItems}
         className="flex-tabs"
         size={isMobile ? 'small' : undefined}
@@ -468,15 +556,29 @@ const PaymentRequestsPage = () => {
               />
             )}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <DefaultTabBar {...tabBarProps} style={{ ...tabBarProps.style, flex: 1, marginBottom: 0 }} />
+              <DefaultTabBar
+                {...tabBarProps}
+                style={{ ...tabBarProps.style, flex: 1, marginBottom: 0 }}
+              />
               {!isMobile && (
                 <>
-                  <ColumnConfigPopover
-                    availableColumns={DESKTOP_COLUMN_REGISTRY}
-                    config={columnConfig}
-                    onChange={setColumnConfig}
-                    onReset={resetColumnConfig}
-                  />
+                  {activeTab === 'approved' && (
+                    <RpCreateToolbar
+                      selectionMode={rp.selectionMode}
+                      selectedCount={rp.selectedCount}
+                      onStart={rp.startSelection}
+                      onCreate={rp.openCreate}
+                      onCancel={rp.cancelSelection}
+                    />
+                  )}
+                  {activeTab !== 'rp_registry' && (
+                    <ColumnConfigPopover
+                      availableColumns={DESKTOP_COLUMN_REGISTRY}
+                      config={columnConfig}
+                      onChange={setColumnConfig}
+                      onReset={resetColumnConfig}
+                    />
+                  )}
                   <Button
                     icon={<FilterOutlined />}
                     onClick={() => setFiltersOpen(!filtersOpen)}
@@ -526,13 +628,20 @@ const PaymentRequestsPage = () => {
         onClose={() => setViewRecord(null)}
         canEdit={canEditRequest(viewRecord)}
         onEdit={handleEdit}
-        canApprove={userDeptInChain && !!viewRecord && (pendingRequests.some((r) => r.id === viewRecord.id) || omtsRpPendingRequests.some((r) => r.id === viewRecord.id))}
+        canApprove={
+          userDeptInChain &&
+          !!viewRecord &&
+          (pendingRequests.some((r) => r.id === viewRecord.id) ||
+            omtsRpPendingRequests.some((r) => r.id === viewRecord.id))
+        }
         canReject={
-          !!viewRecord && !viewRecord.approvedAt && (
-            isAdmin
-              ? true
-              : userDeptInChain && (pendingRequests.some((r) => r.id === viewRecord.id) || omtsRpPendingRequests.some((r) => r.id === viewRecord.id))
-          )
+          !!viewRecord &&
+          !viewRecord.approvedAt &&
+          (isAdmin
+            ? true
+            : userDeptInChain &&
+              (pendingRequests.some((r) => r.id === viewRecord.id) ||
+                omtsRpPendingRequests.some((r) => r.id === viewRecord.id)))
         }
         onApprove={(requestId, comment) => {
           handleApprove(requestId, comment)
@@ -561,6 +670,7 @@ const PaymentRequestsPage = () => {
           isShtabUser={!!isShtabUser}
         />
       )}
+      <RpModals {...rp.modalsProps} />
     </div>
   )
 }
