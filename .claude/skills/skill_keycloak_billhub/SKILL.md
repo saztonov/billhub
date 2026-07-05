@@ -56,14 +56,20 @@ description: >-
 - Отдельные import-креды с ролью `manage-realm` (отдельный `client_credentials`-клиент или realm-admin) — **не** сервис-аккаунт `billhub` (у него только manage-users; `partialImport` требует manage-realm).
 - Сверить `OIDC_CLIENT_SECRET` billhub с секретом, который config-cli взял из `.env` (`BILLHUB_CLIENT_SECRET`).
 
-## Развилка (выбрать явно, не менять молча): источник истины авторизации
+## Источник истины доступа (решено)
 
-Гейт сейчас — членство в `billhub-active` из токена (позволяет активацию из KC-консоли, §2 доки).
+**Единственный источник истины доступа — группа `billhub-active` в Keycloak.** Доступ выдаётся с обеих
+сторон и всегда пишется в эту KC-группу:
 
-- **Вариант A (рекомендую):** гейт остаётся групповым в реалтайме; `users.is_active` — авторитет, приводящий группы в соответствие через `reconcile`; НЕ добавлять per-request DB-гейт. KC-console-активация сохраняется.
-- **Вариант B (fail-closed):** требовать И `billhub-active` И `users.is_active`; активация ТОЛЬКО через billhub-админку (ставит оба); KC-console-активация без sync доступа не даёт — задокументировать потерю функции.
+- админ Keycloak — добавляет юзера в `billhub-active` в KC-консоли;
+- админ BillHub — переключатель «Активен» через Admin API (`setPortalActive`) двигает ту же группу;
+  переключатель НЕ пишет авторитетный `users.is_active` и не хранит доступ локально.
 
-Не добавлять проверку `is_active` в гейт «просто так» — это меняет семантику двойной активации.
+Гейт (`authenticateKeycloak`) читает группу из токена — не менять. В keycloak-режиме `users.is_active`
+**не авторитет доступа**, максимум неавторитетное зеркало для UI: статус активности в админке читать из
+Keycloak (членство в группе); при использовании зеркала — обновлять его переключателем и `reconcile`
+направлением **KC → БД**; в гейт `is_active` НЕ добавлять. Вариант «гейт по `is_active`» отвергнут —
+он ломает выдачу доступа со стороны KC-админа.
 
 ## Работы (фазы)
 
@@ -88,7 +94,7 @@ description: >-
 - после каждого батча: найти реального юзера по **email exact** (и/или атрибуту `billhub_user_id`); если это был SKIP пред-существующего — до-проставить attribute через `PUT /users/{id}`; взять реальный sub; `sub!=users.id` → в отчёт mismatch и **СТОП**, продолжение только через **approved-mapping файл** (`users.id→sub`, ревью ops); иначе upsert `user_identity_links` (onConflictDoNothing).
 - группы: `is_active` → `billhub-active`, иначе `billhub-pending`.
 - restart-safe: `--dry-run`; checkpoint/resume (курсор по `users.id`); ретраи/таймауты/рейт-лимит Admin API; **не логировать пароли/хэши/токены**. Финальный отчёт: imported/skipped(null)/skipped(dup)/mismatch/linked/active/pending; `exit!=0` при любом mismatch или неполном переносе.
-- **reconcile**: сверить БД(`is_active`) ↔ KC-группы ↔ links ↔ `billhub_user_id`; чинить дрейф по выбранному источнику истины (Ф-развилка) или hard-fail отчёт. Неуспешные Admin-API вызовы — не «успех»: писать в outbox/лог-ретраев (сейчас сбой `addPortalPending` только логируется).
+- **reconcile**: сверить KC-группы (источник истины доступа) ↔ БД-зеркало(`is_active`) ↔ links ↔ `billhub_user_id`; приводить БД-зеркало к состоянию Keycloak (направление **KC→БД**) или hard-fail отчёт. Неуспешные Admin-API вызовы — не «успех»: писать в outbox/лог-ретраев (сейчас сбой `addPortalPending` только логируется).
 
 ### Ф4. Прод-готовность и доки
 
@@ -100,7 +106,7 @@ description: >-
 
 - (auth-repo) SPI на тест-realm: `$2a/$2b/$2y`, cost из хэша, первый вход → argon2.
 - (unit) payload-builder; bcrypt-parser; preflight-аномалии; approved-mapping; null-хэш; дубль email.
-- (интеграция) резолв по `billhub_user_id`; email-fallback только для verified; выбранный источник истины (Ф-развилка).
+- (интеграция) резолв по `billhub_user_id`; email-fallback только для verified; гейт только по KC-группе (сам по себе `is_active` доступ не даёт); активация из KC-консоли и из BillHub-админки дают доступ одинаково.
 - (CLI, mock KC Admin) dry-run без записей; resume идемпотентен; mismatch→стоп; reconcile чинит группы.
 - (E2E canary) вход admin/user/security/counterparty; scoping подрядчика; активация/деактивация; откат keycloak→standalone (standalone-данные сохранены).
 
