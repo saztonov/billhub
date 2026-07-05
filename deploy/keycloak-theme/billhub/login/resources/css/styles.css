@@ -84,7 +84,7 @@ body::before {
   justify-content: center;
   gap: 28px;
   pointer-events: none;
-  z-index: 0;
+  z-index: -1;
 }
 .billhub-hero__logo {
   font-weight: 800;
@@ -157,6 +157,20 @@ body::before {
   border-radius: 14px !important;
   box-shadow: var(--bh-shadow) !important;
   color: var(--bh-fg) !important;
+  /* Прижимаем к правому краю — левая половина экрана отведена под hero-колонку. */
+  margin-left: auto !important;
+  margin-right: clamp(24px, 6vw, 120px) !important;
+  position: relative !important;
+  z-index: 1 !important;
+}
+/* Внешний контейнер тоже может держать ширину/центрирование — гасим его на случай если
+   именно он (а не .pf-v5-c-login__main) отвечает за расположение карточки. */
+#kc-container,
+#kc-container-wrapper,
+.pf-v5-c-login__container,
+.pf-c-login__container {
+  margin-left: auto !important;
+  margin-right: clamp(24px, 6vw, 120px) !important;
 }
 
 /* Поля ввода */
