@@ -66,7 +66,8 @@ interface RpStoreState {
   documents: RpDocumentsResult | null
   documentsLoading: boolean
 
-  loadRegistry: () => Promise<void>
+  /** Загрузить реестр РП. silent — обновить данные без табличного loading (для авто-опроса). */
+  loadRegistry: (opts?: { silent?: boolean }) => Promise<void>
   loadDocuments: (supplierId: string, counterpartyId: string, siteId: string) => Promise<void>
   clearDocuments: () => void
   createLetter: (payload: CreateRpPayload) => Promise<RpLetter | null>
@@ -104,8 +105,9 @@ export const useRpStore = create<RpStoreState>((set, get) => ({
   documents: null,
   documentsLoading: false,
 
-  loadRegistry: async () => {
-    set({ lettersLoading: true })
+  loadRegistry: async (opts) => {
+    const silent = opts?.silent === true
+    if (!silent) set({ lettersLoading: true })
     try {
       const data = await api.get<RpLetter[]>('/api/rp')
       set({ letters: data ?? [] })
@@ -117,7 +119,7 @@ export const useRpStore = create<RpStoreState>((set, get) => ({
         metadata: { action: 'loadRegistry' },
       })
     } finally {
-      set({ lettersLoading: false })
+      if (!silent) set({ lettersLoading: false })
     }
   },
 

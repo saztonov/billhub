@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { App } from 'antd'
 import type React from 'react'
 import { api } from '@/services/api'
 import { logError } from '@/services/errorLogger'
 import { useRpStore } from '@/store/rpStore'
 import { useRpLetterFiltering } from '@/hooks/useRpLetterFiltering'
+import { useAutoRefresh } from '@/hooks/useAutoRefresh'
 import type { RpCombo } from '@/components/rp/CreateRpModal'
 import type { FilterValues } from '@/components/paymentRequests/RequestFilters'
 import type { PaymentRequest, RpDocumentRef, RpLetter, ConstructionSite } from '@/types'
@@ -82,6 +83,40 @@ export function useRpManagement({
   useEffect(() => {
     if (shouldLoad) loadRegistry()
   }, [shouldLoad, loadRegistry, refreshTrigger])
+
+  // Есть ли письмо в переходном статусе (синхронизация идёт в фоновом воркере).
+  const hasPendingLetter = useMemo(
+    () => letters.some((l) => l.payhubLetterStatus === 'pending'),
+    [letters],
+  )
+
+  // Умный опрос реестра: пока есть письмо «создаётся…», молча (без спиннера) тянем /api/rp;
+  // как только все письма вышли из pending — опрос сам прекращается.
+  const refreshRegistry = useCallback(() => loadRegistry({ silent: true }), [loadRegistry])
+  const onPollingCapReached = useCallback(() => {
+    logError({
+      errorType: 'api_error',
+      errorMessage: 'Опрос статуса письма РП остановлен по капу (письмо всё ещё pending)',
+      errorStack: null,
+      metadata: { action: 'rpRegistryPollingCap' },
+    })
+  }, [])
+  useAutoRefresh({
+    enabled,
+    refresh: refreshRegistry,
+    polling: shouldLoad && hasPendingLetter,
+    intervalMs: 5000,
+    maxTicks: 120,
+    onPollingCapReached,
+  })
+
+  // Falling-edge: когда последнее письмо вышло из pending — один раз обновляем связанные
+  // данные заявок (РП-поля на записи заявки). dpNumber на «Согласовано» обновляется реактивно.
+  const prevHadPendingRef = useRef(false)
+  useEffect(() => {
+    if (prevHadPendingRef.current && !hasPendingLetter) bumpRefresh()
+    prevHadPendingRef.current = hasPendingLetter
+  }, [hasPendingLetter, bumpRefresh])
 
   // requestId -> номер РП (для пометки «в РП» и колонки РП)
   const membership = useMemo(() => {

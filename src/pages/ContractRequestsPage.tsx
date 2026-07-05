@@ -6,7 +6,11 @@ import { api } from '@/services/api'
 import { useHeaderStore } from '@/store/headerStore'
 import useIsMobile from '@/hooks/useIsMobile'
 import { useContractRequestsData } from '@/hooks/useContractRequestsData'
-import { useContractRequestFiltering, type ContractFilterValues } from '@/hooks/useContractRequestFiltering'
+import { useAutoRefresh } from '@/hooks/useAutoRefresh'
+import {
+  useContractRequestFiltering,
+  type ContractFilterValues,
+} from '@/hooks/useContractRequestFiltering'
 import ContractRequestsTable from '@/components/contractRequests/ContractRequestsTable'
 import ContractRequestFilters from '@/components/contractRequests/ContractRequestFilters'
 import CreateContractRequestModal from '@/components/contractRequests/CreateContractRequestModal'
@@ -29,43 +33,62 @@ const ContractRequestsPage = () => {
   const [showDeleted, setShowDeleted] = useState(false)
 
   // Счётчики статусов для виджета в шапке
-  const [statusCounts, setStatusCounts] = useState<{ approvOmts: number; onRevision: number; concluded: number } | null>(null)
+  const [statusCounts, setStatusCounts] = useState<{
+    approvOmts: number
+    onRevision: number
+    concluded: number
+  } | null>(null)
 
   // Фильтры с сохранением в localStorage
   const [filters, setFiltersState] = useState<ContractFilterValues>(() => {
     try {
       const saved = localStorage.getItem(FILTERS_KEY)
       if (saved) return JSON.parse(saved) as ContractFilterValues
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     return {}
   })
 
-  const setFilters = useCallback((val: Partial<ContractFilterValues> | ((prev: ContractFilterValues) => ContractFilterValues)) => {
-    setFiltersState((prev) => {
-      const next = typeof val === 'function' ? val(prev) : { ...prev, ...val }
-      try {
-        // Сохраняем только непустые значения
-        const toSave: Record<string, unknown> = {}
-        for (const [k, v] of Object.entries(next)) {
-          if (v !== undefined && v !== null && v !== '') toSave[k] = v
+  const setFilters = useCallback(
+    (
+      val: Partial<ContractFilterValues> | ((prev: ContractFilterValues) => ContractFilterValues),
+    ) => {
+      setFiltersState((prev) => {
+        const next = typeof val === 'function' ? val(prev) : { ...prev, ...val }
+        try {
+          // Сохраняем только непустые значения
+          const toSave: Record<string, unknown> = {}
+          for (const [k, v] of Object.entries(next)) {
+            if (v !== undefined && v !== null && v !== '') toSave[k] = v
+          }
+          if (Object.keys(toSave).length > 0) {
+            localStorage.setItem(FILTERS_KEY, JSON.stringify(toSave))
+          } else {
+            localStorage.removeItem(FILTERS_KEY)
+          }
+        } catch {
+          /* ignore */
         }
-        if (Object.keys(toSave).length > 0) {
-          localStorage.setItem(FILTERS_KEY, JSON.stringify(toSave))
-        } else {
-          localStorage.removeItem(FILTERS_KEY)
-        }
-      } catch { /* ignore */ }
-      return next
-    })
-  }, [])
+        return next
+      })
+    },
+    [],
+  )
 
   // Данные
   const {
-    isCounterpartyUser, isAdmin,
-    requests, isLoading,
-    counterparties, sites, suppliers, statuses,
+    isCounterpartyUser,
+    isAdmin,
+    requests,
+    isLoading,
+    counterparties,
+    sites,
+    suppliers,
+    statuses,
     unreadCounts,
-    loadRequests, deleteRequest,
+    loadRequests,
+    deleteRequest,
   } = useContractRequestsData({ showDeleted })
 
   // Фильтрация
@@ -74,10 +97,19 @@ const ContractRequestsPage = () => {
   // Загрузка счётчиков статусов (обновляются при изменении набора заявок)
   useEffect(() => {
     let cancelled = false
-    api.get<{ approvOmts: number; onRevision: number; concluded: number }>('/api/contract-requests/status-counts')
-      .then((data) => { if (!cancelled && data) setStatusCounts(data) })
-      .catch(() => { /* счётчики некритичны для работы страницы */ })
-    return () => { cancelled = true }
+    api
+      .get<{ approvOmts: number; onRevision: number; concluded: number }>(
+        '/api/contract-requests/status-counts',
+      )
+      .then((data) => {
+        if (!cancelled && data) setStatusCounts(data)
+      })
+      .catch(() => {
+        /* счётчики некритичны для работы страницы */
+      })
+    return () => {
+      cancelled = true
+    }
   }, [requests])
 
   // Открытие заявки по навигации (из уведомлений)
@@ -109,18 +141,28 @@ const ContractRequestsPage = () => {
     )
 
     // Виджет-счётчик статусов (только на десктопе)
-    const extra = !isMobile && statusCounts ? (
-      <div style={{ padding: '4px 12px', border: '1px solid #d9d9d9', borderRadius: 6, backgroundColor: '#fafafa', whiteSpace: 'nowrap', fontSize: 13 }}>
-        <span style={{ color: '#8c8c8c', marginRight: 6 }}>Согласование ОМТС:</span>
-        <span style={{ fontWeight: 500 }}>{statusCounts.approvOmts}</span>
-        <span style={{ color: '#d9d9d9', margin: '0 8px' }}>|</span>
-        <span style={{ color: '#8c8c8c', marginRight: 6 }}>На доработке:</span>
-        <span style={{ fontWeight: 500 }}>{statusCounts.onRevision}</span>
-        <span style={{ color: '#d9d9d9', margin: '0 8px' }}>|</span>
-        <span style={{ color: '#8c8c8c', marginRight: 6 }}>Заключено:</span>
-        <span style={{ fontWeight: 500 }}>{statusCounts.concluded}</span>
-      </div>
-    ) : null
+    const extra =
+      !isMobile && statusCounts ? (
+        <div
+          style={{
+            padding: '4px 12px',
+            border: '1px solid #d9d9d9',
+            borderRadius: 6,
+            backgroundColor: '#fafafa',
+            whiteSpace: 'nowrap',
+            fontSize: 13,
+          }}
+        >
+          <span style={{ color: '#8c8c8c', marginRight: 6 }}>Согласование ОМТС:</span>
+          <span style={{ fontWeight: 500 }}>{statusCounts.approvOmts}</span>
+          <span style={{ color: '#d9d9d9', margin: '0 8px' }}>|</span>
+          <span style={{ color: '#8c8c8c', marginRight: 6 }}>На доработке:</span>
+          <span style={{ fontWeight: 500 }}>{statusCounts.onRevision}</span>
+          <span style={{ color: '#d9d9d9', margin: '0 8px' }}>|</span>
+          <span style={{ color: '#8c8c8c', marginRight: 6 }}>Заключено:</span>
+          <span style={{ fontWeight: 500 }}>{statusCounts.concluded}</span>
+        </div>
+      ) : null
 
     setHeader('Договора', extra, actions)
   }, [setHeader, isAdmin, showDeleted, isMobile, statusCounts])
@@ -141,18 +183,31 @@ const ContractRequestsPage = () => {
     message.success('Заявка на договор создана')
   }, [loadRequests, message])
 
-  const handleDelete = useCallback(async (id: string) => {
-    await deleteRequest(id)
-    message.success('Заявка удалена')
-  }, [deleteRequest, message])
+  const handleDelete = useCallback(
+    async (id: string) => {
+      await deleteRequest(id)
+      message.success('Заявка удалена')
+    },
+    [deleteRequest, message],
+  )
 
   const handleViewClose = useCallback(() => {
     setViewRecord(null)
     loadRequests()
   }, [loadRequests])
 
+  // Авто-обновление списка при возврате на вкладку. Интервальный опрос не нужен: переходы
+  // договора инициируются действиями пользователя и уже вызывают refetch в сторе.
+  useAutoRefresh({
+    enabled: !isCreateOpen && !viewRecord,
+    refresh: loadRequests,
+    refetchOnFocus: true,
+  })
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: isMobile ? 4 : 8 }}>
+    <div
+      style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: isMobile ? 4 : 8 }}
+    >
       <ContractRequestFilters
         values={filters}
         onChange={setFilters}

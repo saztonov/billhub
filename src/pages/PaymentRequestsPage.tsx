@@ -25,6 +25,7 @@ import RpRegistryTable from '@/components/rp/RpRegistryTable'
 import RpModals from '@/components/rp/RpModals'
 import RpCreateToolbar from '@/components/rp/RpCreateToolbar'
 import { useRpManagement } from '@/hooks/useRpManagement'
+import { useAutoRefresh } from '@/hooks/useAutoRefresh'
 import { usePersistentRequestFilters } from '@/hooks/usePersistentRequestFilters'
 import type { PaymentRequest, Department } from '@/types'
 
@@ -161,6 +162,20 @@ const PaymentRequestsPage = () => {
     refreshTrigger,
     bumpRefresh,
     setActiveTab,
+  })
+
+  // Управление РП (создание/аннулирование/удаление/редактирование/письмо) — только admin и ОМТС РП.
+  const canManageRp = isOmtsRpUser || isAdmin
+
+  // Авто-обновление при возврате на вкладку. Не дёргаем, пока открыта модалка или идёт выбор
+  // заявок под РП (лишний refetch в процессе действия не нужен). Интервального опроса нет —
+  // им занимается реестр РП (useRpManagement) по переходным статусам письма.
+  const pageBusy =
+    isCreateOpen || !!viewRecord || !!resubmitRecord || isExportOpen || rp.selectionMode
+  useAutoRefresh({
+    enabled: !pageBusy,
+    refresh: bumpRefresh,
+    refetchOnFocus: true,
   })
 
   // Открытие заявки по клику на уведомление
@@ -515,6 +530,7 @@ const PaymentRequestsPage = () => {
         <RpRegistryTable
           letters={rp.filteredLetters}
           isLoading={rp.lettersLoading}
+          canManage={canManageRp}
           onOpenRequest={rp.registryHandlers.onOpenRequest}
           onRetryLetter={rp.registryHandlers.onRetryLetter}
           onEdit={rp.registryHandlers.onEdit}
@@ -562,7 +578,7 @@ const PaymentRequestsPage = () => {
               />
               {!isMobile && (
                 <>
-                  {activeTab === 'approved' && (
+                  {activeTab === 'approved' && canManageRp && (
                     <RpCreateToolbar
                       selectionMode={rp.selectionMode}
                       selectedCount={rp.selectedCount}

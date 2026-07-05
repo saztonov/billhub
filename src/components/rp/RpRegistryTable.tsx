@@ -18,6 +18,8 @@ const fmtAmount = (v: number) => `${(v ?? 0).toLocaleString('ru-RU')} ₽`
 interface RpRegistryTableProps {
   letters: RpLetter[]
   isLoading: boolean
+  /** Управление РП (admin / ОМТС РП). При false реестр read-only: без действий и кнопок письма. */
+  canManage: boolean
   onOpenRequest: (requestId: string) => void
   /** «Создать письмо» (uploading) / «Повторить» (failed) — постановка в очередь */
   onRetryLetter: (id: string) => void
@@ -35,9 +37,11 @@ interface RpRegistryTableProps {
 const LetterCell = ({
   letter,
   onRetryLetter,
+  canManage,
 }: {
   letter: RpLetter
   onRetryLetter: (id: string) => void
+  canManage: boolean
 }) => {
   const status = letter.payhubLetterStatus
   if (status === null) return <Text type="secondary">—</Text>
@@ -68,9 +72,11 @@ const LetterCell = ({
           <Tooltip title="Загрузка файлов не была завершена">
             <Tag color="orange">файлы не догружены</Tag>
           </Tooltip>
-          <Button size="small" onClick={() => onRetryLetter(letter.id)}>
-            Создать письмо
-          </Button>
+          {canManage && (
+            <Button size="small" onClick={() => onRetryLetter(letter.id)}>
+              Создать письмо
+            </Button>
+          )}
         </Space>
       )
     case 'failed':
@@ -79,9 +85,11 @@ const LetterCell = ({
           <Tooltip title={letter.payhubLetterError ?? undefined}>
             <Tag color="error">ошибка</Tag>
           </Tooltip>
-          <Button size="small" onClick={() => onRetryLetter(letter.id)}>
-            Повторить
-          </Button>
+          {canManage && (
+            <Button size="small" onClick={() => onRetryLetter(letter.id)}>
+              Повторить
+            </Button>
+          )}
         </Space>
       )
   }
@@ -104,6 +112,7 @@ const StatusCell = ({ letter }: { letter: RpLetter }) => {
 const RpRegistryTable = ({
   letters,
   isLoading,
+  canManage,
   onOpenRequest,
   onRetryLetter,
   onEdit,
@@ -115,8 +124,8 @@ const RpRegistryTable = ({
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(50)
 
-  const columns = useMemo<ColumnsType<RpLetter>>(
-    () => [
+  const columns = useMemo<ColumnsType<RpLetter>>(() => {
+    const cols: ColumnsType<RpLetter> = [
       {
         title: '№',
         key: 'index',
@@ -208,7 +217,7 @@ const RpRegistryTable = ({
         key: 'letter',
         width: 95,
         render: (_: unknown, r: RpLetter) => (
-          <LetterCell letter={r} onRetryLetter={onRetryLetter} />
+          <LetterCell letter={r} onRetryLetter={onRetryLetter} canManage={canManage} />
         ),
       },
       {
@@ -217,7 +226,11 @@ const RpRegistryTable = ({
         width: 150,
         render: (_: unknown, r: RpLetter) => <StatusCell letter={r} />,
       },
-      {
+    ]
+
+    // Колонка действий управления РП — только admin / ОМТС РП; иначе реестр read-only.
+    if (canManage) {
+      cols.push({
         title: 'Действия',
         key: 'actions',
         width: 150,
@@ -275,10 +288,11 @@ const RpRegistryTable = ({
             </Space>
           )
         },
-      },
-    ],
-    [onOpenRequest, onRetryLetter, onEdit, onAnnul, onDelete, onFiles, page, pageSize],
-  )
+      })
+    }
+
+    return cols
+  }, [onOpenRequest, onRetryLetter, onEdit, onAnnul, onDelete, onFiles, page, pageSize, canManage])
 
   return (
     <Table
@@ -287,7 +301,7 @@ const RpRegistryTable = ({
       rowKey="id"
       loading={isLoading}
       size="small"
-      scroll={{ x: 1627, y: 'calc(100vh - 320px)' }}
+      scroll={{ x: canManage ? 1627 : 1477, y: 'calc(100vh - 320px)' }}
       pagination={{
         current: page,
         pageSize,
