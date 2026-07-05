@@ -113,6 +113,17 @@ interface Config {
   kcAdminClientId: string;
   kcAdminClientSecret: string;
 
+  /**
+   * Import-креды с ролью manage-realm для CLI массового импорта (Ф3, partialImport). Отдельный
+   * клиент billhub-import: у сервис-аккаунта billhub только manage-users, partialImport требует
+   * manage-realm. Используются ТОЛЬКО из CLI (migrate-to-keycloak.ts), не в рантайме.
+   * base/realm — если пусты, выводятся из oidcIssuer.
+   */
+  kcImportClientId: string;
+  kcImportClientSecret: string;
+  kcImportBaseUrl: string;
+  kcImportRealm: string;
+
   /** Имена групп портала в Keycloak — gate доступа (pending — заведён, active — активен). */
   kcPortalGroupPending: string;
   kcPortalGroupActive: string;
@@ -259,6 +270,11 @@ export const config: Config = {
   kcAdminRealm: envOptional('KC_ADMIN_REALM'),
   kcAdminClientId: envOptional('KC_ADMIN_CLIENT_ID'),
   kcAdminClientSecret: envOptional('KC_ADMIN_CLIENT_SECRET'),
+
+  kcImportClientId: envOptional('KC_IMPORT_CLIENT_ID'),
+  kcImportClientSecret: envOptional('KC_IMPORT_CLIENT_SECRET'),
+  kcImportBaseUrl: envOptional('KC_IMPORT_BASE_URL'),
+  kcImportRealm: envOptional('KC_IMPORT_REALM'),
 
   kcPortalGroupPending: envOptional('KC_PORTAL_GROUP_PENDING', 'billhub-pending'),
   kcPortalGroupActive: envOptional('KC_PORTAL_GROUP_ACTIVE', 'billhub-active'),

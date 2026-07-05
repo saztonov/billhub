@@ -28,32 +28,53 @@ interface KcTokenResponse {
   expires_in: number;
 }
 
+/**
+ * Явная инъекция кредов Admin REST. Пусто → берётся config (рантайм-поведение billhub SA).
+ * Позволяет CLI импорта (Ф3) ходить под отдельным клиентом billhub-import (manage-realm),
+ * переиспользуя общий слой токена/fetch/редакции — см. KeycloakImportClient.
+ */
+export interface KeycloakAdminCredentials {
+  baseUrl?: string;
+  realm?: string;
+  clientId?: string;
+  clientSecret?: string;
+}
+
 export class KeycloakAdminClient {
   private token: { value: string; expiresAtMs: number } | null = null;
   private readonly groupIdCache = new Map<string, string>();
 
+  constructor(private readonly creds: KeycloakAdminCredentials = {}) {}
+
   private baseUrl(): string {
-    if (config.kcAdminBaseUrl) return config.kcAdminBaseUrl.replace(/\/+$/, '');
+    const explicit = this.creds.baseUrl || config.kcAdminBaseUrl;
+    if (explicit) return explicit.replace(/\/+$/, '');
     // Выводим из issuer: https://auth.su10.ru/realms/su10 -> https://auth.su10.ru
     const issuer = new URL(config.oidcIssuer);
     return `${issuer.protocol}//${issuer.host}`;
   }
 
   private realm(): string {
-    if (config.kcAdminRealm) return config.kcAdminRealm;
+    const explicit = this.creds.realm || config.kcAdminRealm;
+    if (explicit) return explicit;
     const m = config.oidcIssuer.match(/\/realms\/([^/]+)/);
     return m?.[1] ?? 'master';
   }
 
   private clientId(): string {
-    return config.kcAdminClientId || config.oidcClientId;
+    return this.creds.clientId || config.kcAdminClientId || config.oidcClientId;
   }
 
   private clientSecret(): string {
-    return config.kcAdminClientSecret || config.oidcClientSecret;
+    return this.creds.clientSecret || config.kcAdminClientSecret || config.oidcClientSecret;
   }
 
-  private async getToken(): Promise<string> {
+  /** Realm Admin REST, к которому обращается клиент (для CLI-подкласса/диагностики). */
+  protected currentRealm(): string {
+    return this.realm();
+  }
+
+  protected async getToken(): Promise<string> {
     if (this.token && this.token.expiresAtMs > Date.now() + 10_000) {
       return this.token.value;
     }
@@ -76,7 +97,7 @@ export class KeycloakAdminClient {
     return this.token.value;
   }
 
-  private async adminFetch(path: string, init?: RequestInit): Promise<Response> {
+  protected async adminFetch(path: string, init?: RequestInit): Promise<Response> {
     const token = await this.getToken();
     const url = `${this.baseUrl()}/admin/realms/${this.realm()}${path}`;
     return fetch(url, {
@@ -103,6 +124,26 @@ export class KeycloakAdminClient {
     if (res.status === 404) return null;
     if (!res.ok) throw new Error(`Keycloak get user: HTTP ${res.status}`);
     return (await res.json()) as KcUser;
+  }
+
+  /**
+   * Досоздать/обновить атрибуты пользователя, НЕ стирая профиль. KC на PUT /users/{id}
+   * заменяет `attributes` целиком, поэтому: GET полной репрезентации → merge attributes →
+   * PUT полной репрезентации. Нужен Ф3 (до-проставить billhub_user_id при SKIP) и Ф2.
+   */
+  async mergeUserAttributes(id: string, attrs: Record<string, string[]>): Promise<void> {
+    const getRes = await this.adminFetch(`/users/${encodeURIComponent(id)}`);
+    if (!getRes.ok) throw new Error(`Keycloak get user (merge attrs): HTTP ${getRes.status}`);
+    const user = (await getRes.json()) as Record<string, unknown>;
+    const existing = (user.attributes as Record<string, string[]> | undefined) ?? {};
+    const body = { ...user, attributes: { ...existing, ...attrs } };
+    const putRes = await this.adminFetch(`/users/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    });
+    if (!putRes.ok && putRes.status !== 204) {
+      throw new Error(`Keycloak update user (merge attrs): HTTP ${putRes.status}`);
+    }
   }
 
   private async resolveGroupId(name: string): Promise<string> {
