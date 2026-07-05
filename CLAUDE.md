@@ -134,7 +134,7 @@ server/src/         # Backend (Fastify)
 - Refresh-токен: opaque (43 симв. base64url), в БД хранится только SHA-256-хэш; ротация + reuse-detection + grace-window 5с (`server/src/services/auth/refresh-token.service.ts`).
 - Cookie: `access_token` (path `/`), `refresh_token` (path `/api/auth`), `csrf_token` (path `/`, httpOnly=false). В production `secure=true`.
 - Rate-limits: login 5/5мин, reset 3/час, глобально 500/мин.
-- Keycloak OIDC — **Этап 2 (отложен)**, пока не подключён.
+- Keycloak OIDC (`AUTH_MODE=keycloak`) — код реализован частично (grant-only, коммит `5e2f159`), инфра su10 развёрнута; в проде пока `standalone` (startup-инвариант блокирует keycloak в prod). Формулировка «Этап 2 отложен» — **SUPERSEDED**; актуально в `docs/keycloak-billhub.md`.
 
 ## Администрирование
 
@@ -156,7 +156,7 @@ server/src/         # Backend (Fastify)
 Проект мигрировал с клиентского SPA (Supabase напрямую) на клиент-серверную архитектуру и переехал с VPS1+Supabase на **VPS2 + Yandex Managed PostgreSQL**.
 
 - **Этап 1 (выполнен):** собственная авторизация `AUTH_MODE=standalone`, `DB_PROVIDER=drizzle`, полная миграция данных, bcrypt-хэши паролей.
-- **Этап 2 (отложен):** Keycloak OIDC.
+- **Этап 2 (Keycloak OIDC) — SUPERSEDED «отложен»:** код keycloak-режима реализован частично (grant-only) + инфра su10 развёрнута; в проде пока `standalone`. Детали и целевая модель — `docs/keycloak-billhub.md`.
 - Домены (same-origin, path-routing `/` -> web, `/api` -> api): `rp.su10.ru`, `ravek.link`, `www.ravek.link` (один SAN-сертификат).
 - Топология: общий ingress `infra-nginx` + certbot обслуживает несколько порталов; BillHub — отдельный compose-проект в `/opt/portals/billhub`. Сервисы: `billhub-api`, `billhub-worker`, `billhub-web`, `redis`, `migrate`. Внешние: Yandex Managed PG, Cloud.ru S3.
 - Канонический деплой — каталог `deploy/` (ADR-0007) + `docs/deployment.md`; корневые legacy-файлы деплоя помечены DEPRECATED.
