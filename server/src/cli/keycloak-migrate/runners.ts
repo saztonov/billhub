@@ -98,6 +98,15 @@ export interface ImportRunOptions {
   batch?: number;
   /** Обработать не более N пользователей за прогон (пробный сэмпл; resume продолжит остальное). */
   limit?: number;
+  /** Ограничить набор конкретными email (детерминированный сэмпл). */
+  onlyEmails?: string[];
+  /** Сток JSONL-манифеста: вызывается на каждого успешно слинкованного (для сверки/отката KC). */
+  manifest?: (entry: {
+    userId: string;
+    kcSub: string;
+    email: string;
+    active: boolean;
+  }) => Promise<void> | void;
   dryRun?: boolean;
   logger?: Logger;
   now?: () => string;
@@ -119,7 +128,13 @@ export async function runImport(opts: ImportRunOptions): Promise<ImportRunReport
   const now = opts.now ?? (() => new Date().toISOString());
   const provider = opts.provider;
 
-  const all = (await opts.source.readUsers()).sort(byId);
+  const emailFilter = opts.onlyEmails?.length
+    ? new Set(opts.onlyEmails.map((e) => e.trim().toLowerCase()))
+    : null;
+  const source = await opts.source.readUsers();
+  const all = (
+    emailFilter ? source.filter((u) => emailFilter.has(u.email.trim().toLowerCase())) : source
+  ).sort(byId);
 
   const prev = opts.checkpoint ? await opts.checkpoint.load() : null;
   const counters = prev?.counters ?? emptyCounters();
@@ -201,6 +216,10 @@ export async function runImport(opts: ImportRunOptions): Promise<ImportRunReport
         await opts.kc.setPortalActive(realSub, u.isActive);
         if (u.isActive) counters.active += 1;
         else counters.pending += 1;
+
+        if (opts.manifest) {
+          await opts.manifest({ userId: u.id, kcSub: realSub, email: u.email, active: u.isActive });
+        }
 
         counters.processed += 1;
         cursor = u.id;

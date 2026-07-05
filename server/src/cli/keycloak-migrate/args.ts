@@ -19,6 +19,10 @@ export interface CliArgs {
   checkKc: boolean;
   /** import: обработать не более N пользователей за прогон (пробный сэмпл; resume продолжит остальное). */
   limit?: number;
+  /** import: JSONL-манифест успешно слинкованных {userId,kcSub,email,active} (сверка/откат KC). */
+  manifestFile?: string;
+  /** import: ограничить набор конкретными email (CSV) — детерминированный сэмпл (напр. тест-аккаунт). */
+  onlyEmails?: string[];
 }
 
 function isMode(v: string | undefined): v is Mode {
@@ -71,6 +75,17 @@ export function parseArgs(argv: string[]): CliArgs {
         break;
       case '--limit':
         out.limit = Number.parseInt(next ?? '0', 10) || undefined;
+        i += 1;
+        break;
+      case '--manifest-file':
+        out.manifestFile = next;
+        i += 1;
+        break;
+      case '--only-email':
+        out.onlyEmails = (next ?? '')
+          .split(',')
+          .map((e) => e.trim())
+          .filter((e) => e.length > 0);
         i += 1;
         break;
       case '--check-kc':

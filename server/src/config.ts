@@ -130,6 +130,14 @@ interface Config {
 
   /** Провайдер идентичности для user_identity_links (steady-state ключ). */
   authIdentityProvider: string;
+
+  /**
+   * Заморозка создания пользователей на окно cutover (CUTOVER_FREEZE=true). Когда включена,
+   * register-counterparty / POST /api/users / batch-import отвечают 503 — чтобы в зазоре
+   * «импорт→флип» не появлялись standalone-юзеры, которых нет в Keycloak. Тумблер применяется
+   * через `up -d` (пересоздание контейнера).
+   */
+  cutoverFreeze: boolean;
 }
 
 /** Получение переменной окружения с значением по умолчанию */
@@ -280,4 +288,6 @@ export const config: Config = {
   kcPortalGroupActive: envOptional('KC_PORTAL_GROUP_ACTIVE', 'billhub-active'),
 
   authIdentityProvider: envOptional('AUTH_IDENTITY_PROVIDER', 'keycloak-local'),
+
+  cutoverFreeze: envOptional('CUTOVER_FREEZE', 'false').toLowerCase() === 'true',
 };

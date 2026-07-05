@@ -155,6 +155,11 @@ async function userRoutes(fastify: FastifyInstance): Promise<void> {
     '/',
     { preHandler: [authenticate, requireRole('admin')] },
     async (request, reply) => {
+      if (config.cutoverFreeze) {
+        return reply
+          .status(503)
+          .send({ error: 'Создание пользователей приостановлено (окно миграции)' });
+      }
       const parsed = createUserRequestSchema.safeParse(request.body);
       if (!parsed.success) {
         return reply.status(400).send({ error: 'Неверный формат данных' });
@@ -306,6 +311,11 @@ async function userRoutes(fastify: FastifyInstance): Promise<void> {
     '/batch-import',
     { preHandler: [authenticate, requireRole('admin')] },
     async (request, reply) => {
+      if (config.cutoverFreeze) {
+        return reply
+          .status(503)
+          .send({ error: 'Создание пользователей приостановлено (окно миграции)' });
+      }
       const parsed = batchImportBodySchema.safeParse(request.body);
       if (!parsed.success) {
         return reply.status(400).send({ error: 'Неверный формат данных' });

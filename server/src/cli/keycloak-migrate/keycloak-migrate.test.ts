@@ -528,4 +528,45 @@ describe('runImport --limit', () => {
     expect(rep.counters.processed).toBe(1);
     expect(rep.cursor).toBe('aaa');
   });
+
+  it('manifest вызывается на каждого слинкованного {userId,kcSub,email,active}', async () => {
+    const u = user({ isActive: true });
+    const kc = new MockKc({ resolve: () => resolvedSelf(u) });
+    const entries: { userId: string; kcSub: string; email: string; active: boolean }[] = [];
+    await runImport({
+      source: mockSource([u]),
+      kc,
+      links: new MockLinks(),
+      provider: 'keycloak-local',
+      groupActive: 'billhub-active',
+      groupPending: 'billhub-pending',
+      manifest: (e) => {
+        entries.push(e);
+      },
+      now: NOW,
+    });
+    expect(entries).toEqual([{ userId: u.id, kcSub: u.id, email: u.email, active: true }]);
+  });
+
+  it('--only-email: обрабатывает только заданные email (детерминированный сэмпл)', async () => {
+    const u1 = user({ id: 'aaa', email: 'keep@x.com' });
+    const u2 = user({ id: 'bbb', email: 'skip@x.com' });
+    const kc = new MockKc({
+      resolve: (email) => (email === 'keep@x.com' ? resolvedSelf(u1) : resolvedSelf(u2)),
+    });
+    const links = new MockLinks();
+    const rep = await runImport({
+      source: mockSource([u1, u2]),
+      kc,
+      links,
+      provider: 'keycloak-local',
+      groupActive: 'billhub-active',
+      groupPending: 'billhub-pending',
+      onlyEmails: ['KEEP@x.com'], // регистронезависимо
+      now: NOW,
+    });
+    expect(rep.total).toBe(1);
+    expect(links.byUser.get('keycloak-local:aaa')).toBe('aaa');
+    expect(links.byUser.get('keycloak-local:bbb')).toBeUndefined();
+  });
 });

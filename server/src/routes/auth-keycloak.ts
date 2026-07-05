@@ -178,6 +178,11 @@ async function keycloakAuthRoutes(fastify: FastifyInstance): Promise<void> {
     '/api/auth/register-counterparty',
     { config: { rateLimit: { max: 5, timeWindow: '10 minutes' } } },
     async (request, reply) => {
+      if (config.cutoverFreeze) {
+        return reply
+          .status(503)
+          .send({ error: 'Регистрация временно приостановлена (окно миграции)' });
+      }
       const parsed = registerCounterpartySchema.safeParse(request.body);
       if (!parsed.success) return reply.status(400).send({ error: 'Неверный формат данных' });
       const { token, email, fullName, password } = parsed.data;

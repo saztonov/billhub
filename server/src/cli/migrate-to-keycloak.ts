@@ -12,7 +12,7 @@
  * Секреты/хэши/токены НЕ печатаются. Реальный прогон на su10 — только после наката mapper+user-profile
  * (Предпосылка №0) и заведения billhub-import. Подробности — docs/keycloak-billhub.md §6.
  */
-import { readFile } from 'node:fs/promises';
+import { appendFile, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config } from '../config.js';
@@ -42,6 +42,8 @@ function usage(): void {
       '  --approved-mapping <file> JSON {"<userId>":"<kcSub>"} для разрешённых mismatch\n' +
       '  --batch N                 размер батча import (по умолчанию 400)\n' +
       '  --limit N                 import: обработать не более N (пробный сэмпл; resume продолжит)\n' +
+      '  --manifest-file <file>    import: JSONL {userId,kcSub,email,active} слинкованных (сверка/откат)\n' +
+      '  --only-email a,b          import: только эти email (детерминированный сэмпл)\n' +
       '  --check-kc                preflight: сверить существование email в KC (AD-коллизии), read-креды\n' +
       '  --ack-backup              подтверждение backup БД + realm-export (обязателен для import)\n' +
       '  --json                    печать отчёта в JSON',
@@ -182,6 +184,7 @@ async function dispatch(mode: Mode, args: CliArgs, pg: PgAdapters): Promise<numb
     ? await readJsonFile<Record<string, string>>(args.approvedMapping)
     : undefined;
 
+  const manifestFile = args.manifestFile;
   const report = await runImport({
     source: pg.source,
     kc: buildKeycloakAdminPort(importClient()),
@@ -193,6 +196,10 @@ async function dispatch(mode: Mode, args: CliArgs, pg: PgAdapters): Promise<numb
     approvedMapping,
     batch: args.batch,
     limit: args.limit,
+    onlyEmails: args.onlyEmails,
+    manifest: manifestFile
+      ? (e) => appendFile(manifestFile, `${JSON.stringify(e)}\n`, 'utf8')
+      : undefined,
     dryRun: args.dryRun,
   });
 
