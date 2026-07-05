@@ -51,7 +51,7 @@ description: >-
 ## Предпосылка №0 (в репозитории `auth`, ВНЕ billhub — но без неё импорт бессмыслен)
 
 - ✅ **Собран** bcrypt `PasswordHashProvider` (id `bcrypt`) — auth `keycloak/providers/bcrypt-spi/` (KC 26.1.5, at.favre шейдится).
-- В `keycloak/realm/su10-realm.yaml` добавить protocol-mapper user-attribute **`billhub_user_id`** в access+id token у клиента `billhub`. _(ещё не сделано)_
+- ✅ **Сделан** protocol-mapper user-attribute **`billhub_user_id`** (access+id+userinfo) у клиента `billhub` в `auth/keycloak/realm/su10-realm.yaml` + секция `userProfile` (`unmanagedAttributePolicy: ADMIN_EDIT`). ⚠️ **KC 26 по умолчанию отбрасывает неописанные атрибуты** — без `userProfile` атрибут `billhub_user_id`, выставленный при import/create через Admin API, молча теряется, и резолв-по-claim не работает. _(в realm-as-code готово; применить config-cli к su10 — отдельный аккуратный шаг, лучше сперва dry-run/тест-realm, т.к. меняет user-profile живого realm.)_
 - ✅ **Формат credential доказан** (2026-07-05, тест-realm `bcrypt-poc`, скрипт `bcrypt-spi/verify-bcrypt-poc.sh`): вход `$2a/$2b/$2y` cost 12/10 → перехэш в argon2; приняты оба пути (`partialImport` и Admin API create-user). Точный `secretData`/`credentialData` — в `auth/keycloak/providers/CREDENTIAL_CONTRACT.md`. **Payload-builder писать строго под него.** ⚠️ Импортируемым юзерам обязательны `firstName`/`lastName` (иначе VERIFY_PROFILE рушит вход).
 - Отдельные import-креды с ролью `manage-realm` (отдельный `client_credentials`-клиент или realm-admin) — **не** сервис-аккаунт `billhub` (у него только manage-users; `partialImport` требует manage-realm).
 - Сверить `OIDC_CLIENT_SECRET` billhub с секретом, который config-cli взял из `.env` (`BILLHUB_CLIENT_SECRET`).
