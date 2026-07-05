@@ -6,6 +6,7 @@ import { bcryptCost, buildBcryptCredential } from './bcrypt-credential.js';
 import { splitFullName } from './name-split.js';
 import { buildUserPayload } from './payload-builder.js';
 import { analyzePreflight } from './preflight.js';
+import { excludingSource, filterExcludedEmails } from './exclude.js';
 import { runImport, runPreflight, runReconcile, runVerify } from './runners.js';
 import type {
   IfResourceExists,
@@ -568,5 +569,48 @@ describe('runImport --limit', () => {
     expect(rep.total).toBe(1);
     expect(links.byUser.get('keycloak-local:aaa')).toBe('aaa');
     expect(links.byUser.get('keycloak-local:bbb')).toBeUndefined();
+  });
+});
+
+/* -------------------------------- --exclude-email --------------------------- */
+
+describe('excludingSource / filterExcludedEmails', () => {
+  it('filterExcludedEmails: убирает совпадения регистронезависимо', () => {
+    const u1 = user({ id: 'aaa', email: 'Drop@X.com' });
+    const u2 = user({ id: 'bbb', email: 'keep@x.com' });
+    expect(filterExcludedEmails([u1, u2], ['drop@x.com'])).toEqual([u2]);
+  });
+
+  it('без excludeEmails возвращает исходный список без изменений', () => {
+    const u1 = user({ id: 'aaa' });
+    expect(filterExcludedEmails([u1])).toEqual([u1]);
+  });
+
+  it('excludingSource: исключённые не попадают ни в preflight, ни в import', async () => {
+    const u1 = user({
+      id: 'aaa',
+      email: 'drop@x.com',
+      role: 'counterparty_user',
+      counterpartyId: null,
+    }); // блокер, но исключён
+    const u2 = user({ id: 'bbb', email: 'keep@x.com' });
+    const source = excludingSource(mockSource([u1, u2]), ['drop@x.com']);
+
+    const { report } = await runPreflight({ source, allowAnomalies: 0 });
+    expect(report.total).toBe(1);
+    expect(report.anomalies).toHaveLength(0);
+
+    const kc = new MockKc({ resolve: () => resolvedSelf(u2) });
+    const rep = await runImport({
+      source,
+      kc,
+      links: new MockLinks(),
+      provider: 'keycloak-local',
+      groupActive: 'billhub-active',
+      groupPending: 'billhub-pending',
+      now: NOW,
+    });
+    expect(rep.total).toBe(1);
+    expect(rep.counters.linked).toBe(1);
   });
 });

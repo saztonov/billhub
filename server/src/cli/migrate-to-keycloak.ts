@@ -18,6 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { config } from '../config.js';
 import { buildKeycloakAdminPort, KeycloakImportClient } from './keycloak-migrate/admin.js';
 import { parseArgs, type CliArgs, type Mode } from './keycloak-migrate/args.js';
+import { excludingSource } from './keycloak-migrate/exclude.js';
 import {
   runImport,
   runPreflight,
@@ -44,6 +45,7 @@ function usage(): void {
       '  --limit N                 import: обработать не более N (пробный сэмпл; resume продолжит)\n' +
       '  --manifest-file <file>    import: JSONL {userId,kcSub,email,active} слинкованных (сверка/откат)\n' +
       '  --only-email a,b          import: только эти email (детерминированный сэмпл)\n' +
+      '  --exclude-email a,b       ВСЕ режимы: исключить email целиком (напр. деактивированный мусор)\n' +
       '  --check-kc                preflight: сверить существование email в KC (AD-коллизии), read-креды\n' +
       '  --ack-backup              подтверждение backup БД + realm-export (обязателен для import)\n' +
       '  --json                    печать отчёта в JSON',
@@ -90,6 +92,9 @@ async function dispatch(mode: Mode, args: CliArgs, pg: PgAdapters): Promise<numb
   const provider = config.authIdentityProvider;
   const groupActive = config.kcPortalGroupActive;
   const groupPending = config.kcPortalGroupPending;
+  // --exclude-email действует одинаково во всех режимах: исключённые не читаются вообще, поэтому
+  // не попадают ни в анализ preflight, ни в import/verify/reconcile/report.
+  const source = excludingSource(pg.source, args.excludeEmails);
 
   if (mode === 'preflight') {
     if (args.checkKc && !hasKcReadCreds()) {
@@ -99,7 +104,7 @@ async function dispatch(mode: Mode, args: CliArgs, pg: PgAdapters): Promise<numb
       return 1;
     }
     const { report, blocked } = await runPreflight({
-      source: pg.source,
+      source,
       allowAnomalies: args.allowAnomalies,
       kc: args.checkKc ? buildKeycloakAdminPort(readClient()) : undefined,
     });
@@ -115,7 +120,7 @@ async function dispatch(mode: Mode, args: CliArgs, pg: PgAdapters): Promise<numb
   }
 
   if (mode === 'report') {
-    const report = await runReport({ source: pg.source, links: pg.links, provider });
+    const report = await runReport({ source, links: pg.links, provider });
     output(
       args,
       `report: всего ${report.total}, с линком ${report.linked}, без линка ${report.unlinked}, ` +
@@ -128,7 +133,7 @@ async function dispatch(mode: Mode, args: CliArgs, pg: PgAdapters): Promise<numb
 
   if (mode === 'verify') {
     const report = await runVerify({
-      source: pg.source,
+      source,
       kc: buildKeycloakAdminPort(readClient()),
       links: pg.links,
       provider,
@@ -146,7 +151,7 @@ async function dispatch(mode: Mode, args: CliArgs, pg: PgAdapters): Promise<numb
 
   if (mode === 'reconcile') {
     const report = await runReconcile({
-      source: pg.source,
+      source,
       kc: buildKeycloakAdminPort(readClient()),
       links: pg.links,
       mirror: pg.mirror,
@@ -186,7 +191,7 @@ async function dispatch(mode: Mode, args: CliArgs, pg: PgAdapters): Promise<numb
 
   const manifestFile = args.manifestFile;
   const report = await runImport({
-    source: pg.source,
+    source,
     kc: buildKeycloakAdminPort(importClient()),
     links: pg.links,
     provider,

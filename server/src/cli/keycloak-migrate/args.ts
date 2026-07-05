@@ -23,6 +23,8 @@ export interface CliArgs {
   manifestFile?: string;
   /** import: ограничить набор конкретными email (CSV) — детерминированный сэмпл (напр. тест-аккаунт). */
   onlyEmails?: string[];
+  /** ВСЕ режимы: исключить email из рассмотрения целиком (напр. деактивированные тестовые аккаунты). */
+  excludeEmails?: string[];
 }
 
 function isMode(v: string | undefined): v is Mode {
@@ -90,6 +92,13 @@ export function parseArgs(argv: string[]): CliArgs {
         break;
       case '--check-kc':
         out.checkKc = true;
+        break;
+      case '--exclude-email':
+        out.excludeEmails = (next ?? '')
+          .split(',')
+          .map((e) => e.trim())
+          .filter((e) => e.length > 0);
+        i += 1;
         break;
       case '--dry-run':
         out.dryRun = true;
