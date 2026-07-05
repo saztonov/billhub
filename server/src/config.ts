@@ -271,7 +271,7 @@ export const config: Config = {
   kcAdminClientId: envOptional('KC_ADMIN_CLIENT_ID'),
   kcAdminClientSecret: envOptional('KC_ADMIN_CLIENT_SECRET'),
 
-  kcImportClientId: envOptional('KC_IMPORT_CLIENT_ID'),
+  kcImportClientId: envOptional('KC_IMPORT_CLIENT_ID', 'billhub-import'),
   kcImportClientSecret: envOptional('KC_IMPORT_CLIENT_SECRET'),
   kcImportBaseUrl: envOptional('KC_IMPORT_BASE_URL'),
   kcImportRealm: envOptional('KC_IMPORT_REALM'),

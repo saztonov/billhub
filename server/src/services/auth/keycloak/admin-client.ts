@@ -17,6 +17,26 @@ export interface KcUser {
   createdTimestamp?: number;
 }
 
+/** Представление для создания пользователя (Ф2). */
+export interface KcCreateUser {
+  username: string;
+  email: string;
+  emailVerified?: boolean;
+  enabled?: boolean;
+  firstName: string;
+  lastName: string;
+  attributes?: Record<string, string[]>;
+  credentials?: { type: 'password'; value: string; temporary: boolean }[];
+}
+
+/** Email уже занят в Keycloak (HTTP 409 на create-user). */
+export class KcUserExistsError extends Error {
+  constructor(public readonly email: string) {
+    super(`Keycloak: пользователь с email уже существует`);
+    this.name = 'KcUserExistsError';
+  }
+}
+
 interface KcGroup {
   id: string;
   name: string;
@@ -173,6 +193,47 @@ export class KeycloakAdminClient {
     });
     if (!res.ok && res.status !== 204) {
       throw new Error(`Keycloak remove from group: HTTP ${res.status}`);
+    }
+  }
+
+  /**
+   * Создать пользователя (Ф2, Вариант B / admin-create). Возвращает реальный KC `sub`. Бросает
+   * `KcUserExistsError` при 409 (email занят). `id` в теле НЕ полагаемся — берём из Location/поиска;
+   * идентичность связывается через attribute `billhub_user_id` + user_identity_links, а не через sub.
+   */
+  async createUser(rep: KcCreateUser): Promise<string> {
+    const res = await this.adminFetch('/users', {
+      method: 'POST',
+      body: JSON.stringify(rep),
+    });
+    if (res.status === 409) throw new KcUserExistsError(rep.email);
+    if (res.status !== 201 && !res.ok) {
+      throw new Error(`Keycloak create user: HTTP ${res.status}`);
+    }
+    const loc = res.headers.get('location');
+    const fromLoc = loc ? loc.split('/').pop() : undefined;
+    if (fromLoc) return fromLoc;
+    const created = await this.findUserByEmail(rep.email);
+    if (!created) throw new Error('Keycloak create user: не удалось получить id созданного юзера');
+    return created.id;
+  }
+
+  /** Установить пароль пользователю (PUT /users/{id}/reset-password). temporary=false — не форсить смену. */
+  async setPassword(id: string, password: string, temporary = false): Promise<void> {
+    const res = await this.adminFetch(`/users/${encodeURIComponent(id)}/reset-password`, {
+      method: 'PUT',
+      body: JSON.stringify({ type: 'password', value: password, temporary }),
+    });
+    if (!res.ok && res.status !== 204) {
+      throw new Error(`Keycloak reset-password: HTTP ${res.status}`);
+    }
+  }
+
+  /** Удалить пользователя (компенсация при частичном провижининге). Idempotent: 404 → ok. */
+  async deleteUser(id: string): Promise<void> {
+    const res = await this.adminFetch(`/users/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    if (!res.ok && res.status !== 204 && res.status !== 404) {
+      throw new Error(`Keycloak delete user: HTTP ${res.status}`);
     }
   }
 

@@ -18,12 +18,16 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { decodeJwt } from 'jose';
+import { z } from 'zod';
 import type { CookieSerializeOptions } from '@fastify/cookie';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { config } from '../config.js';
 import { counterparties } from '../db/schema/index.js';
 import { authenticate } from '../middleware/authenticate.js';
-import { keycloakAdminClient } from '../services/auth/keycloak/admin-client.js';
+import { keycloakAdminClient, KcUserExistsError } from '../services/auth/keycloak/admin-client.js';
+import { provisionPortalUser } from '../services/auth/keycloak/provisioning.js';
+import { resolveKeycloakIdentity } from '../services/auth/keycloak/identity-resolve.js';
+import { MIN_PASSWORD_LENGTH, PasswordService } from '../services/auth/password.service.js';
 import {
   oidcService,
   type OidcIdentity,
@@ -85,7 +89,6 @@ interface LoginState {
   s: string; // state
   n: string; // nonce
   r: string; // returnUrl (относительный)
-  t: string | null; // registration_token
 }
 
 function encodeState(o: LoginState): string {
@@ -116,6 +119,14 @@ function tokenGroups(accessToken: string): unknown {
   }
 }
 
+/** Тело public-регистрации подрядчика (Вариант B). */
+const registerCounterpartySchema = z.object({
+  token: z.string().min(1),
+  email: z.string().min(1),
+  fullName: z.string().min(1),
+  password: z.string().min(1),
+});
+
 /* --------------------------------- Плагин ---------------------------------- */
 
 async function keycloakAuthRoutes(fastify: FastifyInstance): Promise<void> {
@@ -135,14 +146,13 @@ async function keycloakAuthRoutes(fastify: FastifyInstance): Promise<void> {
 
   /** GET /api/auth/login — старт PKCE-потока (top-level GET-редирект на Keycloak). */
   fastify.get('/api/auth/login', async (request, reply) => {
-    const q = request.query as { returnUrl?: string; regToken?: string };
+    const q = request.query as { returnUrl?: string };
     const challenge = await oidcService.buildLoginChallenge();
     const state: LoginState = {
       v: challenge.codeVerifier,
       s: challenge.state,
       n: challenge.nonce,
       r: safeReturnUrl(q.returnUrl),
-      t: typeof q.regToken === 'string' && q.regToken.length > 0 ? q.regToken : null,
     };
     reply.setCookie(LOGIN_STATE_COOKIE, encodeState(state), loginStateCookie());
     return reply.redirect(challenge.authorizationUrl);
@@ -156,6 +166,77 @@ async function keycloakAuthRoutes(fastify: FastifyInstance): Promise<void> {
     if (!cp) return reply.status(404).send({ valid: false });
     return { valid: true, counterpartyName: cp.name };
   });
+
+  /**
+   * POST /api/auth/register-counterparty — регистрация подрядчика (Вариант B, IdP закрыт).
+   * Валидирует counterparty-token + пароль → провижинит KC-идентичность через Admin API
+   * (enabled, emailVerified, billhub_user_id, credentials) → billhub-pending → локальный users
+   * (inactive) + link. Идемпотентность/анти-enumeration: одинаковый ответ для «создан» и «уже есть».
+   * Компенсация: при сбое локальной записи удаляем KC-юзера. Активацию делает админ.
+   */
+  fastify.post(
+    '/api/auth/register-counterparty',
+    { config: { rateLimit: { max: 5, timeWindow: '10 minutes' } } },
+    async (request, reply) => {
+      const parsed = registerCounterpartySchema.safeParse(request.body);
+      if (!parsed.success) return reply.status(400).send({ error: 'Неверный формат данных' });
+      const { token, email, fullName, password } = parsed.data;
+
+      if (!PasswordService.validateStrength(password)) {
+        return reply
+          .status(400)
+          .send({ error: `Пароль должен содержать минимум ${MIN_PASSWORD_LENGTH} символов` });
+      }
+
+      const cp = await findCounterpartyByToken(request, token);
+      if (!cp) return reply.status(400).send({ error: 'Регистрация недоступна по этой ссылке' });
+
+      const users = request.server.authServices.users;
+      const links = request.server.authServices.identityLinks;
+
+      // Анти-enumeration: если email уже есть — тот же «submitted», что и при создании.
+      if (await users.findByEmail(email)) return { status: 'submitted' as const };
+
+      const userId = randomUUID();
+      let sub: string;
+      try {
+        sub = await provisionPortalUser(keycloakAdminClient, { userId, email, fullName, password });
+      } catch (err) {
+        if (err instanceof KcUserExistsError) return { status: 'submitted' as const };
+        request.log.error({ err }, 'register-counterparty: провижининг KC не удался');
+        return reply.status(500).send({ error: 'Не удалось завершить регистрацию' });
+      }
+
+      try {
+        await request.server.repos.users.createCounterpartyUserRecord({
+          id: userId,
+          email,
+          fullName,
+          counterpartyId: cp.id,
+          isActive: false,
+        });
+        await links.link({
+          userId,
+          provider: config.authIdentityProvider,
+          subject: sub,
+          emailAtLink: email,
+        });
+      } catch (err) {
+        request.log.error(
+          { err },
+          'register-counterparty: локальная запись не удалась, компенсация KC',
+        );
+        try {
+          await keycloakAdminClient.deleteUser(sub);
+        } catch (delErr) {
+          request.log.error({ err: delErr }, 'register-counterparty: компенсация KC не удалась');
+        }
+        return reply.status(500).send({ error: 'Не удалось завершить регистрацию' });
+      }
+
+      return { status: 'submitted' as const };
+    },
+  );
 
   /** GET /api/auth/oidc/callback — обмен code, резолв/онбординг, cookie, редирект. */
   fastify.get('/api/auth/oidc/callback', async (request, reply) => {
@@ -191,9 +272,9 @@ async function keycloakAuthRoutes(fastify: FastifyInstance): Promise<void> {
       return reply.status(401).send({ error: 'Не удалось завершить вход' });
     }
 
-    const outcome = await resolveOrOnboard(request, identity, st.t, tokens.accessToken);
+    const outcome = await resolveIdentity(request, identity, tokens.accessToken);
     if (outcome === 'no_access') {
-      // Идентичность без доступа к порталу и без валидного токена регистрации.
+      // Идентичность без заведённого доступа к порталу (регистрация — через register-counterparty).
       return reply.redirect('/login?error=no_access');
     }
 
@@ -254,57 +335,47 @@ async function findCounterpartyByToken(
 }
 
 /**
- * Резолв/онбординг идентичности Keycloak в BillHub (grant-only). Возвращает состояние доступа:
- *   'active'    — есть доступ (billhub-active) → пускаем в приложение;
- *   'pending'   — доступ заведён, но не активен → страница ожидания активации;
- *   'no_access' — нет строки в BillHub и нет валидного registration_token.
+ * Резолв идентичности Keycloak → доступ (Ф1, provider-agnostic). Порядок:
+ *   1) claim billhub_user_id → users.findById;
+ *   2) user_identity_links по (provider, subject) среди известных провайдеров;
+ *   3) verified-email-fallback (аварийный: массово-перенесённый/admin-created без claim) — только для
+ *      email_verified, с WARN.
+ * Возвращает 'active'|'pending' (по группе billhub-active в токене) либо 'no_access'. Регистрация
+ * подрядчика — ТОЛЬКО через POST /api/auth/register-counterparty (Вариант B), не здесь.
  */
-async function resolveOrOnboard(
+async function resolveIdentity(
   request: FastifyRequest,
   identity: OidcIdentity,
-  regToken: string | null,
   accessToken: string,
 ): Promise<'active' | 'pending' | 'no_access'> {
   const provider = config.authIdentityProvider;
-  const { sub, email } = identity;
+  const { sub, email, billhubUserId, emailVerified } = identity;
   const links = request.server.authServices.identityLinks;
   const users = request.server.authServices.users;
 
   const isActiveNow = (): boolean =>
     hasPortalGroup(tokenGroups(accessToken), config.kcPortalGroupActive);
 
-  const existing = await links.findBySubject(provider, sub);
-  if (existing) {
+  // 1-2: резолв по claim / links (provider-agnostic).
+  const resolved = await resolveKeycloakIdentity({ users, links }, { billhubUserId, sub });
+  if (resolved) {
+    // Идемпотентно поддерживаем link для текущего (provider, sub): нужен для sync групп/reconcile и
+    // перелинка на новый provider (AD) по billhub_user_id.
+    await links.link({ userId: resolved.rec.id, provider, subject: sub, emailAtLink: email });
     return isActiveNow() ? 'active' : 'pending';
   }
 
-  // Нет связи → one-time email-привязка (массово-перенесённые / admin-created первый вход).
-  const emailRec = email ? await users.findByEmail(email) : null;
-  if (emailRec) {
-    await links.link({ userId: emailRec.id, provider, subject: sub, emailAtLink: email });
-    await ensurePortalGroup(request, sub, accessToken);
-    return isActiveNow() ? 'active' : 'pending';
-  }
-
-  // Нет строки → онбординг по registration_token (само-регистрация подрядчика).
-  if (regToken && email) {
-    const cp = await findCounterpartyByToken(request, regToken);
-    if (cp) {
-      const userId = randomUUID();
-      await request.server.repos.users.createCounterpartyUserRecord({
-        id: userId,
-        email,
-        fullName: identity.preferredUsername ?? email,
-        counterpartyId: cp.id,
-        isActive: false,
-      });
-      await links.link({ userId, provider, subject: sub, emailAtLink: email });
-      try {
-        await keycloakAdminClient.addPortalPending(sub);
-      } catch (err) {
-        request.log.error({ err }, 'onboarding: не удалось добавить в группу billhub-pending');
-      }
-      return 'pending';
+  // 3: verified-email-fallback (аварийный/диагностический путь).
+  if (email && emailVerified) {
+    const emailRec = await users.findByEmail(email);
+    if (emailRec) {
+      request.log.warn(
+        { userId: emailRec.id, provider },
+        'keycloak resolve: email-fallback (link отсутствовал) — проверьте маппер billhub_user_id',
+      );
+      await links.link({ userId: emailRec.id, provider, subject: sub, emailAtLink: email });
+      await ensurePortalGroup(request, sub, accessToken);
+      return isActiveNow() ? 'active' : 'pending';
     }
   }
 

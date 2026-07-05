@@ -44,7 +44,8 @@ export interface UserRepository {
 
   list(query: ListUsersQuery): Promise<PaginatedResult<User>>;
 
-  create(body: CreateUserBody): Promise<User>;
+  /** Создать пользователя. `id` можно задать явно (keycloak admin-create: id известен до провижининга KC). */
+  create(body: CreateUserBody, id?: string): Promise<User>;
   update(id: string, body: UpdateUserBody): Promise<User>;
   delete(id: string): Promise<void>;
 

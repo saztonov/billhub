@@ -2,10 +2,11 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { config } from '../config.js';
-import { authenticate } from '../middleware/authenticate.js';
+import { authenticate, invalidateUserCache } from '../middleware/authenticate.js';
 import { requireRole } from '../middleware/requireRole.js';
 import { PasswordService } from '../services/auth/password.service.js';
 import { keycloakAdminClient } from '../services/auth/keycloak/admin-client.js';
+import { provisionPortalUser } from '../services/auth/keycloak/provisioning.js';
 import {
   updateUserWithSitesBodySchema,
   updateUserSitesBodySchema,
@@ -36,6 +37,57 @@ async function syncPortalGroup(
       { err, userId },
       'setPortalActive: не удалось синхронизировать группу Keycloak',
     );
+  }
+}
+
+/**
+ * admin-create в keycloak-режиме (Ф2): провижинит KC-идентичность СРАЗУ (иначе при закрытой
+ * регистрации пользователь никогда не войдёт). Порядок: pre-generate id → KC (createUser +
+ * billhub_user_id + billhub-pending) → локальный users (inactive, id=userId) → link. При сбое
+ * локальной записи — компенсация (удаляем KC-юзера). Пароль обязателен (проверен выше).
+ */
+async function createUserKeycloak(
+  request: FastifyRequest,
+  b: z.infer<typeof createUserRequestSchema>,
+): Promise<{ id: string; success: true }> {
+  const userId = randomUUID();
+  const sub = await provisionPortalUser(keycloakAdminClient, {
+    userId,
+    email: b.email,
+    fullName: b.fullName,
+    password: b.password!,
+  });
+  try {
+    const user = await request.server.repos.users.create(
+      {
+        email: b.email,
+        password: '',
+        fullName: b.fullName,
+        role: b.role,
+        counterpartyId: b.counterpartyId ?? null,
+        department: (b.departmentId ?? undefined) as CreateUserBody['department'],
+        allSites: b.allSites ?? false,
+        isActive: false,
+      },
+      userId,
+    );
+    if (b.siteIds && b.siteIds.length > 0) {
+      await request.server.repos.users.setSiteMappings(user.id, b.siteIds);
+    }
+    await request.server.authServices.identityLinks.link({
+      userId,
+      provider: config.authIdentityProvider,
+      subject: sub,
+      emailAtLink: b.email,
+    });
+    return { id: user.id, success: true };
+  } catch (err) {
+    try {
+      await keycloakAdminClient.deleteUser(sub);
+    } catch (delErr) {
+      request.log.error({ err: delErr }, 'admin-create: компенсация KC не удалась');
+    }
+    throw err;
   }
 }
 
@@ -109,11 +161,15 @@ async function userRoutes(fastify: FastifyInstance): Promise<void> {
       }
       const b = parsed.data;
       const mode = request.server.authMode;
-      if (mode === 'standalone') {
+      // В standalone и keycloak пароль обязателен (keycloak: SMTP нет → админ задаёт пароль сразу).
+      if (mode === 'standalone' || mode === 'keycloak') {
         if (!b.password) return reply.status(400).send({ error: 'Пароль обязателен' });
         PasswordService.assertStrong(b.password);
       }
       try {
+        if (mode === 'keycloak') {
+          return await createUserKeycloak(request, b);
+        }
         const user = await request.server.repos.users.create({
           email: b.email,
           // password не персистится методом create (хэш ставится отдельно); поле нужно для типа.
@@ -188,6 +244,7 @@ async function userRoutes(fastify: FastifyInstance): Promise<void> {
         allSites: b.all_sites,
         siteIds: b.site_ids,
       });
+      invalidateUserCache(request.params.id);
       return { success: true };
     },
   );
@@ -199,6 +256,7 @@ async function userRoutes(fastify: FastifyInstance): Promise<void> {
     async (request) => {
       await request.server.repos.users.setActive(request.params.id, false);
       await syncPortalGroup(request, request.params.id, false);
+      invalidateUserCache(request.params.id);
       return { success: true };
     },
   );
@@ -212,6 +270,7 @@ async function userRoutes(fastify: FastifyInstance): Promise<void> {
       if (body.isActive !== undefined) {
         await request.server.repos.users.setActive(request.params.id, body.isActive);
         await syncPortalGroup(request, request.params.id, body.isActive);
+        invalidateUserCache(request.params.id);
       }
       return { success: true };
     },
@@ -224,6 +283,7 @@ async function userRoutes(fastify: FastifyInstance): Promise<void> {
     async (request) => {
       await request.server.repos.users.setActive(request.params.id, true);
       await syncPortalGroup(request, request.params.id, true);
+      invalidateUserCache(request.params.id);
       return { success: true };
     },
   );

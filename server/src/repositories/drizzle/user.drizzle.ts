@@ -108,14 +108,15 @@ export class DrizzleUserRepository implements UserRepository {
     };
   }
 
-  async create(body: CreateUserBody): Promise<User> {
+  async create(body: CreateUserBody, id?: string): Promise<User> {
     try {
       // users.id не имеет дефолта в БД (исторически приходил из auth.users).
-      // До standalone-auth (Iteration 6) генерируем UUID в репозитории.
+      // До standalone-auth (Iteration 6) генерируем UUID в репозитории; keycloak admin-create
+      // передаёт заранее сгенерированный id (он же billhub_user_id в KC).
       const [row] = await this.db
         .insert(users)
         .values({
-          id: randomUUID(),
+          id: id ?? randomUUID(),
           email: body.email,
           fullName: body.fullName,
           role: body.role,

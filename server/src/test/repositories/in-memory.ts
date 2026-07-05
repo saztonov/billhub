@@ -396,12 +396,12 @@ export class InMemoryUserRepository implements UserRepository {
     return { items: filtered.slice(from, from + query.pageSize), totalCount };
   }
 
-  async create(body: CreateUserBody): Promise<User> {
+  async create(body: CreateUserBody, id?: string): Promise<User> {
     if (this.items.some((u) => u.email === body.email)) {
       throw new UniqueConstraintError('User', 'email', body.email);
     }
     const created: User = {
-      id: makeId(),
+      id: id ?? makeId(),
       email: body.email,
       fullName: body.fullName,
       role: body.role,

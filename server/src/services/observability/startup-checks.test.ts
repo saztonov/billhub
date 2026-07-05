@@ -10,11 +10,29 @@ import {
   checkNoDevFlags,
   checkExtensions,
   checkAppliedMigration,
+  checkAuthModeInvariant,
   collectRuntimeStartupProblems,
   assertEnvStartup,
   StartupCheckError,
   type StartupEnv,
 } from './startup-checks.js';
+
+describe('checkAuthModeInvariant (Ф4)', () => {
+  it('standalone и keycloak разрешены в production', () => {
+    expect(checkAuthModeInvariant({ NODE_ENV: 'production', AUTH_MODE: 'standalone' })).toEqual([]);
+    expect(checkAuthModeInvariant({ NODE_ENV: 'production', AUTH_MODE: 'keycloak' })).toEqual([]);
+  });
+  it('supabase-bridge в production — проблема', () => {
+    expect(
+      checkAuthModeInvariant({ NODE_ENV: 'production', AUTH_MODE: 'supabase-bridge' }),
+    ).toHaveLength(1);
+  });
+  it('вне production — no-op', () => {
+    expect(
+      checkAuthModeInvariant({ NODE_ENV: 'development', AUTH_MODE: 'supabase-bridge' }),
+    ).toEqual([]);
+  });
+});
 
 /** Валидное production-окружение (без проблем). */
 function goodEnv(): StartupEnv {

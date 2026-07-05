@@ -106,13 +106,17 @@ export function checkNoDevFlags(env: StartupEnv): string[] {
   return problems;
 }
 
-/** C1: в production AUTH_MODE обязан быть standalone (иначе молчаливый запуск в legacy supabase-bridge). */
+/**
+ * C1: в production AUTH_MODE обязан быть `standalone` или `keycloak` (не молчаливый legacy
+ * supabase-bridge). Ф4: keycloak-режим разрешён в проде; недостающие OIDC-переменные ловит
+ * config.ts (validateRequired при isKeycloakMode), а доступность discovery/JWKS — readiness-проба.
+ */
 export function checkAuthModeInvariant(env: StartupEnv): string[] {
   if ((env.NODE_ENV ?? 'development') !== 'production') return [];
   const mode = env.AUTH_MODE ?? 'supabase-bridge';
-  return mode === 'standalone'
+  return mode === 'standalone' || mode === 'keycloak'
     ? []
-    : [`В production обязателен AUTH_MODE=standalone (получено: ${mode})`];
+    : [`В production обязателен AUTH_MODE=standalone или keycloak (получено: ${mode})`];
 }
 
 export function checkExtensions(

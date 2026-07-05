@@ -42,6 +42,8 @@ export interface OidcIdentity {
   email: string | null;
   emailVerified: boolean;
   preferredUsername: string | null;
+  /** claim billhub_user_id (стабильный correlation-key = локальный users.id), если проставлен. */
+  billhubUserId: string | null;
 }
 
 type TokenResponse = {
@@ -127,6 +129,7 @@ export class OidcService {
         emailVerified: claims.email_verified === true,
         preferredUsername:
           typeof claims.preferred_username === 'string' ? claims.preferred_username : null,
+        billhubUserId: typeof claims.billhub_user_id === 'string' ? claims.billhub_user_id : null,
       },
     };
   }

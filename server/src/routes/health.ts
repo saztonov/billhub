@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { sql } from 'drizzle-orm';
 import { HeadBucketCommand } from '@aws-sdk/client-s3';
 import { DEFAULT_MIGRATIONS_DIR, loadMigrationFiles } from '../cli/migrate.js';
+import { assertKeycloakReady } from '../services/auth/keycloak/readiness.js';
 
 /** Гонка промиса с таймаутом (reject при превышении). */
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
@@ -133,6 +134,16 @@ export default async function healthRoutes(fastify: FastifyInstance): Promise<vo
       }
     } else {
       checks.s3 = { ok: false, detail: 's3 не инициализирован' };
+    }
+
+    // --- Keycloak (discovery/JWKS, только keycloak-режим) ---
+    if (fastify.authMode === 'keycloak') {
+      try {
+        await assertKeycloakReady(2000);
+        checks.keycloak = { ok: true };
+      } catch (err) {
+        checks.keycloak = { ok: false, detail: err instanceof Error ? err.message : String(err) };
+      }
     }
 
     const allOk = Object.values(checks).every((c) => c.ok);

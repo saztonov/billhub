@@ -14,6 +14,7 @@ import { config, isSupabaseNeeded } from './config.js';
 import { toCamelCase } from './utils/caseTransform.js';
 import { FASTIFY_REDACT_PATHS } from './services/observability/logger.js';
 import { assertEnvStartup, assertRuntimeStartup } from './services/observability/startup-checks.js';
+import { assertKeycloakReady } from './services/auth/keycloak/readiness.js';
 import { DEFAULT_MIGRATIONS_DIR, loadMigrationFiles } from './cli/migrate.js';
 import {
   NotFoundError,
@@ -301,6 +302,10 @@ async function runRuntimeStartupChecks(fastify: FastifyInstance): Promise<void> 
       await fastify.s3Client.send(new HeadBucketCommand({ Bucket: fastify.s3Bucket }));
     },
   });
+  // Ф4: в keycloak-режиме OIDC discovery/JWKS обязаны быть доступны на старте.
+  if (config.authMode === 'keycloak') {
+    await assertKeycloakReady();
+  }
 }
 
 /**
