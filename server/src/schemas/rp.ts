@@ -29,6 +29,8 @@ export const createRpBodySchema = z.object({
   documents: z.array(rpDocumentRefSchema).default([]),
   letterDate: z.string().nullish(),
   letter: rpLetterBlockSchema.optional(),
+  // Номер счёта (0011): trim + пустая строка -> null на сервере (см. роут).
+  invoiceNumber: z.string().max(100).nullish(),
 });
 
 /** Регистрация файлов письма (уже загруженных чанковым аплоадом в контексте rp_letter). */
@@ -67,6 +69,16 @@ export const rpServiceFilesBodySchema = z.object({
 export const rpServiceFileParamsSchema = z.object({
   id: z.string().uuid(),
   fileId: z.string().uuid(),
+});
+
+/** Кандидаты-счета для прикрепления к РП: активные счета выбранных заявок (0011). */
+export const rpInvoiceCandidatesBodySchema = z.object({
+  paymentRequestIds: z.array(z.string().uuid()).min(1).max(100),
+});
+
+/** Прикрепить счета заявок к РП как служебные файлы (копирование в S3) (0011). */
+export const rpAttachInvoicesBodySchema = z.object({
+  fileIds: z.array(z.string().uuid()).min(1).max(50),
 });
 
 /** Текстовые поля письма (finalize с текстом и редактирование из реестра). */

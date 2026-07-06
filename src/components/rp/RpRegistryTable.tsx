@@ -164,6 +164,13 @@ const RpRegistryTable = ({
         render: (v: number) => fmtAmount(v),
       },
       {
+        title: 'Номер счёта',
+        dataIndex: 'invoiceNumber',
+        key: 'invoiceNumber',
+        width: 130,
+        render: (v: string | null) => v || <Text type="secondary">—</Text>,
+      },
+      {
         title: 'Заявки',
         key: 'requests',
         width: 100,
@@ -301,7 +308,7 @@ const RpRegistryTable = ({
       rowKey="id"
       loading={isLoading}
       size="small"
-      scroll={{ x: canManage ? 1627 : 1477, y: 'calc(100vh - 320px)' }}
+      scroll={{ x: canManage ? 1757 : 1607, y: 'calc(100vh - 320px)' }}
       pagination={{
         current: page,
         pageSize,

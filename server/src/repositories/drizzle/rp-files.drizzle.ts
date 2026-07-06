@@ -9,11 +9,22 @@ import type { PgTransaction } from 'drizzle-orm/pg-core';
 import type { ExtractTablesWithRelations } from 'drizzle-orm';
 import * as schema from '../../db/schema/index.js';
 import {
+  rpLetters,
   rpLetterAttachments,
   rpLetterServiceFiles,
   rpLetterRequests,
+  paymentRequests,
+  paymentRequestFiles,
 } from '../../db/schema/index.js';
-import type { RpFilesResult, RpServiceFileRef } from '../rp.repository.js';
+import type {
+  RpFilesResult,
+  RpServiceFileRef,
+  RpInvoiceCandidateGroup,
+  RpInvoiceFileMeta,
+} from '../rp.repository.js';
+
+/** ID типа документа «Счёт» (продублирован в OCR/materials/фронте). */
+const INVOICE_DOC_TYPE_ID = 'c3c0b242-8a0c-4e20-b9ad-363ebf462a5b';
 
 type Db = PostgresJsDatabase<typeof schema>;
 type Tx = PgTransaction<
@@ -177,4 +188,156 @@ export async function listServiceFileKeys(db: RpDb, rpLetterId: string): Promise
     .from(rpLetterServiceFiles)
     .where(eq(rpLetterServiceFiles.rpLetterId, rpLetterId));
   return rows.map((r) => r.fileKey);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Прикрепление счетов заявок к РП как служебные файлы (0011)         */
+/* ------------------------------------------------------------------ */
+
+/** Активные счета выбранных заявок, сгруппированные по заявке (для окна выбора). */
+export async function listInvoiceCandidates(
+  db: RpDb,
+  paymentRequestIds: string[],
+  siteIds: string[] | null,
+): Promise<RpInvoiceCandidateGroup[]> {
+  if (paymentRequestIds.length === 0) return [];
+  if (siteIds !== null && siteIds.length === 0) return [];
+  const rows = await db
+    .select({
+      requestId: paymentRequests.id,
+      requestNumber: paymentRequests.requestNumber,
+      fileId: paymentRequestFiles.id,
+      fileName: paymentRequestFiles.fileName,
+      mimeType: paymentRequestFiles.mimeType,
+      sizeBytes: paymentRequestFiles.fileSize,
+    })
+    .from(paymentRequestFiles)
+    .innerJoin(paymentRequests, eq(paymentRequests.id, paymentRequestFiles.paymentRequestId))
+    .where(
+      and(
+        inArray(paymentRequestFiles.paymentRequestId, paymentRequestIds),
+        eq(paymentRequestFiles.documentTypeId, INVOICE_DOC_TYPE_ID),
+        eq(paymentRequestFiles.isRejected, false),
+        siteIds === null ? undefined : inArray(paymentRequests.siteId, siteIds),
+      ),
+    )
+    .orderBy(asc(paymentRequests.requestNumber), asc(paymentRequestFiles.createdAt));
+
+  // Группировка по заявке с сохранением порядка появления.
+  const groups: RpInvoiceCandidateGroup[] = [];
+  const byId = new Map<string, RpInvoiceCandidateGroup>();
+  for (const r of rows) {
+    let g = byId.get(r.requestId);
+    if (!g) {
+      g = { requestId: r.requestId, requestNumber: r.requestNumber, files: [] };
+      byId.set(r.requestId, g);
+      groups.push(g);
+    }
+    g.files.push({
+      id: r.fileId,
+      fileName: r.fileName,
+      mimeType: r.mimeType,
+      sizeBytes: r.sizeBytes,
+    });
+  }
+  return groups;
+}
+
+/**
+ * Ре-проверка: из fileIds оставить только активные счета, чьи заявки входят в эту РП.
+ * Возвращает метаданные для копирования в S3.
+ */
+export async function getAttachableInvoiceFiles(
+  db: RpDb,
+  rpLetterId: string,
+  fileIds: string[],
+): Promise<RpInvoiceFileMeta[]> {
+  if (fileIds.length === 0) return [];
+  const rows = await db
+    .select({
+      id: paymentRequestFiles.id,
+      fileKey: paymentRequestFiles.fileKey,
+      fileName: paymentRequestFiles.fileName,
+      mimeType: paymentRequestFiles.mimeType,
+      sizeBytes: paymentRequestFiles.fileSize,
+    })
+    .from(paymentRequestFiles)
+    .innerJoin(
+      rpLetterRequests,
+      eq(rpLetterRequests.paymentRequestId, paymentRequestFiles.paymentRequestId),
+    )
+    .where(
+      and(
+        eq(rpLetterRequests.rpLetterId, rpLetterId),
+        inArray(paymentRequestFiles.id, fileIds),
+        eq(paymentRequestFiles.documentTypeId, INVOICE_DOC_TYPE_ID),
+        eq(paymentRequestFiles.isRejected, false),
+      ),
+    );
+  return rows;
+}
+
+/** Какие из ключей уже зарегистрированы служебными файлами этой РП (для дедупа copy). */
+export async function getExistingServiceKeys(
+  db: RpDb,
+  rpLetterId: string,
+  fileKeys: string[],
+): Promise<string[]> {
+  if (fileKeys.length === 0) return [];
+  const rows = await db
+    .select({ fileKey: rpLetterServiceFiles.fileKey })
+    .from(rpLetterServiceFiles)
+    .where(
+      and(
+        eq(rpLetterServiceFiles.rpLetterId, rpLetterId),
+        inArray(rpLetterServiceFiles.fileKey, fileKeys),
+      ),
+    );
+  return rows.map((r) => r.fileKey);
+}
+
+/**
+ * Идемпотентная регистрация служебных файлов (уже скопированных в S3): под блокировкой
+ * строки РП вставляет только отсутствующие по file_key; возвращает число добавленных.
+ */
+export async function addServiceFilesIdempotent(
+  db: RpDb,
+  rpLetterId: string,
+  createdBy: string,
+  refs: RpServiceFileRef[],
+): Promise<number> {
+  if (refs.length === 0) return 0;
+  return db.transaction(async (tx) => {
+    // Блокировка строки РП — сериализация конкурентных привязок к одной РП.
+    await tx
+      .select({ id: rpLetters.id })
+      .from(rpLetters)
+      .where(eq(rpLetters.id, rpLetterId))
+      .for('update');
+    const keys = refs.map((r) => r.fileKey);
+    const existing = await tx
+      .select({ fileKey: rpLetterServiceFiles.fileKey })
+      .from(rpLetterServiceFiles)
+      .where(
+        and(
+          eq(rpLetterServiceFiles.rpLetterId, rpLetterId),
+          inArray(rpLetterServiceFiles.fileKey, keys),
+        ),
+      );
+    const existingSet = new Set(existing.map((e) => e.fileKey));
+    const toInsert = refs.filter((r) => !existingSet.has(r.fileKey));
+    if (toInsert.length > 0) {
+      await tx.insert(rpLetterServiceFiles).values(
+        toInsert.map((r) => ({
+          rpLetterId,
+          createdBy,
+          fileKey: r.fileKey,
+          fileName: r.fileName,
+          mimeType: r.mimeType ?? null,
+          sizeBytes: r.sizeBytes ?? null,
+        })),
+      );
+    }
+    return toInsert.length;
+  });
 }

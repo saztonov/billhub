@@ -39,6 +39,8 @@ export interface RpRegistryRow {
   siteId: string;
   siteName: string;
   createdBy: string;
+  /** Номер счёта (0011): ручной ввод в форме создания РП; в реестре справа от суммы. */
+  invoiceNumber: string | null;
   requests: RpRequestRef[];
   paymentStatus: RpPaymentStatus;
   // Письмо PayHub (0008)
@@ -97,6 +99,8 @@ export interface CreateRpInput {
   paymentRequestIds: string[];
   documents: RpDocumentRef[];
   letterDate?: string | null;
+  /** Номер счёта (0011): trim + пустая строка -> null выполняет вызывающий роут. */
+  invoiceNumber?: string | null;
   createdBy: string;
   /** Снимок полей формы письма PayHub; null/undefined — письмо не запрашивается. */
   letter?: RpLetterPayload | null;
@@ -124,6 +128,30 @@ export interface RpServiceFileRef {
   fileName: string;
   mimeType?: string | null;
   sizeBytes?: number | null;
+}
+
+/** Файл-счёт заявки — кандидат для прикрепления к РП (0011). */
+export interface RpInvoiceCandidateFile {
+  id: string;
+  fileName: string;
+  mimeType: string | null;
+  sizeBytes: number | null;
+}
+
+/** Группа кандидатов по заявке для окна выбора счетов (0011). */
+export interface RpInvoiceCandidateGroup {
+  requestId: string;
+  requestNumber: string;
+  files: RpInvoiceCandidateFile[];
+}
+
+/** Метаданные файла-счёта, прошедшего серверную ре-проверку при привязке к РП (0011). */
+export interface RpInvoiceFileMeta {
+  id: string;
+  fileKey: string;
+  fileName: string;
+  mimeType: string | null;
+  sizeBytes: number | null;
 }
 
 /** Вложение письма PayHub для модалки «Файлы РП» (0010). */
@@ -273,4 +301,31 @@ export interface RpRepository {
   addServiceFiles(id: string, createdBy: string, refs: RpServiceFileRef[]): Promise<void>;
   /** Удалить служебный файл РП; возвращает его file_key для очистки S3 (null — не найден). */
   deleteServiceFile(id: string, fileId: string): Promise<string | null>;
+
+  /* ---------- Прикрепление счетов заявок к РП (0011) ---------- */
+
+  /**
+   * Активные счета (тип «Счёт», не зачёркнутые) выбранных заявок, сгруппированные по заявке.
+   * siteIds=null => без ограничения объектов; иначе только заявки объектов из scope.
+   */
+  listInvoiceCandidates(
+    paymentRequestIds: string[],
+    siteIds: string[] | null,
+  ): Promise<RpInvoiceCandidateGroup[]>;
+  /**
+   * Ре-проверка на сервере: из fileIds оставить только активные счета, чьи заявки
+   * входят в эту РП (rp_letter_requests). Возвращает метаданные для копирования в S3.
+   */
+  getAttachableInvoiceFiles(rpLetterId: string, fileIds: string[]): Promise<RpInvoiceFileMeta[]>;
+  /** Какие из ключей уже зарегистрированы служебными файлами этой РП (для дедупа copy). */
+  getExistingServiceKeys(rpLetterId: string, fileKeys: string[]): Promise<string[]>;
+  /**
+   * Идемпотентная регистрация служебных файлов (уже скопированных в S3): под блокировкой
+   * строки РП вставляет только отсутствующие по file_key; возвращает число добавленных.
+   */
+  addServiceFilesIdempotent(
+    rpLetterId: string,
+    createdBy: string,
+    refs: RpServiceFileRef[],
+  ): Promise<number>;
 }

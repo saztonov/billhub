@@ -765,6 +765,8 @@ export interface RpLetter {
   siteId: string
   siteName: string
   createdBy: string
+  /** Номер счёта (ручной ввод при создании РП; в реестре справа от суммы). */
+  invoiceNumber: string | null
   requests: RpRequestRef[]
   paymentStatus: RpPaymentStatus
   // Письмо PayHub

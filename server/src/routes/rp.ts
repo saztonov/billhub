@@ -1,9 +1,10 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, CopyObjectCommand } from '@aws-sdk/client-s3';
 import { authenticate } from '../middleware/authenticate.js';
 import { requireRole } from '../middleware/requireRole.js';
 import { DrizzleRpRepository } from '../repositories/drizzle/rp.drizzle.js';
 import { ValidationError, NotFoundError } from '../repositories/types.js';
+import { sanitizeForS3 } from '../utils/sanitize.js';
 import { enqueueRpLetterSync } from '../queues/index.js';
 import { PayHubApiError } from '../services/payhub/payhub-errors.js';
 import type { PayHubClient } from '../services/payhub/payhub-client.js';
@@ -18,11 +19,19 @@ import {
   rpLetterAttachmentsBodySchema,
   rpServiceFilesBodySchema,
   rpServiceFileParamsSchema,
+  rpInvoiceCandidatesBodySchema,
+  rpAttachInvoicesBodySchema,
   rpStage1BodySchema,
   finalizeLetterBodySchema,
   editLetterTextBodySchema,
   rpIdParamsSchema,
 } from '../schemas/rp.js';
+
+/** Номер счёта: trim + пустая строка -> null (хранится только в BillHub). */
+function normalizeInvoiceNumber(v: string | null | undefined): string | null {
+  const t = (v ?? '').trim();
+  return t.length > 0 ? t : null;
+}
 
 /** Санитизация имени файла вложения: без разделителей путей и управляющих символов. */
 function sanitizeAttachmentName(name: string): string {
@@ -106,6 +115,16 @@ async function rpRoutes(fastify: FastifyInstance): Promise<void> {
     );
   }
 
+  /** Копирование объекта billhub S3 (счёт заявки -> служебная папка РП) (0011). */
+  async function copyStagingFile(srcKey: string, destKey: string): Promise<void> {
+    const s3 = fastify.s3Client;
+    const bucket = fastify.s3Bucket;
+    if (!s3 || !bucket) throw new ValidationError('S3 недоступен');
+    // CopySource: bucket + ключ, каждый сегмент пути URL-кодируется (слэши сохраняются).
+    const copySource = [bucket, ...srcKey.split('/')].map(encodeURIComponent).join('/');
+    await s3.send(new CopyObjectCommand({ Bucket: bucket, CopySource: copySource, Key: destKey }));
+  }
+
   const adminOrUser = { preHandler: [authenticate, requireRole('admin', 'user')] };
 
   /**
@@ -173,6 +192,7 @@ async function rpRoutes(fastify: FastifyInstance): Promise<void> {
       paymentRequestIds: body.paymentRequestIds,
       documents: body.documents,
       letterDate: body.letterDate ?? null,
+      invoiceNumber: normalizeInvoiceNumber(body.invoiceNumber),
       createdBy: user.id,
       letter: body.letter
         ? {
@@ -214,6 +234,7 @@ async function rpRoutes(fastify: FastifyInstance): Promise<void> {
       paymentRequestIds: body.paymentRequestIds,
       documents: body.documents,
       letterDate: body.letterDate ?? null,
+      invoiceNumber: normalizeInvoiceNumber(body.invoiceNumber),
       createdBy: user.id,
       letter: {
         subject: body.letter.subject,
@@ -322,6 +343,71 @@ async function rpRoutes(fastify: FastifyInstance): Promise<void> {
     if (!fileKey) throw new NotFoundError('Служебный файл РП', fileId);
     await deleteStagingFiles([fileKey]);
     return { success: true };
+  });
+
+  /* ---------- POST /api/rp/invoice-file-candidates — активные счета заявок (0011) ---------- */
+  // РП ещё не существует на этапе выбора счетов — эндпоинт работает по id заявок.
+  fastify.post('/api/rp/invoice-file-candidates', adminOrOmtsRp, async (request) => {
+    const user = request.user!;
+    const body = rpInvoiceCandidatesBodySchema.parse(request.body);
+    const siteIds = await resolveSiteScope(user.id, user.role, user.allSites ?? false);
+    return getRepo().listInvoiceCandidates(body.paymentRequestIds, siteIds);
+  });
+
+  /* ---------- POST /api/rp/:id/service-files/from-invoices — прикрепить счета (0011) ---------- */
+  // Счета копируются в служебную папку РП (в PayHub не уходят), идемпотентно по детерм. ключу.
+  fastify.post('/api/rp/:id/service-files/from-invoices', adminOrOmtsRp, async (request) => {
+    const { id } = rpIdParamsSchema.parse(request.params);
+    const body = rpAttachInvoicesBodySchema.parse(request.body);
+    await assertRpInScope(id, request.user!);
+    const repo = getRepo();
+
+    // Серверная ре-проверка: только активные счета заявок ИМЕННО этой РП.
+    const files = await repo.getAttachableInvoiceFiles(id, body.fileIds);
+    if (files.length === 0) return { added: 0 };
+
+    // Детерминированный ключ служебной копии (с id файла-счёта) — основа идемпотентности.
+    const planned = files.map((f) => ({
+      src: f.fileKey,
+      destKey: `rp-letters/${id}/service/invoices/${f.id}_${sanitizeForS3(f.fileName) || 'file'}`,
+      fileName: sanitizeAttachmentName(f.fileName),
+      mimeType: f.mimeType,
+      sizeBytes: f.sizeBytes,
+    }));
+
+    // Уже зарегистрированные ключи повторно не копируем.
+    const existing = new Set(
+      await repo.getExistingServiceKeys(
+        id,
+        planned.map((p) => p.destKey),
+      ),
+    );
+    const toCopy = planned.filter((p) => !existing.has(p.destKey));
+
+    const copied: string[] = [];
+    try {
+      for (const p of toCopy) {
+        await copyStagingFile(p.src, p.destKey);
+        copied.push(p.destKey);
+      }
+    } catch (err) {
+      await deleteStagingFiles(copied); // best-effort откат уже скопированных
+      throw err instanceof ValidationError
+        ? err
+        : new ValidationError('Не удалось скопировать счёт в служебные файлы РП');
+    }
+
+    const added = await repo.addServiceFilesIdempotent(
+      id,
+      request.user!.id,
+      toCopy.map((p) => ({
+        fileKey: p.destKey,
+        fileName: p.fileName,
+        mimeType: p.mimeType,
+        sizeBytes: p.sizeBytes,
+      })),
+    );
+    return { added };
   });
 
   /* ---------- POST /api/rp/:id/letter/finalize — поставить письмо в очередь ---------- */

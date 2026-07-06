@@ -62,6 +62,7 @@ export async function listRegistry(db: RpDb, siteIds: string[] | null): Promise<
       siteId: rpLetters.siteId,
       siteName: constructionSites.name,
       createdBy: rpLetters.createdBy,
+      invoiceNumber: rpLetters.invoiceNumber,
       payhubLetterId: rpLetters.payhubLetterId,
       payhubLetterRegNumber: rpLetters.payhubLetterRegNumber,
       payhubLetterUrl: rpLetters.payhubLetterUrl,

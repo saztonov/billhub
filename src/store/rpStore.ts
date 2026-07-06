@@ -20,7 +20,24 @@ export interface CreateRpPayload {
   paymentRequestIds: string[]
   documents: RpDocumentRef[]
   letterDate?: string | null
+  /** Номер счёта (ручной ввод; хранится в rp_letters, в PayHub не уходит). */
+  invoiceNumber?: string | null
   letter?: RpLetterFormBlock
+}
+
+/** Файл-счёт заявки — кандидат для прикрепления к РП. */
+export interface RpInvoiceCandidateFile {
+  id: string
+  fileName: string
+  mimeType: string | null
+  sizeBytes: number | null
+}
+
+/** Группа кандидатов по заявке для окна выбора счетов. */
+export interface RpInvoiceCandidateGroup {
+  requestId: string
+  requestNumber: string
+  files: RpInvoiceCandidateFile[]
 }
 
 /** Ссылка на файл письма, загруженный в billhub S3 (контекст rp_letter). */
@@ -90,6 +107,10 @@ interface RpStoreState {
   registerServiceFiles: (id: string, refs: RpServiceFileRef[]) => Promise<void>
   /** Удалить служебный файл РП. */
   deleteServiceFile: (id: string, fileId: string) => Promise<void>
+  /** Активные счета выбранных заявок (для окна «+ Файл»), сгруппированные по заявке. */
+  loadInvoiceCandidates: (paymentRequestIds: string[]) => Promise<RpInvoiceCandidateGroup[]>
+  /** Прикрепить счета заявок к РП как служебные файлы. Возвращает число добавленных. */
+  attachInvoiceServiceFiles: (rpLetterId: string, fileIds: string[]) => Promise<number>
 }
 
 /** Обновляет счётчик файлов конкретной РП в реестре (delta может быть отрицательной). */
@@ -300,6 +321,25 @@ export const useRpStore = create<RpStoreState>((set, get) => ({
   deleteServiceFile: async (id, fileId) => {
     await api.delete(`/api/rp/${id}/service-files/${fileId}`)
     set({ letters: bumpFilesCount(get().letters, id, -1) })
+  },
+
+  loadInvoiceCandidates: async (paymentRequestIds) => {
+    if (paymentRequestIds.length === 0) return []
+    const data = await api.post<RpInvoiceCandidateGroup[]>('/api/rp/invoice-file-candidates', {
+      paymentRequestIds,
+    })
+    return data ?? []
+  },
+
+  attachInvoiceServiceFiles: async (rpLetterId, fileIds) => {
+    if (fileIds.length === 0) return 0
+    const res = await api.post<{ added: number }>(
+      `/api/rp/${rpLetterId}/service-files/from-invoices`,
+      { fileIds },
+    )
+    const added = res?.added ?? 0
+    if (added > 0) set({ letters: bumpFilesCount(get().letters, rpLetterId, added) })
+    return added
   },
 
   updateStatus: async (id, status) => {

@@ -1,31 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import {
-  Modal,
-  Button,
-  Form,
-  Input,
-  DatePicker,
-  Upload,
-  Tag,
-  Typography,
-  Alert,
-  List,
-  Image,
-  Space,
-  Select,
-  App,
-} from 'antd'
-import {
-  UploadOutlined,
-  CheckCircleTwoTone,
-  CloseCircleTwoTone,
-  LoadingOutlined,
-  PaperClipOutlined,
-  DeleteOutlined,
-  EyeOutlined,
-  DownloadOutlined,
-} from '@ant-design/icons'
-import dayjs, { type Dayjs } from 'dayjs'
+import { Modal, Button, Form, App } from 'antd'
+import dayjs from 'dayjs'
 import { useRpStore } from '@/store/rpStore'
 import { useAuthStore } from '@/store/authStore'
 import { api } from '@/services/api'
@@ -34,6 +9,14 @@ import { logError } from '@/services/errorLogger'
 import { buildRpLetterContent } from '@/components/rp/rpLetterContent'
 import { svgDataUrlToPngDataUrl, downloadDataUrl } from '@/utils/qrToPng'
 import FilePreviewModal from '@/components/paymentRequests/FilePreviewModal'
+import AttachInvoiceFilesModal, {
+  type SelectedInvoiceFile,
+} from '@/components/rp/AttachInvoiceFilesModal'
+import RpLetterFormBody, {
+  type LetterFormValues,
+  type FileState,
+  type RpSender,
+} from '@/components/rp/RpLetterFormBody'
 import { getMimeFromFileName } from '@/utils/mimeFromExtension'
 import type { RpCombo } from '@/components/rp/CreateRpModal'
 import type { RpLetterAttachmentRef } from '@/store/rpStore'
@@ -45,29 +28,9 @@ import type {
   RpAttachmentType,
 } from '@/types'
 
-const { Text } = Typography
-
 /** Лимиты файлов письма (сервер проверяет то же самое) */
 const MAX_FILES = 20
 const MAX_FILE_SIZE_MB = Number(import.meta.env.VITE_MAX_FILE_SIZE_MB) || 100
-const ACCEPT_EXTENSIONS = '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.tiff,.tif,.bmp,.dwg'
-
-/** Отправитель РП из настройки администрирования */
-interface RpSender {
-  contractorId: string
-  name: string | null
-  inn: string | null
-}
-
-/** Статус загрузки одного файла */
-type FileState = 'pending' | 'uploading' | 'done' | 'error'
-
-interface LetterFormValues {
-  letterDate: Dayjs
-  subject: string
-  content: string
-  responsiblePersonName: string
-}
 
 interface CreateRpLetterModalProps {
   open: boolean
@@ -107,6 +70,7 @@ const CreateRpLetterModal = ({
   const createLetterStage1 = useRpStore((s) => s.createLetterStage1)
   const registerLetterAttachments = useRpStore((s) => s.registerLetterAttachments)
   const finalizeLetter = useRpStore((s) => s.finalizeLetter)
+  const attachInvoiceServiceFiles = useRpStore((s) => s.attachInvoiceServiceFiles)
   const deleteRp = useRpStore((s) => s.deleteRp)
 
   const [sender, setSender] = useState<RpSender | null>(null)
@@ -118,6 +82,10 @@ const CreateRpLetterModal = ({
   const [fileTypes, setFileTypes] = useState<RpAttachmentType[]>([])
   /** Локальный файл для предпросмотра в модалке (не открываем новую вкладку). */
   const [previewLocal, setPreviewLocal] = useState<File | null>(null)
+  /** Выбранные счета заявок (прикрепляются как служебные файлы РП при завершении). */
+  const [selectedInvoices, setSelectedInvoices] = useState<SelectedInvoiceFile[]>([])
+  /** Открыто окно выбора счетов «+ Файл». */
+  const [invoicePickerOpen, setInvoicePickerOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   /** РП с созданным письмом PayHub (1 этап sync) — дальше идёт 2 этап */
   const [createdRp, setCreatedRp] = useState<RpLetter | null>(null)
@@ -142,6 +110,8 @@ const CreateRpLetterModal = ({
     setFileStates([])
     setFileTypes([])
     setPreviewLocal(null)
+    setSelectedInvoices([])
+    setInvoicePickerOpen(false)
     setCreatedRp(null)
     setRegNumber(null)
     setQrPng(null)
@@ -151,6 +121,7 @@ const CreateRpLetterModal = ({
     setRegistered(false)
     form.setFieldsValue({
       letterDate: dayjs(),
+      invoiceNumber: '',
       subject: 'РП',
       content: buildRpLetterContent(selectedRequests),
       responsiblePersonName: fullName ?? '',
@@ -209,6 +180,10 @@ const CreateRpLetterModal = ({
     setFiles(files.filter((_, i) => i !== index))
     setFileTypes(fileTypes.filter((_, i) => i !== index))
     setFileStates(fileStates.filter((_, i) => i !== index))
+  }
+
+  const removeInvoice = (index: number) => {
+    setSelectedInvoices((prev) => prev.filter((_, i) => i !== index))
   }
 
   /** Смена типа файла; выбор «РП» сбрасывает прежний файл «РП» в «Другой» (не более одного). */
@@ -299,6 +274,28 @@ const CreateRpLetterModal = ({
     responsiblePersonName: values.responsiblePersonName.trim() || null,
   })
 
+  /**
+   * Прикрепить выбранные счета заявок к РП как служебные файлы (в PayHub не уходят).
+   * Идемпотентно на сервере; сбой не срывает создание РП — предупреждаем.
+   */
+  const attachSelectedInvoices = async (rpId: string) => {
+    if (selectedInvoices.length === 0) return
+    try {
+      await attachInvoiceServiceFiles(
+        rpId,
+        selectedInvoices.map((f) => f.id),
+      )
+    } catch (err) {
+      message.warning('РП создана, но счета не прикрепились — добавьте их вручную в «Файлы РП»')
+      logError({
+        errorType: 'api_error',
+        errorMessage: err instanceof Error ? err.message : 'Ошибка прикрепления счетов к РП',
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'attachInvoiceServiceFiles', rpId },
+      })
+    }
+  }
+
   /** 1 этап: создать РП и синхронно письмо PayHub (или откат на async). */
   const handleStage1 = async () => {
     if (!combo) return
@@ -313,6 +310,7 @@ const CreateRpLetterModal = ({
         paymentRequestIds: requestIds,
         documents,
         letterDate: values.letterDate.format('YYYY-MM-DD'),
+        invoiceNumber: values.invoiceNumber.trim() || null,
         letter: {
           subject: values.subject.trim(),
           content: values.content.trim(),
@@ -349,6 +347,7 @@ const CreateRpLetterModal = ({
       const newRefs = await uploadFiles(rp.id, states)
       if (newRefs.length > 0) await registerLetterAttachments(rp.id, newRefs)
     }
+    await attachSelectedInvoices(rp.id)
     const ok = await finalizeLetter(rp.id)
     if (!ok) message.error('Не удалось отправить письмо в обработку — повторите из реестра РП')
     else message.success('РП создана, письмо синхронизируется автоматически')
@@ -366,6 +365,7 @@ const CreateRpLetterModal = ({
       await registerLetterAttachments(rp.id, refs)
       setRegistered(true)
     }
+    await attachSelectedInvoices(rp.id)
     const ok = await finalizeLetter(rp.id, letterTextFrom(values))
     if (!ok) {
       message.error('Не удалось завершить — повторите из реестра РП')
@@ -454,13 +454,6 @@ const CreateRpLetterModal = ({
 
   const hasFailedFiles = fileStates.some((s) => s === 'error')
 
-  const fileIcon = (state: FileState) => {
-    if (state === 'uploading') return <LoadingOutlined />
-    if (state === 'done') return <CheckCircleTwoTone twoToneColor="#52c41a" />
-    if (state === 'error') return <CloseCircleTwoTone twoToneColor="#ff4d4f" />
-    return <PaperClipOutlined />
-  }
-
   return (
     <Modal
       open={open}
@@ -491,185 +484,30 @@ const CreateRpLetterModal = ({
         </Button>,
       ]}
     >
-      {!siteMapped && !createdRp && (
-        <Alert
-          type="warning"
-          showIcon
-          style={{ marginBottom: 12 }}
-          message="Объект не сопоставлен с PayHub"
-          description="Проект или заказчик PayHub не заданы в справочнике «Объекты строительства». Письмо и QR создать нельзя — РП будет создана, а письмо синхронизируется автоматически после заполнения сопоставления администратором."
-        />
-      )}
-      {senderState === 'loaded' && !sender && !createdRp && (
-        <Alert
-          type="warning"
-          showIcon
-          style={{ marginBottom: 12 }}
-          message="Отправитель РП не настроен (Администрирование → PayHub). Письмо синхронизируется после настройки."
-        />
-      )}
-      {senderState === 'error' && !createdRp && (
-        <Alert
-          type="error"
-          showIcon
-          style={{ marginBottom: 12 }}
-          message="Не удалось загрузить отправителя РП. РП можно создать — письмо синхронизируется автоматически."
-        />
-      )}
-      {createdRp && (
-        <Alert
-          type="success"
-          showIcon
-          style={{ marginBottom: 12 }}
-          message={`Письмо создано${regNumber ? `: ${regNumber}` : ''}`}
-          description="Скачайте QR, вставьте его в документ письма, приложите файлы ниже и нажмите «Создать РП, 2 этап»."
-        />
-      )}
-
-      <Form form={form} layout="vertical" disabled={submitting}>
-        <Form.Item label="Направление">
-          <Tag color="blue">Исходящее</Tag>
-        </Form.Item>
-        <Form.Item label="Проект">
-          <Text>{projectLabel ?? <Text type="secondary">не сопоставлен</Text>}</Text>
-        </Form.Item>
-        <Form.Item label="Номер письма">
-          <Input
-            disabled
-            value={regNumber ?? undefined}
-            placeholder="Присваивается автоматически генератором PayHub"
-          />
-        </Form.Item>
-        {createdRp && (qrPng || qrSvg) && (
-          <Form.Item label="QR-код письма">
-            <Space direction="vertical" size={8}>
-              <Image
-                src={qrPng ?? qrSvg ?? undefined}
-                width={160}
-                alt="QR-код письма PayHub"
-                style={{ border: '1px solid #f0f0f0', background: '#fff' }}
-              />
-              <Button icon={<DownloadOutlined />} onClick={handleDownloadQr}>
-                Скачать {qrPng ? 'PNG' : 'SVG'}
-              </Button>
-            </Space>
-          </Form.Item>
-        )}
-        <Form.Item
-          label="Дата письма"
-          name="letterDate"
-          rules={[{ required: true, message: 'Укажите дату' }]}
-        >
-          <DatePicker format="DD.MM.YYYY" style={{ width: 200 }} allowClear={false} />
-        </Form.Item>
-        <Form.Item label="Отправитель">
-          <Text>
-            {sender ? (
-              <>
-                {sender.name ?? sender.contractorId}
-                {sender.inn && <Text type="secondary"> (ИНН {sender.inn})</Text>}
-              </>
-            ) : senderState === 'loading' ? (
-              <Text type="secondary">загрузка…</Text>
-            ) : senderState === 'error' ? (
-              <Text type="secondary">не удалось загрузить</Text>
-            ) : (
-              <Text type="secondary">не настроен</Text>
-            )}
-          </Text>
-        </Form.Item>
-        <Form.Item label="Получатель">
-          <Text>{recipientLabel ?? <Text type="secondary">не сопоставлен</Text>}</Text>
-        </Form.Item>
-        <Form.Item
-          label="Тема"
-          name="subject"
-          rules={[{ required: true, message: 'Укажите тему', whitespace: true }]}
-        >
-          <Input maxLength={500} />
-        </Form.Item>
-        <Form.Item label="Содержание" name="content">
-          <Input.TextArea rows={3} maxLength={4000} showCount />
-        </Form.Item>
-        <Form.Item label="Ответственный" name="responsiblePersonName">
-          <Input maxLength={200} />
-        </Form.Item>
-        <Form.Item label="Файлы (прикрепляются к письму в PayHub)">
-          <Upload
-            multiple
-            accept={ACCEPT_EXTENSIONS}
-            fileList={[]}
-            beforeUpload={(_file, fileList) => {
-              // Ручной сбор File[]; Upload вызывает beforeUpload на каждый файл — батчим по первому.
-              if (_file === fileList[0]) addFiles(fileList)
-              return false
-            }}
-          >
-            <Button icon={<UploadOutlined />} disabled={submitting}>
-              Добавить файлы
-            </Button>
-          </Upload>
-        </Form.Item>
-      </Form>
-
-      {files.length > 0 && (
-        <List
-          size="small"
-          dataSource={files.map((f, i) => ({
-            file: f,
-            state: fileStates[i] ?? 'pending',
-            type: fileTypes[i] ?? 'other',
-            i,
-          }))}
-          renderItem={({ file, state, type, i }) => (
-            <List.Item
-              actions={[
-                <Select<RpAttachmentType>
-                  key="type"
-                  size="small"
-                  value={type}
-                  disabled={submitting}
-                  style={{ width: 104 }}
-                  onChange={(v) => setFileType(i, v)}
-                  options={[
-                    { value: 'other', label: 'Другой' },
-                    { value: 'rp', label: 'РП' },
-                  ]}
-                />,
-                ...(!submitting
-                  ? [
-                      <Button
-                        key="view"
-                        type="text"
-                        size="small"
-                        icon={<EyeOutlined />}
-                        title="Просмотр"
-                        onClick={() => setPreviewLocal(file)}
-                      />,
-                      <Button
-                        key="rm"
-                        type="text"
-                        size="small"
-                        danger
-                        icon={<DeleteOutlined />}
-                        title="Убрать"
-                        onClick={() => removeFile(i)}
-                      />,
-                    ]
-                  : []),
-              ]}
-            >
-              {fileIcon(state)}
-              <Text style={{ marginLeft: 8 }} ellipsis>
-                {file.name}
-              </Text>
-              <Text type="secondary" style={{ marginLeft: 8, flexShrink: 0 }}>
-                {(file.size / (1024 * 1024)).toFixed(1)} МБ
-              </Text>
-            </List.Item>
-          )}
-        />
-      )}
+      <RpLetterFormBody
+        form={form}
+        submitting={submitting}
+        siteMapped={siteMapped}
+        hasCreatedRp={!!createdRp}
+        regNumber={regNumber}
+        sender={sender}
+        senderState={senderState}
+        projectLabel={projectLabel}
+        recipientLabel={recipientLabel}
+        qrPng={qrPng}
+        qrSvg={qrSvg}
+        onDownloadQr={handleDownloadQr}
+        selectedInvoices={selectedInvoices}
+        onOpenInvoicePicker={() => setInvoicePickerOpen(true)}
+        onRemoveInvoice={removeInvoice}
+        files={files}
+        fileStates={fileStates}
+        fileTypes={fileTypes}
+        onAddFiles={addFiles}
+        onSetFileType={setFileType}
+        onPreviewFile={setPreviewLocal}
+        onRemoveFile={removeFile}
+      />
       <FilePreviewModal
         open={!!previewLocal}
         onClose={() => setPreviewLocal(null)}
@@ -677,6 +515,16 @@ const CreateRpLetterModal = ({
         file={previewLocal}
         fileName={previewLocal?.name ?? ''}
         mimeType={previewLocal ? previewLocal.type || getMimeFromFileName(previewLocal.name) : null}
+      />
+      <AttachInvoiceFilesModal
+        open={invoicePickerOpen}
+        requestIds={requestIds}
+        initialSelectedIds={selectedInvoices.map((f) => f.id)}
+        onClose={() => setInvoicePickerOpen(false)}
+        onAttach={(files) => {
+          setSelectedInvoices(files)
+          setInvoicePickerOpen(false)
+        }}
       />
     </Modal>
   )

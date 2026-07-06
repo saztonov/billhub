@@ -23,6 +23,7 @@ function letter(overrides: Partial<RpLetter>): RpLetter {
     siteId: 'site-1',
     siteName: '',
     createdBy: 'user-1',
+    invoiceNumber: null,
     requests: [],
     paymentStatus: 'unpaid',
     payhubLetterId: null,

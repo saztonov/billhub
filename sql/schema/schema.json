@@ -3287,6 +3287,15 @@
               "position": 19,
               "max_length": null,
               "numeric_precision": 32
+            },
+            {
+              "name": "invoice_number",
+              "type": "text",
+              "default": null,
+              "nullable": true,
+              "position": 20,
+              "max_length": null,
+              "numeric_precision": null
             }
           ]
         },

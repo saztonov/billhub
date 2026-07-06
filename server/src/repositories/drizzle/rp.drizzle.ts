@@ -28,6 +28,8 @@ import type {
   RpMutationContext,
   RpFilesResult,
   RpServiceFileRef,
+  RpInvoiceCandidateGroup,
+  RpInvoiceFileMeta,
 } from '../rp.repository.js';
 import {
   propagateDpNumberDate,
@@ -37,6 +39,10 @@ import {
   addServiceFiles as addServiceFilesQuery,
   deleteServiceFile as deleteServiceFileQuery,
   listServiceFileKeys,
+  listInvoiceCandidates as listInvoiceCandidatesQuery,
+  getAttachableInvoiceFiles as getAttachableInvoiceFilesQuery,
+  getExistingServiceKeys as getExistingServiceKeysQuery,
+  addServiceFilesIdempotent as addServiceFilesIdempotentQuery,
 } from './rp-files.drizzle.js';
 import {
   computePaymentStatus,
@@ -144,6 +150,7 @@ export class DrizzleRpRepository implements RpRepository {
         .values({
           number,
           letterDate: input.letterDate ?? null,
+          invoiceNumber: input.invoiceNumber ?? null,
           supplierId,
           counterpartyId,
           siteId,
@@ -534,5 +541,32 @@ export class DrizzleRpRepository implements RpRepository {
 
   deleteServiceFile(id: string, fileId: string): Promise<string | null> {
     return deleteServiceFileQuery(this.db, id, fileId);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /*  Прикрепление счетов заявок к РП (0011)                            */
+  /* ------------------------------------------------------------------ */
+
+  listInvoiceCandidates(
+    paymentRequestIds: string[],
+    siteIds: string[] | null,
+  ): Promise<RpInvoiceCandidateGroup[]> {
+    return listInvoiceCandidatesQuery(this.db, paymentRequestIds, siteIds);
+  }
+
+  getAttachableInvoiceFiles(rpLetterId: string, fileIds: string[]): Promise<RpInvoiceFileMeta[]> {
+    return getAttachableInvoiceFilesQuery(this.db, rpLetterId, fileIds);
+  }
+
+  getExistingServiceKeys(rpLetterId: string, fileKeys: string[]): Promise<string[]> {
+    return getExistingServiceKeysQuery(this.db, rpLetterId, fileKeys);
+  }
+
+  addServiceFilesIdempotent(
+    rpLetterId: string,
+    createdBy: string,
+    refs: RpServiceFileRef[],
+  ): Promise<number> {
+    return addServiceFilesIdempotentQuery(this.db, rpLetterId, createdBy, refs);
   }
 }
