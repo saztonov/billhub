@@ -55,7 +55,6 @@ const RpFilesModal = ({ open, letter, onClose }: RpFilesModalProps) => {
 
   const [files, setFiles] = useState<RpFilesResult | null>(null)
   const [loading, setLoading] = useState(false)
-  const [pending, setPending] = useState<File[]>([])
   const [uploading, setUploading] = useState(false)
   const [downloading, setDownloading] = useState<string | null>(null)
   const [preview, setPreview] = useState<PreviewTarget | null>(null)
@@ -78,7 +77,6 @@ const RpFilesModal = ({ open, letter, onClose }: RpFilesModalProps) => {
 
   useEffect(() => {
     if (!open || !letter) return
-    setPending([])
     setPreview(null)
     void reload(letter.id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -101,25 +99,23 @@ const RpFilesModal = ({ open, letter, onClose }: RpFilesModalProps) => {
     }
   }
 
-  const addPending = (incoming: File[]) => {
-    setPending((prev) => [...prev, ...incoming])
-  }
-
-  const handleUpload = async () => {
-    if (!letter || pending.length === 0) return
+  // Мгновенная загрузка: каждый файл грузим в S3 и сразу регистрируем — при сбое на
+  // следующем уже загруженные не осиротеют в S3 (они зарегистрированы).
+  const handleUpload = async (incoming: File[]) => {
+    if (!letter || incoming.length === 0) return
     setUploading(true)
     try {
-      const refs = []
-      for (const f of pending) {
+      for (const f of incoming) {
         const { key } = await uploadRpServiceFile(letter.id, f)
-        refs.push({ fileKey: key, fileName: f.name, mimeType: f.type || null, sizeBytes: f.size })
+        await registerServiceFiles(letter.id, [
+          { fileKey: key, fileName: f.name, mimeType: f.type || null, sizeBytes: f.size },
+        ])
       }
-      await registerServiceFiles(letter.id, refs)
-      setPending([])
       await reload(letter.id)
       message.success('Служебные файлы загружены')
     } catch (err) {
       message.error(err instanceof Error ? err.message : 'Ошибка загрузки служебных файлов')
+      await reload(letter.id)
     } finally {
       setUploading(false)
     }
@@ -214,51 +210,19 @@ const RpFilesModal = ({ open, letter, onClose }: RpFilesModalProps) => {
               <Upload
                 multiple
                 fileList={[]}
+                disabled={uploading}
                 beforeUpload={(_file, fileList) => {
-                  if (_file === fileList[0]) addPending(fileList)
+                  // Батчим по первому файлу выбора: грузим сразу, свой upload Ant Design не делает.
+                  if (_file === fileList[0]) void handleUpload(fileList)
                   return false
                 }}
               >
-                <Button size="small" icon={<UploadOutlined />} disabled={uploading}>
+                <Button size="small" icon={<UploadOutlined />} loading={uploading}>
                   Добавить
                 </Button>
               </Upload>
-              {pending.length > 0 && (
-                <Button size="small" type="primary" loading={uploading} onClick={handleUpload}>
-                  Загрузить ({pending.length})
-                </Button>
-              )}
             </Space>
           </div>
-
-          {pending.length > 0 && (
-            <List
-              size="small"
-              dataSource={pending}
-              renderItem={(f, i) => (
-                <List.Item
-                  actions={[
-                    <Button
-                      key="rm"
-                      type="text"
-                      size="small"
-                      danger
-                      icon={<DeleteOutlined />}
-                      disabled={uploading}
-                      onClick={() => setPending((prev) => prev.filter((_, idx) => idx !== i))}
-                    />,
-                  ]}
-                >
-                  <Text type="warning" ellipsis>
-                    {f.name}
-                  </Text>
-                  <Text type="secondary" style={{ marginLeft: 8, flexShrink: 0 }}>
-                    {fmtSize(f.size)} (не загружен)
-                  </Text>
-                </List.Item>
-              )}
-            />
-          )}
 
           {files && files.service.length > 0 ? (
             <List
@@ -271,7 +235,7 @@ const RpFilesModal = ({ open, letter, onClose }: RpFilesModalProps) => {
                     downloadBtn(f.fileKey, f.fileName),
                     <Popconfirm
                       key="del"
-                      title="Удалить файл?"
+                      title="Удалить файл из РП?"
                       okText="Удалить"
                       okButtonProps={{ danger: true }}
                       cancelText="Отмена"
@@ -298,9 +262,7 @@ const RpFilesModal = ({ open, letter, onClose }: RpFilesModalProps) => {
               )}
             />
           ) : (
-            pending.length === 0 && (
-              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Нет служебных файлов" />
-            )
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Нет служебных файлов" />
           )}
         </>
       )}

@@ -150,10 +150,10 @@ const RpRegistryTable = ({
         ),
       },
       {
-        title: 'Дата создания',
+        title: 'Дата',
         dataIndex: 'createdAt',
         key: 'createdAt',
-        width: 120,
+        width: 60,
         render: (v: string) => formatDateShort(v),
       },
       {
@@ -167,7 +167,7 @@ const RpRegistryTable = ({
         title: 'Номер счёта',
         dataIndex: 'invoiceNumber',
         key: 'invoiceNumber',
-        width: 130,
+        width: 91,
         render: (v: string | null) => v || <Text type="secondary">—</Text>,
       },
       {
@@ -308,7 +308,7 @@ const RpRegistryTable = ({
       rowKey="id"
       loading={isLoading}
       size="small"
-      scroll={{ x: canManage ? 1757 : 1607, y: 'calc(100vh - 320px)' }}
+      scroll={{ x: canManage ? 1658 : 1508, y: 'calc(100vh - 320px)' }}
       pagination={{
         current: page,
         pageSize,
