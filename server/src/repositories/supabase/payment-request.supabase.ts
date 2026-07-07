@@ -164,7 +164,13 @@ export class SupabasePaymentRequestRepository implements PaymentRequestRepositor
   async create(
     input: CreatePaymentRequestInput,
   ): Promise<{ requestId: string; requestNumber: string }> {
-    const statusId = await this.getStatusId('payment_request', 'approv_shtab');
+    // Новые типы (contractor_work/own_purchase) не требуют согласования — сразу «Согласовано».
+    const autoApproved = input.requestType !== 'contractor';
+    const statusId = await this.getStatusId(
+      'payment_request',
+      autoApproved ? 'approved' : 'approv_shtab',
+    );
+    const now = new Date().toISOString();
 
     const { data: requestNumber, error: numError } =
       await this.supabase.rpc('generate_request_number');
@@ -177,20 +183,33 @@ export class SupabasePaymentRequestRepository implements PaymentRequestRepositor
         counterparty_id: input.counterpartyId,
         site_id: input.siteId,
         status_id: statusId,
-        delivery_days: input.deliveryDays,
+        request_type: input.requestType,
+        delivery_days: input.deliveryDays ?? null,
         delivery_days_type: input.deliveryDaysType,
-        shipping_condition_id: input.shippingConditionId,
+        shipping_condition_id: input.shippingConditionId ?? null,
         comment: input.comment || null,
         invoice_amount: input.invoiceAmount || null,
         supplier_id: input.supplierId || null,
         total_files: input.totalFiles,
         uploaded_files: 0,
         created_by: input.createdBy,
+        current_stage: null,
+        approved_at: autoApproved ? now : null,
+        omts_approved_at: autoApproved ? now : null,
       })
       .select('id')
       .single();
     if (reqError) throw reqError;
     const requestId = created.id as string;
+
+    if (autoApproved) {
+      // Без согласования: одна запись хронологии «Согласовано», current_stage остаётся null.
+      await this.supabase
+        .from('payment_requests')
+        .update({ stage_history: [{ stage: 2, department: 'omts', event: 'approved', at: now }] })
+        .eq('id', requestId);
+      return { requestId, requestNumber: requestNumber as string };
+    }
 
     await this.supabase.from('approval_decisions').insert({
       payment_request_id: requestId,

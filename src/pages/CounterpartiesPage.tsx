@@ -1,18 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Table, Button, Space, Modal, Form, Input, Select, Popconfirm, App } from 'antd'
 import {
-  Table,
-  Button,
-  Space,
-  Modal,
-  Form,
-  Input,
-  Popconfirm,
-  App,
-} from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined, MinusCircleOutlined, UploadOutlined, SearchOutlined } from '@ant-design/icons'
+  PlusOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  MinusCircleOutlined,
+  UploadOutlined,
+  SearchOutlined,
+} from '@ant-design/icons'
 import { useTableScrollY } from '@/hooks/useTableScrollY'
 import { useCounterpartyStore } from '@/store/counterpartyStore'
 import { useAuthStore } from '@/store/authStore'
+import { api } from '@/services/api'
 import ImportCounterpartiesModal from '@/components/counterparties/ImportCounterpartiesModal'
 import type { Counterparty } from '@/types'
 
@@ -24,6 +23,8 @@ const CounterpartiesPage = () => {
   const [editingRecord, setEditingRecord] = useState<Counterparty | null>(null)
   const [form] = Form.useForm()
   const [searchText, setSearchText] = useState('')
+  const [generalContractorId, setGeneralContractorId] = useState<string | null>(null)
+  const isAdmin = user?.role === 'admin'
   const {
     counterparties,
     isLoading,
@@ -37,13 +38,39 @@ const CounterpartiesPage = () => {
     fetchCounterparties()
   }, [fetchCounterparties])
 
+  // Текущий генподрядчик (СУ-10) — настройка для типа заявки «Своя закупка»
+  useEffect(() => {
+    if (!isAdmin) return
+    api
+      .get<{ contractor: { counterpartyId: string } | null }>(
+        '/api/references/counterparties/general-contractor',
+      )
+      .then((r) => setGeneralContractorId(r.contractor?.counterpartyId ?? null))
+      .catch(() => setGeneralContractorId(null))
+  }, [isAdmin])
+
+  // Установка/сброс генподрядчика
+  const handleGeneralContractorChange = async (value: string | null) => {
+    try {
+      const r = await api.put<{ contractor: { counterpartyId: string } | null }>(
+        '/api/references/counterparties/general-contractor',
+        { counterpartyId: value ?? null },
+      )
+      setGeneralContractorId(r.contractor?.counterpartyId ?? null)
+      message.success(value ? 'Генподрядчик сохранён' : 'Генподрядчик сброшен')
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : 'Не удалось сохранить генподрядчика')
+    }
+  }
+
   const filteredCounterparties = useMemo(() => {
     if (!searchText.trim()) return counterparties
     const query = searchText.trim().toLowerCase()
-    return counterparties.filter((c) =>
-      c.name.toLowerCase().includes(query) ||
-      c.inn.toLowerCase().includes(query) ||
-      c.alternativeNames?.some((n) => n.toLowerCase().includes(query))
+    return counterparties.filter(
+      (c) =>
+        c.name.toLowerCase().includes(query) ||
+        c.inn.toLowerCase().includes(query) ||
+        c.alternativeNames?.some((n) => n.toLowerCase().includes(query)),
     )
   }, [counterparties, searchText])
 
@@ -105,14 +132,31 @@ const CounterpartiesPage = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
       <div style={{ flexShrink: 0 }}>
-        <Input.Search
-          prefix={<SearchOutlined />}
-          placeholder="Поиск по наименованию, ИНН или альтернативному наименованию"
-          allowClear
-          value={searchText}
-          onChange={(e) => setSearchText(e.target.value)}
-          style={{ marginBottom: 16 }}
-        />
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+          <Input.Search
+            prefix={<SearchOutlined />}
+            placeholder="Поиск по наименованию, ИНН или альтернативному наименованию"
+            allowClear
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            style={{ flex: 1, minWidth: 240 }}
+          />
+          {isAdmin && (
+            <Select
+              placeholder="Генподрядчик (СУ-10)"
+              style={{ width: 300 }}
+              showSearch
+              allowClear
+              optionFilterProp="label"
+              value={generalContractorId ?? undefined}
+              onChange={(value) => handleGeneralContractorChange(value ?? null)}
+              options={counterparties.map((c) => ({
+                label: c.inn ? `${c.name}, ${c.inn}` : c.name,
+                value: c.id,
+              }))}
+            />
+          )}
+        </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 16 }}>
           {(user?.role === 'admin' || user?.role === 'user') && (
             <Button icon={<UploadOutlined />} onClick={() => setIsImportModalOpen(true)}>
@@ -148,7 +192,11 @@ const CounterpartiesPage = () => {
         cancelText="Отмена"
       >
         <Form form={form} layout="vertical">
-          <Form.Item name="name" label="Наименование" rules={[{ required: true, message: 'Введите наименование' }]}>
+          <Form.Item
+            name="name"
+            label="Наименование"
+            rules={[{ required: true, message: 'Введите наименование' }]}
+          >
             <Input />
           </Form.Item>
           <Form.Item name="inn" label="ИНН" rules={[{ required: true, message: 'Введите ИНН' }]}>
@@ -170,7 +218,11 @@ const CounterpartiesPage = () => {
                   </Button>
                 </div>
                 {fields.map((field) => (
-                  <Space key={field.key} align="baseline" style={{ display: 'flex', marginBottom: 8 }}>
+                  <Space
+                    key={field.key}
+                    align="baseline"
+                    style={{ display: 'flex', marginBottom: 8 }}
+                  >
                     <Form.Item
                       {...field}
                       rules={[{ required: true, message: 'Введите наименование' }]}

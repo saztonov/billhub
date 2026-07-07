@@ -22,7 +22,6 @@ import {
   LogoutOutlined,
   BellOutlined,
   MenuOutlined,
-  AppstoreOutlined,
   AuditOutlined,
 } from '@ant-design/icons'
 import { useAuthStore } from '@/store/authStore'
@@ -50,7 +49,7 @@ const securityMenuItems: MenuProps['items'] = [
 ]
 
 /** Возвращает меню для указанной роли и отдела */
-function getMenuItems(role: UserRole, department?: string | null): MenuProps['items'] {
+function getMenuItems(role: UserRole): MenuProps['items'] {
   if (role === 'counterparty_user') return counterpartyMenuItems
   if (role === 'security') return securityMenuItems
 
@@ -59,10 +58,7 @@ function getMenuItems(role: UserRole, department?: string | null): MenuProps['it
     { key: '/contract-requests', icon: <AuditOutlined />, label: 'Договора' },
   ]
 
-  // Материалы видны admin и сметному отделу
-  if (role === 'admin' || department === 'smetny') {
-    items.push({ key: '/materials', icon: <AppstoreOutlined />, label: 'Материалы' })
-  }
+  // Страница «Материалы» скрыта из навигации (маршрут /materials остаётся доступен по прямому URL)
 
   items.push({ key: '/references', icon: <FolderOutlined />, label: 'Справочники' })
 
@@ -177,10 +173,7 @@ const MainLayout = () => {
   const headerExtra = useHeaderStore((s) => s.extra)
   const headerActions = useHeaderStore((s) => s.actions)
 
-  const menuItems = useMemo(
-    () => getMenuItems(user?.role ?? 'counterparty_user', user?.department),
-    [user?.role, user?.department],
-  )
+  const menuItems = useMemo(() => getMenuItems(user?.role ?? 'counterparty_user'), [user?.role])
 
   const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
     navigate(key)

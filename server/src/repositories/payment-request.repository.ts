@@ -33,12 +33,19 @@ export interface PaymentRequestListFilter {
   pagination?: { page: number; pageSize: number };
 }
 
+/** Тип заявки: обычный подрядчик / работа подрядчика / своя закупка (0012) */
+export type PaymentRequestType = 'contractor' | 'contractor_work' | 'own_purchase';
+
 export interface CreatePaymentRequestInput {
+  /** Тип заявки; для contractor_work/own_purchase заявка создаётся сразу «Согласовано». */
+  requestType: PaymentRequestType;
   counterpartyId: string;
   siteId: string;
-  deliveryDays: number;
+  /** null для типов без срока поставки (contractor_work/own_purchase). */
+  deliveryDays?: number | null;
   deliveryDaysType: string;
-  shippingConditionId: string;
+  /** null для типов без условий отгрузки (contractor_work). */
+  shippingConditionId?: string | null;
   comment?: string | null;
   totalFiles: number;
   invoiceAmount?: number | null;

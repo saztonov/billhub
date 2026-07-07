@@ -96,6 +96,13 @@ const RequestDetailsSection = ({
   // Формат опций отгрузки для Select
   const shippingSelectOptions = shippingOptions.map((o) => ({ label: o.value, value: o.id }))
 
+  // Видимость полей по типу заявки (как в форме создания):
+  //   contractor_work — без поставщика, срока поставки и условий отгрузки;
+  //   own_purchase    — без срока поставки (поставщик и условия остаются)
+  const showSupplier = request.requestType !== 'contractor_work'
+  const showDelivery = request.requestType === 'contractor'
+  const showShipping = request.requestType !== 'contractor_work'
+
   if (isEditing) {
     return (
       <Form form={editForm} layout="vertical" style={{ marginBottom: 16 }}>
@@ -125,49 +132,55 @@ const RequestDetailsSection = ({
               />
             </Form.Item>
           </Col>
-          <Col xs={24} sm={12} md={5}>
-            <Form.Item name="supplierId" label="Поставщик">
-              <Select
-                placeholder="Выберите поставщика"
-                showSearch
-                allowClear
-                optionFilterProp="label"
-                popupMatchSelectWidth={false}
-                options={supplierOptions}
-              />
-            </Form.Item>
-          </Col>
-          <Col xs={24} sm={12} md={5}>
-            <Form.Item label="Срок поставки" required style={{ marginBottom: 0 }}>
-              <div style={{ display: 'flex', gap: 4 }}>
-                <Form.Item
-                  name="deliveryDays"
-                  noStyle
-                  rules={[{ required: true, message: 'Укажите срок' }]}
-                >
-                  <InputNumber min={1} style={{ width: 70 }} placeholder="Дни" />
-                </Form.Item>
-                <Form.Item name="deliveryDaysType" noStyle>
-                  <Select
-                    style={{ width: 100 }}
-                    options={[
-                      { label: 'раб.', value: 'working' },
-                      { label: 'кал.', value: 'calendar' },
-                    ]}
-                  />
-                </Form.Item>
-              </div>
-            </Form.Item>
-          </Col>
-          <Col xs={24} sm={12} md={5}>
-            <Form.Item
-              name="shippingConditionId"
-              label="Условия отгрузки"
-              rules={[{ required: true, message: 'Выберите условия' }]}
-            >
-              <Select placeholder="Выберите условия" options={shippingSelectOptions} />
-            </Form.Item>
-          </Col>
+          {showSupplier && (
+            <Col xs={24} sm={12} md={5}>
+              <Form.Item name="supplierId" label="Поставщик">
+                <Select
+                  placeholder="Выберите поставщика"
+                  showSearch
+                  allowClear
+                  optionFilterProp="label"
+                  popupMatchSelectWidth={false}
+                  options={supplierOptions}
+                />
+              </Form.Item>
+            </Col>
+          )}
+          {showDelivery && (
+            <Col xs={24} sm={12} md={5}>
+              <Form.Item label="Срок поставки" required style={{ marginBottom: 0 }}>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <Form.Item
+                    name="deliveryDays"
+                    noStyle
+                    rules={[{ required: true, message: 'Укажите срок' }]}
+                  >
+                    <InputNumber min={1} style={{ width: 70 }} placeholder="Дни" />
+                  </Form.Item>
+                  <Form.Item name="deliveryDaysType" noStyle>
+                    <Select
+                      style={{ width: 100 }}
+                      options={[
+                        { label: 'раб.', value: 'working' },
+                        { label: 'кал.', value: 'calendar' },
+                      ]}
+                    />
+                  </Form.Item>
+                </div>
+              </Form.Item>
+            </Col>
+          )}
+          {showShipping && (
+            <Col xs={24} sm={12} md={5}>
+              <Form.Item
+                name="shippingConditionId"
+                label="Условия отгрузки"
+                rules={[{ required: true, message: 'Выберите условия' }]}
+              >
+                <Select placeholder="Выберите условия" options={shippingSelectOptions} />
+              </Form.Item>
+            </Col>
+          )}
           <Col xs={24} sm={12} md={3}>
             <Form.Item
               name="invoiceAmount"
@@ -193,23 +206,25 @@ const RequestDetailsSection = ({
             </Form.Item>
           </Col>
         </Row>
-        <Form.Item
-          noStyle
-          shouldUpdate={(prev, curr) =>
-            prev.deliveryDays !== curr.deliveryDays ||
-            prev.deliveryDaysType !== curr.deliveryDaysType ||
-            prev.shippingConditionId !== curr.shippingConditionId
-          }
-        >
-          {({ getFieldValue }) => (
-            <DeliveryCalculation
-              deliveryDays={getFieldValue('deliveryDays')}
-              deliveryDaysType={getFieldValue('deliveryDaysType') || 'working'}
-              shippingConditionId={getFieldValue('shippingConditionId')}
-              defaultExpanded={false}
-            />
-          )}
-        </Form.Item>
+        {showDelivery && (
+          <Form.Item
+            noStyle
+            shouldUpdate={(prev, curr) =>
+              prev.deliveryDays !== curr.deliveryDays ||
+              prev.deliveryDaysType !== curr.deliveryDaysType ||
+              prev.shippingConditionId !== curr.shippingConditionId
+            }
+          >
+            {({ getFieldValue }) => (
+              <DeliveryCalculation
+                deliveryDays={getFieldValue('deliveryDays')}
+                deliveryDaysType={getFieldValue('deliveryDaysType') || 'working'}
+                shippingConditionId={getFieldValue('shippingConditionId')}
+                defaultExpanded={false}
+              />
+            )}
+          </Form.Item>
+        )}
         <Text strong style={{ display: 'block', marginBottom: 8 }}>
           <FileAddOutlined /> Догрузить файлы
         </Text>
@@ -325,7 +340,9 @@ const RequestDetailsSection = ({
       </Descriptions.Item>
       <Descriptions.Item label="Подрядчик">{request.counterpartyName}</Descriptions.Item>
       <Descriptions.Item label="Объект">{request.siteName ?? '—'}</Descriptions.Item>
-      <Descriptions.Item label="Поставщик">{request.supplierName ?? '—'}</Descriptions.Item>
+      {showSupplier && (
+        <Descriptions.Item label="Поставщик">{request.supplierName ?? '—'}</Descriptions.Item>
+      )}
       <Descriptions.Item label="Статус">
         <Tag
           color={request.statusColor ?? 'default'}
@@ -338,12 +355,16 @@ const RequestDetailsSection = ({
             : ''}
         </Tag>
       </Descriptions.Item>
-      <Descriptions.Item label="Срок поставки">
-        {request.deliveryDays} {request.deliveryDaysType === 'calendar' ? 'кал.' : 'раб.'} дн.
-      </Descriptions.Item>
-      <Descriptions.Item label="Условия отгрузки">
-        {request.shippingConditionValue}
-      </Descriptions.Item>
+      {showDelivery && (
+        <Descriptions.Item label="Срок поставки">
+          {request.deliveryDays} {request.deliveryDaysType === 'calendar' ? 'кал.' : 'раб.'} дн.
+        </Descriptions.Item>
+      )}
+      {showShipping && (
+        <Descriptions.Item label="Условия отгрузки">
+          {request.shippingConditionValue}
+        </Descriptions.Item>
+      )}
       <Descriptions.Item label="Сумма счета">
         {request.invoiceAmount != null
           ? `${request.invoiceAmount.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽`

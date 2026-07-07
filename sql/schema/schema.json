@@ -2384,7 +2384,7 @@
               "name": "delivery_days",
               "type": "integer",
               "default": null,
-              "nullable": false,
+              "nullable": true,
               "position": 7,
               "max_length": null,
               "numeric_precision": 32
@@ -2393,7 +2393,7 @@
               "name": "shipping_condition_id",
               "type": "uuid",
               "default": null,
-              "nullable": false,
+              "nullable": true,
               "position": 8,
               "max_length": null,
               "numeric_precision": null
@@ -2701,6 +2701,15 @@
               "default": null,
               "nullable": true,
               "position": 42,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "request_type",
+              "type": "text",
+              "default": "'contractor'::text",
+              "nullable": false,
+              "position": 43,
               "max_length": null,
               "numeric_precision": null
             }

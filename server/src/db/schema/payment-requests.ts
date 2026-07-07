@@ -21,8 +21,9 @@ export const paymentRequests = pgTable('payment_requests', {
   requestNumber: varchar('request_number', { length: 20 }).notNull(),
   counterpartyId: uuid('counterparty_id').notNull(),
   statusId: uuid('status_id').notNull(),
-  deliveryDays: integer('delivery_days').notNull(),
-  shippingConditionId: uuid('shipping_condition_id').notNull(),
+  // nullable с 0012: новые типы заявок (contractor_work/own_purchase) не заполняют срок/условия
+  deliveryDays: integer('delivery_days'),
+  shippingConditionId: uuid('shipping_condition_id'),
   comment: text('comment'),
   createdBy: uuid('created_by').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
@@ -59,6 +60,8 @@ export const paymentRequests = pgTable('payment_requests', {
   costTypeId: uuid('cost_type_id'),
   materialsVerification: jsonb('materials_verification'),
   closedAt: timestamp('closed_at', { withTimezone: true, mode: 'string' }),
+  // Тип заявки (0012): contractor | contractor_work | own_purchase
+  requestType: text('request_type').notNull().default('contractor'),
 });
 
 export const paymentRequestFiles = pgTable('payment_request_files', {

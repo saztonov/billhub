@@ -25,6 +25,7 @@ function seedStatuses(fake: FakeSupabase) {
       code: 'approv_shtab',
       name: 'Согласование Штаб',
     },
+    { id: 'st-approved', entity_type: 'payment_request', code: 'approved', name: 'Согласовано' },
     { id: 'st-withdrawn', entity_type: 'payment_request', code: 'withdrawn', name: 'Отозвана' },
   ]);
 }
@@ -39,6 +40,7 @@ describe('SupabasePaymentRequestRepository — create', () => {
 
   it('создаёт заявку: status approv_shtab, current_stage=1, stage_history, approval_decisions', async () => {
     const res = await s.repo.create({
+      requestType: 'contractor',
       counterpartyId: 'cp1',
       siteId: 'site1',
       deliveryDays: 10,
@@ -54,6 +56,7 @@ describe('SupabasePaymentRequestRepository — create', () => {
 
     const pr = s.fake.tableRows('payment_requests')[0]!;
     expect(pr.status_id).toBe('st-shtab');
+    expect(pr.request_type).toBe('contractor');
     expect(pr.current_stage).toBe(1);
     expect(pr.uploaded_files).toBe(0);
     expect((pr.stage_history as unknown[]).length).toBe(1);
@@ -63,6 +66,63 @@ describe('SupabasePaymentRequestRepository — create', () => {
     expect(decisions[0]!.stage_order).toBe(1);
     expect(decisions[0]!.department_id).toBe('shtab');
     expect(decisions[0]!.status).toBe('pending');
+  });
+
+  it('contractor_work: сразу approved, current_stage=null, без approval_decisions, поля обнулены', async () => {
+    const res = await s.repo.create({
+      requestType: 'contractor_work',
+      counterpartyId: 'cp1',
+      siteId: 'site1',
+      deliveryDays: null,
+      deliveryDaysType: 'working',
+      shippingConditionId: null,
+      comment: 'работа',
+      totalFiles: 1,
+      invoiceAmount: 500,
+      supplierId: null,
+      createdBy: 'u1',
+    });
+    expect(res.requestNumber).toBe('PR-2026-001');
+
+    const pr = s.fake.tableRows('payment_requests')[0]!;
+    expect(pr.status_id).toBe('st-approved');
+    expect(pr.request_type).toBe('contractor_work');
+    expect(pr.current_stage).toBeNull();
+    expect(pr.approved_at).toBeTruthy();
+    expect(pr.omts_approved_at).toBeTruthy();
+    expect(pr.delivery_days).toBeNull();
+    expect(pr.shipping_condition_id).toBeNull();
+    expect(pr.supplier_id).toBeNull();
+    expect((pr.stage_history as unknown[]).length).toBe(1);
+
+    // Согласование не требуется — pending-решений нет
+    expect(s.fake.tableRows('approval_decisions').length).toBe(0);
+  });
+
+  it('own_purchase: сразу approved, current_stage=null, условия отгрузки сохранены', async () => {
+    const res = await s.repo.create({
+      requestType: 'own_purchase',
+      counterpartyId: 'gc1',
+      siteId: 'site1',
+      deliveryDays: null,
+      deliveryDaysType: 'working',
+      shippingConditionId: 'ship1',
+      comment: 'своя закупка',
+      totalFiles: 1,
+      invoiceAmount: 700,
+      supplierId: 'sup1',
+      createdBy: 'u1',
+    });
+    expect(res.requestNumber).toBe('PR-2026-001');
+
+    const pr = s.fake.tableRows('payment_requests')[0]!;
+    expect(pr.status_id).toBe('st-approved');
+    expect(pr.request_type).toBe('own_purchase');
+    expect(pr.current_stage).toBeNull();
+    expect(pr.delivery_days).toBeNull();
+    expect(pr.shipping_condition_id).toBe('ship1');
+    expect(pr.supplier_id).toBe('sup1');
+    expect(s.fake.tableRows('approval_decisions').length).toBe(0);
   });
 });
 

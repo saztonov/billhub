@@ -10,6 +10,10 @@ import {
   toggleFileRejectionBodySchema,
 } from '../schemas/payment-request.js';
 import type { PaymentRequestListFilter } from '../repositories/payment-request.repository.js';
+import {
+  getGeneralContractorSetting,
+  GENERAL_CONTRACTOR_INN,
+} from '../services/references/general-contractor-setting.js';
 
 /* ------------------------------------------------------------------ */
 /*  Плагин маршрутов заявок на оплату (через fastify.repos)            */
@@ -86,28 +90,54 @@ async function paymentRequestRoutes(fastify: FastifyInstance): Promise<void> {
     const user = request.user!;
     const body = createPaymentRequestBodySchema.parse(request.body);
 
-    const counterpartyId =
-      user.role === 'counterparty_user' ? user.counterpartyId! : body.counterpartyId;
+    // Подрядчик создаёт только обычные заявки; типы «работа»/«своя закупка» — только admin/user.
+    const requestType = user.role === 'counterparty_user' ? 'contractor' : body.requestType;
+
+    // Поля, скрытые для типа, обнуляем на сервере (не доверяем клиенту):
+    //   contractor_work — без поставщика, срока, условий отгрузки;
+    //   own_purchase    — без срока (условия отгрузки и поставщик остаются).
+    const supplierId = requestType === 'contractor_work' ? null : (body.supplierId ?? null);
+    const deliveryDays = requestType === 'contractor' ? (body.deliveryDays ?? null) : null;
+    const shippingConditionId =
+      requestType === 'contractor_work' ? null : (body.shippingConditionId ?? null);
+
+    // Контрагент: own_purchase — всегда генподрядчик (СУ-10) из настройки; клиентское значение игнорируем.
+    let counterpartyId: string | null;
+    if (requestType === 'own_purchase') {
+      const db = request.server.db;
+      if (!db) return reply.status(500).send({ error: 'Своя закупка требует DB_PROVIDER=drizzle' });
+      const gc = await getGeneralContractorSetting(db);
+      if (!gc || gc.inn !== GENERAL_CONTRACTOR_INN) {
+        return reply
+          .status(400)
+          .send({ error: 'Генподрядчик (СУ-10) не настроен — обратитесь к администратору' });
+      }
+      counterpartyId = gc.counterpartyId;
+    } else {
+      counterpartyId =
+        user.role === 'counterparty_user' ? user.counterpartyId! : (body.counterpartyId ?? null);
+    }
     if (!counterpartyId) {
       return reply.status(400).send({ error: 'counterpartyId обязателен' });
     }
 
-    if (await request.server.repos.suppliers.isSbRejected(body.supplierId)) {
+    if (supplierId && (await request.server.repos.suppliers.isSbRejected(supplierId))) {
       return reply
         .status(403)
         .send({ error: 'Поставщик отклонён службой безопасности — создание заявки невозможно' });
     }
 
     const result = await request.server.repos.paymentRequests.create({
+      requestType,
       counterpartyId,
       siteId: body.siteId,
-      deliveryDays: body.deliveryDays,
-      deliveryDaysType: body.deliveryDaysType,
-      shippingConditionId: body.shippingConditionId,
+      deliveryDays,
+      deliveryDaysType: body.deliveryDaysType ?? 'working',
+      shippingConditionId,
       comment: body.comment,
       totalFiles: body.totalFiles,
       invoiceAmount: body.invoiceAmount,
-      supplierId: body.supplierId,
+      supplierId,
       createdBy: user.id,
     });
 

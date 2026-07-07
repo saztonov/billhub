@@ -1,12 +1,14 @@
 import { create } from 'zustand'
 import { api } from '@/services/api'
 import { logError } from '@/services/errorLogger'
-import type { PaymentRequest, PaymentRequestFile } from '@/types'
+import type { PaymentRequest, PaymentRequestFile, PaymentRequestType } from '@/types'
 
 interface CreateRequestData {
-  deliveryDays: number
-  deliveryDaysType: string
-  shippingConditionId: string
+  requestType: PaymentRequestType
+  // срок/условия отгрузки заполняются не для всех типов заявок
+  deliveryDays?: number
+  deliveryDaysType?: string
+  shippingConditionId?: string
   siteId: string
   comment?: string
   totalFiles: number

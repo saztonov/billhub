@@ -7,6 +7,11 @@ import {
   updateCounterpartyBodySchema,
 } from '../../schemas/counterparty.js';
 import { nonEmptyString } from '../../schemas/common.js';
+import {
+  getGeneralContractorSetting,
+  setGeneralContractorSetting,
+  GENERAL_CONTRACTOR_INN,
+} from '../../services/references/general-contractor-setting.js';
 
 /* ------------------------------------------------------------------ */
 /*  Параметры пути и тела                                              */
@@ -29,6 +34,11 @@ const batchRowSchema = z.object({ name: nonEmptyString, inn: nonEmptyString });
 const batchImportBodySchema = z.object({
   items: z.array(batchRowSchema).optional(),
   rows: z.array(batchRowSchema).optional(),
+});
+
+/** Тело установки генподрядчика: id контрагента или null (сброс) */
+const generalContractorBodySchema = z.object({
+  counterpartyId: z.string().min(1).nullable(),
 });
 
 /* ------------------------------------------------------------------ */
@@ -110,6 +120,46 @@ async function counterpartyRoutes(fastify: FastifyInstance): Promise<void> {
       }
       const created = await request.server.repos.counterparties.batchCreate(rows);
       return { created };
+    },
+  );
+
+  /* ---------- Генподрядчик (настройка в settings) ---------- */
+
+  /** GET /api/references/counterparties/general-contractor — текущий генподрядчик */
+  fastify.get('/general-contractor', { preHandler: [authenticate] }, async (_request, reply) => {
+    const db = fastify.db;
+    if (!db) return reply.status(500).send({ error: 'Настройки требуют DB_PROVIDER=drizzle' });
+    const contractor = await getGeneralContractorSetting(db);
+    return reply.send({ contractor });
+  });
+
+  /** PUT /api/references/counterparties/general-contractor — задать генподрядчика (admin) */
+  fastify.put(
+    '/general-contractor',
+    { preHandler: [authenticate, requireRole('admin')] },
+    async (request, reply) => {
+      const db = fastify.db;
+      if (!db) return reply.status(500).send({ error: 'Настройки требуют DB_PROVIDER=drizzle' });
+      const body = generalContractorBodySchema.parse(request.body);
+
+      if (body.counterpartyId === null) {
+        await setGeneralContractorSetting(db, null);
+        return reply.send({ contractor: null });
+      }
+
+      const cp = await request.server.repos.counterparties.findById(body.counterpartyId);
+      if (!cp) return reply.status(404).send({ error: 'Контрагент не найден' });
+      if (cp.inn !== GENERAL_CONTRACTOR_INN) {
+        return reply
+          .status(400)
+          .send({
+            error: `Генподрядчиком может быть только контрагент с ИНН ${GENERAL_CONTRACTOR_INN}`,
+          });
+      }
+
+      const contractor = { counterpartyId: cp.id, name: cp.name, inn: cp.inn };
+      await setGeneralContractorSetting(db, contractor);
+      return reply.send({ contractor });
     },
   );
 }

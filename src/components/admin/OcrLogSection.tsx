@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Table, Tag, Modal, Button, Space, Typography } from 'antd'
 import { EyeOutlined } from '@ant-design/icons'
-import { useNavigate } from 'react-router-dom'
 import { useOcrStore } from '@/store/ocrStore'
 import type { OcrRecognitionLog } from '@/types'
 
@@ -23,16 +22,19 @@ const formatDate = (dateStr: string | null): string => {
 
 /** Секция лога распознавания OCR */
 const OcrLogSection = () => {
-  const navigate = useNavigate()
   const {
-    logs, isLoadingLogs, logsTotal, fetchLogs,
-    logMaterials, isLoadingLogMaterials, fetchLogMaterials,
+    logs,
+    isLoadingLogs,
+    logsTotal,
+    fetchLogs,
+    logMaterials,
+    isLoadingLogMaterials,
+    fetchLogMaterials,
   } = useOcrStore()
 
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(100)
   const [materialsModalOpen, setMaterialsModalOpen] = useState(false)
-  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null)
   const [selectedRequestNumber, setSelectedRequestNumber] = useState<string>('')
 
   // Модалка ошибки
@@ -49,7 +51,6 @@ const OcrLogSection = () => {
       return
     }
     if (record.status === 'success') {
-      setSelectedRequestId(record.paymentRequestId)
       setSelectedRequestNumber(record.requestNumber ?? record.paymentRequestId)
       setMaterialsModalOpen(true)
       await fetchLogMaterials(record.paymentRequestId)
@@ -59,7 +60,6 @@ const OcrLogSection = () => {
   /** Открыть модалку материалов по кнопке */
   const handleOpenMaterials = async (record: OcrRecognitionLog, e: React.MouseEvent) => {
     e.stopPropagation()
-    setSelectedRequestId(record.paymentRequestId)
     setSelectedRequestNumber(record.requestNumber ?? record.paymentRequestId)
     setMaterialsModalOpen(true)
     await fetchLogMaterials(record.paymentRequestId)
@@ -77,7 +77,8 @@ const OcrLogSection = () => {
       dataIndex: 'requestNumber',
       key: 'requestNumber',
       width: 140,
-      render: (v: string | undefined, record: OcrRecognitionLog) => v ?? record.paymentRequestId.slice(0, 8),
+      render: (v: string | undefined, record: OcrRecognitionLog) =>
+        v ?? record.paymentRequestId.slice(0, 8),
     },
     {
       title: 'Модель',
@@ -115,7 +116,7 @@ const OcrLogSection = () => {
       dataIndex: 'totalCost',
       key: 'totalCost',
       width: 110,
-      render: (v: number | null) => v != null ? `$${v.toFixed(4)}` : '—',
+      render: (v: number | null) => (v != null ? `$${v.toFixed(4)}` : '—'),
     },
     {
       title: 'Попытка',
@@ -216,7 +217,10 @@ const OcrLogSection = () => {
         size="small"
         onRow={(record) => ({
           onClick: () => handleRowClick(record),
-          style: { cursor: record.status === 'error' || record.status === 'success' ? 'pointer' : 'default' },
+          style: {
+            cursor:
+              record.status === 'error' || record.status === 'success' ? 'pointer' : 'default',
+          },
         })}
         pagination={{
           current: page,
@@ -234,11 +238,7 @@ const OcrLogSection = () => {
         open={errorModalOpen}
         onCancel={() => setErrorModalOpen(false)}
         width={700}
-        footer={
-          <Button onClick={() => setErrorModalOpen(false)}>
-            Закрыть
-          </Button>
-        }
+        footer={<Button onClick={() => setErrorModalOpen(false)}>Закрыть</Button>}
         destroyOnClose
       >
         <div style={{ maxHeight: 400, overflow: 'auto' }}>
@@ -256,20 +256,7 @@ const OcrLogSection = () => {
         width={900}
         footer={
           <Space>
-            <Button onClick={() => setMaterialsModalOpen(false)}>
-              Закрыть
-            </Button>
-            {selectedRequestId && (
-              <Button
-                type="primary"
-                onClick={() => {
-                  setMaterialsModalOpen(false)
-                  navigate(`/materials/${selectedRequestId}`)
-                }}
-              >
-                Перейти к материалам
-              </Button>
-            )}
+            <Button onClick={() => setMaterialsModalOpen(false)}>Закрыть</Button>
           </Space>
         }
         destroyOnClose

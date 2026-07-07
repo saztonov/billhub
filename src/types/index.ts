@@ -193,16 +193,27 @@ export interface StageHistoryEntry {
   isOmtsRp?: boolean
 }
 
+/** Тип заявки на оплату (0012) */
+export type PaymentRequestType = 'contractor' | 'contractor_work' | 'own_purchase'
+
+/** Подписи типов заявок */
+export const PAYMENT_REQUEST_TYPE_LABELS: Record<PaymentRequestType, string> = {
+  contractor: 'Подрядчик',
+  contractor_work: 'Подрядчик Работа',
+  own_purchase: 'Своя закупка',
+}
+
 /** Заявка на оплату */
 export interface PaymentRequest {
   id: string
   requestNumber: string
+  requestType: PaymentRequestType
   counterpartyId: string
   siteId: string
   statusId: string
-  deliveryDays: number
+  deliveryDays: number | null
   deliveryDaysType: string
-  shippingConditionId: string
+  shippingConditionId: string | null
   comment: string | null
   createdBy: string
   totalFiles: number

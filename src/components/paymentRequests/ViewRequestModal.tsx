@@ -1,21 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import {
-  Modal,
-  Button,
-  Typography,
-  Space,
-  Input,
-  Form,
-  App,
-  Collapse,
-  Alert,
-} from 'antd'
-import {
-  SendOutlined,
-  EditOutlined,
-  CheckOutlined,
-  StopOutlined,
-} from '@ant-design/icons'
+import { Modal, Button, Typography, Space, Input, Form, App, Collapse, Alert } from 'antd'
+import { SendOutlined, EditOutlined, CheckOutlined, StopOutlined } from '@ant-design/icons'
 import { usePaymentRequestStore } from '@/store/paymentRequestStore'
 import { usePaymentPaymentStore } from '@/store/paymentPaymentStore'
 import type { EditRequestData } from '@/store/paymentRequestStore'
@@ -58,12 +43,16 @@ interface ViewRequestModalProps {
   request: PaymentRequest | null
   onClose: () => void
   resubmitMode?: boolean
-  onResubmit?: (comment: string, files: FileItem[], fieldUpdates: {
-    deliveryDays: number
-    deliveryDaysType: string
-    shippingConditionId: string
-    invoiceAmount: number
-  }) => void
+  onResubmit?: (
+    comment: string,
+    files: FileItem[],
+    fieldUpdates: {
+      deliveryDays: number
+      deliveryDaysType: string
+      shippingConditionId: string
+      invoiceAmount: number
+    },
+  ) => void
   canEdit?: boolean
   onEdit?: (id: string, data: EditRequestData, files: FileItem[]) => void
   canApprove?: boolean
@@ -73,12 +62,41 @@ interface ViewRequestModalProps {
   onRevisionComplete?: () => void
 }
 
-const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, canEdit, onEdit, canApprove, canReject, onApprove, onReject, onRevisionComplete }: ViewRequestModalProps) => {
+const ViewRequestModal = ({
+  open,
+  request,
+  onClose,
+  resubmitMode,
+  onResubmit,
+  canEdit,
+  onEdit,
+  canApprove,
+  canReject,
+  onApprove,
+  onReject,
+  onRevisionComplete,
+}: ViewRequestModalProps) => {
   const { message } = App.useApp()
   const isMobile = useIsMobile()
-  const { requests, currentRequestFiles, fetchRequestFiles, fetchRequests, isLoading, isSubmitting, toggleFileRejection } = usePaymentRequestStore()
+  const {
+    requests,
+    currentRequestFiles,
+    fetchRequestFiles,
+    fetchRequests,
+    isLoading,
+    isSubmitting,
+    toggleFileRejection,
+  } = usePaymentRequestStore()
   const { payments, fetchPayments } = usePaymentPaymentStore()
-  const { currentDecisions, currentLogs, fetchDecisions, fetchLogs, clearCurrentData, sendToRevision, completeRevision } = useApprovalStore()
+  const {
+    currentDecisions,
+    currentLogs,
+    fetchDecisions,
+    fetchLogs,
+    clearCurrentData,
+    sendToRevision,
+    completeRevision,
+  } = useApprovalStore()
   const omtsRpResponsibleUserId = useOmtsRpStore((s) => s.responsibleUserId)
   const fetchOmtsRpConfig = useOmtsRpStore((s) => s.fetchConfig)
   const fetchOmtsRpSites = useOmtsRpStore((s) => s.fetchSites)
@@ -95,7 +113,11 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   } = useAssignmentStore()
   const [downloading, setDownloading] = useState<string | null>(null)
   const [downloadingAll, setDownloadingAll] = useState(false)
-  const [previewFile, setPreviewFile] = useState<{ fileKey: string; fileName: string; mimeType: string | null } | null>(null)
+  const [previewFile, setPreviewFile] = useState<{
+    fileKey: string
+    fileName: string
+    mimeType: string | null
+  } | null>(null)
   const [resubmitComment, setResubmitComment] = useState('')
 
   // Модалка отклонения
@@ -140,12 +162,33 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       // Отмечаем комментарии как прочитанные
       if (user?.id) markAsRead(user.id, request.id)
     }
-  }, [open, request, fetchRequestFiles, fetchPayments, fetchDecisions, fetchLogs, clearCurrentData, fetchCurrentAssignment, fetchAssignmentHistory, fetchDocumentTypes, fetchOmtsUsers, user?.role, fetchOmtsRpConfig, fetchOmtsRpSites, markAsRead, user?.id])
+  }, [
+    open,
+    request,
+    fetchRequestFiles,
+    fetchPayments,
+    fetchDecisions,
+    fetchLogs,
+    clearCurrentData,
+    fetchCurrentAssignment,
+    fetchAssignmentHistory,
+    fetchDocumentTypes,
+    fetchOmtsUsers,
+    user?.role,
+    fetchOmtsRpConfig,
+    fetchOmtsRpSites,
+    markAsRead,
+    user?.id,
+  ])
 
   useEffect(() => {
     if (!open) {
       setResubmitComment('')
-      try { if (resubmitMode) resubmitForm.resetFields() } catch { /* форма не подключена к DOM */ }
+      try {
+        if (resubmitMode) resubmitForm.resetFields()
+      } catch {
+        /* форма не подключена к DOM */
+      }
       setIsEditing(false)
       setEditFileList([])
       setShowEditFileValidation(false)
@@ -164,11 +207,25 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       if (sites.length === 0) fetchSites()
       if (suppliers.length === 0) fetchSuppliers()
     }
-  }, [isEditing, resubmitMode, revisionCompleteModalOpen, fieldOptions.length, sites.length, suppliers.length, fetchFieldOptions, fetchSites, fetchSuppliers])
+  }, [
+    isEditing,
+    resubmitMode,
+    revisionCompleteModalOpen,
+    fieldOptions.length,
+    sites.length,
+    suppliers.length,
+    fetchFieldOptions,
+    fetchSites,
+    fetchSuppliers,
+  ])
 
   // Сумма оплат и права на управление оплатами
-  const paymentsTotalPaid = useMemo(() => payments.filter(p => p.isExecuted).reduce((sum, p) => sum + p.amount, 0), [payments])
-  const canManagePayments = user?.role === 'admin' || user?.department === 'shtab' || user?.department === 'omts'
+  const paymentsTotalPaid = useMemo(
+    () => payments.filter((p) => p.isExecuted).reduce((sum, p) => sum + p.amount, 0),
+    [payments],
+  )
+  const canManagePayments =
+    user?.role === 'admin' || user?.department === 'shtab' || user?.department === 'omts'
 
   // Актуальные данные заявки из store (для обновления после сохранения РП)
   const actualRequest = useMemo(() => {
@@ -178,7 +235,10 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
 
   const shippingOptions = getOptionsByField('shipping_conditions')
   const siteOptions = sites.filter((s) => s.isActive).map((s) => ({ label: s.name, value: s.id }))
-  const supplierOptions = suppliers.map((s) => ({ label: s.inn ? `${s.name}, ${s.inn}` : s.name, value: s.id }))
+  const supplierOptions = suppliers.map((s) => ({
+    label: s.inn ? `${s.name}, ${s.inn}` : s.name,
+    value: s.id,
+  }))
 
   const startEditing = () => {
     if (!request) return
@@ -189,19 +249,23 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       deliveryDaysType: request.deliveryDaysType,
       shippingConditionId: request.shippingConditionId,
       comment: request.comment ?? '',
-      invoiceAmount: request.invoiceAmount != null
-        ? (() => {
-            const parts = String(request.invoiceAmount).split('.')
-            parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
-            return parts.join('.')
-          })()
-        : undefined,
+      invoiceAmount:
+        request.invoiceAmount != null
+          ? (() => {
+              const parts = String(request.invoiceAmount).split('.')
+              parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
+              return parts.join('.')
+            })()
+          : undefined,
     })
     setIsEditing(true)
   }
 
   // Парсит значения формы редактирования и возвращает payload для onEdit
-  const buildEditPayload = (values: Record<string, unknown>, reason?: 'error' | 'amount_change'): EditRequestData => {
+  const buildEditPayload = (
+    values: Record<string, unknown>,
+    reason?: 'error' | 'amount_change',
+  ): EditRequestData => {
     const rawAmount = values.invoiceAmount as string | number | null | undefined
     const invoiceAmount = rawAmount
       ? Number(String(rawAmount).replace(/\s/g, ''))
@@ -238,9 +302,7 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       }
       // Для администратора при смене суммы счёта запрашиваем причину изменения
       const rawAmount = values.invoiceAmount as string | number | null | undefined
-      const newAmount = rawAmount
-        ? Number(String(rawAmount).replace(/\s/g, ''))
-        : null
+      const newAmount = rawAmount ? Number(String(rawAmount).replace(/\s/g, '')) : null
       const oldAmount = request.invoiceAmount ?? null
       const amountChanged = newAmount !== oldAmount
       if (user?.role === 'admin' && amountChanged) {
@@ -332,13 +394,18 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
 
   // Собираем файлы из решений (прикреплённые при отклонении)
   const decisionFiles = useMemo(() => {
-    return currentDecisions.flatMap(d => d.files ?? [])
+    return currentDecisions.flatMap((d) => d.files ?? [])
   }, [currentDecisions])
 
   const hasAdditionalFiles = sortedFiles.some((f) => f.isAdditional || f.isResubmit)
 
   const handleResubmitSubmit = async () => {
-    let formValues: { deliveryDays: number; deliveryDaysType: string; shippingConditionId: string; invoiceAmount: number }
+    let formValues: {
+      deliveryDays: number
+      deliveryDaysType: string
+      shippingConditionId: string
+      invoiceAmount: number
+    }
     try {
       formValues = await resubmitForm.validateFields()
     } catch (err: unknown) {
@@ -369,10 +436,11 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   const isOmtsUser = user?.department === 'omts'
   const isOmtsRpResponsible = user?.id === omtsRpResponsibleUserId
   const hasPendingOmtsOrOmtsRpDecision = currentDecisions.some(
-    (d) => d.status === 'pending' && (d.department === 'omts' || d.isOmtsRp)
+    (d) => d.status === 'pending' && (d.department === 'omts' || d.isOmtsRp),
   )
-  const canSendToRevision = ((isAdmin || isOmtsUser || isOmtsRpResponsible) && hasPendingOmtsOrOmtsRpDecision)
-    || (!!canEdit && isApprovedRequest)
+  const canSendToRevision =
+    ((isAdmin || isOmtsUser || isOmtsRpResponsible) && hasPendingOmtsOrOmtsRpDecision) ||
+    (!!canEdit && isApprovedRequest)
 
   // Заявка в статусе "На доработку" — previous_status_id заполнен. После корректного
   // отклонения сервер обнуляет previous_status_id, поэтому отдельной проверки rejectedAt не нужно.
@@ -382,7 +450,8 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   const handleApproveClick = () => {
     const isOmtsStage = request.currentStage != null && request.currentStage >= 2
     const activeInvoiceCount = isOmtsStage
-      ? currentRequestFiles.filter(f => f.documentTypeId === INVOICE_DOC_TYPE_ID && !f.isRejected).length
+      ? currentRequestFiles.filter((f) => f.documentTypeId === INVOICE_DOC_TYPE_ID && !f.isRejected)
+          .length
       : 0
 
     if (isOmtsStage && activeInvoiceCount > 1) {
@@ -447,27 +516,77 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
     modalFooter = (
       <Space wrap={isMobile} style={footerWrap}>
         <Button onClick={onClose}>Отмена</Button>
-        <Button type="primary" icon={<SendOutlined />} loading={isSubmitting} onClick={handleResubmitSubmit}>Отправить повторно</Button>
+        <Button
+          type="primary"
+          icon={<SendOutlined />}
+          loading={isSubmitting}
+          onClick={handleResubmitSubmit}
+        >
+          Отправить повторно
+        </Button>
       </Space>
     )
   } else if (isEditing) {
     modalFooter = (
       <Space wrap={isMobile} style={footerWrap}>
-        <Button onClick={() => { setIsEditing(false); setEditFileList([]) }}>Отмена</Button>
-        <Button type="primary" loading={isSubmitting} onClick={handleEditSave}>Сохранить</Button>
+        <Button
+          onClick={() => {
+            setIsEditing(false)
+            setEditFileList([])
+          }}
+        >
+          Отмена
+        </Button>
+        <Button type="primary" loading={isSubmitting} onClick={handleEditSave}>
+          Сохранить
+        </Button>
       </Space>
     )
   } else {
     modalFooter = (
       <Space wrap={isMobile} style={footerWrap}>
-        {isRevisionStatus && isAdmin && <Button style={{ borderColor: '#52c41a', color: '#52c41a' }} icon={<CheckOutlined />} onClick={() => setRevisionCompleteModalOpen(true)}>Доработано</Button>}
-        {canSendToRevision && <Button icon={<EditOutlined />} style={{ borderColor: '#faad14', color: '#faad14' }} onClick={() => setRevisionModalOpen(true)}>На доработку</Button>}
-        {canEdit && !isCounterpartyUser && <Button icon={<EditOutlined />} onClick={startEditing}>Редактировать</Button>}
-        {canApprove && !supplierSbRejected && (
-          <Button type="primary" icon={<CheckOutlined />} onClick={handleApproveClick}>Согласовать</Button>
+        {isRevisionStatus && isAdmin && (
+          <Button
+            style={{ borderColor: '#52c41a', color: '#52c41a' }}
+            icon={<CheckOutlined />}
+            onClick={() => setRevisionCompleteModalOpen(true)}
+          >
+            Доработано
+          </Button>
         )}
-        {(canReject ?? canApprove) && <Button danger icon={<StopOutlined />} onClick={() => setRejectModalOpen(true)}>Отклонить</Button>}
-        {isRevisionStatus && isCounterpartyUser && <Button style={{ borderColor: '#52c41a', color: '#52c41a' }} icon={<CheckOutlined />} onClick={() => setRevisionCompleteModalOpen(true)}>Доработано</Button>}
+        {canSendToRevision && (
+          <Button
+            icon={<EditOutlined />}
+            style={{ borderColor: '#faad14', color: '#faad14' }}
+            onClick={() => setRevisionModalOpen(true)}
+          >
+            На доработку
+          </Button>
+        )}
+        {canEdit && !isCounterpartyUser && (
+          <Button icon={<EditOutlined />} onClick={startEditing}>
+            Редактировать
+          </Button>
+        )}
+        {canApprove && !supplierSbRejected && (
+          <Button type="primary" icon={<CheckOutlined />} onClick={handleApproveClick}>
+            Согласовать
+          </Button>
+        )}
+        {(canReject ?? canApprove) && (
+          <Button danger icon={<StopOutlined />} onClick={() => setRejectModalOpen(true)}>
+            Отклонить
+          </Button>
+        )}
+        {isRevisionStatus && isCounterpartyUser && (
+          <Button
+            style={{ borderColor: '#52c41a', color: '#52c41a' }}
+            icon={<CheckOutlined />}
+            onClick={() => setRevisionCompleteModalOpen(true)}
+          >
+            Доработано
+          </Button>
+        )}
         <Button onClick={onClose}>Закрыть</Button>
       </Space>
     )
@@ -476,19 +595,30 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
   return (
     <>
       <Modal
-        title={resubmitMode
-          ? (isMobile ? `Повторная — ${extractRequestNumber(request.requestNumber)}` : `Повторная отправка — Заявка ${extractRequestNumber(request.requestNumber)}`)
-          : `Заявка ${extractRequestNumber(request.requestNumber)}`}
+        title={
+          resubmitMode
+            ? isMobile
+              ? `Повторная — ${extractRequestNumber(request.requestNumber)}`
+              : `Повторная отправка — Заявка ${extractRequestNumber(request.requestNumber)}`
+            : `Заявка ${extractRequestNumber(request.requestNumber)}`
+        }
         open={open}
         onCancel={onClose}
         footer={modalFooter}
         width={isMobile ? '100%' : '80%'}
         mask={{ closable: false }}
         centered={!isMobile}
-        style={isMobile ? { top: 0, maxWidth: '100vw', margin: 0, padding: 0 } : { maxHeight: '85vh' }}
+        style={
+          isMobile ? { top: 0, maxWidth: '100vw', margin: 0, padding: 0 } : { maxHeight: '85vh' }
+        }
         styles={{
           body: isMobile
-            ? { height: 'calc(100vh - 110px)', overflowY: 'auto', overflowX: 'hidden', padding: '12px 8px' }
+            ? {
+                height: 'calc(100vh - 110px)',
+                overflowY: 'auto',
+                overflowX: 'hidden',
+                padding: '12px 8px',
+              }
             : { maxHeight: 'calc(85vh - 120px)', overflowY: 'auto', overflowX: 'hidden' },
         }}
       >
@@ -528,9 +658,18 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
           fetchRequests={fetchRequests}
         />
 
-        {!isEditing && !resubmitMode && (
-          <DeliveryCalculation deliveryDays={request.deliveryDays} deliveryDaysType={request.deliveryDaysType as 'working' | 'calendar'} shippingConditionId={request.shippingConditionId} defaultExpanded={false} />
-        )}
+        {!isEditing &&
+          !resubmitMode &&
+          request.requestType === 'contractor' &&
+          request.deliveryDays != null &&
+          request.shippingConditionId && (
+            <DeliveryCalculation
+              deliveryDays={request.deliveryDays}
+              deliveryDaysType={request.deliveryDaysType as 'working' | 'calendar'}
+              shippingConditionId={request.shippingConditionId}
+              defaultExpanded={false}
+            />
+          )}
 
         {!isEditing && (user?.department === 'omts' || user?.role === 'admin') && (
           <OmtsAssignmentBlock
@@ -546,12 +685,18 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
 
         {request.invoiceAmountHistory && request.invoiceAmountHistory.length > 0 && (
           <div style={{ marginBottom: 16 }}>
-            <Text strong style={{ display: 'block', marginBottom: 8 }}>История сумм</Text>
+            <Text strong style={{ display: 'block', marginBottom: 8 }}>
+              История сумм
+            </Text>
             {request.invoiceAmountHistory.map((entry, idx) => (
               <div key={idx} style={{ marginBottom: 4 }}>
                 <Text type="secondary">
-                  Сумма {idx + 1}-й заявки: {entry.amount.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽
-                  {' '}({formatDate(entry.changedAt, false)})
+                  Сумма {idx + 1}-й заявки:{' '}
+                  {entry.amount.toLocaleString('ru-RU', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}{' '}
+                  ₽ ({formatDate(entry.changedAt, false)})
                 </Text>
               </div>
             ))}
@@ -561,18 +706,20 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
         <Collapse
           defaultActiveKey={['approval']}
           style={{ marginBottom: 12 }}
-          items={[{
-            key: 'approval',
-            label: 'Согласование',
-            children: (
-              <ApprovalLog
-                request={request}
-                decisions={currentDecisions}
-                logs={currentLogs}
-                isCounterpartyUser={!!isCounterpartyUser}
-              />
-            ),
-          }]}
+          items={[
+            {
+              key: 'approval',
+              label: 'Согласование',
+              children: (
+                <ApprovalLog
+                  request={request}
+                  decisions={currentDecisions}
+                  logs={currentLogs}
+                  isCounterpartyUser={!!isCounterpartyUser}
+                />
+              ),
+            },
+          ]}
         />
 
         {/* Таблица файлов */}
@@ -600,19 +747,21 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
           <Collapse
             defaultActiveKey={['payments']}
             style={{ marginBottom: 12 }}
-            items={[{
-              key: 'payments',
-              label: 'Оплаты',
-              children: (
-                <PaymentsTable
-                  paymentRequestId={request.id}
-                  counterpartyName={request.counterpartyName ?? ''}
-                  canManage={!!canManagePayments}
-                  requestAmount={request.invoiceAmount}
-                  onTotalChanged={() => fetchRequests()}
-                />
-              ),
-            }]}
+            items={[
+              {
+                key: 'payments',
+                label: 'Оплаты',
+                children: (
+                  <PaymentsTable
+                    paymentRequestId={request.id}
+                    counterpartyName={request.counterpartyName ?? ''}
+                    canManage={!!canManagePayments}
+                    requestAmount={request.invoiceAmount}
+                    onTotalChanged={() => fetchRequests()}
+                  />
+                ),
+              },
+            ]}
           />
         )}
 
@@ -620,29 +769,45 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
           <Collapse
             defaultActiveKey={['comments']}
             style={{ marginBottom: 12 }}
-            items={[{
-              key: 'comments',
-              label: 'Комментарии',
-              children: (
-                <CommentsChat paymentRequestId={request.id} />
-              ),
-            }]}
+            items={[
+              {
+                key: 'comments',
+                label: 'Комментарии',
+                children: <CommentsChat paymentRequestId={request.id} />,
+              },
+            ]}
           />
         )}
 
         {resubmitMode && (
           <div style={{ marginTop: 16 }}>
-            <Text strong style={{ display: 'block', marginBottom: 8 }}>Комментарий к повторной отправке</Text>
-            <TextArea rows={3} placeholder="Необязательное поле" value={resubmitComment} onChange={(e) => setResubmitComment(e.target.value)} />
+            <Text strong style={{ display: 'block', marginBottom: 8 }}>
+              Комментарий к повторной отправке
+            </Text>
+            <TextArea
+              rows={3}
+              placeholder="Необязательное поле"
+              value={resubmitComment}
+              onChange={(e) => setResubmitComment(e.target.value)}
+            />
           </div>
         )}
       </Modal>
 
-      <FilePreviewModal open={!!previewFile} onClose={() => setPreviewFile(null)} fileKey={previewFile?.fileKey ?? null} fileName={previewFile?.fileName ?? ''} mimeType={previewFile?.mimeType ?? null} />
+      <FilePreviewModal
+        open={!!previewFile}
+        onClose={() => setPreviewFile(null)}
+        fileKey={previewFile?.fileKey ?? null}
+        fileName={previewFile?.fileName ?? ''}
+        mimeType={previewFile?.mimeType ?? null}
+      />
 
       <AddFilesModal
         open={addFilesModalOpen}
-        onClose={() => { setAddFilesModalOpen(false); if (request) fetchRequestFiles(request.id) }}
+        onClose={() => {
+          setAddFilesModalOpen(false)
+          if (request) fetchRequestFiles(request.id)
+        }}
         requestId={request.id}
         requestNumber={request.requestNumber}
         counterpartyName={request.counterpartyName ?? ''}
@@ -651,17 +816,24 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
 
       <DpFillModal
         open={dpModalOpen}
-        onClose={() => { setDpModalOpen(false); fetchRequests() }}
+        onClose={() => {
+          setDpModalOpen(false)
+          fetchRequests()
+        }}
         requestId={request.id}
         requestNumber={request.requestNumber}
         counterpartyName={request.counterpartyName ?? ''}
-        initialData={actualRequest?.dpNumber ? {
-          dpNumber: actualRequest.dpNumber,
-          dpDate: actualRequest.dpDate!,
-          dpAmount: actualRequest.dpAmount!,
-          dpFileKey: actualRequest.dpFileKey!,
-          dpFileName: actualRequest.dpFileName!,
-        } : null}
+        initialData={
+          actualRequest?.dpNumber
+            ? {
+                dpNumber: actualRequest.dpNumber,
+                dpDate: actualRequest.dpDate!,
+                dpAmount: actualRequest.dpAmount!,
+                dpFileKey: actualRequest.dpFileKey!,
+                dpFileName: actualRequest.dpFileName!,
+              }
+            : null
+        }
         defaultAmount={actualRequest?.invoiceAmount ?? request.invoiceAmount ?? null}
       />
 
@@ -685,7 +857,9 @@ const ViewRequestModal = ({ open, request, onClose, resubmitMode, onResubmit, ca
       >
         <Space direction="vertical" size="middle" style={{ width: '100%' }}>
           <Space wrap>
-            <Button onClick={() => handleSelectAmountReason('error')}>Без сохранения в истории</Button>
+            <Button onClick={() => handleSelectAmountReason('error')}>
+              Без сохранения в истории
+            </Button>
             <Button type="primary" onClick={() => handleSelectAmountReason('amount_change')}>
               С сохранением в истории
             </Button>

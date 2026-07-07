@@ -117,7 +117,14 @@ export class DrizzlePaymentRequestRepository implements PaymentRequestRepository
     input: CreatePaymentRequestInput,
   ): Promise<{ requestId: string; requestNumber: string }> {
     return this.db.transaction(async (tx) => {
-      const statusId = await statusIdByCode(tx, 'payment_request', 'approv_shtab');
+      // Новые типы (contractor_work/own_purchase) не требуют согласования — сразу «Согласовано».
+      const autoApproved = input.requestType !== 'contractor';
+      const statusId = await statusIdByCode(
+        tx,
+        'payment_request',
+        autoApproved ? 'approved' : 'approv_shtab',
+      );
+      const now = new Date().toISOString();
 
       const numRows = (await tx.execute(
         sql`select generate_request_number() as num`,
@@ -131,9 +138,10 @@ export class DrizzlePaymentRequestRepository implements PaymentRequestRepository
           counterpartyId: input.counterpartyId,
           siteId: input.siteId,
           statusId,
-          deliveryDays: input.deliveryDays,
+          requestType: input.requestType,
+          deliveryDays: input.deliveryDays ?? null,
           deliveryDaysType: input.deliveryDaysType,
-          shippingConditionId: input.shippingConditionId,
+          shippingConditionId: input.shippingConditionId ?? null,
           comment: input.comment || null,
           // как в исходном роуте: `invoice_amount: body.invoiceAmount || null` (0 ⇒ null).
           invoiceAmount: input.invoiceAmount || null,
@@ -141,10 +149,24 @@ export class DrizzlePaymentRequestRepository implements PaymentRequestRepository
           totalFiles: input.totalFiles,
           uploadedFiles: 0,
           createdBy: input.createdBy,
+          // Авто-согласованные: финальная форма (current_stage=null, даты согласования проставлены).
+          currentStage: null,
+          approvedAt: autoApproved ? now : null,
+          omtsApprovedAt: autoApproved ? now : null,
         })
         .returning({ id: paymentRequests.id });
       const requestId = created!.id;
 
+      if (autoApproved) {
+        // Без цепочки согласования: одна запись хронологии «Согласовано», current_stage остаётся null.
+        await tx
+          .update(paymentRequests)
+          .set({ stageHistory: [{ stage: 2, department: 'omts', event: 'approved', at: now }] })
+          .where(eq(paymentRequests.id, requestId));
+        return { requestId, requestNumber };
+      }
+
+      // contractor: обычная цепочка Штаб → ОМТС
       await tx.insert(approvalDecisions).values({
         paymentRequestId: requestId,
         stageOrder: 1,
@@ -162,7 +184,7 @@ export class DrizzlePaymentRequestRepository implements PaymentRequestRepository
         stage: 1,
         department: 'shtab',
         event: 'received',
-        at: new Date().toISOString(),
+        at: now,
       });
 
       await tx
