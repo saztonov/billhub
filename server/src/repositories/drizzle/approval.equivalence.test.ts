@@ -418,4 +418,57 @@ describe.skipIf(!RUN)('Approvals equivalence (Supabase fake ↔ Drizzle testcont
     await s.createDecisionOnly(input);
     expect(await readDrizzle()).toEqual(readFake(fake));
   });
+
+  it('S14: гонка «доработка → согласовать(блок) → доработано → согласовать» не залипает и эквивалентна', async () => {
+    const fake = new FakeSupabase();
+    await seedRefs(fake);
+    // Заявка на стадии ОМТС с живым pending-решением и заданной суммой (для истории сумм).
+    await seedScenario(fake, { current_stage: 2, status_id: ID.stOmts, invoice_amount: 100 }, [
+      { id: ID.d2, stage_order: 2, department_id: 'omts', status: 'pending' },
+    ]);
+    const { d, s } = repos(fake);
+    const approve = {
+      paymentRequestId: ID.pr,
+      department: 'omts',
+      action: 'approve' as const,
+      comment: 'ок',
+      userId: ID.u1,
+      isAdmin: false,
+    };
+    const fu = {
+      deliveryDays: 7,
+      deliveryDaysType: 'working',
+      shippingConditionId: ID.ship,
+      invoiceAmount: 200,
+    };
+
+    // 1) На доработку
+    await d.sendToRevision(ID.pr, ID.u1, 'дешевле');
+    await s.sendToRevision(ID.pr, ID.u1, 'дешевле');
+
+    // 2) Согласование во время доработки запрещено в обоих реализациях, стейт не меняется
+    const dBlocked = await d.decide(approve);
+    const sBlocked = await s.decide(approve);
+    expect(dBlocked.ok).toBe(false);
+    expect(sBlocked.ok).toBe(false);
+    const afterBlock = await readDrizzle();
+    expect(afterBlock).toEqual(readFake(fake));
+    expect(afterBlock.status_id).toBe(ID.stRevision);
+    expect(afterBlock.decisions.some((x) => x.status === 'pending')).toBe(true);
+
+    // 3) Доработано → возврат на стадию ОМТС, previous_status_id очищается
+    await d.completeRevision(ID.pr, ID.u1, fu);
+    await s.completeRevision(ID.pr, ID.u1, fu);
+
+    // 4) Теперь согласование проходит и заявка штатно уходит в approved (сайт не РП)
+    const dOk = await d.decide(approve);
+    const sOk = await s.decide(approve);
+    expect(dOk.ok).toBe(true);
+    expect(sOk.ok).toBe(true);
+    const finalState = await readDrizzle();
+    expect(finalState).toEqual(readFake(fake));
+    expect(finalState.status_id).toBe(ID.stApproved);
+    expect(finalState.previous_status_id).toBeNull();
+    expect(finalState.decisions.every((x) => x.status === 'approved')).toBe(true);
+  });
 });

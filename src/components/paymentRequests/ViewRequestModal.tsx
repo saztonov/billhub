@@ -568,7 +568,7 @@ const ViewRequestModal = ({
             Редактировать
           </Button>
         )}
-        {canApprove && !supplierSbRejected && (
+        {canApprove && !supplierSbRejected && !isRevisionStatus && (
           <Button type="primary" icon={<CheckOutlined />} onClick={handleApproveClick}>
             Согласовать
           </Button>

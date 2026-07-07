@@ -127,6 +127,8 @@ export class SupabaseApprovalRepository implements ApprovalRepository {
       .in('id', requestIds)
       .eq('is_deleted', false)
       .is('withdrawn_at', null)
+      // Заявки на доработке из очереди согласования исключаем (см. drizzle-паритет).
+      .is('previous_status_id', null)
       .order('created_at', { ascending: false });
     if (!allSites) prQuery = prQuery.in('site_id', userSiteIds);
 
@@ -157,6 +159,8 @@ export class SupabaseApprovalRepository implements ApprovalRepository {
       .in('id', requestIds)
       .eq('is_deleted', false)
       .is('withdrawn_at', null)
+      // Заявки на доработке из очереди согласования исключаем (см. drizzle-паритет).
+      .is('previous_status_id', null)
       .order('created_at', { ascending: false });
     if (!allSites) prQuery = prQuery.in('site_id', userSiteIds);
 
@@ -285,7 +289,9 @@ export class SupabaseApprovalRepository implements ApprovalRepository {
       .select('id', { count: 'exact', head: true })
       .in('id', requestIds)
       .eq('is_deleted', false)
-      .is('withdrawn_at', null);
+      .is('withdrawn_at', null)
+      // Счётчик вкладки согласуем с очередью: заявки на доработке не считаем.
+      .is('previous_status_id', null);
     if (!allSites) prQuery = prQuery.in('site_id', userSiteIds);
     const { count, error } = await prQuery;
     if (error) throw new Error(error.message);
@@ -371,7 +377,7 @@ export class SupabaseApprovalRepository implements ApprovalRepository {
     const { data: pr, error: prError } = await this.supabase
       .from('payment_requests')
       .select(
-        'current_stage, site_id, withdrawn_at, rejected_at, rejected_stage, status_id, supplier_id',
+        'current_stage, site_id, withdrawn_at, rejected_at, rejected_stage, status_id, supplier_id, previous_status_id',
       )
       .eq('id', input.paymentRequestId)
       .single();
@@ -385,6 +391,15 @@ export class SupabaseApprovalRepository implements ApprovalRepository {
     const userInfo = await getUserInfo(this.supabase, input.userId);
 
     if (input.action === 'approve') {
+      // Заявку на доработке нельзя согласовать: сперва «Доработано» вернёт её на прежнюю стадию
+      // с ещё живым pending-решением (см. drizzle-паритет).
+      if (pr.previous_status_id) {
+        return {
+          ok: false,
+          status: 409,
+          error: 'Заявка находится на доработке — сначала завершите доработку',
+        };
+      }
       if (await isSupplierSbRejected(this.supabase, pr.supplier_id as string | null)) {
         return {
           ok: false,
@@ -465,6 +480,7 @@ export class SupabaseApprovalRepository implements ApprovalRepository {
           current_stage: 2,
           status_id: omtsStatusId,
           omts_entered_at: new Date().toISOString(),
+          previous_status_id: null,
         })
         .eq('id', input.paymentRequestId);
     } else if (currentStage === 2) {
@@ -493,7 +509,11 @@ export class SupabaseApprovalRepository implements ApprovalRepository {
         const rpStatusId = await getStatusId(this.supabase, 'payment_request', 'approv_omts_rp');
         await this.supabase
           .from('payment_requests')
-          .update({ status_id: rpStatusId, omts_approved_at: new Date().toISOString() })
+          .update({
+            status_id: rpStatusId,
+            omts_approved_at: new Date().toISOString(),
+            previous_status_id: null,
+          })
           .eq('id', input.paymentRequestId);
       } else {
         const approvedStatusId = await getStatusId(this.supabase, 'payment_request', 'approved');
@@ -504,6 +524,7 @@ export class SupabaseApprovalRepository implements ApprovalRepository {
             current_stage: null,
             approved_at: new Date().toISOString(),
             omts_approved_at: new Date().toISOString(),
+            previous_status_id: null,
           })
           .eq('id', input.paymentRequestId);
 

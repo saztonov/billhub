@@ -167,7 +167,8 @@ function buildMobileActions(record: PaymentRequest, props: RequestsTableProps) {
     { key: 'view', label: 'Просмотр', icon: <EyeOutlined />, onClick: () => props.onView(record) },
   ]
 
-  if (props.showApprovalActions && props.onApprove) {
+  // Заявку на доработке согласовать нельзя (previousStatusId заполнен) — действие не показываем.
+  if (props.showApprovalActions && props.onApprove && !record.previousStatusId) {
     items.push({
       key: 'approve',
       label: 'Согласовать',
@@ -801,17 +802,19 @@ const RequestsTable = (props: RequestsTableProps) => {
           </Tooltip>
           {showApprovalActions && (
             <>
-              <Tooltip title="Согласовать">
-                <Popconfirm
-                  title="Согласование заявки"
-                  description="Подтвердите корректность всех файлов и условий"
-                  onConfirm={() => onApprove?.(record.id, '')}
-                  okText="Согласовать"
-                  cancelText="Отмена"
-                >
-                  <Button type="primary" icon={<CheckOutlined />} size="small" />
-                </Popconfirm>
-              </Tooltip>
+              {!record.previousStatusId && (
+                <Tooltip title="Согласовать">
+                  <Popconfirm
+                    title="Согласование заявки"
+                    description="Подтвердите корректность всех файлов и условий"
+                    onConfirm={() => onApprove?.(record.id, '')}
+                    okText="Согласовать"
+                    cancelText="Отмена"
+                  >
+                    <Button type="primary" icon={<CheckOutlined />} size="small" />
+                  </Popconfirm>
+                </Tooltip>
+              )}
               <Tooltip title="Отклонить">
                 <Button
                   danger

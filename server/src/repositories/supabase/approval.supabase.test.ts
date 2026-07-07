@@ -315,6 +315,48 @@ describe('SupabaseApprovalRepository — approve (forward state machine)', () =>
     expect(rows(s.fake, 'approval_decisions')[0]!.status).toBe('pending');
   });
 
+  it('S14: approve заявки на доработке (previous_status_id заполнен) → 409, pending-решение не тронуто', async () => {
+    s.fake.seed('payment_requests', [
+      {
+        id: 'pr1',
+        current_stage: 2,
+        site_id: 's1',
+        status_id: 'st-revision',
+        previous_status_id: 'st-omts',
+        supplier_id: null,
+        created_by: 'c',
+        request_number: '1',
+        stage_history: [],
+      },
+    ]);
+    s.fake.seed('approval_decisions', [
+      {
+        id: 'd2',
+        payment_request_id: 'pr1',
+        stage_order: 2,
+        department_id: 'omts',
+        status: 'pending',
+        is_omts_rp: false,
+        comment: '',
+      },
+    ]);
+    const res = await s.repo.decide({
+      paymentRequestId: 'pr1',
+      department: 'omts',
+      action: 'approve',
+      comment: '',
+      userId: 'u1',
+      isAdmin: false,
+    });
+    expect(res).toEqual({
+      ok: false,
+      status: 409,
+      error: 'Заявка находится на доработке — сначала завершите доработку',
+    });
+    expect(rows(s.fake, 'approval_decisions')[0]!.status).toBe('pending');
+    expect(rows(s.fake, 'payment_requests')[0]!.status_id).toBe('st-revision');
+  });
+
   it('decide: отозванная заявка → 400; несуществующая → 404', async () => {
     s.fake.seed('payment_requests', [
       {

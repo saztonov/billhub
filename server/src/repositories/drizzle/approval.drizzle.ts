@@ -209,6 +209,9 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
       inArray(paymentRequests.id, requestIds),
       eq(paymentRequests.isDeleted, false),
       isNull(paymentRequests.withdrawnAt),
+      // Заявки на доработке из очереди согласования исключаем: pending-решение «припарковано»,
+      // но согласовывать нельзя до завершения доработки.
+      isNull(paymentRequests.previousStatusId),
     ];
     if (!allSites) conds.push(inArray(paymentRequests.siteId, userSiteIds));
     return (await joinedPaymentRequests(this.db)
@@ -335,6 +338,8 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
       inArray(paymentRequests.id, requestIds),
       eq(paymentRequests.isDeleted, false),
       isNull(paymentRequests.withdrawnAt),
+      // Счётчик вкладки согласуем с очередью: заявки на доработке не считаем.
+      isNull(paymentRequests.previousStatusId),
     ];
     if (!allSites) conds.push(inArray(paymentRequests.siteId, siteIds));
     return this.countWhere(conds);
@@ -411,6 +416,7 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
         withdrawnAt: paymentRequests.withdrawnAt,
         statusId: paymentRequests.statusId,
         supplierId: paymentRequests.supplierId,
+        previousStatusId: paymentRequests.previousStatusId,
       })
       .from(paymentRequests)
       .where(eq(paymentRequests.id, input.paymentRequestId))
@@ -424,6 +430,15 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
     const siteId = pr.siteId;
 
     if (input.action === 'approve') {
+      // Заявку на доработке нельзя согласовать: сперва «Доработано» вернёт её на прежнюю стадию,
+      // где pending-решение ещё существует (иначе гонка расходует pending, а статус «воскресает»).
+      if (pr.previousStatusId) {
+        return {
+          ok: false,
+          status: 409,
+          error: 'Заявка находится на доработке — сначала завершите доработку',
+        };
+      }
       if (pr.supplierId) {
         const [sup] = await this.db
           .select({ s: suppliers.lastSecurityStatus })
@@ -511,7 +526,12 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
         const omtsStatusId = await this.statusIdByCode(tx, 'payment_request', 'approv_omts');
         await tx
           .update(paymentRequests)
-          .set({ currentStage: 2, statusId: omtsStatusId, omtsEnteredAt: nowIso() })
+          .set({
+            currentStage: 2,
+            statusId: omtsStatusId,
+            omtsEnteredAt: nowIso(),
+            previousStatusId: null,
+          })
           .where(eq(paymentRequests.id, input.paymentRequestId));
       } else if (currentStage === 2) {
         const [settingsRow] = await tx
@@ -539,7 +559,7 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
           const rpStatusId = await this.statusIdByCode(tx, 'payment_request', 'approv_omts_rp');
           await tx
             .update(paymentRequests)
-            .set({ statusId: rpStatusId, omtsApprovedAt: nowIso() })
+            .set({ statusId: rpStatusId, omtsApprovedAt: nowIso(), previousStatusId: null })
             .where(eq(paymentRequests.id, input.paymentRequestId));
         } else {
           const approvedStatusId = await this.statusIdByCode(tx, 'payment_request', 'approved');
@@ -550,6 +570,7 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
               currentStage: null,
               approvedAt: nowIso(),
               omtsApprovedAt: nowIso(),
+              previousStatusId: null,
             })
             .where(eq(paymentRequests.id, input.paymentRequestId));
 
