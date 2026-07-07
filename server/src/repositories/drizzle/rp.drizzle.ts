@@ -286,6 +286,105 @@ export class DrizzleRpRepository implements RpRepository {
     });
   }
 
+  async appendLetterAttachments(
+    rpLetterId: string,
+    refs: RpLetterAttachmentRef[],
+  ): Promise<{ shouldEnqueue: boolean }> {
+    if (refs.length === 0) return { shouldEnqueue: false };
+    // Дозагрузка вложений к уже оформленному письму из редактирования (0013).
+    // FOR UPDATE — сериализация с finalize/параллельными батчами (как в addLetterAttachments).
+    return this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .select({
+          status: rpLetters.status,
+          payhubLetterStatus: rpLetters.payhubLetterStatus,
+          payload: rpLetters.payhubLetterPayload,
+        })
+        .from(rpLetters)
+        .where(eq(rpLetters.id, rpLetterId))
+        .for('update')
+        .limit(1);
+      if (!row) throw new NotFoundError('РП', rpLetterId);
+      if (row.status === 'annulled') {
+        throw new ValidationError('Аннулированную РП редактировать нельзя');
+      }
+      // Письмо не оформлялось (старые РП / нет снимка формы) — прикладывать некуда.
+      if (row.payhubLetterStatus === null || !row.payload) {
+        throw new ValidationError('Для этой РП письмо не оформлялось — добавить файлы нельзя');
+      }
+
+      // Уже зарегистрированные ключи — чтобы повтор тех же файлов не считался за лимит.
+      const existing = await tx
+        .select({ fileKey: rpLetterAttachments.fileKey })
+        .from(rpLetterAttachments)
+        .where(eq(rpLetterAttachments.rpLetterId, rpLetterId));
+      const existingKeys = new Set(existing.map((e) => e.fileKey));
+      const newRefs = refs.filter((r) => !existingKeys.has(r.fileKey));
+      // Всё уже зарегистрировано — идемпотентно; всё равно ставим синхронизацию для созданного письма.
+      const shouldEnqueue = row.payhubLetterStatus !== 'uploading';
+      if (newRefs.length === 0) return { shouldEnqueue };
+      if (existingKeys.size + newRefs.length > 20) {
+        throw new ValidationError('Не больше 20 файлов на письмо');
+      }
+      // Файл типа «РП» (скан чистовика) — не более одного на письмо (плюс частичный
+      // unique-индекс на уровне БД). Проверка под FOR UPDATE — гонки исключены.
+      const newRpFiles = newRefs.filter((r) => r.fileType === 'rp');
+      if (newRpFiles.length > 1) {
+        throw new ValidationError('Можно приложить только один файл типа «РП»');
+      }
+      if (newRpFiles.length === 1) {
+        const existingRp = await tx
+          .select({ id: rpLetterAttachments.id })
+          .from(rpLetterAttachments)
+          .where(
+            and(
+              eq(rpLetterAttachments.rpLetterId, rpLetterId),
+              eq(rpLetterAttachments.fileType, 'rp'),
+            ),
+          )
+          .limit(1);
+        if (existingRp.length > 0) {
+          throw new ValidationError('У письма уже есть файл типа «РП»');
+        }
+      }
+      await tx
+        .insert(rpLetterAttachments)
+        .values(
+          newRefs.map((r) => ({
+            rpLetterId,
+            fileKey: r.fileKey,
+            fileName: r.fileName,
+            mimeType: r.mimeType ?? null,
+            sizeBytes: r.sizeBytes ?? null,
+            fileType: r.fileType ?? 'other',
+          })),
+        )
+        .onConflictDoNothing({
+          target: [rpLetterAttachments.rpLetterId, rpLetterAttachments.fileKey],
+        });
+
+      // Файл типа «РП» → дублируем в поле «РП» связанных заявок (dp_file_key).
+      if (newRpFiles.length === 1) {
+        await propagateDpFile(tx, rpLetterId, newRpFiles[0]!.fileKey, newRpFiles[0]!.fileName);
+      }
+
+      // Письмо уже создано в PayHub — возвращаем его в очередь синхронизации: воркер
+      // догрузит только недостающие вложения (guard пропускает synced лишь без недогруженных).
+      if (shouldEnqueue) {
+        await tx
+          .update(rpLetters)
+          .set({
+            payhubLetterStatus: 'pending',
+            payhubLetterError: null,
+            payhubLetterStatusUpdatedAt: sql`now()`,
+          })
+          .where(eq(rpLetters.id, rpLetterId));
+      }
+
+      return { shouldEnqueue };
+    });
+  }
+
   async finalizeLetter(rpLetterId: string): Promise<void> {
     // FOR UPDATE — сериализация с addLetterAttachments: finalize дождётся коммита
     // регистрации вложений, воркер не прочитает контекст раньше вставки.
@@ -479,6 +578,15 @@ export class DrizzleRpRepository implements RpRepository {
     const res = await this.db
       .update(rpLetters)
       .set({ letterDate: letterDate ?? null, payhubLetterPayload: payload })
+      .where(eq(rpLetters.id, id))
+      .returning({ id: rpLetters.id });
+    if (res.length === 0) throw new NotFoundError('РП', id);
+  }
+
+  async updateSentDate(id: string, sentDate: string | null): Promise<void> {
+    const res = await this.db
+      .update(rpLetters)
+      .set({ sentDate: sentDate ?? null })
       .where(eq(rpLetters.id, id))
       .returning({ id: rpLetters.id });
     if (res.length === 0) throw new NotFoundError('РП', id);

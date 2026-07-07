@@ -1,19 +1,7 @@
 import { useEffect, useState } from 'react'
+import { Modal, List, Button, Typography, Tag, Space, Empty, Spin, Popconfirm, App } from 'antd'
 import {
-  Modal,
-  List,
-  Button,
-  Upload,
-  Typography,
-  Tag,
-  Space,
-  Empty,
-  Spin,
-  Popconfirm,
-  App,
-} from 'antd'
-import {
-  UploadOutlined,
+  PlusOutlined,
   EyeOutlined,
   DownloadOutlined,
   DeleteOutlined,
@@ -24,6 +12,7 @@ import { downloadFileBlob, uploadRpServiceFile } from '@/services/s3'
 import { logError } from '@/services/errorLogger'
 import { getMimeFromFileName } from '@/utils/mimeFromExtension'
 import FilePreviewModal from '@/components/paymentRequests/FilePreviewModal'
+import RpFilesDropModal, { type RpDropFile } from '@/components/rp/RpFilesDropModal'
 import type { RpLetter, RpFilesResult } from '@/types'
 
 const { Text } = Typography
@@ -55,9 +44,9 @@ const RpFilesModal = ({ open, letter, onClose }: RpFilesModalProps) => {
 
   const [files, setFiles] = useState<RpFilesResult | null>(null)
   const [loading, setLoading] = useState(false)
-  const [uploading, setUploading] = useState(false)
   const [downloading, setDownloading] = useState<string | null>(null)
   const [preview, setPreview] = useState<PreviewTarget | null>(null)
+  const [dropOpen, setDropOpen] = useState(false)
 
   const reload = async (id: string) => {
     setLoading(true)
@@ -99,16 +88,21 @@ const RpFilesModal = ({ open, letter, onClose }: RpFilesModalProps) => {
     }
   }
 
-  // Мгновенная загрузка: каждый файл грузим в S3 и сразу регистрируем — при сбое на
-  // следующем уже загруженные не осиротеют в S3 (они зарегистрированы).
-  const handleUpload = async (incoming: File[]) => {
-    if (!letter || incoming.length === 0) return
-    setUploading(true)
+  // Загрузка отобранных в площадке служебных файлов: каждый файл грузим в S3 и сразу
+  // регистрируем — при сбое на следующем уже загруженные не осиротеют (они зарегистрированы).
+  // Бросок ошибки оставляет площадку открытой (её handleOk ловит его молча).
+  const handleDropSubmit = async (dropped: RpDropFile[]) => {
+    if (!letter || dropped.length === 0) return
     try {
-      for (const f of incoming) {
-        const { key } = await uploadRpServiceFile(letter.id, f)
+      for (const d of dropped) {
+        const { key } = await uploadRpServiceFile(letter.id, d.file)
         await registerServiceFiles(letter.id, [
-          { fileKey: key, fileName: f.name, mimeType: f.type || null, sizeBytes: f.size },
+          {
+            fileKey: key,
+            fileName: d.file.name,
+            mimeType: d.file.type || null,
+            sizeBytes: d.file.size,
+          },
         ])
       }
       await reload(letter.id)
@@ -116,8 +110,7 @@ const RpFilesModal = ({ open, letter, onClose }: RpFilesModalProps) => {
     } catch (err) {
       message.error(err instanceof Error ? err.message : 'Ошибка загрузки служебных файлов')
       await reload(letter.id)
-    } finally {
-      setUploading(false)
+      throw err
     }
   }
 
@@ -207,20 +200,9 @@ const RpFilesModal = ({ open, letter, onClose }: RpFilesModalProps) => {
           <div style={{ display: 'flex', alignItems: 'center', marginTop: 16, marginBottom: 4 }}>
             <Text strong>Служебные файлы</Text>
             <Space style={{ marginLeft: 'auto' }}>
-              <Upload
-                multiple
-                fileList={[]}
-                disabled={uploading}
-                beforeUpload={(_file, fileList) => {
-                  // Батчим по первому файлу выбора: грузим сразу, свой upload Ant Design не делает.
-                  if (_file === fileList[0]) void handleUpload(fileList)
-                  return false
-                }}
-              >
-                <Button size="small" icon={<UploadOutlined />} loading={uploading}>
-                  Добавить
-                </Button>
-              </Upload>
+              <Button size="small" icon={<PlusOutlined />} onClick={() => setDropOpen(true)}>
+                Добавить
+              </Button>
             </Space>
           </div>
 
@@ -273,6 +255,13 @@ const RpFilesModal = ({ open, letter, onClose }: RpFilesModalProps) => {
         fileKey={preview?.fileKey ?? null}
         fileName={preview?.fileName ?? ''}
         mimeType={preview?.mimeType ?? null}
+      />
+
+      <RpFilesDropModal
+        open={dropOpen}
+        title="Добавить служебные файлы"
+        onClose={() => setDropOpen(false)}
+        onSubmit={handleDropSubmit}
       />
     </Modal>
   )

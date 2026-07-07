@@ -11,6 +11,7 @@ function letter(overrides: Partial<RpLetter>): RpLetter {
     number: 'РП-000001',
     letterDate: null,
     createdAt: '2026-07-01T10:00:00Z',
+    sentDate: null,
     status: 'draft',
     totalAmount: 1000,
     description: '',

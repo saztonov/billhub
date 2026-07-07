@@ -24,6 +24,7 @@ import {
   rpStage1BodySchema,
   finalizeLetterBodySchema,
   editLetterTextBodySchema,
+  rpSentDateBodySchema,
   rpIdParamsSchema,
 } from '../schemas/rp.js';
 
@@ -303,6 +304,34 @@ async function rpRoutes(fastify: FastifyInstance): Promise<void> {
     return { success: true };
   });
 
+  /* ---------- POST /api/rp/:id/letter/append-attachments — дозагрузка файлов из редактирования ---------- */
+  // Отдельно от letter/attachments (создание РП): дописывает вложения к уже оформленному
+  // письму и (для созданного письма) ставит фоновую синхронизацию — воркер догрузит недостающие.
+  fastify.post('/api/rp/:id/letter/append-attachments', adminOrOmtsRp, async (request) => {
+    const { id } = rpIdParamsSchema.parse(request.params);
+    const body = rpLetterAttachmentsBodySchema.parse(request.body);
+    await assertRpInScope(id, request.user!);
+    // Файлы должны быть загружены чанковым аплоадом в папку ИМЕННО этой РП.
+    const prefix = `rp-letters/${id}/`;
+    for (const a of body.attachments) {
+      if (!a.fileKey.startsWith(prefix)) {
+        throw new ValidationError('Файл не принадлежит этой РП');
+      }
+    }
+    const { shouldEnqueue } = await getRepo().appendLetterAttachments(
+      id,
+      body.attachments.map((a) => ({
+        fileKey: a.fileKey,
+        fileName: sanitizeAttachmentName(a.fileName),
+        mimeType: a.mimeType ?? null,
+        sizeBytes: a.sizeBytes ?? null,
+        fileType: a.fileType,
+      })),
+    );
+    if (shouldEnqueue) await enqueueRpLetterSync(id);
+    return { success: true };
+  });
+
   /* ---------- GET /api/rp/:id/files — файлы РП (PayHub + служебные) ---------- */
   fastify.get('/api/rp/:id/files', adminOrUser, async (request) => {
     const { id } = rpIdParamsSchema.parse(request.params);
@@ -482,6 +511,15 @@ async function rpRoutes(fastify: FastifyInstance): Promise<void> {
       content: body.content,
       responsiblePersonName: body.responsiblePersonName ?? null,
     });
+    return { success: true };
+  });
+
+  /* ---------- PATCH /api/rp/:id/sent-date — дата отправки письма (0013) ---------- */
+  fastify.patch('/api/rp/:id/sent-date', adminOrOmtsRp, async (request) => {
+    const { id } = rpIdParamsSchema.parse(request.params);
+    const body = rpSentDateBodySchema.parse(request.body);
+    await assertRpInScope(id, request.user!);
+    await getRepo().updateSentDate(id, body.sentDate);
     return { success: true };
   });
 

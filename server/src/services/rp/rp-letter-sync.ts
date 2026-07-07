@@ -460,7 +460,13 @@ export async function syncRpLetter(
     return 'skipped';
   }
   // Идемпотентность и защита от преждевременного запуска.
-  if (ctx.payhubLetterStatus === 'synced') return 'skipped';
+  // synced пропускаем ТОЛЬКО если нет недогруженных вложений: дозагрузка файлов из
+  // редактирования (0013) добавляет вложение без payhub_attachment_id — его надо догрузить,
+  // даже если письмо успело вернуться в synced (гонка). syncAttachments грузит лишь недостающие.
+  if (ctx.payhubLetterStatus === 'synced') {
+    const hasMissingAttachments = ctx.attachments.some((a) => !a.payhubAttachmentId);
+    if (!hasMissingAttachments) return 'skipped';
+  }
   if (ctx.payhubLetterStatus === 'uploading') {
     deps.log.info({ rpLetterId }, 'RP-письмо: файлы ещё догружаются — задача пропущена');
     return 'skipped';

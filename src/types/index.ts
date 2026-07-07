@@ -753,6 +753,8 @@ export interface RpLetter {
   number: string
   letterDate: string | null
   createdAt: string
+  /** Дата отправки письма (ручной ввод из реестра; null — не заполнена). */
+  sentDate: string | null
   status: string
   totalAmount: number
   description: string

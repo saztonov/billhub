@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { svgDataUrlToPngDataUrl, downloadDataUrl } from './qrToPng'
+import { svgDataUrlToPngDataUrl, downloadDataUrl, dataUrlToFile } from './qrToPng'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -36,5 +36,23 @@ describe('downloadDataUrl', () => {
     expect(clicked).toHaveLength(1)
     expect(clicked[0].download).toBe('qr.png')
     expect(clicked[0].href).toContain('data:image/png')
+  })
+})
+
+describe('dataUrlToFile', () => {
+  it('декодирует base64 data-URL в File с корректным MIME и содержимым', async () => {
+    // atob('QUI=') === 'AB'
+    const file = dataUrlToFile('data:image/png;base64,QUI=', 'QR_Д56.png')
+    expect(file.name).toBe('QR_Д56.png')
+    expect(file.type).toBe('image/png')
+    expect(file.size).toBe(2)
+    expect(await file.text()).toBe('AB')
+  })
+
+  it('декодирует percent-encoded (не base64) SVG data-URL', async () => {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg"/>'
+    const file = dataUrlToFile(`data:image/svg+xml,${encodeURIComponent(svg)}`, 'QR.svg')
+    expect(file.type).toBe('image/svg+xml')
+    expect(await file.text()).toBe(svg)
   })
 })

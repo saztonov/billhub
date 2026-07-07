@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
-import { Table, Tag, Space, Button, Tooltip, Typography, Badge } from 'antd'
+import { Table, Tag, Space, Button, Tooltip, Typography, Badge, DatePicker } from 'antd'
 import { EditOutlined, StopOutlined, DeleteOutlined, PaperClipOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
+import dayjs from 'dayjs'
 import { formatDateShort } from '@/utils/requestFormatters'
 import type { RpLetter, RpPaymentStatus } from '@/types'
 
@@ -31,6 +32,52 @@ interface RpRegistryTableProps {
   onDelete: (letter: RpLetter) => void
   /** Открыть модалку файлов РП (вложения PayHub + служебные) */
   onFiles: (letter: RpLetter) => void
+  /** Сохранить дату отправки письма (inline-редактирование в колонке даты); null — очистить. */
+  onSetSentDate: (id: string, sentDate: string | null) => void
+}
+
+/** Нижняя строка колонки даты: дата отправки с inline-редактированием по клику. */
+const SentDateCell = ({
+  letter,
+  canManage,
+  onSetSentDate,
+}: {
+  letter: RpLetter
+  canManage: boolean
+  onSetSentDate: (id: string, sentDate: string | null) => void
+}) => {
+  const [editing, setEditing] = useState(false)
+
+  if (editing) {
+    return (
+      <DatePicker
+        size="small"
+        open
+        format="DD.MM.YYYY"
+        style={{ width: '100%' }}
+        value={letter.sentDate ? dayjs(letter.sentDate) : null}
+        onChange={(d) => {
+          onSetSentDate(letter.id, d ? d.format('YYYY-MM-DD') : null)
+          setEditing(false)
+        }}
+        onOpenChange={(o) => {
+          if (!o) setEditing(false)
+        }}
+      />
+    )
+  }
+
+  const label = letter.sentDate ? formatDateShort(letter.sentDate) : '—'
+  if (!canManage) return <span>{label}</span>
+  return (
+    <a
+      onClick={() => setEditing(true)}
+      style={{ color: letter.sentDate ? undefined : '#999' }}
+      title="Изменить дату отправки"
+    >
+      {label}
+    </a>
+  )
 }
 
 /** Колонка «Письмо»: ссылка на PayHub либо статус синхронизации с действием. */
@@ -119,6 +166,7 @@ const RpRegistryTable = ({
   onAnnul,
   onDelete,
   onFiles,
+  onSetSentDate,
 }: RpRegistryTableProps) => {
   // Пагинация — в состоянии, чтобы столбец «№» нумеровал сквозь страницы.
   const [page, setPage] = useState(1)
@@ -150,11 +198,22 @@ const RpRegistryTable = ({
         ),
       },
       {
-        title: 'Дата',
-        dataIndex: 'createdAt',
-        key: 'createdAt',
-        width: 60,
-        render: (v: string) => formatDateShort(v),
+        title: (
+          <div style={{ lineHeight: 1.2 }}>
+            <div style={{ borderBottom: '1px solid #f0f0f0', paddingBottom: 2 }}>Дата созд.</div>
+            <div style={{ paddingTop: 2 }}>Отправки</div>
+          </div>
+        ),
+        key: 'dates',
+        width: 96,
+        render: (_: unknown, r: RpLetter) => (
+          <div style={{ lineHeight: 1.3 }}>
+            <div>{formatDateShort(r.createdAt)}</div>
+            <div style={{ borderTop: '1px solid #f0f0f0', marginTop: 2, paddingTop: 2 }}>
+              <SentDateCell letter={r} canManage={canManage} onSetSentDate={onSetSentDate} />
+            </div>
+          </div>
+        ),
       },
       {
         title: 'Сумма',
@@ -299,7 +358,18 @@ const RpRegistryTable = ({
     }
 
     return cols
-  }, [onOpenRequest, onRetryLetter, onEdit, onAnnul, onDelete, onFiles, page, pageSize, canManage])
+  }, [
+    onOpenRequest,
+    onRetryLetter,
+    onEdit,
+    onAnnul,
+    onDelete,
+    onFiles,
+    onSetSentDate,
+    page,
+    pageSize,
+    canManage,
+  ])
 
   return (
     <Table
@@ -308,7 +378,7 @@ const RpRegistryTable = ({
       rowKey="id"
       loading={isLoading}
       size="small"
-      scroll={{ x: canManage ? 1658 : 1508, y: 'calc(100vh - 320px)' }}
+      scroll={{ x: canManage ? 1694 : 1544, y: 'calc(100vh - 320px)' }}
       pagination={{
         current: page,
         pageSize,

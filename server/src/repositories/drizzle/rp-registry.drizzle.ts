@@ -50,6 +50,7 @@ export async function listRegistry(db: RpDb, siteIds: string[] | null): Promise<
       number: rpLetters.number,
       letterDate: rpLetters.letterDate,
       createdAt: rpLetters.createdAt,
+      sentDate: rpLetters.sentDate,
       status: rpLetters.status,
       totalAmount: rpLetters.totalAmount,
       description: rpLetters.description,

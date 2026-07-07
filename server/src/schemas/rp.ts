@@ -102,6 +102,14 @@ export const finalizeLetterBodySchema = z.object({
 /** Редактирование текста письма из реестра. */
 export const editLetterTextBodySchema = rpLetterTextSchema;
 
+/** Дата отправки письма из реестра (0013): YYYY-MM-DD или null (очистить). */
+export const rpSentDateBodySchema = z.object({
+  sentDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Дата в формате YYYY-MM-DD')
+    .nullable(),
+});
+
 export const rpIdParamsSchema = z.object({ id: z.string().uuid() });
 
 export const updateRpStatusBodySchema = z.object({

@@ -537,6 +537,7 @@ const PaymentRequestsPage = () => {
           onAnnul={rp.registryHandlers.onAnnul}
           onDelete={rp.registryHandlers.onDelete}
           onFiles={rp.registryHandlers.onFiles}
+          onSetSentDate={rp.registryHandlers.onSetSentDate}
         />
       ),
     },

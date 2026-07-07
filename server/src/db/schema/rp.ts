@@ -53,6 +53,8 @@ export const rpLetters = pgTable('rp_letters', {
   payhubLetterSyncAttempts: integer('payhub_letter_sync_attempts').notNull().default(0),
   // Номер счёта (0011): ручной ввод в форме создания РП; в PayHub не уходит.
   invoiceNumber: text('invoice_number'),
+  // Дата отправки (0013): ручной ввод из реестра; в PayHub не уходит.
+  sentDate: date('sent_date', { mode: 'string' }),
 });
 
 export const rpLetterRequests = pgTable(

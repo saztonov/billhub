@@ -27,6 +27,8 @@ export interface RpRegistryRow {
   number: string;
   letterDate: string | null;
   createdAt: string;
+  /** Дата отправки письма (0013): ручной ввод из реестра; null — не заполнена. */
+  sentDate: string | null;
   status: string;
   totalAmount: number;
   description: string;
@@ -255,6 +257,17 @@ export interface RpRepository {
   /** Зарегистрировать файлы письма за РП (только в статусе uploading). */
   addLetterAttachments(rpLetterId: string, refs: RpLetterAttachmentRef[]): Promise<void>;
   /**
+   * Дописать вложения к уже оформленному письму (из редактирования, 0013).
+   * Разрешено для synced/pending/failed/waiting_config/uploading; запрещено для
+   * аннулированной РП и РП без оформленного письма (payhubLetterStatus=null / нет payload).
+   * Сохраняет лимит 20, «не более одного файла типа РП», идемпотентность по (rp_letter_id, file_key).
+   * Возвращает shouldEnqueue=true, если письмо уже создано и нужно поставить задачу синхронизации.
+   */
+  appendLetterAttachments(
+    rpLetterId: string,
+    refs: RpLetterAttachmentRef[],
+  ): Promise<{ shouldEnqueue: boolean }>;
+  /**
    * Перевести письмо в pending (finalize / ручной повтор).
    * Допустимо из uploading/failed/waiting_config/pending (идемпотентно); из synced — ошибка.
    */
@@ -284,6 +297,8 @@ export interface RpRepository {
   getRpMutationContext(id: string): Promise<RpMutationContext | null>;
   /** Обновить текст письма (дата + снимок формы) без обращения к PayHub. */
   updateLetterText(id: string, letterDate: string | null, payload: RpLetterPayload): Promise<void>;
+  /** Обновить дату отправки письма (0013); null — очистить. */
+  updateSentDate(id: string, sentDate: string | null): Promise<void>;
   /**
    * Аннулировать РП: статус annulled + очистка всех полей письма PayHub и payload,
    * очистка поля «РП» связанных заявок и снятие привязки (заявки освобождаются).

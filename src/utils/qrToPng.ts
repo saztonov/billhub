@@ -33,6 +33,23 @@ export async function svgDataUrlToPngDataUrl(
   return canvas.toDataURL('image/png')
 }
 
+/** data-URL (base64 или percent-encoded) -> File для загрузки в S3. */
+export function dataUrlToFile(dataUrl: string, fileName: string): File {
+  const commaIdx = dataUrl.indexOf(',')
+  const header = dataUrl.slice(0, commaIdx)
+  const data = dataUrl.slice(commaIdx + 1)
+  const mime = header.match(/data:([^;]+)/)?.[1] ?? 'application/octet-stream'
+  let bytes: Uint8Array<ArrayBuffer>
+  if (header.includes('base64')) {
+    const binary = atob(data)
+    bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  } else {
+    bytes = new Uint8Array(new TextEncoder().encode(decodeURIComponent(data)))
+  }
+  return new File([bytes], fileName, { type: mime })
+}
+
 /** Скачивание data-URL как файла (клик по временной ссылке). */
 export function downloadDataUrl(dataUrl: string, fileName: string): void {
   const a = document.createElement('a')

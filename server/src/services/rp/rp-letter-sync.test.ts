@@ -468,6 +468,67 @@ describe('syncRpLetter — ошибки и пропуски', () => {
   });
 });
 
+describe('syncRpLetter — дозагрузка вложений к synced-письму (0013)', () => {
+  it('synced с недогруженным вложением НЕ пропускается — вложение догружается, статус остаётся synced', async () => {
+    const repo = makeRepo(
+      makeCtx({
+        payhubLetterStatus: 'synced',
+        payhubLetterId: 'L-1',
+        payhubLetterUrl: `${BASE_URL}/letter-share/abc`,
+        attachments: [
+          {
+            id: 'att-9',
+            fileKey: `rp-letters/${RP_ID}/new.pdf`,
+            fileName: 'new.pdf',
+            mimeType: 'application/pdf',
+            sizeBytes: 5,
+            payhubAttachmentId: null,
+          },
+        ],
+      }),
+    );
+    const payhub = makePayhub({
+      getLetter: vi.fn().mockResolvedValue({ id: 'L-1', reg_number: 'REG-1', number: 'REG-1' }),
+    });
+    const outcome = await syncRpLetter(makeDeps(repo, payhub), RP_ID);
+
+    expect(outcome).toBe('synced');
+    expect(payhub.getLetter).toHaveBeenCalledWith('L-1');
+    expect(payhub.createLetter).not.toHaveBeenCalled();
+    expect(payhub.uploadAttachment).toHaveBeenCalledExactlyOnceWith(
+      'L-1',
+      expect.objectContaining({ name: 'new.pdf', description: 'billhub:att:att-9' }),
+    );
+    expect(repo.attachmentIds['att-9']).toBe('A-1');
+    expect(repo.synced?.payhubLetterId).toBe('L-1');
+  });
+
+  it('synced без недогруженных вложений — по-прежнему пропускается (все с payhub_attachment_id)', async () => {
+    const repo = makeRepo(
+      makeCtx({
+        payhubLetterStatus: 'synced',
+        payhubLetterId: 'L-1',
+        attachments: [
+          {
+            id: 'att-1',
+            fileKey: 'k',
+            fileName: 'a.pdf',
+            mimeType: null,
+            sizeBytes: 1,
+            payhubAttachmentId: 'A-1',
+          },
+        ],
+      }),
+    );
+    const payhub = makePayhub();
+    const outcome = await syncRpLetter(makeDeps(repo, payhub), RP_ID);
+
+    expect(outcome).toBe('skipped');
+    expect(payhub.getLetter).not.toHaveBeenCalled();
+    expect(payhub.uploadAttachment).not.toHaveBeenCalled();
+  });
+});
+
 describe('createRpLetterStage1 — синхронное создание письма (1 этап)', () => {
   it('sync: создаёт письмо, привязывает и возвращает рег.номер + QR', async () => {
     const repo = makeRepo(makeCtx({ payhubLetterStatus: 'uploading' }));

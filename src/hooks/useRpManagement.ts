@@ -64,6 +64,7 @@ export function useRpManagement({
   const finalizeLetter = useRpStore((s) => s.finalizeLetter)
   const deleteRp = useRpStore((s) => s.deleteRp)
   const annulRp = useRpStore((s) => s.annulRp)
+  const updateSentDate = useRpStore((s) => s.updateSentDate)
 
   // Режим выбора заявок для создания РП (на вкладке «Согласовано»)
   const [selectionMode, setSelectionMode] = useState(false)
@@ -293,6 +294,19 @@ export function useRpManagement({
     [modal, deleteRp, message, bumpRefresh],
   )
 
+  // Сохранение даты отправки письма из реестра (inline-редактирование в колонке даты).
+  const handleSetSentDate = useCallback(
+    async (id: string, sentDate: string | null) => {
+      try {
+        await updateSentDate(id, sentDate)
+        message.success(sentDate ? 'Дата отправки сохранена' : 'Дата отправки очищена')
+      } catch (err) {
+        message.error(err instanceof Error ? err.message : 'Не удалось сохранить дату отправки')
+      }
+    },
+    [updateSentDate, message],
+  )
+
   // Фильтрация реестра тем же блоком фильтров (см. useRpLetterFiltering).
   const filteredLetters = useRpLetterFiltering(letters, filters)
 
@@ -307,6 +321,7 @@ export function useRpManagement({
       onAnnul: handleAnnulRp,
       onDelete: handleDeleteRp,
       onFiles: setFilesLetter,
+      onSetSentDate: handleSetSentDate,
     },
     // Вкладка «Согласовано»
     approvedForTable,

@@ -1,8 +1,28 @@
 import { useEffect, useState } from 'react'
-import { Modal, Form, Input, DatePicker, App } from 'antd'
+import {
+  Modal,
+  Form,
+  Input,
+  DatePicker,
+  App,
+  Divider,
+  Typography,
+  List,
+  Button,
+  Tag,
+  Empty,
+  Spin,
+} from 'antd'
+import { PaperClipOutlined, PlusOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import { useRpStore } from '@/store/rpStore'
-import type { RpLetter } from '@/types'
+import type { RpLetterAttachmentRef } from '@/store/rpStore'
+import { uploadRpLetterFile } from '@/services/s3'
+import { logError } from '@/services/errorLogger'
+import RpFilesDropModal, { type RpDropFile } from '@/components/rp/RpFilesDropModal'
+import type { RpLetter, RpAttachmentView } from '@/types'
+
+const { Text } = Typography
 
 interface EditFormValues {
   letterDate: Dayjs
@@ -18,16 +38,47 @@ interface EditRpLetterModalProps {
   onSaved: () => void
 }
 
+const fmtSize = (bytes: number | null) =>
+  bytes != null ? `${(bytes / (1024 * 1024)).toFixed(1)} МБ` : ''
+
 /**
  * Правка текста письма РП из реестра: дата, тема, содержание, ответственный.
  * Участники и проект не меняются. Если письмо уже создано в PayHub — сохранение
- * перезаписывает и его (PATCH на сервере).
+ * перезаписывает и его (PATCH на сервере). Дополнительно можно дозагрузить файлы к
+ * письму (через площадку перетаскивания) — они уходят в PayHub фоново.
  */
 const EditRpLetterModal = ({ open, letter, onClose, onSaved }: EditRpLetterModalProps) => {
   const { message } = App.useApp()
   const [form] = Form.useForm<EditFormValues>()
   const editLetterText = useRpStore((s) => s.editLetterText)
+  const loadRpFiles = useRpStore((s) => s.loadRpFiles)
+  const appendLetterAttachments = useRpStore((s) => s.appendLetterAttachments)
   const [submitting, setSubmitting] = useState(false)
+
+  // Уже приложенные вложения письма PayHub (read-only, для контекста).
+  const [attachments, setAttachments] = useState<RpAttachmentView[]>([])
+  const [filesLoading, setFilesLoading] = useState(false)
+  const [dropOpen, setDropOpen] = useState(false)
+
+  // Письмо оформлялось (есть статус синхронизации) — только тогда можно дозагружать файлы.
+  const canAddFiles = !!letter && letter.payhubLetterStatus !== null
+
+  const reloadFiles = async (id: string) => {
+    setFilesLoading(true)
+    try {
+      const res = await loadRpFiles(id)
+      setAttachments(res.payhub)
+    } catch (err) {
+      logError({
+        errorType: 'api_error',
+        errorMessage: err instanceof Error ? err.message : 'Ошибка загрузки файлов письма',
+        component: 'EditRpLetterModal',
+      })
+      setAttachments([])
+    } finally {
+      setFilesLoading(false)
+    }
+  }
 
   useEffect(() => {
     if (!open || !letter) return
@@ -37,6 +88,8 @@ const EditRpLetterModal = ({ open, letter, onClose, onSaved }: EditRpLetterModal
       content: letter.payhubLetterPayload?.content ?? '',
       responsiblePersonName: letter.payhubLetterPayload?.responsiblePersonName ?? '',
     })
+    void reloadFiles(letter.id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, letter, form])
 
   const handleSave = async () => {
@@ -65,6 +118,26 @@ const EditRpLetterModal = ({ open, letter, onClose, onSaved }: EditRpLetterModal
     }
   }
 
+  // Загрузка отобранных в площадке файлов и их регистрация за письмом (фоновая синхронизация).
+  const handleUploadFiles = async (files: RpDropFile[]) => {
+    if (!letter) return
+    const refs: RpLetterAttachmentRef[] = []
+    for (const f of files) {
+      const { key } = await uploadRpLetterFile(letter.id, f.file)
+      refs.push({
+        fileKey: key,
+        fileName: f.file.name,
+        mimeType: f.file.type || null,
+        sizeBytes: f.file.size,
+        fileType: f.type,
+      })
+    }
+    await appendLetterAttachments(letter.id, refs)
+    message.success('Файлы добавлены, письмо синхронизируется')
+    await reloadFiles(letter.id)
+    onSaved()
+  }
+
   return (
     <Modal
       open={open}
@@ -76,6 +149,7 @@ const EditRpLetterModal = ({ open, letter, onClose, onSaved }: EditRpLetterModal
       confirmLoading={submitting}
       onOk={handleSave}
       onCancel={onClose}
+      styles={{ body: { maxHeight: 'calc(90vh - 110px)', overflowY: 'auto' } }}
     >
       <Form form={form} layout="vertical" disabled={submitting}>
         <Form.Item
@@ -99,6 +173,61 @@ const EditRpLetterModal = ({ open, letter, onClose, onSaved }: EditRpLetterModal
           <Input maxLength={200} />
         </Form.Item>
       </Form>
+
+      <Divider style={{ margin: '4px 0 12px' }} />
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
+        <Text strong>Файлы письма</Text>
+        <Button
+          size="small"
+          icon={<PlusOutlined />}
+          style={{ marginLeft: 'auto' }}
+          disabled={submitting || !canAddFiles}
+          onClick={() => setDropOpen(true)}
+        >
+          Добавить файлы
+        </Button>
+      </div>
+      {!canAddFiles && (
+        <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+          Для этой РП письмо не оформлялось — добавить файлы нельзя.
+        </Text>
+      )}
+      {filesLoading ? (
+        <div style={{ textAlign: 'center', padding: 16 }}>
+          <Spin />
+        </div>
+      ) : attachments.length > 0 ? (
+        <List
+          size="small"
+          dataSource={attachments}
+          renderItem={(f) => (
+            <List.Item>
+              <PaperClipOutlined />
+              <Text style={{ marginLeft: 8 }} ellipsis>
+                {f.fileName}
+              </Text>
+              {f.fileType === 'rp' && (
+                <Tag color="blue" style={{ marginLeft: 8, flexShrink: 0 }}>
+                  РП
+                </Tag>
+              )}
+              <Text type="secondary" style={{ marginLeft: 8, flexShrink: 0 }}>
+                {fmtSize(f.sizeBytes)}
+              </Text>
+            </List.Item>
+          )}
+        />
+      ) : (
+        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Нет файлов письма" />
+      )}
+
+      <RpFilesDropModal
+        open={dropOpen}
+        title="Добавить файлы к письму"
+        withType
+        onClose={() => setDropOpen(false)}
+        onSubmit={handleUploadFiles}
+      />
     </Modal>
   )
 }

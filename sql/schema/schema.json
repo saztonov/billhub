@@ -3296,6 +3296,15 @@
               "position": 20,
               "max_length": null,
               "numeric_precision": null
+            },
+            {
+              "name": "sent_date",
+              "type": "date",
+              "default": null,
+              "nullable": true,
+              "position": 21,
+              "max_length": null,
+              "numeric_precision": null
             }
           ]
         },

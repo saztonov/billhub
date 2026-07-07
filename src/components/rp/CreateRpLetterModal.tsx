@@ -4,10 +4,10 @@ import dayjs from 'dayjs'
 import { useRpStore } from '@/store/rpStore'
 import { useAuthStore } from '@/store/authStore'
 import { api } from '@/services/api'
-import { uploadRpLetterFile } from '@/services/s3'
+import { uploadRpLetterFile, uploadRpServiceFile } from '@/services/s3'
 import { logError } from '@/services/errorLogger'
 import { buildRpLetterContent } from '@/components/rp/rpLetterContent'
-import { svgDataUrlToPngDataUrl, downloadDataUrl } from '@/utils/qrToPng'
+import { svgDataUrlToPngDataUrl, downloadDataUrl, dataUrlToFile } from '@/utils/qrToPng'
 import FilePreviewModal from '@/components/paymentRequests/FilePreviewModal'
 import AttachInvoiceFilesModal, {
   type SelectedInvoiceFile,
@@ -69,6 +69,7 @@ const CreateRpLetterModal = ({
   const fullName = useAuthStore((s) => s.user?.fullName)
   const createLetterStage1 = useRpStore((s) => s.createLetterStage1)
   const registerLetterAttachments = useRpStore((s) => s.registerLetterAttachments)
+  const registerServiceFiles = useRpStore((s) => s.registerServiceFiles)
   const finalizeLetter = useRpStore((s) => s.finalizeLetter)
   const attachInvoiceServiceFiles = useRpStore((s) => s.attachInvoiceServiceFiles)
   const deleteRp = useRpStore((s) => s.deleteRp)
@@ -205,18 +206,54 @@ const CreateRpLetterModal = ({
     }
   }
 
-  /** Готовит QR: сначала PNG (canvas), при сбое — исходный SVG. */
-  const prepareQr = async (svgDataUrl: string | null) => {
+  /**
+   * Готовит QR: сначала PNG (canvas), при сбое — исходный SVG. Возвращает фактически
+   * подготовленный data-URL и формат (чтобы сохранить QR без чтения асинхронного стейта).
+   */
+  const prepareQr = async (
+    svgDataUrl: string | null,
+  ): Promise<{ dataUrl: string; ext: 'png' | 'svg' } | null> => {
     setQrSvg(svgDataUrl)
     setQrPng(null)
-    if (!svgDataUrl) return
+    if (!svgDataUrl) return null
     try {
-      setQrPng(await svgDataUrlToPngDataUrl(svgDataUrl))
+      const png = await svgDataUrlToPngDataUrl(svgDataUrl)
+      setQrPng(png)
+      return { dataUrl: png, ext: 'png' }
     } catch (err) {
       logError({
         errorType: 'js_error',
         errorMessage: err instanceof Error ? err.message : 'Не удалось конвертировать QR в PNG',
         component: 'CreateRpLetterModal',
+      })
+      return { dataUrl: svgDataUrl, ext: 'svg' }
+    }
+  }
+
+  /**
+   * Сохраняет QR письма в служебные файлы РП. Best-effort: сбой не срывает создание РП.
+   * При отмене черновика существующая очистка РП удалит и этот файл.
+   */
+  const saveQrServiceFile = async (
+    rpId: string,
+    regNumberValue: string | null,
+    qr: { dataUrl: string; ext: 'png' | 'svg' },
+  ) => {
+    try {
+      const base = regNumberValue ? `QR_${regNumberValue}` : 'QR_письмо'
+      const file = dataUrlToFile(qr.dataUrl, `${base}.${qr.ext}`)
+      const { key } = await uploadRpServiceFile(rpId, file)
+      await registerServiceFiles(rpId, [
+        { fileKey: key, fileName: file.name, mimeType: file.type || null, sizeBytes: file.size },
+      ])
+    } catch (err) {
+      message.warning('QR не сохранён в служебные файлы — при необходимости добавьте вручную')
+      logError({
+        errorType: 'api_error',
+        errorMessage:
+          err instanceof Error ? err.message : 'Не удалось сохранить QR в служебные файлы',
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'saveQrServiceFile', rpId },
       })
     }
   }
@@ -322,7 +359,9 @@ const CreateRpLetterModal = ({
       if (res.mode === 'sync') {
         setCreatedRp(res.rp)
         setRegNumber(res.regNumber)
-        await prepareQr(res.qrSvgDataUrl)
+        const qr = await prepareQr(res.qrSvgDataUrl)
+        // Сохраняем QR в служебные файлы РП (best-effort, не блокирует создание).
+        if (qr) await saveQrServiceFile(res.rp.id, res.regNumber, qr)
         message.success(
           `Письмо создано${res.regNumber ? `: ${res.regNumber}` : ''}. Приложите файлы и завершите (2 этап).`,
         )

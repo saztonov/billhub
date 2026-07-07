@@ -93,6 +93,8 @@ interface RpStoreState {
   updateStatus: (id: string, status: string) => Promise<boolean>
   /** Регистрация загруженных файлов письма за РП. */
   registerLetterAttachments: (rpLetterId: string, refs: RpLetterAttachmentRef[]) => Promise<void>
+  /** Дозагрузка файлов к уже оформленному письму из редактирования (фоновая синхронизация). */
+  appendLetterAttachments: (rpLetterId: string, refs: RpLetterAttachmentRef[]) => Promise<void>
   /** Поставить синхронизацию письма в очередь (finalize; опц. актуальный текст со 2 этапа). */
   finalizeLetter: (rpLetterId: string, letter?: RpLetterTextBlock) => Promise<boolean>
   /** Удалить РП (и письмо в PayHub). Бросает ошибку при неудаче удаления письма. */
@@ -101,6 +103,8 @@ interface RpStoreState {
   annulRp: (id: string) => Promise<void>
   /** Правка текста письма из реестра (PATCH письма в PayHub). Бросает ошибку при неудаче. */
   editLetterText: (id: string, letter: RpLetterTextBlock) => Promise<void>
+  /** Обновить дату отправки письма (0012); null — очистить. Бросает ошибку при неудаче. */
+  updateSentDate: (id: string, sentDate: string | null) => Promise<void>
   /** Файлы РП (вложения письма PayHub + служебные) для модалки «Файлы». */
   loadRpFiles: (id: string) => Promise<RpFilesResult>
   /** Регистрация загруженных служебных файлов РП. */
@@ -271,6 +275,23 @@ export const useRpStore = create<RpStoreState>((set, get) => ({
     }
   },
 
+  updateSentDate: async (id, sentDate) => {
+    try {
+      await api.patch(`/api/rp/${id}/sent-date`, { sentDate })
+      set({
+        letters: get().letters.map((l) => (l.id === id ? { ...l, sentDate } : l)),
+      })
+    } catch (err) {
+      logError({
+        errorType: 'api_error',
+        errorMessage: err instanceof Error ? err.message : 'Ошибка сохранения даты отправки',
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'updateSentDate', id },
+      })
+      throw err
+    }
+  },
+
   registerLetterAttachments: async (rpLetterId, refs) => {
     try {
       await api.post(`/api/rp/${rpLetterId}/letter/attachments`, { attachments: refs })
@@ -280,6 +301,31 @@ export const useRpStore = create<RpStoreState>((set, get) => ({
         errorMessage: err instanceof Error ? err.message : 'Ошибка регистрации файлов письма',
         errorStack: err instanceof Error ? err.stack : null,
         metadata: { action: 'registerLetterAttachments', rpLetterId },
+      })
+      throw err
+    }
+  },
+
+  appendLetterAttachments: async (rpLetterId, refs) => {
+    try {
+      await api.post(`/api/rp/${rpLetterId}/letter/append-attachments`, { attachments: refs })
+      // Оптимистично: письмо ушло на пересинхронизацию (реестр покажет «создаётся…»),
+      // счётчик файлов увеличиваем. Реальный статус подтянет обновление реестра.
+      set({
+        letters: bumpFilesCount(get().letters, rpLetterId, refs.length).map((l) =>
+          l.id === rpLetterId &&
+          l.payhubLetterStatus !== 'uploading' &&
+          l.payhubLetterStatus !== null
+            ? { ...l, payhubLetterStatus: 'pending' as const, payhubLetterError: null }
+            : l,
+        ),
+      })
+    } catch (err) {
+      logError({
+        errorType: 'api_error',
+        errorMessage: err instanceof Error ? err.message : 'Ошибка добавления файлов к письму',
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'appendLetterAttachments', rpLetterId },
       })
       throw err
     }
