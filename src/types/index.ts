@@ -219,6 +219,27 @@ export const PAYMENT_REQUEST_TYPE_LABELS: Record<PaymentRequestType, string> = {
   own_purchase: 'Своя закупка',
 }
 
+/** Короткие подписи типов заявок для бейджа в реестре (только admin/user) */
+export const PAYMENT_REQUEST_TYPE_BADGE_LABELS: Record<PaymentRequestType, string> = {
+  contractor: 'мат. подряд',
+  contractor_work: 'СМР',
+  own_purchase: 'собств.закуп',
+}
+
+/** Полные подписи типов заявок для шапки модалки просмотра (только admin/user) */
+export const PAYMENT_REQUEST_TYPE_FULL_LABELS: Record<PaymentRequestType, string> = {
+  contractor: 'Материалы подрядчика',
+  contractor_work: 'СМР подрядчика',
+  own_purchase: 'Своя закупка материалов',
+}
+
+/** Цвета бейджа типа заявки (Ant Design Tag) */
+export const PAYMENT_REQUEST_TYPE_BADGE_COLORS: Record<PaymentRequestType, string> = {
+  contractor: 'blue',
+  contractor_work: 'purple',
+  own_purchase: 'green',
+}
+
 /** Заявка на оплату */
 export interface PaymentRequest {
   id: string

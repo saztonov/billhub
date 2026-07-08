@@ -32,6 +32,7 @@ import { formatDate, extractRequestNumber, sanitizeFileName } from '@/utils/requ
 import { notifyRequestRevision } from '@/utils/notificationService'
 import useIsMobile from '@/hooks/useIsMobile'
 import type { PaymentRequest } from '@/types'
+import { PAYMENT_REQUEST_TYPE_FULL_LABELS } from '@/types'
 
 const { Text } = Typography
 const { TextArea } = Input
@@ -598,7 +599,12 @@ const ViewRequestModal = ({
             ? isMobile
               ? `Повторная — ${extractRequestNumber(request.requestNumber)}`
               : `Повторная отправка — Заявка ${extractRequestNumber(request.requestNumber)}`
-            : `Заявка ${extractRequestNumber(request.requestNumber)}`
+            : // Тип заявки в шапке виден только admin/user
+              `Заявка ${extractRequestNumber(request.requestNumber)}${
+                !isCounterpartyUser && PAYMENT_REQUEST_TYPE_FULL_LABELS[request.requestType]
+                  ? ` — ${PAYMENT_REQUEST_TYPE_FULL_LABELS[request.requestType]}`
+                  : ''
+              }`
         }
         open={open}
         onCancel={onClose}

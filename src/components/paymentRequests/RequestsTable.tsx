@@ -32,7 +32,12 @@ import { applyColumnConfig } from '@/hooks/useColumnConfig'
 import type { ColumnConfig } from '@/hooks/useColumnConfig'
 import type { ColumnRegistryItem } from './ColumnConfigPopover'
 import type { PaymentRequest, StageHistoryEntry } from '@/types'
-import { STAGE_DEPARTMENT_LABELS, STAGE_LABELS } from '@/types'
+import {
+  STAGE_DEPARTMENT_LABELS,
+  STAGE_LABELS,
+  PAYMENT_REQUEST_TYPE_BADGE_LABELS,
+  PAYMENT_REQUEST_TYPE_BADGE_COLORS,
+} from '@/types'
 import { SB_REJECTED_STRIKE_STYLE, renderSbBadge } from '@/utils/supplierSb'
 
 /** Реестр всех возможных десктопных столбцов (без "Действия") */
@@ -99,6 +104,20 @@ function getShortName(fullName?: string, email?: string): string | undefined {
     return words.slice(0, 2).join(' ')
   }
   return email
+}
+
+/** Бейдж типа заявки под названием объекта (показывается только admin/user) */
+function renderTypeBadge(record: PaymentRequest) {
+  const label = PAYMENT_REQUEST_TYPE_BADGE_LABELS[record.requestType]
+  if (!label) return null
+  return (
+    <Tag
+      color={PAYMENT_REQUEST_TYPE_BADGE_COLORS[record.requestType]}
+      style={{ fontSize: 10, lineHeight: '14px', padding: '0 4px', marginTop: 2, marginRight: 0 }}
+    >
+      {label}
+    </Tag>
+  )
 }
 
 /** Маппинг событий для тултипа */
@@ -290,7 +309,14 @@ const RequestsTable = (props: RequestsTableProps) => {
         dataIndex: 'siteName',
         key: 'siteName',
         ellipsis: true,
-        render: (name: string | undefined) => <span style={{ fontSize: 12 }}>{name ?? '—'}</span>,
+        render: (name: string | undefined, record: PaymentRequest) => (
+          <div style={{ fontSize: 12, lineHeight: 1.3 }}>
+            <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {name ?? '—'}
+            </div>
+            {!isCounterpartyUser && renderTypeBadge(record)}
+          </div>
+        ),
       },
       {
         title: 'Статус',
@@ -380,7 +406,7 @@ const RequestsTable = (props: RequestsTableProps) => {
     )
 
     return cols
-  }, [isMobile, hideCounterpartyColumn, props])
+  }, [isMobile, hideCounterpartyColumn, isCounterpartyUser, props])
 
   // --- Десктопные столбцы ---
   const desktopColumns: Record<string, unknown>[] = useMemo(() => {
@@ -429,7 +455,12 @@ const RequestsTable = (props: RequestsTableProps) => {
         width: 160,
         sorter: (a: PaymentRequest, b: PaymentRequest) =>
           (a.siteName || '').localeCompare(b.siteName || '', 'ru'),
-        render: (name: string | undefined) => name ?? '—',
+        render: (name: string | undefined, record: PaymentRequest) => (
+          <div style={{ lineHeight: 1.3 }}>
+            <div>{name ?? '—'}</div>
+            {!isCounterpartyUser && renderTypeBadge(record)}
+          </div>
+        ),
       },
       {
         title: 'Поставщик',
