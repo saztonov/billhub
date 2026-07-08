@@ -4,6 +4,9 @@
  * Все write-операции выполняются в db.transaction() (атомарность переходов — принцип плана).
  * Статусы резолвятся ТОЛЬКО по code (statusIdByCode); финальность — по коду статуса.
  * Уведомление о финальном согласовании отправляется ПОСЛЕ коммита, best-effort (.catch).
+ * Доработка согласованной contractor-заявки (approved → revision → complete): completeRevision
+ * возвращает её НЕ в approved, а на повторное согласование ОМТС (новая pending-строка), чтобы
+ * заявка не согласовывалась без нового решения approver'а; авто-типы восстанавливаются в approved.
  */
 import {
   and,
@@ -815,6 +818,7 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
           invoiceAmount: paymentRequests.invoiceAmount,
           invoiceAmountHistory: paymentRequests.invoiceAmountHistory,
           supplierId: paymentRequests.supplierId,
+          requestType: paymentRequests.requestType,
         })
         .from(paymentRequests)
         .where(eq(paymentRequests.id, paymentRequestId))
@@ -841,9 +845,33 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
         };
       }
       const wasApproved = prevCode === 'approved';
+      // Заявка была отправлена на доработку из финального статуса «Согласована». Возвращаем её
+      // не в approved (иначе она согласуется без нового решения approver'а), а на ПОВТОРНОЕ
+      // согласование ОМТС. Авто-типы (contractor_work/own_purchase) создаются сразу approved без
+      // цепочки согласования — им пересогласовывать нечего, сохраняем восстановление approved.
+      const reopenOmts = wasApproved && cur.requestType === 'contractor';
+
+      // Финальный шлюз ОМТС: если заявка была согласована на под-стадии ОМТС-РП — возвращаем на неё
+      // (определяем по наличию approved-решения ОМТС с is_omts_rp=true), иначе в обычное ОМТС.
+      let reopenIsOmtsRp = false;
+      if (reopenOmts) {
+        const [rpApproved] = await tx
+          .select({ id: approvalDecisions.id })
+          .from(approvalDecisions)
+          .where(
+            and(
+              eq(approvalDecisions.paymentRequestId, paymentRequestId),
+              eq(approvalDecisions.stageOrder, 2),
+              eq(approvalDecisions.departmentId, 'omts'),
+              eq(approvalDecisions.status, 'approved'),
+              eq(approvalDecisions.isOmtsRp, true),
+            ),
+          )
+          .limit(1);
+        reopenIsOmtsRp = !!rpApproved;
+      }
 
       const updateData: Record<string, unknown> = {
-        statusId: cur.previousStatusId,
         previousStatusId: null,
         deliveryDays: fieldUpdates.deliveryDays,
         deliveryDaysType: fieldUpdates.deliveryDaysType,
@@ -852,7 +880,24 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
         withdrawnAt: null,
         withdrawalComment: null,
       };
-      if (wasApproved) updateData.approvedAt = nowIso();
+      if (reopenOmts) {
+        updateData.statusId = await this.statusIdByCode(
+          tx,
+          'payment_request',
+          reopenIsOmtsRp ? 'approv_omts_rp' : 'approv_omts',
+        );
+        updateData.currentStage = 2;
+        updateData.approvedAt = null;
+        if (!reopenIsOmtsRp) {
+          // Возврат в обычное ОМТС: снимаем ОМТС-согласование и перезапускаем «Срок ОМТС».
+          updateData.omtsApprovedAt = null;
+          updateData.omtsEnteredAt = nowIso();
+        }
+        // При ОМТС-РП обычное ОМТС уже согласовано ранее — omts_approved_at/omts_entered_at не трогаем.
+      } else {
+        updateData.statusId = cur.previousStatusId;
+        if (wasApproved) updateData.approvedAt = nowIso();
+      }
       // Исходный роут (PostgREST) сравнивал строку "200.00" с числом 200 — строгое !== ВСЕГДА
       // истинно при non-null, т.е. старая сумма архивируется при КАЖДОМ завершении доработки с
       // заданной суммой (в т.ч. без её изменения). Сохраняем ровно это поведение: numeric теперь
@@ -927,6 +972,30 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
         userFullName: userInfo.fullName,
         ...(supplierChanged ? { supplierChanged: true } : {}),
       });
+
+      // Возврат на повторное согласование: создаём pending-строку ОМТС (очередь строится из
+      // approval_decisions), фиксируем «получено». onConflictDoNothing — защита от двойного клика.
+      if (reopenOmts) {
+        const inserted = await tx
+          .insert(approvalDecisions)
+          .values({
+            paymentRequestId,
+            stageOrder: 2,
+            departmentId: 'omts',
+            status: 'pending',
+            isOmtsRp: reopenIsOmtsRp,
+          })
+          .onConflictDoNothing()
+          .returning({ id: approvalDecisions.id });
+        if (inserted.length > 0) {
+          await this.appendHistory(tx, paymentRequestId, {
+            stage: 2,
+            department: 'omts',
+            event: 'received',
+            ...(reopenIsOmtsRp ? { isOmtsRp: true } : {}),
+          });
+        }
+      }
 
       return { ok: true as const };
     });

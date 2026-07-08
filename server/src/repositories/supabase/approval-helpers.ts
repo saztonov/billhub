@@ -157,7 +157,7 @@ export async function handleCompleteRevision(
   const { data: cur, error: curErr } = await supabase
     .from('payment_requests')
     .select(
-      'status_id, previous_status_id, current_stage, invoice_amount, invoice_amount_history, supplier_id',
+      'status_id, previous_status_id, current_stage, invoice_amount, invoice_amount_history, supplier_id, request_type',
     )
     .eq('id', paymentRequestId)
     .single();
@@ -189,9 +189,28 @@ export async function handleCompleteRevision(
     return { success: false, error: 'Нельзя вернуть заявку в статус отклонения', status: 400 };
   }
   const wasApproved = prevStatus?.code === 'approved';
+  // Возврат уже согласованной contractor-заявки на ПОВТОРНОЕ согласование ОМТС, а не
+  // «самовосстановление» в approved (иначе заявка согласуется без нового решения approver'а).
+  // Авто-типы (contractor_work/own_purchase) создаются сразу approved без цепочки — им
+  // пересогласовывать нечего, сохраняем восстановление approved.
+  const reopenOmts = wasApproved && cur.request_type === 'contractor';
+
+  // Финальный шлюз ОМТС: было ли согласование на под-стадии ОМТС-РП (approved is_omts_rp=true)?
+  let reopenIsOmtsRp = false;
+  if (reopenOmts) {
+    const { data: rpApproved } = await supabase
+      .from('approval_decisions')
+      .select('id')
+      .eq('payment_request_id', paymentRequestId)
+      .eq('stage_order', 2)
+      .eq('department_id', 'omts')
+      .eq('status', 'approved')
+      .eq('is_omts_rp', true)
+      .limit(1);
+    reopenIsOmtsRp = ((rpApproved as unknown[]) ?? []).length > 0;
+  }
 
   const updateData: Record<string, unknown> = {
-    status_id: cur.previous_status_id,
     previous_status_id: null,
     delivery_days: fieldUpdates.deliveryDays,
     delivery_days_type: fieldUpdates.deliveryDaysType,
@@ -202,7 +221,24 @@ export async function handleCompleteRevision(
     withdrawn_at: null,
     withdrawal_comment: null,
   };
-  if (wasApproved) updateData.approved_at = new Date().toISOString();
+  if (reopenOmts) {
+    updateData.status_id = await getStatusId(
+      supabase,
+      'payment_request',
+      reopenIsOmtsRp ? 'approv_omts_rp' : 'approv_omts',
+    );
+    updateData.current_stage = 2;
+    updateData.approved_at = null;
+    if (!reopenIsOmtsRp) {
+      // Возврат в обычное ОМТС: снимаем ОМТС-согласование и перезапускаем «Срок ОМТС».
+      updateData.omts_approved_at = null;
+      updateData.omts_entered_at = new Date().toISOString();
+    }
+    // При ОМТС-РП обычное ОМТС уже согласовано ранее — omts_approved_at/omts_entered_at не трогаем.
+  } else {
+    updateData.status_id = cur.previous_status_id;
+    if (wasApproved) updateData.approved_at = new Date().toISOString();
+  }
   if (cur.invoice_amount != null && cur.invoice_amount !== fieldUpdates.invoiceAmount) {
     const history = (cur.invoice_amount_history as { amount: number; changedAt: string }[]) ?? [];
     history.push({ amount: cur.invoice_amount as number, changedAt: new Date().toISOString() });
@@ -278,6 +314,32 @@ export async function handleCompleteRevision(
     userFullName: userInfo.fullName,
     ...(supplierChanged ? { supplierChanged: true } : {}),
   });
+
+  // Возврат на повторное согласование: создаём pending-строку ОМТС (очередь строится из
+  // approval_decisions), фиксируем «получено». Precheck — идемпотентность от двойного клика.
+  if (reopenOmts) {
+    const { data: existingPending } = await supabase
+      .from('approval_decisions')
+      .select('id')
+      .eq('payment_request_id', paymentRequestId)
+      .eq('status', 'pending')
+      .limit(1);
+    if (((existingPending as unknown[]) ?? []).length === 0) {
+      await supabase.from('approval_decisions').insert({
+        payment_request_id: paymentRequestId,
+        stage_order: 2,
+        department_id: 'omts',
+        status: 'pending',
+        is_omts_rp: reopenIsOmtsRp,
+      });
+      await appendStageHistory(supabase, paymentRequestId, {
+        stage: 2,
+        department: 'omts',
+        event: 'received',
+        ...(reopenIsOmtsRp ? { isOmtsRp: true } : {}),
+      });
+    }
+  }
 
   return { success: true };
 }

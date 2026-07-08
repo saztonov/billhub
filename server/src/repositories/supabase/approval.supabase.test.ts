@@ -687,14 +687,16 @@ describe('SupabaseApprovalRepository — revision / complete-revision', () => {
     });
   });
 
-  it('S12: complete-revision восстанавливает approved, архивирует старую сумму, снимает withdrawn', async () => {
+  it('S12: complete-revision из approved (contractor) → повторное согласование обычного ОМТС, НЕ approved', async () => {
     s.fake.seed('payment_requests', [
       {
         id: 'pr1',
-        current_stage: 2,
+        // Реальная согласованная заявка после sendToRevision: current_stage = null.
+        current_stage: null,
         site_id: 's1',
         status_id: 'st-revision',
         previous_status_id: 'st-approved',
+        request_type: 'contractor',
         invoice_amount: 100,
         invoice_amount_history: [],
         withdrawn_at: '2026-01-01T00:00:00Z',
@@ -705,6 +707,17 @@ describe('SupabaseApprovalRepository — revision / complete-revision', () => {
         stage_history: [],
       },
     ]);
+    s.fake.seed('approval_decisions', [
+      {
+        id: 'd-omts',
+        payment_request_id: 'pr1',
+        stage_order: 2,
+        department_id: 'omts',
+        status: 'approved',
+        is_omts_rp: false,
+        comment: '',
+      },
+    ]);
     const res = await s.repo.completeRevision('pr1', 'u1', {
       deliveryDays: 5,
       deliveryDaysType: 'working',
@@ -713,15 +726,114 @@ describe('SupabaseApprovalRepository — revision / complete-revision', () => {
     });
     expect(res).toEqual({ ok: true });
     const pr = rows(s.fake, 'payment_requests')[0]!;
-    expect(pr.status_id).toBe('st-approved');
+    expect(pr.status_id).toBe('st-omts');
+    expect(pr.current_stage).toBe(2);
     expect(pr.previous_status_id).toBeNull();
-    expect(pr.approved_at).toBeTruthy();
+    // Ключевое: заявка НЕ согласована сама собой.
+    expect(pr.approved_at).toBeNull();
+    expect(pr.omts_approved_at).toBeNull();
+    expect(pr.omts_entered_at).toBeTruthy();
     expect(pr.withdrawn_at).toBeNull();
     expect(pr.withdrawal_comment).toBeNull();
     expect(pr.invoice_amount).toBe(200);
     expect((pr.invoice_amount_history as { amount: number }[])[0]!.amount).toBe(100);
+    // Появилась новая pending-строка ОМТС — заявка снова в очереди согласования.
+    const pending = rows(s.fake, 'approval_decisions').filter(
+      (d) => d.status === 'pending' && d.department_id === 'omts',
+    );
+    expect(pending).toHaveLength(1);
+    expect(pending[0]!.is_omts_rp).toBe(false);
     const logs = rows(s.fake, 'payment_request_logs');
     expect(logs.some((l) => l.action === 'revision_complete')).toBe(true);
+    const hist = pr.stage_history as { event: string }[];
+    expect(hist.some((e) => e.event === 'received')).toBe(true);
+  });
+
+  it('S12-rp: complete-revision из approved на ОМТС-РП → возврат на под-стадию РП, обычное ОМТС-согласование сохранено', async () => {
+    s.fake.seed('payment_requests', [
+      {
+        id: 'pr1',
+        current_stage: null,
+        site_id: 's-rp',
+        status_id: 'st-revision',
+        previous_status_id: 'st-approved',
+        request_type: 'contractor',
+        omts_approved_at: '2026-02-01T00:00:00Z',
+        supplier_id: 'sup1',
+        created_by: 'c',
+        request_number: '1',
+        stage_history: [],
+        invoice_amount_history: [],
+      },
+    ]);
+    s.fake.seed('approval_decisions', [
+      {
+        id: 'd-omts',
+        payment_request_id: 'pr1',
+        stage_order: 2,
+        department_id: 'omts',
+        status: 'approved',
+        is_omts_rp: false,
+        comment: '',
+      },
+      {
+        id: 'd-rp',
+        payment_request_id: 'pr1',
+        stage_order: 2,
+        department_id: 'omts',
+        status: 'approved',
+        is_omts_rp: true,
+        comment: '',
+      },
+    ]);
+    const res = await s.repo.completeRevision('pr1', 'u1', {
+      deliveryDays: 5,
+      deliveryDaysType: 'working',
+      shippingConditionId: 'ship1',
+      invoiceAmount: 100,
+    });
+    expect(res).toEqual({ ok: true });
+    const pr = rows(s.fake, 'payment_requests')[0]!;
+    expect(pr.status_id).toBe('st-rp');
+    expect(pr.current_stage).toBe(2);
+    expect(pr.approved_at).toBeNull();
+    // Обычное ОМТС уже было согласовано ранее — метрику не сбрасываем.
+    expect(pr.omts_approved_at).toBe('2026-02-01T00:00:00Z');
+    const pending = rows(s.fake, 'approval_decisions').filter((d) => d.status === 'pending');
+    expect(pending).toHaveLength(1);
+    expect(pending[0]!.is_omts_rp).toBe(true);
+  });
+
+  it('S12-auto: complete-revision из approved для авто-типа (contractor_work) → остаётся approved без цепочки', async () => {
+    s.fake.seed('payment_requests', [
+      {
+        id: 'pr1',
+        current_stage: null,
+        site_id: 's1',
+        status_id: 'st-revision',
+        previous_status_id: 'st-approved',
+        request_type: 'contractor_work',
+        supplier_id: null,
+        created_by: 'c',
+        request_number: '1',
+        stage_history: [],
+        invoice_amount_history: [],
+      },
+    ]);
+    const res = await s.repo.completeRevision('pr1', 'u1', {
+      deliveryDays: 5,
+      deliveryDaysType: 'working',
+      shippingConditionId: 'ship1',
+      invoiceAmount: 100,
+    });
+    expect(res).toEqual({ ok: true });
+    const pr = rows(s.fake, 'payment_requests')[0]!;
+    expect(pr.status_id).toBe('st-approved');
+    expect(pr.approved_at).toBeTruthy();
+    // Нет цепочки — pending-строка не создаётся.
+    expect(rows(s.fake, 'approval_decisions').filter((d) => d.status === 'pending')).toHaveLength(
+      0,
+    );
   });
 
   it('S12b: complete-revision со сменой поставщика → лог supplier_changed перед revision_complete', async () => {

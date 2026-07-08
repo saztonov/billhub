@@ -74,6 +74,8 @@ interface PrSeed {
   withdrawn_at?: string | null;
   withdrawal_comment?: string | null;
   invoice_amount?: number | null;
+  request_type?: string;
+  omts_approved_at?: string | null;
 }
 interface DecSeed {
   id: string;
@@ -221,6 +223,8 @@ describe.skipIf(!RUN)('Approvals equivalence (Supabase fake ↔ Drizzle testcont
       withdrawnAt: pr.withdrawn_at ?? null,
       withdrawalComment: pr.withdrawal_comment ?? null,
       invoiceAmount: pr.invoice_amount != null ? Number(pr.invoice_amount) : null,
+      requestType: pr.request_type ?? 'contractor',
+      omtsApprovedAt: pr.omts_approved_at ?? null,
       stageHistory: [],
       invoiceAmountHistory: [],
     });
@@ -250,6 +254,8 @@ describe.skipIf(!RUN)('Approvals equivalence (Supabase fake ↔ Drizzle testcont
         withdrawn_at: pr.withdrawn_at ?? null,
         withdrawal_comment: pr.withdrawal_comment ?? null,
         invoice_amount: pr.invoice_amount ?? null,
+        request_type: pr.request_type ?? 'contractor',
+        omts_approved_at: pr.omts_approved_at ?? null,
         created_by: ID.creator,
         stage_history: [],
         invoice_amount_history: [],
@@ -372,17 +378,75 @@ describe.skipIf(!RUN)('Approvals equivalence (Supabase fake ↔ Drizzle testcont
     expect(await readDrizzle()).toEqual(readFake(fake));
   });
 
-  it('S12: complete-revision (restore approved + новая сумма) эквивалентно', async () => {
+  it('S12: complete-revision из approved (contractor) → повторное ОМТС эквивалентно', async () => {
     const fake = new FakeSupabase();
     await seedRefs(fake);
     await seedScenario(
       fake,
       {
-        current_stage: 2,
+        // Согласованная заявка после sendToRevision: current_stage = null.
+        current_stage: null,
         status_id: ID.stRevision,
         previous_status_id: ID.stApproved,
+        request_type: 'contractor',
         withdrawn_at: '2026-01-01T00:00:00Z',
         withdrawal_comment: 'был отзыв',
+        invoice_amount: 100,
+      },
+      [{ id: ID.d2, stage_order: 2, department_id: 'omts', status: 'approved', is_omts_rp: false }],
+    );
+    const { d, s } = repos(fake);
+    const fu = {
+      deliveryDays: 7,
+      deliveryDaysType: 'working',
+      shippingConditionId: ID.ship,
+      invoiceAmount: 200,
+    };
+    await d.completeRevision(ID.pr, ID.u1, fu);
+    await s.completeRevision(ID.pr, ID.u1, fu);
+    expect(await readDrizzle()).toEqual(readFake(fake));
+  });
+
+  it('S12-rp: complete-revision из approved на ОМТС-РП эквивалентно', async () => {
+    const fake = new FakeSupabase();
+    await seedRefs(fake);
+    await seedScenario(
+      fake,
+      {
+        current_stage: null,
+        status_id: ID.stRevision,
+        previous_status_id: ID.stApproved,
+        request_type: 'contractor',
+        site_id: ID.siteRp,
+        omts_approved_at: '2026-02-01T00:00:00Z',
+      },
+      [
+        { id: ID.d1, stage_order: 2, department_id: 'omts', status: 'approved', is_omts_rp: false },
+        { id: ID.d2, stage_order: 2, department_id: 'omts', status: 'approved', is_omts_rp: true },
+      ],
+    );
+    const { d, s } = repos(fake);
+    const fu = {
+      deliveryDays: 7,
+      deliveryDaysType: 'working',
+      shippingConditionId: ID.ship,
+      invoiceAmount: 100,
+    };
+    await d.completeRevision(ID.pr, ID.u1, fu);
+    await s.completeRevision(ID.pr, ID.u1, fu);
+    expect(await readDrizzle()).toEqual(readFake(fake));
+  });
+
+  it('S12-auto: complete-revision из approved для авто-типа эквивалентно', async () => {
+    const fake = new FakeSupabase();
+    await seedRefs(fake);
+    await seedScenario(
+      fake,
+      {
+        current_stage: null,
+        status_id: ID.stRevision,
+        previous_status_id: ID.stApproved,
+        request_type: 'contractor_work',
         invoice_amount: 100,
       },
       [],
