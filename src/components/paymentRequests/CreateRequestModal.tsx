@@ -234,7 +234,14 @@ const CreateRequestModal = ({ open, onClose }: CreateRequestModalProps) => {
     'Новая заявка на оплату'
   ) : (
     <div
-      style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', paddingRight: 32 }}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 16,
+        flexWrap: 'wrap',
+        paddingRight: 32,
+      }}
     >
       <span>Новая заявка на оплату</span>
       <Segmented
