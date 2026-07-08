@@ -149,6 +149,24 @@ services:
     networks: [internal] # доступ к внешней БД; на edge не нужен
     command: ['node', 'dist/cli/migrate.js']
 
+  # --- db-tools: pg_dump/pg_restore — бэкап БД перед миграциями и откат (--restore-db) ---
+  # Запускается только из deploy-скрипта (compose run), в up -d не попадает (profile).
+  # Мажор образа = мажору сервера Yandex Managed PG (17). Работает под UID деплой-пользователя
+  # (иначе файлы дампов в bind-mount окажутся root-owned и ротация сломается). Дампы содержат
+  # ПДн и хэши паролей/токенов — каталог 700, файлы 600, только деплой-пользователь.
+  db-tools:
+    image: postgres:17
+    profiles: ['db-tools']
+    user: '${BILLHUB_DEPLOY_UID:-0}:${BILLHUB_DEPLOY_GID:-0}' # экспортирует deploy-скрипт
+    env_file: /etc/billhub/migration.env # DDL-роль DATABASE_MIGRATION_URL
+    environment:
+      PGSSLROOTCERT: /etc/yandex-pg/ca.crt # libpq читает CA отсюда (sslmode=verify-full)
+    volumes:
+      - /etc/yandex-pg:/etc/yandex-pg:ro
+      - ${BILLHUB_BACKUP_DIR:-/var/lib/billhub/deploy/db-backups}:/backups
+    networks: [internal] # доступ к внешней БД; на edge не нужен
+    command: ['pg_dump', '--version'] # безвредный default; реальная команда задаётся при run
+
 volumes:
   upload-temp: # эфемерный чанк-кеш (backend stateless)
   redis-data: # BullMQ state + upload-sessions

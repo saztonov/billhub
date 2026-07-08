@@ -200,14 +200,21 @@ docker compose -f deploy/docker-compose.prod.yml -p billhub run --rm migrate \
 
 ## Откат
 
-Предыдущий commit-SHA образа сохраняется в `/var/lib/billhub/deploy/release.state`:
+Код — ключом `--previous` (переключение на предыдущий commit-SHA образ без пересборки; `current`/`previous`
+в release.state меняются местами, повторный вызов вернёт обратно). БД — из дампа, который скрипт автоматически
+снимает перед каждым `--migrate` (`/var/lib/billhub/deploy/db-backups`, 2 последних):
 
 ```bash
-PREV=$(grep -E '^previous=' /var/lib/billhub/deploy/release.state | cut -d= -f2)
-BILLHUB_TAG="$PREV" docker compose -f deploy/docker-compose.prod.yml -p billhub up -d billhub-web billhub-api billhub-worker
+deploy-billhub --previous                  # откат только кода
+deploy-billhub --previous --restore-db     # откат кода И БД на точку «до миграции» (подтверждение yes)
+deploy-billhub --restore-db                # только БД (миграция упала до переключения кода)
 ```
 
-Данные — managed-бэкап / PITR Yandex PG.
+ВАЖНО: откат образов не отменяет миграции БД; restore теряет все данные, записанные после снятия дампа
+(RPO = старт pg_dump; для рискованных миграций — `--maintenance`, там RPO нулевой). Дампы содержат ПДн и
+хэши паролей/токенов. Fallback вручную и детали — [deploy/README.md](../deploy/README.md#откат).
+
+Долгосрочная страховка данных — managed-бэкап / PITR Yandex PG.
 
 ---
 
