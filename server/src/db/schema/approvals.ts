@@ -29,6 +29,14 @@ export const approvalDecisions = pgTable('approval_decisions', {
   isOmtsRp: boolean('is_omts_rp').notNull().default(false),
 });
 
+/** Назначения этапа «РП» (миграция 0016): строго один сотрудник на объект (UNIQUE по объекту). */
+export const rpStageAssignees = pgTable('rp_stage_assignees', {
+  id: uuid('id').primaryKey().notNull().defaultRandom(),
+  constructionSiteId: uuid('construction_site_id').notNull().unique(),
+  userId: uuid('user_id').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
+});
+
 export const approvalDecisionFiles = pgTable('approval_decision_files', {
   id: uuid('id').primaryKey().notNull().defaultRandom(),
   approvalDecisionId: uuid('approval_decision_id').notNull(),

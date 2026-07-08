@@ -12,6 +12,7 @@ import {
   userConstructionSitesMapping,
   paymentRequests,
   contractRequests,
+  rpStageAssignees,
 } from '../../db/schema/index.js';
 import type { NotificationActionRepository } from '../notification-action.repository.js';
 import type {
@@ -19,7 +20,6 @@ import type {
   PaymentRevisionBody,
   PaymentNewPendingBody,
   PaymentResubmittedBody,
-  OmtsRpPendingBody,
   PaymentAssignedBody,
   PaymentNewCommentBody,
   PaymentNewFileBody,
@@ -216,26 +216,27 @@ export class DrizzleNotificationActionRepository implements NotificationActionRe
         });
       }
     }
-    await this.insertNotifs(rows);
-  }
 
-  async omtsRpPending(body: OmtsRpPendingBody): Promise<void> {
-    const { paymentRequestId, actorUserId } = body;
-    const pr = await this.getPaymentRequest(paymentRequestId);
-    if (!pr) return;
-    const userIds = (await this.usersByDeptAndSite('omts', pr.siteId)).filter(
-      (id) => id !== actorUserId,
-    );
-    const label = this.label(pr.requestNumber);
-    await this.insertNotifs(
-      userIds.map((uid) => ({
-        userId: uid,
-        type: 'omts_rp_pending',
-        title: 'Заявка на согласовании ОМТС',
-        message: `Заявка${label} поступила на согласование ОМТС РП`,
-        paymentRequestId,
-      })),
-    );
+    // Отклонение на этапе «РП» (stage 3): дополнительно уведомляем назначенца объекта.
+    if (rejectedStage === 3) {
+      const [assignee] = await this.db
+        .select({ userId: rpStageAssignees.userId })
+        .from(rpStageAssignees)
+        .where(eq(rpStageAssignees.constructionSiteId, pr.siteId))
+        .limit(1);
+      if (assignee && assignee.userId !== actorUserId) {
+        rows.push({
+          userId: assignee.userId,
+          type: 'resubmitted',
+          title: 'Повторная отправка заявки',
+          message: `Заявка${label} отправлена повторно на согласование`,
+          paymentRequestId,
+          siteId: pr.siteId,
+          departmentId: 'rp' as const,
+        });
+      }
+    }
+    await this.insertNotifs(rows);
   }
 
   async paymentAssigned(body: PaymentAssignedBody): Promise<void> {

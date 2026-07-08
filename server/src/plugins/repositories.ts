@@ -28,7 +28,7 @@ import { SupabaseApprovalRepository } from '../repositories/supabase/approval.su
 import { SupabaseAssignmentRepository } from '../repositories/supabase/assignment.supabase.js';
 import { SupabaseErrorLogRepository } from '../repositories/supabase/error-log.supabase.js';
 import { SupabaseOcrModelRepository } from '../repositories/supabase/ocr-model.supabase.js';
-import { SupabaseOmtsRpRepository } from '../repositories/supabase/omts-rp.supabase.js';
+import { SupabaseRpStageRepository } from '../repositories/supabase/rp-stage.supabase.js';
 import { SupabaseMaterialRepository } from '../repositories/supabase/material.supabase.js';
 import { SupabaseFoundingDocumentRepository } from '../repositories/supabase/founding-document.supabase.js';
 import { SupabaseOcrRepository } from '../repositories/supabase/ocr.supabase.js';
@@ -47,7 +47,7 @@ import { DrizzleApprovalRepository } from '../repositories/drizzle/approval.driz
 import { DrizzleAssignmentRepository } from '../repositories/drizzle/assignment.drizzle.js';
 import { DrizzleErrorLogRepository } from '../repositories/drizzle/error-log.drizzle.js';
 import { DrizzleOcrModelRepository } from '../repositories/drizzle/ocr-model.drizzle.js';
-import { DrizzleOmtsRpRepository } from '../repositories/drizzle/omts-rp.drizzle.js';
+import { DrizzleRpStageRepository } from '../repositories/drizzle/rp-stage.drizzle.js';
 import { DrizzleMaterialRepository } from '../repositories/drizzle/material.drizzle.js';
 import { DrizzleFoundingDocumentRepository } from '../repositories/drizzle/founding-document.drizzle.js';
 import { DrizzleOcrRepository } from '../repositories/drizzle/ocr.drizzle.js';
@@ -123,7 +123,7 @@ async function repositoriesPlugin(fastify: FastifyInstance): Promise<void> {
       assignments: new DrizzleAssignmentRepository(db),
       errorLogs: new DrizzleErrorLogRepository(db),
       ocrModels: new DrizzleOcrModelRepository(db),
-      omtsRp: new DrizzleOmtsRpRepository(db),
+      rpStage: new DrizzleRpStageRepository(db),
       materials: new DrizzleMaterialRepository(db),
       foundingDocuments: new DrizzleFoundingDocumentRepository(db),
       ocr: new DrizzleOcrRepository(db),
@@ -160,7 +160,7 @@ async function repositoriesPlugin(fastify: FastifyInstance): Promise<void> {
     assignments: new SupabaseAssignmentRepository(supabase),
     errorLogs: new SupabaseErrorLogRepository(supabase),
     ocrModels: new SupabaseOcrModelRepository(supabase),
-    omtsRp: new SupabaseOmtsRpRepository(supabase),
+    rpStage: new SupabaseRpStageRepository(supabase),
     materials: new SupabaseMaterialRepository(supabase),
     foundingDocuments: new SupabaseFoundingDocumentRepository(supabase),
     ocr: new SupabaseOcrRepository(supabase),

@@ -9,7 +9,6 @@ import type {
   PaymentRevisionBody,
   PaymentNewPendingBody,
   PaymentResubmittedBody,
-  OmtsRpPendingBody,
   PaymentAssignedBody,
   PaymentNewCommentBody,
   PaymentNewFileBody,
@@ -27,7 +26,6 @@ import {
   getContractRequestCreator,
   getContractRequestInfo,
   getAdminUserIds,
-  getOmtsRpUsers,
   resolveCommentRecipients,
   resolveFileRecipients,
   resolveContractCommentRecipients,
@@ -141,22 +139,8 @@ export class SupabaseNotificationActionRepository implements NotificationActionR
     await insertNotifications(this.supabase, notifications);
   }
 
-  async omtsRpPending(body: OmtsRpPendingBody): Promise<void> {
-    const { paymentRequestId, actorUserId } = body;
-    const userIds = await getOmtsRpUsers(this.supabase, paymentRequestId);
-    const filtered = userIds.filter((id) => id !== actorUserId);
-    const label = await this.label('payment_requests', paymentRequestId);
-    await insertNotifications(
-      this.supabase,
-      filtered.map((uid) => ({
-        user_id: uid,
-        type: 'omts_rp_pending',
-        title: 'Заявка на согласовании ОМТС',
-        message: `Заявка${label} поступила на согласование ОМТС РП`,
-        payment_request_id: paymentRequestId,
-      })),
-    );
-  }
+  // omtsRpPending удалён вместе с роутом (мёртвый код): уведомление о входе на этап «РП»
+  // теперь создаётся drizzle-стороной в approve(); в legacy supabase-режиме этапа РП нет.
 
   async paymentAssigned(body: PaymentAssignedBody): Promise<void> {
     const { paymentRequestId, assignedUserId, actorUserId } = body;

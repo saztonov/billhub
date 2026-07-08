@@ -35,7 +35,7 @@ interface ApprovalStoreState {
   pendingRequests: PaymentRequest[]
   approvedRequests: PaymentRequest[]
   rejectedRequests: PaymentRequest[]
-  omtsRpPendingRequests: PaymentRequest[]
+  rpPendingRequests: PaymentRequest[]
 
   // Счётчики для вкладок (независимые от фильтров)
   approvedCount: number
@@ -80,7 +80,7 @@ interface ApprovalStoreState {
 
   // Заявки по вкладкам
   fetchPendingRequests: (department: Department, userId: string, isAdmin?: boolean) => Promise<void>
-  fetchOmtsRpPendingRequests: () => Promise<void>
+  fetchRpPendingRequests: () => Promise<void>
   fetchApprovedRequests: (
     userSiteIds?: string[],
     allSites?: boolean,
@@ -111,7 +111,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
   pendingRequests: [],
   approvedRequests: [],
   rejectedRequests: [],
-  omtsRpPendingRequests: [],
+  rpPendingRequests: [],
   approvedCount: 0,
   rejectedCount: 0,
   isLoading: false,
@@ -266,19 +266,19 @@ export const useApprovalStore = create<ApprovalStoreState>((set) => ({
     }
   },
 
-  fetchOmtsRpPendingRequests: async () => {
+  fetchRpPendingRequests: async () => {
     set({ isLoading: true, error: null })
     try {
-      const data = await api.get<PaymentRequest[]>('/api/approvals/omts-rp-pending-requests')
+      const data = await api.get<PaymentRequest[]>('/api/approvals/rp-pending-requests')
 
-      set({ omtsRpPendingRequests: data ?? [], isLoading: false })
+      set({ rpPendingRequests: data ?? [], isLoading: false })
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Ошибка загрузки заявок ОМТС РП'
+      const message = err instanceof Error ? err.message : 'Ошибка загрузки заявок РП'
       logError({
         errorType: 'api_error',
         errorMessage: message,
         errorStack: err instanceof Error ? err.stack : null,
-        metadata: { action: 'fetchOmtsRpPendingRequests' },
+        metadata: { action: 'fetchRpPendingRequests' },
       })
       set({ error: message, isLoading: false })
     }

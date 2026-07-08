@@ -5,7 +5,6 @@ import {
   paymentRevisionBodySchema,
   paymentNewPendingBodySchema,
   paymentResubmittedBodySchema,
-  omtsRpPendingBodySchema,
   paymentAssignedBodySchema,
   paymentNewCommentBodySchema,
   paymentNewFileBodySchema,
@@ -55,12 +54,8 @@ async function notificationActionRoutes(fastify: FastifyInstance): Promise<void>
     return ok;
   });
 
-  fastify.post('/api/notifications/payment-request/omts-rp-pending', auth, async (request) => {
-    await request.server.repos.notificationActions.omtsRpPending(
-      omtsRpPendingBodySchema.parse(request.body),
-    );
-    return ok;
-  });
+  // Роут omts-rp-pending удалён: уведомление назначенцу о входе заявки на этап «РП»
+  // создаётся на сервере в approve() (approval.drizzle.ts), фронтовый вызов был мёртвым кодом.
 
   fastify.post('/api/notifications/payment-request/assigned', auth, async (request) => {
     await request.server.repos.notificationActions.paymentAssigned(

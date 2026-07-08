@@ -125,11 +125,6 @@ describe('SupabaseNotificationActionRepository', () => {
     expect(notifUserIds(s.fake)).toEqual(['omtsSite', 'shtabAll', 'shtabSite']);
   });
 
-  it('omtsRpPending: ОМТС объекта, исключая актора', async () => {
-    await s.repo.omtsRpPending({ paymentRequestId: 'pr1', actorUserId: 'nobody' });
-    expect(notifUserIds(s.fake)).toEqual(['omtsSite']);
-  });
-
   it('paymentAssigned: назначенному; актор=назначенный → no-op', async () => {
     await s.repo.paymentAssigned({
       paymentRequestId: 'pr1',

@@ -7,7 +7,8 @@
           "values": [
             "omts",
             "shtab",
-            "smetny"
+            "smetny",
+            "rp"
           ]
         }
       ],
@@ -4303,6 +4304,47 @@
               "numeric_precision": null
             }
           ]
+        },
+        {
+          "name": "rp_stage_assignees",
+          "columns": [
+            {
+              "name": "id",
+              "type": "uuid",
+              "default": "gen_random_uuid()",
+              "nullable": false,
+              "position": 1,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "construction_site_id",
+              "type": "uuid",
+              "default": null,
+              "nullable": false,
+              "position": 2,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "user_id",
+              "type": "uuid",
+              "default": null,
+              "nullable": false,
+              "position": 3,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "created_at",
+              "type": "timestamp with time zone",
+              "default": "now()",
+              "nullable": false,
+              "position": 4,
+              "max_length": null,
+              "numeric_precision": null
+            }
+          ]
         }
       ],
       "indexes": [
@@ -5050,6 +5092,21 @@
           "name": "idx_user_identity_links_email_lower",
           "definition": "CREATE INDEX idx_user_identity_links_email_lower ON public.user_identity_links USING btree (lower(email_at_link))",
           "table_name": "user_identity_links"
+        },
+        {
+          "name": "rp_stage_assignees_pkey",
+          "definition": "CREATE UNIQUE INDEX rp_stage_assignees_pkey ON public.rp_stage_assignees USING btree (id)",
+          "table_name": "rp_stage_assignees"
+        },
+        {
+          "name": "rp_stage_assignees_construction_site_id_key",
+          "definition": "CREATE UNIQUE INDEX rp_stage_assignees_construction_site_id_key ON public.rp_stage_assignees USING btree (construction_site_id)",
+          "table_name": "rp_stage_assignees"
+        },
+        {
+          "name": "idx_rp_stage_assignees_user",
+          "definition": "CREATE INDEX idx_rp_stage_assignees_user ON public.rp_stage_assignees USING btree (user_id)",
+          "table_name": "rp_stage_assignees"
         }
       ],
       "policies": [],
@@ -6118,6 +6175,28 @@
           "references_columns": [
             "id"
           ]
+        },
+        {
+          "columns": [
+            "construction_site_id"
+          ],
+          "table_name": "rp_stage_assignees",
+          "constraint_name": "rp_stage_assignees_construction_site_id_fkey",
+          "references_table": "construction_sites",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "user_id"
+          ],
+          "table_name": "rp_stage_assignees",
+          "constraint_name": "rp_stage_assignees_user_id_fkey",
+          "references_table": "users",
+          "references_columns": [
+            "id"
+          ]
         }
       ],
       "generated_at": "2026-06-01T00:00:00+00:00",
@@ -6458,6 +6537,13 @@
           ],
           "table_name": "password_reset_tokens",
           "constraint_name": "password_reset_tokens_pkey"
+        },
+        {
+          "columns": [
+            "id"
+          ],
+          "table_name": "rp_stage_assignees",
+          "constraint_name": "rp_stage_assignees_pkey"
         }
       ],
       "check_constraints": [
@@ -7863,6 +7949,13 @@
           ],
           "table_name": "user_construction_sites_mapping",
           "constraint_name": "user_construction_sites_mappin_user_id_construction_site_id_key"
+        },
+        {
+          "columns": [
+            "construction_site_id"
+          ],
+          "table_name": "rp_stage_assignees",
+          "constraint_name": "rp_stage_assignees_construction_site_id_key"
         }
       ]
     }

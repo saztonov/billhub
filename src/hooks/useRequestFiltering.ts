@@ -7,7 +7,7 @@ interface UseRequestFilteringParams {
   pendingRequests: PaymentRequest[]
   approvedRequests: PaymentRequest[]
   rejectedRequests: PaymentRequest[]
-  omtsRpPendingRequests: PaymentRequest[]
+  rpPendingRequests: PaymentRequest[]
   filters: FilterValues
   userId?: string
   isAdmin: boolean
@@ -22,157 +22,195 @@ export function useRequestFiltering({
   pendingRequests,
   approvedRequests,
   rejectedRequests,
-  omtsRpPendingRequests,
+  rpPendingRequests,
   filters,
   userId,
   isAdmin,
 }: UseRequestFilteringParams) {
   // Общая функция фильтрации для admin/user
-  const applyFilters = useCallback((items: PaymentRequest[]) => {
-    let filtered = items
+  const applyFilters = useCallback(
+    (items: PaymentRequest[]) => {
+      let filtered = items
 
-    if (filters.counterpartyId) {
-      filtered = filtered.filter(r => r.counterpartyId === filters.counterpartyId)
-    }
-    if (filters.siteId) {
-      filtered = filtered.filter(r => r.siteId === filters.siteId)
-    }
-    if (filters.statusId) {
-      filtered = filtered.filter(r => r.statusId === filters.statusId)
-    }
-    if (filters.supplierId) {
-      filtered = filtered.filter(r => r.supplierId === filters.supplierId)
-    }
-    if (filters.requestNumber) {
-      filtered = filtered.filter(r =>
-        r.requestNumber.toLowerCase().includes(filters.requestNumber!.toLowerCase())
-      )
-    }
-    if (filters.dateFrom) {
-      filtered = filtered.filter(r =>
-        new Date(r.createdAt) >= new Date(filters.dateFrom!)
-      )
-    }
-    if (filters.dateTo) {
-      const nextDay = new Date(filters.dateTo!)
-      nextDay.setDate(nextDay.getDate() + 1)
-      filtered = filtered.filter(r =>
-        new Date(r.createdAt) < nextDay
-      )
-    }
-    if (filters.responsibleFilter === 'assigned') {
-      filtered = filtered.filter(r => r.assignedUserId !== null)
-    } else if (filters.responsibleFilter === 'unassigned') {
-      filtered = filtered.filter(r => r.assignedUserId === null)
-    }
-    if (filters.responsibleUserId) {
-      filtered = filtered.filter(r => r.assignedUserId === filters.responsibleUserId)
-    }
-    if (filters.myRequestsFilter === 'assigned_to_me' && userId) {
-      filtered = filtered.filter(r => r.assignedUserId === userId)
-    }
-    if (filters.amountOperator && filters.amountValue != null) {
-      const val = filters.amountValue
-      filtered = filtered.filter(r => {
-        const amount = r.invoiceAmount ?? 0
-        if (filters.amountOperator === '>=') return amount >= val
-        if (filters.amountOperator === '<=') return amount <= val
-        return amount === val
-      })
-    }
+      if (filters.counterpartyId) {
+        filtered = filtered.filter((r) => r.counterpartyId === filters.counterpartyId)
+      }
+      if (filters.siteId) {
+        filtered = filtered.filter((r) => r.siteId === filters.siteId)
+      }
+      if (filters.statusId) {
+        filtered = filtered.filter((r) => r.statusId === filters.statusId)
+      }
+      if (filters.supplierId) {
+        filtered = filtered.filter((r) => r.supplierId === filters.supplierId)
+      }
+      if (filters.requestNumber) {
+        filtered = filtered.filter((r) =>
+          r.requestNumber.toLowerCase().includes(filters.requestNumber!.toLowerCase()),
+        )
+      }
+      if (filters.dateFrom) {
+        filtered = filtered.filter((r) => new Date(r.createdAt) >= new Date(filters.dateFrom!))
+      }
+      if (filters.dateTo) {
+        const nextDay = new Date(filters.dateTo!)
+        nextDay.setDate(nextDay.getDate() + 1)
+        filtered = filtered.filter((r) => new Date(r.createdAt) < nextDay)
+      }
+      if (filters.responsibleFilter === 'assigned') {
+        filtered = filtered.filter((r) => r.assignedUserId !== null)
+      } else if (filters.responsibleFilter === 'unassigned') {
+        filtered = filtered.filter((r) => r.assignedUserId === null)
+      }
+      if (filters.responsibleUserId) {
+        filtered = filtered.filter((r) => r.assignedUserId === filters.responsibleUserId)
+      }
+      if (filters.myRequestsFilter === 'assigned_to_me' && userId) {
+        filtered = filtered.filter((r) => r.assignedUserId === userId)
+      }
+      if (filters.amountOperator && filters.amountValue != null) {
+        const val = filters.amountValue
+        filtered = filtered.filter((r) => {
+          const amount = r.invoiceAmount ?? 0
+          if (filters.amountOperator === '>=') return amount >= val
+          if (filters.amountOperator === '<=') return amount <= val
+          return amount === val
+        })
+      }
 
-    return filtered
-  }, [filters, userId])
+      return filtered
+    },
+    [filters, userId],
+  )
 
   // Фильтрация для counterparty_user (только объект, дата, номер)
-  const applyCounterpartyFilters = useCallback((items: PaymentRequest[]) => {
-    let filtered = items
-    if (filters.siteId) {
-      filtered = filtered.filter(r => r.siteId === filters.siteId)
-    }
-    if (filters.supplierId) {
-      filtered = filtered.filter(r => r.supplierId === filters.supplierId)
-    }
-    if (filters.statusId) {
-      filtered = filtered.filter(r => r.statusId === filters.statusId)
-    }
-    if (filters.requestNumber) {
-      filtered = filtered.filter(r =>
-        r.requestNumber.toLowerCase().includes(filters.requestNumber!.toLowerCase())
-      )
-    }
-    if (filters.dateFrom) {
-      filtered = filtered.filter(r =>
-        new Date(r.createdAt) >= new Date(filters.dateFrom!)
-      )
-    }
-    if (filters.dateTo) {
-      const nextDay = new Date(filters.dateTo!)
-      nextDay.setDate(nextDay.getDate() + 1)
-      filtered = filtered.filter(r =>
-        new Date(r.createdAt) < nextDay
-      )
-    }
-    return filtered
-  }, [filters])
+  const applyCounterpartyFilters = useCallback(
+    (items: PaymentRequest[]) => {
+      let filtered = items
+      if (filters.siteId) {
+        filtered = filtered.filter((r) => r.siteId === filters.siteId)
+      }
+      if (filters.supplierId) {
+        filtered = filtered.filter((r) => r.supplierId === filters.supplierId)
+      }
+      if (filters.statusId) {
+        filtered = filtered.filter((r) => r.statusId === filters.statusId)
+      }
+      if (filters.requestNumber) {
+        filtered = filtered.filter((r) =>
+          r.requestNumber.toLowerCase().includes(filters.requestNumber!.toLowerCase()),
+        )
+      }
+      if (filters.dateFrom) {
+        filtered = filtered.filter((r) => new Date(r.createdAt) >= new Date(filters.dateFrom!))
+      }
+      if (filters.dateTo) {
+        const nextDay = new Date(filters.dateTo!)
+        nextDay.setDate(nextDay.getDate() + 1)
+        filtered = filtered.filter((r) => new Date(r.createdAt) < nextDay)
+      }
+      return filtered
+    },
+    [filters],
+  )
 
   // Фильтрованные списки для admin/user
   const filteredRequests = useMemo(() => applyFilters(requests), [requests, applyFilters])
-  const filteredPendingRequests = useMemo(() => applyFilters(pendingRequests), [pendingRequests, applyFilters])
-  const filteredApprovedRequests = useMemo(() => applyFilters(approvedRequests), [approvedRequests, applyFilters])
-  const filteredRejectedRequests = useMemo(() => applyFilters(rejectedRequests), [rejectedRequests, applyFilters])
-  // Для ОМТС РП не применяем фильтры по ответственному (заявки на этапе ОМТС РП не привязаны к assignedUserId)
-  const applyFiltersWithoutResponsible = useCallback((items: PaymentRequest[]) => {
-    let filtered = items
-    if (filters.counterpartyId) filtered = filtered.filter(r => r.counterpartyId === filters.counterpartyId)
-    if (filters.siteId) filtered = filtered.filter(r => r.siteId === filters.siteId)
-    if (filters.requestNumber) filtered = filtered.filter(r => r.requestNumber.toLowerCase().includes(filters.requestNumber!.toLowerCase()))
-    if (filters.dateFrom) filtered = filtered.filter(r => new Date(r.createdAt) >= new Date(filters.dateFrom!))
-    if (filters.dateTo) {
-      const nextDay = new Date(filters.dateTo!)
-      nextDay.setDate(nextDay.getDate() + 1)
-      filtered = filtered.filter(r => new Date(r.createdAt) < nextDay)
-    }
-    if (filters.amountOperator && filters.amountValue != null) {
-      const val = filters.amountValue
-      filtered = filtered.filter(r => {
-        const amount = r.invoiceAmount ?? 0
-        if (filters.amountOperator === '>=') return amount >= val
-        if (filters.amountOperator === '<=') return amount <= val
-        return amount === val
-      })
-    }
-    return filtered
-  }, [filters])
-  const filteredOmtsRpPendingRequests = useMemo(() => applyFiltersWithoutResponsible(omtsRpPendingRequests), [omtsRpPendingRequests, applyFiltersWithoutResponsible])
+  const filteredPendingRequests = useMemo(
+    () => applyFilters(pendingRequests),
+    [pendingRequests, applyFilters],
+  )
+  const filteredApprovedRequests = useMemo(
+    () => applyFilters(approvedRequests),
+    [approvedRequests, applyFilters],
+  )
+  const filteredRejectedRequests = useMemo(
+    () => applyFilters(rejectedRequests),
+    [rejectedRequests, applyFilters],
+  )
+  // Для этапа РП не применяем фильтры по ответственному (заявки на этапе РП не привязаны к assignedUserId)
+  const applyFiltersWithoutResponsible = useCallback(
+    (items: PaymentRequest[]) => {
+      let filtered = items
+      if (filters.counterpartyId)
+        filtered = filtered.filter((r) => r.counterpartyId === filters.counterpartyId)
+      if (filters.siteId) filtered = filtered.filter((r) => r.siteId === filters.siteId)
+      if (filters.requestNumber)
+        filtered = filtered.filter((r) =>
+          r.requestNumber.toLowerCase().includes(filters.requestNumber!.toLowerCase()),
+        )
+      if (filters.dateFrom)
+        filtered = filtered.filter((r) => new Date(r.createdAt) >= new Date(filters.dateFrom!))
+      if (filters.dateTo) {
+        const nextDay = new Date(filters.dateTo!)
+        nextDay.setDate(nextDay.getDate() + 1)
+        filtered = filtered.filter((r) => new Date(r.createdAt) < nextDay)
+      }
+      if (filters.amountOperator && filters.amountValue != null) {
+        const val = filters.amountValue
+        filtered = filtered.filter((r) => {
+          const amount = r.invoiceAmount ?? 0
+          if (filters.amountOperator === '>=') return amount >= val
+          if (filters.amountOperator === '<=') return amount <= val
+          return amount === val
+        })
+      }
+      return filtered
+    },
+    [filters],
+  )
+  const filteredRpPendingRequests = useMemo(
+    () => applyFiltersWithoutResponsible(rpPendingRequests),
+    [rpPendingRequests, applyFiltersWithoutResponsible],
+  )
 
   // Разделение заявок counterparty_user по статусам
-  const counterpartyRevisionRequests = useMemo(() =>
-    requests.filter(r => !!r.previousStatusId), [requests])
-  const counterpartyPendingRequests = useMemo(() =>
-    requests.filter(r =>
-      r.currentStage !== null &&
-      r.approvedAt === null &&
-      r.rejectedAt === null &&
-      r.withdrawnAt === null &&
-      !r.previousStatusId
-    ), [requests])
-  const counterpartyApprovedRequests = useMemo(() =>
-    requests.filter(r => r.approvedAt !== null), [requests])
-  const counterpartyRejectedRequests = useMemo(() =>
-    requests.filter(r => r.rejectedAt !== null), [requests])
+  const counterpartyRevisionRequests = useMemo(
+    () => requests.filter((r) => !!r.previousStatusId),
+    [requests],
+  )
+  const counterpartyPendingRequests = useMemo(
+    () =>
+      requests.filter(
+        (r) =>
+          r.currentStage !== null &&
+          r.approvedAt === null &&
+          r.rejectedAt === null &&
+          r.withdrawnAt === null &&
+          !r.previousStatusId,
+      ),
+    [requests],
+  )
+  const counterpartyApprovedRequests = useMemo(
+    () => requests.filter((r) => r.approvedAt !== null),
+    [requests],
+  )
+  const counterpartyRejectedRequests = useMemo(
+    () => requests.filter((r) => r.rejectedAt !== null),
+    [requests],
+  )
 
   // Фильтрованные counterparty списки
-  const filteredCounterpartyAll = useMemo(() =>
-    applyCounterpartyFilters(requests), [requests, applyCounterpartyFilters])
-  const filteredCounterpartyRevision = useMemo(() =>
-    applyCounterpartyFilters(counterpartyRevisionRequests), [counterpartyRevisionRequests, applyCounterpartyFilters])
-  const filteredCounterpartyPending = useMemo(() =>
-    applyCounterpartyFilters(counterpartyPendingRequests), [counterpartyPendingRequests, applyCounterpartyFilters])
-  const filteredCounterpartyApproved = useMemo(() =>
-    applyCounterpartyFilters(counterpartyApprovedRequests), [counterpartyApprovedRequests, applyCounterpartyFilters])
-  const filteredCounterpartyRejected = useMemo(() =>
-    applyCounterpartyFilters(counterpartyRejectedRequests), [counterpartyRejectedRequests, applyCounterpartyFilters])
+  const filteredCounterpartyAll = useMemo(
+    () => applyCounterpartyFilters(requests),
+    [requests, applyCounterpartyFilters],
+  )
+  const filteredCounterpartyRevision = useMemo(
+    () => applyCounterpartyFilters(counterpartyRevisionRequests),
+    [counterpartyRevisionRequests, applyCounterpartyFilters],
+  )
+  const filteredCounterpartyPending = useMemo(
+    () => applyCounterpartyFilters(counterpartyPendingRequests),
+    [counterpartyPendingRequests, applyCounterpartyFilters],
+  )
+  const filteredCounterpartyApproved = useMemo(
+    () => applyCounterpartyFilters(counterpartyApprovedRequests),
+    [counterpartyApprovedRequests, applyCounterpartyFilters],
+  )
+  const filteredCounterpartyRejected = useMemo(
+    () => applyCounterpartyFilters(counterpartyRejectedRequests),
+    [counterpartyRejectedRequests, applyCounterpartyFilters],
+  )
 
   // Статистика для вкладки "На согласование"
   const totalInvoiceAmount = useMemo(() => {
@@ -183,47 +221,60 @@ export function useRequestFiltering({
 
   // Статистика для вкладки "Все" (только согласованные заявки)
   const totalInvoiceAmountAll = useMemo(() => {
-    return filteredRequests.filter(r => r.approvedAt !== null).reduce((sum, req) => sum + (req.invoiceAmount ?? 0), 0)
+    return filteredRequests
+      .filter((r) => r.approvedAt !== null)
+      .reduce((sum, req) => sum + (req.invoiceAmount ?? 0), 0)
   }, [filteredRequests])
 
   const totalPaidAll = useMemo(() => {
-    return filteredRequests.filter(r => r.approvedAt !== null).reduce((sum, req) => sum + (req.totalPaid ?? 0), 0)
+    return filteredRequests
+      .filter((r) => r.approvedAt !== null)
+      .reduce((sum, req) => sum + (req.totalPaid ?? 0), 0)
   }, [filteredRequests])
 
   // Сумма РП на согласовании (вкладка "Все")
   const totalPendingAmountAll = useMemo(() => {
-    return filteredRequests.filter(r =>
-      r.currentStage !== null &&
-      r.approvedAt === null &&
-      r.rejectedAt === null &&
-      r.withdrawnAt === null
-    ).reduce((sum, req) => sum + (req.invoiceAmount ?? 0), 0)
+    return filteredRequests
+      .filter(
+        (r) =>
+          r.currentStage !== null &&
+          r.approvedAt === null &&
+          r.rejectedAt === null &&
+          r.withdrawnAt === null,
+      )
+      .reduce((sum, req) => sum + (req.invoiceAmount ?? 0), 0)
   }, [filteredRequests])
 
   // Статистика для counterparty_user (вкладка "Все", только согласованные)
   const totalCounterpartyInvoiceAmountAll = useMemo(() => {
-    return filteredCounterpartyAll.filter(r => r.approvedAt !== null).reduce((sum, req) => sum + (req.invoiceAmount ?? 0), 0)
+    return filteredCounterpartyAll
+      .filter((r) => r.approvedAt !== null)
+      .reduce((sum, req) => sum + (req.invoiceAmount ?? 0), 0)
   }, [filteredCounterpartyAll])
 
   const totalCounterpartyPaidAll = useMemo(() => {
-    return filteredCounterpartyAll.filter(r => r.approvedAt !== null).reduce((sum, req) => sum + (req.totalPaid ?? 0), 0)
+    return filteredCounterpartyAll
+      .filter((r) => r.approvedAt !== null)
+      .reduce((sum, req) => sum + (req.totalPaid ?? 0), 0)
   }, [filteredCounterpartyAll])
 
   // Сумма РП на согласовании для counterparty_user
   const totalCounterpartyPendingAmountAll = useMemo(() => {
-    return filteredCounterpartyAll.filter(r =>
-      r.currentStage !== null &&
-      r.approvedAt === null &&
-      r.rejectedAt === null &&
-      r.withdrawnAt === null
-    ).reduce((sum, req) => sum + (req.invoiceAmount ?? 0), 0)
+    return filteredCounterpartyAll
+      .filter(
+        (r) =>
+          r.currentStage !== null &&
+          r.approvedAt === null &&
+          r.rejectedAt === null &&
+          r.withdrawnAt === null,
+      )
+      .reduce((sum, req) => sum + (req.invoiceAmount ?? 0), 0)
   }, [filteredCounterpartyAll])
 
   const unassignedOmtsCount = useMemo(() => {
     if (!isAdmin) return 0
-    return filteredPendingRequests.filter(req =>
-      req.currentStage === 2 && !req.assignedUserId
-    ).length
+    return filteredPendingRequests.filter((req) => req.currentStage === 2 && !req.assignedUserId)
+      .length
   }, [filteredPendingRequests, isAdmin])
 
   return {
@@ -232,7 +283,7 @@ export function useRequestFiltering({
     filteredPendingRequests,
     filteredApprovedRequests,
     filteredRejectedRequests,
-    filteredOmtsRpPendingRequests,
+    filteredRpPendingRequests,
     // Фильтрованные списки counterparty
     filteredCounterpartyAll,
     filteredCounterpartyRevision,

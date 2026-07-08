@@ -3,6 +3,11 @@
  * Дословный порт логики роутов approvals.ts / approval-extra.ts и хелперов: машина состояний
  * (Штаб → ОМТС → [ОМТС-РП] → Согласовано | Отклонено | Доработка), очереди, счётчики.
  * Поведение (статусы/тексты/порядок side-effect'ов) сохранено байт-в-байт.
+ *
+ * ВНИМАНИЕ (принцип 2, поведение заморожено): независимый этап «РП» (stage 3,
+ * department_id='rp', rp_stage_assignees — миграции 0015/0016) реализован ТОЛЬКО в Drizzle.
+ * Здесь listRpPending/countRpPending сохраняют старую семантику под-этапа ОМТС-РП
+ * (is_omts_rp=true), матчинг решений — по department из тела; в legacy-БД новых сущностей нет.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
@@ -137,7 +142,8 @@ export class SupabaseApprovalRepository implements ApprovalRepository {
     return (data ?? []).map((r: Row) => flattenPaymentRequest(r));
   }
 
-  async listOmtsRpPending(opts: { userId: string }): Promise<Row[]> {
+  // Legacy-семантика под-этапа ОМТС-РП (is_omts_rp=true); opts.isAdmin игнорируется.
+  async listRpPending(opts: { userId: string; isAdmin: boolean }): Promise<Row[]> {
     const { allSites, siteIds: userSiteIds } = await getUserSiteIds(this.supabase, opts.userId);
 
     const { data: decisions, error: decErr } = await this.supabase
@@ -325,7 +331,8 @@ export class SupabaseApprovalRepository implements ApprovalRepository {
     return activeRequests.filter((r: Row) => !assignedSet.has(r.id as string)).length;
   }
 
-  async countOmtsRp(opts: { userId: string }): Promise<number> {
+  // Legacy-семантика под-этапа ОМТС-РП (is_omts_rp=true); opts.isAdmin игнорируется.
+  async countRpPending(opts: { userId: string; isAdmin: boolean }): Promise<number> {
     const { allSites, siteIds } = await getUserSiteIds(this.supabase, opts.userId);
 
     const { data: decisions, error: decErr } = await this.supabase
@@ -569,7 +576,8 @@ export class SupabaseApprovalRepository implements ApprovalRepository {
 
     let decisionId: string | null = null;
     let effectiveStage: number | null = currentStage ?? null;
-    let effectiveDepartment: string = input.department;
+    // department в теле — легаси (в интерфейсе optional); фолбэк 'omts' как в старом коде.
+    let effectiveDepartment: string = input.department ?? 'omts';
 
     if (pendingDecision) {
       const { data: upd, error: updErr } = await this.supabase

@@ -129,22 +129,25 @@ async function rpRoutes(fastify: FastifyInstance): Promise<void> {
   const adminOrUser = { preHandler: [authenticate, requireRole('admin', 'user')] };
 
   /**
-   * Управление РП: пропускает admin или назначенного ответственного ОМТС РП
-   * (единственное лицо из settings.omts_rp_config). Просмотр реестра — отдельно (adminOrUser).
+   * Управление РП: пропускает admin или назначенца этапа «РП» (хотя бы одно назначение
+   * в rp_stage_assignees). Просмотр реестра — отдельно (adminOrUser).
    */
-  async function requireAdminOrOmtsRp(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  async function requireAdminOrRpAssignee(
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ): Promise<void> {
     const user = request.user;
     if (!user) {
       reply.status(401).send({ error: 'Не авторизован' });
       return;
     }
     if (user.role === 'admin') return;
-    const responsibleId = await fastify.repos.omtsRp.getResponsibleUserId();
-    if (responsibleId && user.id === responsibleId) return;
+    const siteIds = await fastify.repos.rpStage.getAssigneeSiteIds(user.id);
+    if (siteIds.length > 0) return;
     reply.status(403).send({ error: 'Доступ запрещён' });
   }
 
-  const adminOrOmtsRp = { preHandler: [authenticate, requireAdminOrOmtsRp] };
+  const adminOrRpAssignee = { preHandler: [authenticate, requireAdminOrRpAssignee] };
 
   /** Вычисляет ограничение по объектам для обычного user (null => все объекты). */
   async function resolveSiteScope(userId: string, role: string, allSites: boolean) {
@@ -182,7 +185,7 @@ async function rpRoutes(fastify: FastifyInstance): Promise<void> {
   });
 
   /* ---------- POST /api/rp — создать РП (опционально с письмом PayHub) ---------- */
-  fastify.post('/api/rp', adminOrOmtsRp, async (request, reply) => {
+  fastify.post('/api/rp', adminOrRpAssignee, async (request, reply) => {
     const user = request.user!;
     const body = createRpBodySchema.parse(request.body);
     const letterInitialStatus = body.letter?.hasAttachments ? 'uploading' : 'pending';
@@ -221,7 +224,7 @@ async function rpRoutes(fastify: FastifyInstance): Promise<void> {
   });
 
   /* ---------- POST /api/rp/letter-stage1 — 1 этап: РП + синхронное письмо PayHub ---------- */
-  fastify.post('/api/rp/letter-stage1', adminOrOmtsRp, async (request, reply) => {
+  fastify.post('/api/rp/letter-stage1', adminOrRpAssignee, async (request, reply) => {
     const user = request.user!;
     const body = rpStage1BodySchema.parse(request.body);
     const repo = getRepo();
@@ -279,7 +282,7 @@ async function rpRoutes(fastify: FastifyInstance): Promise<void> {
   });
 
   /* ---------- POST /api/rp/:id/letter/attachments — регистрация файлов письма ---------- */
-  fastify.post('/api/rp/:id/letter/attachments', adminOrOmtsRp, async (request) => {
+  fastify.post('/api/rp/:id/letter/attachments', adminOrRpAssignee, async (request) => {
     const { id } = rpIdParamsSchema.parse(request.params);
     const body = rpLetterAttachmentsBodySchema.parse(request.body);
     await assertRpInScope(id, request.user!);
@@ -307,7 +310,7 @@ async function rpRoutes(fastify: FastifyInstance): Promise<void> {
   /* ---------- POST /api/rp/:id/letter/append-attachments — дозагрузка файлов из редактирования ---------- */
   // Отдельно от letter/attachments (создание РП): дописывает вложения к уже оформленному
   // письму и (для созданного письма) ставит фоновую синхронизацию — воркер догрузит недостающие.
-  fastify.post('/api/rp/:id/letter/append-attachments', adminOrOmtsRp, async (request) => {
+  fastify.post('/api/rp/:id/letter/append-attachments', adminOrRpAssignee, async (request) => {
     const { id } = rpIdParamsSchema.parse(request.params);
     const body = rpLetterAttachmentsBodySchema.parse(request.body);
     await assertRpInScope(id, request.user!);
@@ -340,7 +343,7 @@ async function rpRoutes(fastify: FastifyInstance): Promise<void> {
   });
 
   /* ---------- POST /api/rp/:id/service-files — регистрация служебных файлов ---------- */
-  fastify.post('/api/rp/:id/service-files', adminOrOmtsRp, async (request) => {
+  fastify.post('/api/rp/:id/service-files', adminOrRpAssignee, async (request) => {
     const { id } = rpIdParamsSchema.parse(request.params);
     const body = rpServiceFilesBodySchema.parse(request.body);
     await assertRpInScope(id, request.user!);
@@ -365,7 +368,7 @@ async function rpRoutes(fastify: FastifyInstance): Promise<void> {
   });
 
   /* ---------- DELETE /api/rp/:id/service-files/:fileId — удалить служебный файл ---------- */
-  fastify.delete('/api/rp/:id/service-files/:fileId', adminOrOmtsRp, async (request) => {
+  fastify.delete('/api/rp/:id/service-files/:fileId', adminOrRpAssignee, async (request) => {
     const { id, fileId } = rpServiceFileParamsSchema.parse(request.params);
     await assertRpInScope(id, request.user!);
     const fileKey = await getRepo().deleteServiceFile(id, fileId);
@@ -376,7 +379,7 @@ async function rpRoutes(fastify: FastifyInstance): Promise<void> {
 
   /* ---------- POST /api/rp/invoice-file-candidates — активные счета заявок (0011) ---------- */
   // РП ещё не существует на этапе выбора счетов — эндпоинт работает по id заявок.
-  fastify.post('/api/rp/invoice-file-candidates', adminOrOmtsRp, async (request) => {
+  fastify.post('/api/rp/invoice-file-candidates', adminOrRpAssignee, async (request) => {
     const user = request.user!;
     const body = rpInvoiceCandidatesBodySchema.parse(request.body);
     const siteIds = await resolveSiteScope(user.id, user.role, user.allSites ?? false);
@@ -385,7 +388,7 @@ async function rpRoutes(fastify: FastifyInstance): Promise<void> {
 
   /* ---------- POST /api/rp/:id/service-files/from-invoices — прикрепить счета (0011) ---------- */
   // Счета копируются в служебную папку РП (в PayHub не уходят), идемпотентно по детерм. ключу.
-  fastify.post('/api/rp/:id/service-files/from-invoices', adminOrOmtsRp, async (request) => {
+  fastify.post('/api/rp/:id/service-files/from-invoices', adminOrRpAssignee, async (request) => {
     const { id } = rpIdParamsSchema.parse(request.params);
     const body = rpAttachInvoicesBodySchema.parse(request.body);
     await assertRpInScope(id, request.user!);
@@ -442,7 +445,7 @@ async function rpRoutes(fastify: FastifyInstance): Promise<void> {
   /* ---------- POST /api/rp/:id/letter/finalize — поставить письмо в очередь ---------- */
   /* Используется как завершение 2 этапа (с актуальным текстом -> PATCH письма) и как
      ручной «Повторить»/«Создать письмо» из реестра (без тела). */
-  fastify.post('/api/rp/:id/letter/finalize', adminOrOmtsRp, async (request) => {
+  fastify.post('/api/rp/:id/letter/finalize', adminOrRpAssignee, async (request) => {
     const { id } = rpIdParamsSchema.parse(request.params);
     const body = finalizeLetterBodySchema.parse(request.body ?? {});
     await assertRpInScope(id, request.user!);
@@ -480,7 +483,7 @@ async function rpRoutes(fastify: FastifyInstance): Promise<void> {
   });
 
   /* ---------- PATCH /api/rp/:id/letter-text — правка текста письма из реестра ---------- */
-  fastify.patch('/api/rp/:id/letter-text', adminOrOmtsRp, async (request) => {
+  fastify.patch('/api/rp/:id/letter-text', adminOrRpAssignee, async (request) => {
     const { id } = rpIdParamsSchema.parse(request.params);
     const body = editLetterTextBodySchema.parse(request.body);
     await assertRpInScope(id, request.user!);
@@ -515,7 +518,7 @@ async function rpRoutes(fastify: FastifyInstance): Promise<void> {
   });
 
   /* ---------- PATCH /api/rp/:id/sent-date — дата отправки письма (0013) ---------- */
-  fastify.patch('/api/rp/:id/sent-date', adminOrOmtsRp, async (request) => {
+  fastify.patch('/api/rp/:id/sent-date', adminOrRpAssignee, async (request) => {
     const { id } = rpIdParamsSchema.parse(request.params);
     const body = rpSentDateBodySchema.parse(request.body);
     await assertRpInScope(id, request.user!);
@@ -524,7 +527,7 @@ async function rpRoutes(fastify: FastifyInstance): Promise<void> {
   });
 
   /* ---------- POST /api/rp/:id/annul — аннулировать РП (удалить письмо в PayHub) ---------- */
-  fastify.post('/api/rp/:id/annul', adminOrOmtsRp, async (request) => {
+  fastify.post('/api/rp/:id/annul', adminOrRpAssignee, async (request) => {
     const { id } = rpIdParamsSchema.parse(request.params);
     await assertRpInScope(id, request.user!);
     const repo = getRepo();
@@ -543,7 +546,7 @@ async function rpRoutes(fastify: FastifyInstance): Promise<void> {
   });
 
   /* ---------- DELETE /api/rp/:id — удалить РП (и письмо в PayHub) ---------- */
-  fastify.delete('/api/rp/:id', adminOrOmtsRp, async (request) => {
+  fastify.delete('/api/rp/:id', adminOrRpAssignee, async (request) => {
     const { id } = rpIdParamsSchema.parse(request.params);
     await assertRpInScope(id, request.user!);
     const repo = getRepo();
@@ -559,7 +562,7 @@ async function rpRoutes(fastify: FastifyInstance): Promise<void> {
   });
 
   /* ---------- PATCH /api/rp/:id/status — смена статуса РП (совместимость) ---------- */
-  fastify.patch('/api/rp/:id/status', adminOrOmtsRp, async (request) => {
+  fastify.patch('/api/rp/:id/status', adminOrRpAssignee, async (request) => {
     const { id } = rpIdParamsSchema.parse(request.params);
     const body = updateRpStatusBodySchema.parse(request.body);
     await assertRpInScope(id, request.user!);

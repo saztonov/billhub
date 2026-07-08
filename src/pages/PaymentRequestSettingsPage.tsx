@@ -17,7 +17,7 @@ import {
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useStatusStore } from '@/store/statusStore'
 import { usePaymentRequestSettingsStore } from '@/store/paymentRequestSettingsStore'
-import OmtsRpSettingsTab from '@/components/admin/OmtsRpSettingsTab'
+import RpSettingsTab from '@/components/admin/RpSettingsTab'
 import type { Status, PaymentRequestFieldOption } from '@/types'
 
 const STATUS_ENTITY_TYPES = [
@@ -33,14 +33,22 @@ const PaymentRequestSettingsPage = () => {
   const { message } = App.useApp()
   // Статусы
   const {
-    statuses, isLoading: statusLoading,
-    fetchStatuses, createStatus, updateStatus, deleteStatus,
+    statuses,
+    isLoading: statusLoading,
+    fetchStatuses,
+    createStatus,
+    updateStatus,
+    deleteStatus,
   } = useStatusStore()
 
   // Опции полей
   const {
-    fieldOptions, isLoading: optionsLoading,
-    fetchFieldOptions, createFieldOption, updateFieldOption, deleteFieldOption,
+    fieldOptions,
+    isLoading: optionsLoading,
+    fetchFieldOptions,
+    createFieldOption,
+    updateFieldOption,
+    deleteFieldOption,
   } = usePaymentRequestSettingsStore()
 
   const [statusEntityType, setStatusEntityType] = useState('payment_request')
@@ -120,7 +128,7 @@ const PaymentRequestSettingsPage = () => {
         const bVal = b.color || ''
         return aVal.localeCompare(bVal)
       },
-      render: (color: string | null) => color ? <Tag color={color}>{color}</Tag> : '—',
+      render: (color: string | null) => (color ? <Tag color={color}>{color}</Tag> : '—'),
     },
     {
       title: 'Активен',
@@ -131,7 +139,10 @@ const PaymentRequestSettingsPage = () => {
       render: (val: boolean) => <Tag color={val ? 'green' : 'default'}>{val ? 'Да' : 'Нет'}</Tag>,
     },
     {
-      title: 'Видимость', dataIndex: 'visibleRoles', key: 'visibleRoles', width: 200,
+      title: 'Видимость',
+      dataIndex: 'visibleRoles',
+      key: 'visibleRoles',
+      width: 200,
       render: (roles: string[]) => {
         if (!roles || roles.length === 0) return <Tag>Все роли</Tag>
         const labels: Record<string, string> = {
@@ -150,7 +161,9 @@ const PaymentRequestSettingsPage = () => {
       sorter: (a: Status, b: Status) => a.displayOrder - b.displayOrder,
     },
     {
-      title: 'Действия', key: 'actions', width: 100,
+      title: 'Действия',
+      key: 'actions',
+      width: 100,
       render: (_: unknown, record: Status) => (
         <Space>
           <Button icon={<EditOutlined />} size="small" onClick={() => handleEditStatus(record)} />
@@ -203,21 +216,24 @@ const PaymentRequestSettingsPage = () => {
       dataIndex: 'fieldCode',
       key: 'fieldCode',
       width: 180,
-      sorter: (a: PaymentRequestFieldOption, b: PaymentRequestFieldOption) => a.fieldCode.localeCompare(b.fieldCode),
+      sorter: (a: PaymentRequestFieldOption, b: PaymentRequestFieldOption) =>
+        a.fieldCode.localeCompare(b.fieldCode),
       render: (code: string) => fieldCodeLabels[code] ?? code,
     },
     {
       title: 'Значение',
       dataIndex: 'value',
       key: 'value',
-      sorter: (a: PaymentRequestFieldOption, b: PaymentRequestFieldOption) => a.value.localeCompare(b.value),
+      sorter: (a: PaymentRequestFieldOption, b: PaymentRequestFieldOption) =>
+        a.value.localeCompare(b.value),
     },
     {
       title: 'Активна',
       dataIndex: 'isActive',
       key: 'isActive',
       width: 100,
-      sorter: (a: PaymentRequestFieldOption, b: PaymentRequestFieldOption) => (a.isActive === b.isActive ? 0 : a.isActive ? -1 : 1),
+      sorter: (a: PaymentRequestFieldOption, b: PaymentRequestFieldOption) =>
+        a.isActive === b.isActive ? 0 : a.isActive ? -1 : 1,
       render: (val: boolean) => <Tag color={val ? 'green' : 'default'}>{val ? 'Да' : 'Нет'}</Tag>,
     },
     {
@@ -225,10 +241,13 @@ const PaymentRequestSettingsPage = () => {
       dataIndex: 'displayOrder',
       key: 'displayOrder',
       width: 100,
-      sorter: (a: PaymentRequestFieldOption, b: PaymentRequestFieldOption) => a.displayOrder - b.displayOrder,
+      sorter: (a: PaymentRequestFieldOption, b: PaymentRequestFieldOption) =>
+        a.displayOrder - b.displayOrder,
     },
     {
-      title: 'Действия', key: 'actions', width: 100,
+      title: 'Действия',
+      key: 'actions',
+      width: 100,
       render: (_: unknown, record: PaymentRequestFieldOption) => (
         <Space>
           <Button icon={<EditOutlined />} size="small" onClick={() => handleEditOption(record)} />
@@ -246,7 +265,15 @@ const PaymentRequestSettingsPage = () => {
       label: 'Статусы заявок',
       children: (
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-          <div style={{ marginBottom: 16, display: 'flex', gap: 12, alignItems: 'center', flexShrink: 0 }}>
+          <div
+            style={{
+              marginBottom: 16,
+              display: 'flex',
+              gap: 12,
+              alignItems: 'center',
+              flexShrink: 0,
+            }}
+          >
             <Select
               value={statusEntityType}
               onChange={setStatusEntityType}
@@ -304,9 +331,9 @@ const PaymentRequestSettingsPage = () => {
       ),
     },
     {
-      key: 'omts-rp',
-      label: 'ОМТС РП',
-      children: <OmtsRpSettingsTab />,
+      key: 'rp',
+      label: 'РП',
+      children: <RpSettingsTab />,
     },
   ]
 
@@ -323,15 +350,25 @@ const PaymentRequestSettingsPage = () => {
         okText="Сохранить"
         cancelText="Отмена"
       >
-        <Form form={statusForm} layout="vertical" initialValues={{ is_active: true, display_order: 0 }}>
+        <Form
+          form={statusForm}
+          layout="vertical"
+          initialValues={{ is_active: true, display_order: 0 }}
+        >
           <Form.Item name="code" label="Код" rules={[{ required: true, message: 'Введите код' }]}>
             <Input disabled={!!editingStatus} placeholder="Например: in_progress" />
           </Form.Item>
-          <Form.Item name="name" label="Название" rules={[{ required: true, message: 'Введите название' }]}>
+          <Form.Item
+            name="name"
+            label="Название"
+            rules={[{ required: true, message: 'Введите название' }]}
+          >
             <Input placeholder="Например: В работе" />
           </Form.Item>
           <Form.Item name="color" label="Цвет Tag">
-            <Select allowClear placeholder="Выберите цвет"
+            <Select
+              allowClear
+              placeholder="Выберите цвет"
               options={[
                 { label: 'Зелёный', value: 'green' },
                 { label: 'Красный', value: 'red' },
@@ -379,17 +416,30 @@ const PaymentRequestSettingsPage = () => {
         okText="Сохранить"
         cancelText="Отмена"
       >
-        <Form form={optionForm} layout="vertical" initialValues={{ is_active: true, display_order: 0 }}>
-          <Form.Item name="field_code" label="Поле" rules={[{ required: true, message: 'Выберите поле' }]}>
+        <Form
+          form={optionForm}
+          layout="vertical"
+          initialValues={{ is_active: true, display_order: 0 }}
+        >
+          <Form.Item
+            name="field_code"
+            label="Поле"
+            rules={[{ required: true, message: 'Выберите поле' }]}
+          >
             <Select
               disabled={!!editingOption}
               placeholder="Выберите поле"
               options={Object.entries(fieldCodeLabels).map(([code, label]) => ({
-                label, value: code,
+                label,
+                value: code,
               }))}
             />
           </Form.Item>
-          <Form.Item name="value" label="Значение" rules={[{ required: true, message: 'Введите значение' }]}>
+          <Form.Item
+            name="value"
+            label="Значение"
+            rules={[{ required: true, message: 'Введите значение' }]}
+          >
             <Input placeholder="Например: Самовывоз" />
           </Form.Item>
           <Form.Item name="display_order" label="Порядок отображения">

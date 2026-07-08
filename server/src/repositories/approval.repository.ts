@@ -1,8 +1,9 @@
 /**
  * Repository-интерфейс домена «approvals» (Iteration 5, Phase 7).
  *
- * Инкапсулирует машину состояний согласования (Штаб → ОМТС → [ОМТС-РП] → Согласовано,
- * либо Отклонено / Доработка / Завершение доработки) и read-эндпоинты очередей и счётчиков.
+ * Инкапсулирует машину состояний согласования (Штаб → ОМТС → [РП, этап 3 для объектов
+ * с назначенцем в rp_stage_assignees] → Согласовано, либо Отклонено / Доработка /
+ * Завершение доработки) и read-эндпоинты очередей и счётчиков.
  *
  * Контракт ошибок: write-методы, требующие точного HTTP-статуса и текста (как в исходных
  * роутах), возвращают объект-результат { ok:false, status, error } вместо доменных исключений —
@@ -16,10 +17,13 @@ export type Row = Record<string, unknown>;
 /** Вход решения (/decide и /create-decision). */
 export interface ApprovalDecideInput {
   paymentRequestId: string;
-  department: string;
+  /** Легаси-поле тела запроса: для матчинга НЕ используется (этап определяет current_stage). */
+  department?: string;
   action: 'approve' | 'reject';
   comment?: string;
   userId: string;
+  /** Отдел пользователя (users.department_id) — серверная авторизация по этапам 1/2. */
+  userDepartment?: string | null;
   /** role==='admin' || query.isAdmin==='true' — включает админ-путь форс-отклонения. */
   isAdmin: boolean;
 }
@@ -65,7 +69,8 @@ export interface ApprovalRepository {
     department: string;
     isAdmin: boolean;
   }): Promise<Row[]>;
-  listOmtsRpPending(opts: { userId: string }): Promise<Row[]>;
+  /** Очередь этапа «РП»: админ — вся, назначенец — только заявки своих объектов. */
+  listRpPending(opts: { userId: string; isAdmin: boolean }): Promise<Row[]>;
   listApproved(opts: { userId: string }): Promise<{ data: Row[]; total: number }>;
   listRejected(opts: { userId: string }): Promise<{ data: Row[]; total: number }>;
 
@@ -83,7 +88,7 @@ export interface ApprovalRepository {
     isAdmin: boolean;
   }): Promise<number>;
   countUnassignedSpecialists(opts: { userId: string }): Promise<number>;
-  countOmtsRp(opts: { userId: string }): Promise<number>;
+  countRpPending(opts: { userId: string; isAdmin: boolean }): Promise<number>;
   countReadyForClosure(opts: { userId: string }): Promise<number>;
 
   /* ---------- write: машина состояний ---------- */

@@ -11,7 +11,6 @@ import type {
   PaymentRevisionBody,
   PaymentNewPendingBody,
   PaymentResubmittedBody,
-  OmtsRpPendingBody,
   PaymentAssignedBody,
   PaymentNewCommentBody,
   PaymentNewFileBody,
@@ -29,7 +28,6 @@ export interface NotificationActionRepository {
   paymentRevision(body: PaymentRevisionBody): Promise<void>;
   paymentNewPending(body: PaymentNewPendingBody): Promise<void>;
   paymentResubmitted(body: PaymentResubmittedBody): Promise<void>;
-  omtsRpPending(body: OmtsRpPendingBody): Promise<void>;
   paymentAssigned(body: PaymentAssignedBody): Promise<void>;
   paymentNewComment(body: PaymentNewCommentBody): Promise<void>;
   paymentNewFile(body: PaymentNewFileBody): Promise<void>;

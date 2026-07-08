@@ -36,12 +36,6 @@ export const paymentResubmittedBodySchema = z.object({
 });
 export type PaymentResubmittedBody = z.infer<typeof paymentResubmittedBodySchema>;
 
-export const omtsRpPendingBodySchema = z.object({
-  paymentRequestId: z.string(),
-  actorUserId: z.string(),
-});
-export type OmtsRpPendingBody = z.infer<typeof omtsRpPendingBodySchema>;
-
 export const paymentAssignedBodySchema = z.object({
   paymentRequestId: z.string(),
   assignedUserId: z.string(),

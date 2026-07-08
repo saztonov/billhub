@@ -6,7 +6,7 @@ import { useCounterpartyStore } from '@/store/counterpartyStore'
 import { useConstructionSiteStore } from '@/store/constructionSiteStore'
 import { useStatusStore } from '@/store/statusStore'
 import { useAssignmentStore } from '@/store/assignmentStore'
-import { useOmtsRpStore } from '@/store/omtsRpStore'
+import { useRpStageStore } from '@/store/rpStageStore'
 import { useSupplierStore } from '@/store/supplierStore'
 import { useUploadQueueStore } from '@/store/uploadQueueStore'
 import { api } from '@/services/api'
@@ -72,12 +72,9 @@ export function usePaymentRequestsData({
   const { statuses, fetchStatuses } = useStatusStore()
   const { suppliers, fetchSuppliers } = useSupplierStore()
   const { omtsUsers, fetchOmtsUsers, assignResponsible } = useAssignmentStore()
-  const {
-    fetchSites: fetchOmtsRpSites,
-    fetchConfig: fetchOmtsRpConfig,
-    responsibleUserId: omtsRpResponsibleUserId,
-  } = useOmtsRpStore()
-  const isOmtsRpUser = !!user?.id && user.id === omtsRpResponsibleUserId
+  const { mySiteIds: rpMySiteIds, fetchMy: fetchRpMy } = useRpStageStore()
+  // Назначенец этапа «РП» — есть хотя бы один объект в rp_stage_assignees
+  const isRpAssignee = rpMySiteIds.length > 0
 
   const uploadTasks = useUploadQueueStore((s) => s.tasks)
 
@@ -85,12 +82,12 @@ export function usePaymentRequestsData({
     pendingRequests,
     approvedRequests,
     rejectedRequests,
-    omtsRpPendingRequests,
+    rpPendingRequests,
     approvedCount,
     rejectedCount,
     isLoading: approvalLoading,
     fetchPendingRequests,
-    fetchOmtsRpPendingRequests,
+    fetchRpPendingRequests,
     fetchApprovedRequests,
     fetchRejectedRequests,
     fetchApprovedCount,
@@ -99,7 +96,8 @@ export function usePaymentRequestsData({
     rejectRequest,
   } = useApprovalStore()
 
-  // Общее количество этапов согласования (Штаб -> ОМТС)
+  // Базовое количество этапов согласования (Штаб -> ОМТС); этап «РП» добавляется
+  // по факту у конкретной заявки (см. getRequestTotalStages).
   const totalStages = 2
 
   // Участвует ли подразделение пользователя в цепочке
@@ -177,11 +175,17 @@ export function usePaymentRequestsData({
     fetchPendingRequests,
   ])
 
-  // Загружаем заявки ОМТС РП для счетчика вкладки
+  // Загружаем свои назначения РП (определяет видимость вкладки «РП»)
   useEffect(() => {
-    if (!isOmtsRpUser && !isAdmin) return
-    fetchOmtsRpPendingRequests()
-  }, [isOmtsRpUser, isAdmin, fetchOmtsRpPendingRequests])
+    if (!isAdmin && !isUser) return
+    fetchRpMy()
+  }, [isAdmin, isUser, fetchRpMy])
+
+  // Загружаем заявки этапа РП для счетчика вкладки
+  useEffect(() => {
+    if (!isRpAssignee && !isAdmin) return
+    fetchRpPendingRequests()
+  }, [isRpAssignee, isAdmin, fetchRpPendingRequests])
 
   // Загружаем данные при переключении вкладок и обновляем все счетчики
   useEffect(() => {
@@ -208,8 +212,8 @@ export function usePaymentRequestsData({
           fetchPendingRequests(department, user.id, isAdmin)
         }
       }
-    } else if (activeTab === 'omts_rp') {
-      fetchOmtsRpPendingRequests()
+    } else if (activeTab === 'rp') {
+      fetchRpPendingRequests()
     } else if (activeTab === 'approved') {
       fetchApprovedRequests(sIds, allS, showDeleted)
     } else if (activeTab === 'rejected') {
@@ -227,8 +231,8 @@ export function usePaymentRequestsData({
       const department = isAdmin ? adminSelectedStage : user?.department
       if (department) fetchPendingRequests(department, user.id, isAdmin)
     }
-    if (activeTab !== 'omts_rp' && (isOmtsRpUser || isAdmin)) {
-      fetchOmtsRpPendingRequests()
+    if (activeTab !== 'rp' && (isRpAssignee || isAdmin)) {
+      fetchRpPendingRequests()
     }
   }, [
     activeTab,
@@ -240,7 +244,7 @@ export function usePaymentRequestsData({
     user?.department,
     isUser,
     isAdmin,
-    isOmtsRpUser,
+    isRpAssignee,
     adminSelectedStage,
     userDeptInChain,
     userSiteIds,
@@ -248,7 +252,7 @@ export function usePaymentRequestsData({
     showDeleted,
     fetchRequests,
     fetchPendingRequests,
-    fetchOmtsRpPendingRequests,
+    fetchRpPendingRequests,
     fetchApprovedRequests,
     fetchRejectedRequests,
     fetchApprovedCount,
@@ -266,14 +270,12 @@ export function usePaymentRequestsData({
     }
   }, [isCounterpartyUser, fetchCounterparties, fetchSites, fetchStatuses, fetchSuppliers])
 
-  // Загружаем список ОМТС для назначения + данные ОМТС РП
+  // Загружаем список ОМТС для назначения ответственного
   useEffect(() => {
     if (isOmtsUser || isAdmin) {
       fetchOmtsUsers()
-      fetchOmtsRpSites()
-      fetchOmtsRpConfig()
     }
-  }, [isOmtsUser, isAdmin, fetchOmtsUsers, fetchOmtsRpSites, fetchOmtsRpConfig])
+  }, [isOmtsUser, isAdmin, fetchOmtsUsers])
 
   /** Проверяет, может ли текущий пользователь редактировать заявку */
   const canEditRequest = useCallback(
@@ -297,7 +299,7 @@ export function usePaymentRequestsData({
     isUser,
     isOmtsUser,
     isShtabUser,
-    isOmtsRpUser,
+    isRpAssignee,
     userDeptInChain,
     totalStages,
     // Данные
@@ -305,7 +307,7 @@ export function usePaymentRequestsData({
     pendingRequests,
     approvedRequests,
     rejectedRequests,
-    omtsRpPendingRequests,
+    rpPendingRequests,
     approvedCount,
     rejectedCount,
     isLoading,
@@ -322,7 +324,7 @@ export function usePaymentRequestsData({
     fetchRequests,
     fetchCounterparties,
     fetchPendingRequests,
-    fetchOmtsRpPendingRequests,
+    fetchRpPendingRequests,
     fetchApprovedCount,
     fetchRejectedCount,
     approveRequest,

@@ -5,10 +5,11 @@
  */
 import { z } from 'zod';
 
-/** Решение по согласованию: /decide и /create-decision (одинаковое тело). */
+/** Решение по согласованию: /decide и /create-decision (одинаковое тело).
+ *  department — легаси-поле: этап определяется current_stage заявки на сервере. */
 export const approvalDecideBodySchema = z.object({
   paymentRequestId: z.string(),
-  department: z.string(),
+  department: z.string().optional(),
   action: z.enum(['approve', 'reject']),
   comment: z.string().optional(),
 });

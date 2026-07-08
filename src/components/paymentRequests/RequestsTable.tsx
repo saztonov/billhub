@@ -32,7 +32,7 @@ import { applyColumnConfig } from '@/hooks/useColumnConfig'
 import type { ColumnConfig } from '@/hooks/useColumnConfig'
 import type { ColumnRegistryItem } from './ColumnConfigPopover'
 import type { PaymentRequest, StageHistoryEntry } from '@/types'
-import { DEPARTMENT_LABELS } from '@/types'
+import { STAGE_DEPARTMENT_LABELS, STAGE_LABELS } from '@/types'
 import { SB_REJECTED_STRIKE_STYLE, renderSbBadge } from '@/utils/supplierSb'
 
 /** Реестр всех возможных десктопных столбцов (без "Действия") */
@@ -125,11 +125,11 @@ function buildStatusTooltip(
         const eventLabel = TOOLTIP_EVENT_LABELS[entry.event]
         const dept = entry.isOmtsRp
           ? 'ОМТС РП'
-          : (DEPARTMENT_LABELS[entry.department as keyof typeof DEPARTMENT_LABELS] ??
+          : (STAGE_DEPARTMENT_LABELS[entry.department as keyof typeof STAGE_DEPARTMENT_LABELS] ??
             entry.department)
         const date = formatDateShort(entry.at)
-        // Для counterparty автор виден только на стадии ОМТС
-        const showAuthor = !isCounterparty || entry.stage === 2
+        // Для counterparty автор виден только на стадиях ОМТС и РП
+        const showAuthor = !isCounterparty || entry.stage >= 2
         const authorName = showAuthor
           ? getShortName(entry.userFullName, entry.userEmail)
           : undefined
@@ -754,10 +754,21 @@ const RequestsTable = (props: RequestsTableProps) => {
                 </div>
               </Tooltip>
             )
+          // Знаменатель — по фактическому пути заявки: этап «РП» существует (stage 3
+          // в решениях/истории или текущая/отклонённая стадия 3) → 3 этапа, иначе 2.
+          const requestTotalStages =
+            record.currentStage === 3 ||
+            record.rejectedStage === 3 ||
+            (record.stageHistory ?? []).some((e) => e.stage === 3)
+              ? 3
+              : totalStages
           if (record.rejectedAt) {
-            const rejectedPercent = record.rejectedStage === 1 ? 50 : 100
+            const rejectedStage = record.rejectedStage ?? requestTotalStages
+            const rejectedPercent = Math.round((rejectedStage / requestTotalStages) * 100)
+            const rejectedLabel =
+              rejectedStage === 1 ? 'Штабе' : (STAGE_LABELS[rejectedStage] ?? 'ОМТС')
             return (
-              <Tooltip title={`Отклонено на ${record.rejectedStage === 1 ? 'Штабе' : 'ОМТС'}`}>
+              <Tooltip title={`Отклонено на ${rejectedLabel}`}>
                 <div style={{ width: '80%' }}>
                   <Progress
                     percent={rejectedPercent}
@@ -772,8 +783,8 @@ const RequestsTable = (props: RequestsTableProps) => {
           if (record.withdrawnAt || !record.currentStage)
             return <span style={{ color: '#bfbfbf' }}>—</span>
           const completedStages = record.currentStage - 1
-          const percent = Math.round((completedStages / totalStages) * 100)
-          const stageLabel = record.currentStage === 1 ? 'Штаб' : 'ОМТС'
+          const percent = Math.round((completedStages / requestTotalStages) * 100)
+          const stageLabel = STAGE_LABELS[record.currentStage] ?? 'ОМТС'
           return (
             <Tooltip title={`На стадии ${stageLabel}`}>
               <div style={{ width: '80%' }}>

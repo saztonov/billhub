@@ -21,7 +21,12 @@ export async function notifyStatusChanged(
       actorUserId,
     })
   } catch (err) {
-    logError({ errorType: 'api_error', errorMessage: err instanceof Error ? err.message : 'Ошибка уведомления о статусе', errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'notifyStatusChanged', paymentRequestId } })
+    logError({
+      errorType: 'api_error',
+      errorMessage: err instanceof Error ? err.message : 'Ошибка уведомления о статусе',
+      errorStack: err instanceof Error ? err.stack : null,
+      metadata: { action: 'notifyStatusChanged', paymentRequestId },
+    })
   }
 }
 
@@ -39,7 +44,12 @@ export async function notifyRequestRevision(
       actorUserId,
     })
   } catch (err) {
-    logError({ errorType: 'api_error', errorMessage: err instanceof Error ? err.message : 'Ошибка уведомления о доработке', errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'notifyRequestRevision', paymentRequestId } })
+    logError({
+      errorType: 'api_error',
+      errorMessage: err instanceof Error ? err.message : 'Ошибка уведомления о доработке',
+      errorStack: err instanceof Error ? err.stack : null,
+      metadata: { action: 'notifyRequestRevision', paymentRequestId },
+    })
   }
 }
 
@@ -61,12 +71,17 @@ export async function notifyNewRequestPending(
       requestNumber,
     })
   } catch (err) {
-    logError({ errorType: 'api_error', errorMessage: err instanceof Error ? err.message : 'Ошибка уведомления о новой заявке', errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'notifyNewRequestPending', paymentRequestId } })
+    logError({
+      errorType: 'api_error',
+      errorMessage: err instanceof Error ? err.message : 'Ошибка уведомления о новой заявке',
+      errorStack: err instanceof Error ? err.stack : null,
+      metadata: { action: 'notifyNewRequestPending', paymentRequestId },
+    })
   }
 }
 
 /**
- * Уведомление Штабу (и ОМТС при отклонении на их этапе) о повторной отправке заявки.
+ * Уведомление Штабу (ОМТС/назначенцу РП при отклонении на их этапе) о повторной отправке заявки.
  * Вызывается при: повторной отправке отклонённой заявки контрагентом.
  */
 export async function notifyRequestResubmitted(
@@ -81,25 +96,12 @@ export async function notifyRequestResubmitted(
       rejectedStage,
     })
   } catch (err) {
-    logError({ errorType: 'api_error', errorMessage: err instanceof Error ? err.message : 'Ошибка уведомления о повторной отправке', errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'notifyRequestResubmitted', paymentRequestId } })
-  }
-}
-
-/**
- * Уведомление спец. лицу ОМТС РП о поступлении заявки на согласование.
- * Вызывается при: смене статуса на approv_omts_rp.
- */
-export async function notifyOmtsRpPending(
-  paymentRequestId: string,
-  actorUserId: string,
-): Promise<void> {
-  try {
-    await api.post('/api/notifications/payment-request/omts-rp-pending', {
-      paymentRequestId,
-      actorUserId,
+    logError({
+      errorType: 'api_error',
+      errorMessage: err instanceof Error ? err.message : 'Ошибка уведомления о повторной отправке',
+      errorStack: err instanceof Error ? err.stack : null,
+      metadata: { action: 'notifyRequestResubmitted', paymentRequestId },
     })
-  } catch (err) {
-    logError({ errorType: 'api_error', errorMessage: err instanceof Error ? err.message : 'Ошибка уведомления ОМТС РП', errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'notifyOmtsRpPending', paymentRequestId } })
   }
 }
 
@@ -119,7 +121,12 @@ export async function notifyRequestAssigned(
       actorUserId,
     })
   } catch (err) {
-    logError({ errorType: 'api_error', errorMessage: err instanceof Error ? err.message : 'Ошибка уведомления о назначении', errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'notifyRequestAssigned', paymentRequestId } })
+    logError({
+      errorType: 'api_error',
+      errorMessage: err instanceof Error ? err.message : 'Ошибка уведомления о назначении',
+      errorStack: err instanceof Error ? err.stack : null,
+      metadata: { action: 'notifyRequestAssigned', paymentRequestId },
+    })
   }
 }
 
@@ -139,7 +146,12 @@ export async function notifyNewComment(
       recipient: recipient ?? null,
     })
   } catch (err) {
-    logError({ errorType: 'api_error', errorMessage: err instanceof Error ? err.message : 'Ошибка уведомления о комментарии', errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'notifyNewComment', paymentRequestId } })
+    logError({
+      errorType: 'api_error',
+      errorMessage: err instanceof Error ? err.message : 'Ошибка уведомления о комментарии',
+      errorStack: err instanceof Error ? err.stack : null,
+      metadata: { action: 'notifyNewComment', paymentRequestId },
+    })
   }
 }
 
@@ -147,17 +159,19 @@ export async function notifyNewComment(
  * Уведомление о новых файлах.
  * Определяет получателей по current_stage заявки.
  */
-export async function notifyNewFile(
-  paymentRequestId: string,
-  actorUserId: string,
-): Promise<void> {
+export async function notifyNewFile(paymentRequestId: string, actorUserId: string): Promise<void> {
   try {
     await api.post('/api/notifications/payment-request/new-file', {
       paymentRequestId,
       actorUserId,
     })
   } catch (err) {
-    logError({ errorType: 'api_error', errorMessage: err instanceof Error ? err.message : 'Ошибка уведомления о файлах', errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'notifyNewFile', paymentRequestId } })
+    logError({
+      errorType: 'api_error',
+      errorMessage: err instanceof Error ? err.message : 'Ошибка уведомления о файлах',
+      errorStack: err instanceof Error ? err.stack : null,
+      metadata: { action: 'notifyNewFile', paymentRequestId },
+    })
   }
 }
 
@@ -177,6 +191,11 @@ export async function checkAndNotifyMissingSpecialists(
       department,
     })
   } catch (err) {
-    logError({ errorType: 'api_error', errorMessage: err instanceof Error ? err.message : 'Ошибка проверки специалистов', errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'checkAndNotifyMissingSpecialists', paymentRequestId } })
+    logError({
+      errorType: 'api_error',
+      errorMessage: err instanceof Error ? err.message : 'Ошибка проверки специалистов',
+      errorStack: err instanceof Error ? err.stack : null,
+      metadata: { action: 'checkAndNotifyMissingSpecialists', paymentRequestId },
+    })
   }
 }

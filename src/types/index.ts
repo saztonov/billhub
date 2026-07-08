@@ -108,6 +108,22 @@ export const DEPARTMENT_LABELS: Record<Department, string> = {
   smetny: 'Сметный',
 }
 
+/** Департамент этапа согласования: отдел пользователя либо 'rp' (этап «РП», stage 3) */
+export type ApprovalDepartment = Department | 'rp'
+
+/** Подписи департаментов этапов согласования (включая этап «РП») */
+export const STAGE_DEPARTMENT_LABELS: Record<ApprovalDepartment, string> = {
+  ...DEPARTMENT_LABELS,
+  rp: 'РП',
+}
+
+/** Подписи этапов цепочки согласования по номеру стадии */
+export const STAGE_LABELS: Record<number, string> = {
+  1: 'Штаб',
+  2: 'ОМТС',
+  3: 'РП',
+}
+
 /** Категория типа документа */
 export type DocumentTypeCategory = 'operational' | 'founding'
 
@@ -224,7 +240,7 @@ export interface PaymentRequest {
   currentStage: number | null
   approvedAt: string | null
   rejectedAt: string | null
-  rejectedStage: number | null // Номер этапа (1=Штаб, 2=ОМТС), на котором была отклонена заявка
+  rejectedStage: number | null // Номер этапа (1=Штаб, 2=ОМТС, 3=РП), на котором была отклонена заявка
   resubmitComment: string | null
   resubmitCount: number
   invoiceAmount: number | null // Сумма счета в рублях
@@ -537,7 +553,7 @@ export interface ApprovalDecision {
   id: string
   paymentRequestId: string
   stageOrder: number
-  department: Department
+  department: ApprovalDepartment
   status: ApprovalDecisionStatus
   userId: string | null
   comment: string
@@ -727,8 +743,24 @@ export interface ErrorLog {
   userEmail?: string
 }
 
-/** Объект ОМТС РП (привязка к объекту строительства) */
-export type OmtsRpSite = Pick<ConstructionSite, 'id' | 'name'>
+/** Назначение этапа «РП»: объект строительства → сотрудник (один сотрудник на объект) */
+export interface RpStageAssignee {
+  id: string
+  userId: string
+  userFullName: string
+  userEmail: string
+  userDepartment: Department | null
+  siteId: string
+  siteName: string
+}
+
+/** Кандидат в назначенцы этапа «РП» (активный сотрудник Штаба/ОМТС) */
+export interface RpStageCandidate {
+  id: string
+  email: string
+  fullName: string
+  department: Department | null
+}
 
 /** Состояние аутентификации */
 export interface AuthState {

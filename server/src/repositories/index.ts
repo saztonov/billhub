@@ -33,7 +33,7 @@ export type { ApprovalRepository } from './approval.repository.js';
 export type { AssignmentRepository } from './assignment.repository.js';
 export type { ErrorLogRepository } from './error-log.repository.js';
 export type { OcrModelRepository } from './ocr-model.repository.js';
-export type { OmtsRpRepository } from './omts-rp.repository.js';
+export type { RpStageRepository } from './rp-stage.repository.js';
 export type { MaterialRepository } from './material.repository.js';
 export type { FoundingDocumentRepository } from './founding-document.repository.js';
 export type { OcrRepository } from './ocr.repository.js';
@@ -61,7 +61,8 @@ export interface Repositories {
   assignments: import('./assignment.repository.js').AssignmentRepository;
   errorLogs: import('./error-log.repository.js').ErrorLogRepository;
   ocrModels: import('./ocr-model.repository.js').OcrModelRepository;
-  omtsRp: import('./omts-rp.repository.js').OmtsRpRepository;
+  /** Назначения этапа «РП» — drizzle-only (supabase-заглушка, принцип 2). */
+  rpStage: import('./rp-stage.repository.js').RpStageRepository;
   materials: import('./material.repository.js').MaterialRepository;
   foundingDocuments: import('./founding-document.repository.js').FoundingDocumentRepository;
   ocr: import('./ocr.repository.js').OcrRepository;

@@ -73,6 +73,7 @@ async function approvalExtraRoutes(fastify: FastifyInstance): Promise<void> {
       action: body.action,
       comment: body.comment,
       userId: user.id,
+      userDepartment: user.department ?? null,
       isAdmin: user.role === 'admin',
     });
     if (!result.ok) return reply.status(result.status).send({ error: result.error });
@@ -153,10 +154,13 @@ async function approvalExtraRoutes(fastify: FastifyInstance): Promise<void> {
     return { count };
   });
 
-  /* ---------- GET /api/approvals/omts-rp-count ---------- */
-  fastify.get('/api/approvals/omts-rp-count', adminOrUser, async (request) => {
+  /* ---------- GET /api/approvals/rp-pending-count ---------- */
+  fastify.get('/api/approvals/rp-pending-count', adminOrUser, async (request) => {
     const user = request.user!;
-    const count = await request.server.repos.approvals.countOmtsRp({ userId: user.id });
+    const count = await request.server.repos.approvals.countRpPending({
+      userId: user.id,
+      isAdmin: user.role === 'admin',
+    });
     return { count };
   });
 

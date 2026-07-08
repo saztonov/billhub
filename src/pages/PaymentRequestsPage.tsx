@@ -61,14 +61,14 @@ const PaymentRequestsPage = () => {
     isUser,
     isOmtsUser,
     isShtabUser,
-    isOmtsRpUser,
+    isRpAssignee,
     userDeptInChain,
     totalStages,
     requests,
     pendingRequests,
     approvedRequests,
     rejectedRequests,
-    omtsRpPendingRequests,
+    rpPendingRequests,
     approvedCount,
     rejectedCount,
     isLoading,
@@ -84,7 +84,7 @@ const PaymentRequestsPage = () => {
     fetchRequests,
     fetchCounterparties,
     fetchPendingRequests,
-    fetchOmtsRpPendingRequests,
+    fetchRpPendingRequests,
     fetchApprovedCount,
     fetchRejectedCount,
     approveRequest,
@@ -118,7 +118,7 @@ const PaymentRequestsPage = () => {
     filteredPendingRequests,
     filteredApprovedRequests,
     filteredRejectedRequests,
-    filteredOmtsRpPendingRequests,
+    filteredRpPendingRequests,
     filteredCounterpartyAll,
     filteredCounterpartyRevision,
     filteredCounterpartyPending,
@@ -142,7 +142,7 @@ const PaymentRequestsPage = () => {
     pendingRequests,
     approvedRequests,
     rejectedRequests,
-    omtsRpPendingRequests,
+    rpPendingRequests,
     filters,
     userId: user?.id,
     isAdmin: !!isAdmin,
@@ -164,8 +164,8 @@ const PaymentRequestsPage = () => {
     setActiveTab,
   })
 
-  // Управление РП (создание/аннулирование/удаление/редактирование/письмо) — только admin и ОМТС РП.
-  const canManageRp = isOmtsRpUser || isAdmin
+  // Управление РП (создание/аннулирование/удаление/редактирование/письмо) — admin и назначенцы этапа РП.
+  const canManageRp = isRpAssignee || isAdmin
 
   // Авто-обновление при возврате на вкладку. Не дёргаем, пока открыта модалка или идёт выбор
   // заявок под РП (лишний refetch в процессе действия не нужен). Интервального опроса нет —
@@ -234,7 +234,7 @@ const PaymentRequestsPage = () => {
       fetchRequests,
       fetchCounterparties,
       fetchPendingRequests,
-      fetchOmtsRpPendingRequests,
+      fetchRpPendingRequests,
       fetchApprovedCount,
       fetchRejectedCount,
       approveRequest,
@@ -251,7 +251,7 @@ const PaymentRequestsPage = () => {
       isUser: !!isUser,
       isAdmin: !!isAdmin,
       isCounterpartyUser: !!isCounterpartyUser,
-      isOmtsRpUser: !!isOmtsRpUser,
+      isRpAssignee: !!isRpAssignee,
       adminSelectedStage,
     },
     contextData: { requests, counterparties, resubmitRecord },
@@ -453,13 +453,13 @@ const PaymentRequestsPage = () => {
     })
   }
 
-  if (isOmtsRpUser || isAdmin) {
+  if (isRpAssignee || isAdmin) {
     tabItems.push({
-      key: 'omts_rp',
-      label: isMobile ? 'ОМТС' : `ОМТС РП (${omtsRpPendingRequests.length})`,
+      key: 'rp',
+      label: isMobile ? 'РП' : `РП (${rpPendingRequests.length})`,
       children: (
         <RequestsTable
-          requests={filteredOmtsRpPendingRequests}
+          requests={filteredRpPendingRequests}
           isLoading={approvalLoading}
           onView={setViewRecord}
           showApprovalActions
@@ -649,7 +649,7 @@ const PaymentRequestsPage = () => {
           userDeptInChain &&
           !!viewRecord &&
           (pendingRequests.some((r) => r.id === viewRecord.id) ||
-            omtsRpPendingRequests.some((r) => r.id === viewRecord.id))
+            rpPendingRequests.some((r) => r.id === viewRecord.id))
         }
         canReject={
           !!viewRecord &&
@@ -658,7 +658,7 @@ const PaymentRequestsPage = () => {
             ? true
             : userDeptInChain &&
               (pendingRequests.some((r) => r.id === viewRecord.id) ||
-                omtsRpPendingRequests.some((r) => r.id === viewRecord.id)))
+                rpPendingRequests.some((r) => r.id === viewRecord.id)))
         }
         onApprove={(requestId, comment) => {
           handleApprove(requestId, comment)

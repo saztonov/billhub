@@ -57,7 +57,7 @@ import commentRoutes from './routes/comments.js';
 import notificationRoutes from './routes/notifications.js';
 import notificationActionRoutes from './routes/notification-actions.js';
 import assignmentRoutes from './routes/assignments.js';
-import omtsRpRoutes from './routes/omts-rp.js';
+import rpStageRoutes from './routes/rp-stage.js';
 import rpRoutes from './routes/rp.js';
 import paymentRoutes from './routes/payments.js';
 import errorLogRoutes from './routes/error-logs.js';
@@ -266,7 +266,7 @@ export async function createApp(opts: CreateAppOptions = {}): Promise<FastifyIns
     await fastify.register(notificationRoutes);
     await fastify.register(notificationActionRoutes);
     await fastify.register(assignmentRoutes);
-    await fastify.register(omtsRpRoutes);
+    await fastify.register(rpStageRoutes);
     await fastify.register(rpRoutes);
     await fastify.register(paymentRoutes);
     await fastify.register(errorLogRoutes);

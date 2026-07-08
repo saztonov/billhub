@@ -69,10 +69,7 @@ export async function getUsersByDepartmentAndSite(
     deptSiteUsers = (data ?? []).map((u) => u.id);
   }
 
-  const ids = new Set([
-    ...(allSitesUsers ?? []).map((u) => u.id),
-    ...deptSiteUsers,
-  ]);
+  const ids = new Set([...(allSitesUsers ?? []).map((u) => u.id), ...deptSiteUsers]);
   if (excludeUserId) ids.delete(excludeUserId);
   return Array.from(ids);
 }
@@ -139,16 +136,6 @@ export async function getAdminUserIds(supabase: SupabaseClient): Promise<string[
   return (data ?? []).map((u) => u.id);
 }
 
-/** Пользователи ОМТС, привязанные к объекту заявки на оплату */
-export async function getOmtsRpUsers(
-  supabase: SupabaseClient,
-  paymentRequestId: string,
-): Promise<string[]> {
-  const info = await getPaymentRequestInfo(supabase, paymentRequestId);
-  if (!info) return [];
-  return getUsersByDepartmentAndSite(supabase, 'omts', info.site_id);
-}
-
 /* ------------------------------------------------------------------ */
 /*  Определение получателей уведомлений                                */
 /* ------------------------------------------------------------------ */
@@ -182,7 +169,10 @@ export async function resolveCommentRecipients(
       if (info.created_by !== actorUserId) ids.add(info.created_by);
     } else {
       const deptUsers = await getUsersByDepartmentAndSite(
-        supabase, recipient, info.site_id, actorUserId,
+        supabase,
+        recipient,
+        info.site_id,
+        actorUserId,
       );
       deptUsers.forEach((id) => ids.add(id));
     }
@@ -195,7 +185,10 @@ export async function resolveCommentRecipients(
       ids.add(info.created_by);
     }
     const shtabUsers = await getUsersByDepartmentAndSite(
-      supabase, 'shtab', info.site_id, actorUserId,
+      supabase,
+      'shtab',
+      info.site_id,
+      actorUserId,
     );
     shtabUsers.forEach((id) => ids.add(id));
   }
@@ -222,7 +215,10 @@ export async function resolveFileRecipients(
   }
 
   const shtabUsers = await getUsersByDepartmentAndSite(
-    supabase, 'shtab', info.site_id, actorUserId,
+    supabase,
+    'shtab',
+    info.site_id,
+    actorUserId,
   );
   shtabUsers.forEach((id) => ids.add(id));
 
@@ -249,7 +245,10 @@ export async function resolveContractCommentRecipients(
       if (info.created_by !== actorUserId) ids.add(info.created_by);
     } else {
       const deptUsers = await getUsersByDepartmentAndSite(
-        supabase, recipient, info.site_id, actorUserId,
+        supabase,
+        recipient,
+        info.site_id,
+        actorUserId,
       );
       deptUsers.forEach((id) => ids.add(id));
     }
@@ -262,7 +261,10 @@ export async function resolveContractCommentRecipients(
       ids.add(info.created_by);
     }
     const omtsUsers = await getUsersByDepartmentAndSite(
-      supabase, 'omts', info.site_id, actorUserId,
+      supabase,
+      'omts',
+      info.site_id,
+      actorUserId,
     );
     omtsUsers.forEach((id) => ids.add(id));
   }
@@ -287,9 +289,7 @@ export async function resolveContractFileRecipients(
     ids.add(info.created_by);
   }
 
-  const omtsUsers = await getUsersByDepartmentAndSite(
-    supabase, 'omts', info.site_id, actorUserId,
-  );
+  const omtsUsers = await getUsersByDepartmentAndSite(supabase, 'omts', info.site_id, actorUserId);
   omtsUsers.forEach((id) => ids.add(id));
 
   return Array.from(ids);

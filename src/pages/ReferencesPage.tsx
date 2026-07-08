@@ -7,7 +7,7 @@ import DocumentTypesPage from './DocumentTypesPage'
 import CostTypesPage from './CostTypesPage'
 import FoundingDocumentsTab from '@/components/foundingDocuments/FoundingDocumentsTab'
 import { useAuthStore } from '@/store/authStore'
-import { useOmtsRpStore } from '@/store/omtsRpStore'
+import { useRpStageStore } from '@/store/rpStageStore'
 import { useEffect } from 'react'
 
 const { Title } = Typography
@@ -18,45 +18,61 @@ const ReferencesPage = () => {
   // Дефолтная вкладка зависит от роли: security видит только «Поставщики»
   const defaultTab = user?.role === 'security' ? 'suppliers' : 'counterparties'
   const activeTab = searchParams.get('tab') ?? defaultTab
-  const responsibleUserId = useOmtsRpStore((s) => s.responsibleUserId)
-  const fetchOmtsRpConfig = useOmtsRpStore((s) => s.fetchConfig)
+  const rpMySiteIds = useRpStageStore((s) => s.mySiteIds)
+  const fetchRpMy = useRpStageStore((s) => s.fetchMy)
 
-  // Загружаем конфигурацию ОМТС РП для проверки доступа к вкладке
+  // Загружаем назначения РП для проверки доступа к вкладке
   useEffect(() => {
     if (user?.role === 'admin' || user?.role === 'user') {
-      fetchOmtsRpConfig()
+      fetchRpMy()
     }
-  }, [user?.role, fetchOmtsRpConfig])
+  }, [user?.role, fetchRpMy])
 
   // CRUD для видов затрат доступен только admin и сметному отделу
   const canEditCostTypes = user?.role === 'admin' || user?.department === 'smetny'
 
-  // Вкладка учредительных документов видна admin, ОМТС и ОМТС РП
+  // Вкладка учредительных документов видна admin, ОМТС и назначенцам этапа РП
   const canSeeFoundingDocs =
-    user?.role === 'admin' ||
-    user?.department === 'omts' ||
-    (!!user?.id && user.id === responsibleUserId)
+    user?.role === 'admin' || user?.department === 'omts' || rpMySiteIds.length > 0
 
   const handleTabChange = (key: string) => {
     setSearchParams({ tab: key }, { replace: true })
   }
 
   // Для роли «Отдел СБ» доступна только вкладка «Поставщики»
-  const items = user?.role === 'security'
-    ? [{ key: 'suppliers', label: 'Поставщики', children: <SuppliersPage /> }]
-    : [
-        { key: 'counterparties', label: 'Подрядчики', children: <CounterpartiesPage /> },
-        { key: 'suppliers', label: 'Поставщики', children: <SuppliersPage /> },
-        { key: 'sites', label: 'Объекты строительства', children: <ConstructionSitesPage /> },
-        { key: 'document-types', label: 'Типы документов', children: <DocumentTypesPage /> },
-        { key: 'cost-types', label: 'Виды затрат', children: <CostTypesPage canEdit={canEditCostTypes} /> },
-        ...(canSeeFoundingDocs
-          ? [{ key: 'founding-documents', label: 'Учредительные документы', children: <FoundingDocumentsTab /> }]
-          : []),
-      ]
+  const items =
+    user?.role === 'security'
+      ? [{ key: 'suppliers', label: 'Поставщики', children: <SuppliersPage /> }]
+      : [
+          { key: 'counterparties', label: 'Подрядчики', children: <CounterpartiesPage /> },
+          { key: 'suppliers', label: 'Поставщики', children: <SuppliersPage /> },
+          { key: 'sites', label: 'Объекты строительства', children: <ConstructionSitesPage /> },
+          { key: 'document-types', label: 'Типы документов', children: <DocumentTypesPage /> },
+          {
+            key: 'cost-types',
+            label: 'Виды затрат',
+            children: <CostTypesPage canEdit={canEditCostTypes} />,
+          },
+          ...(canSeeFoundingDocs
+            ? [
+                {
+                  key: 'founding-documents',
+                  label: 'Учредительные документы',
+                  children: <FoundingDocumentsTab />,
+                },
+              ]
+            : []),
+        ]
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px - 1px - 32px)', overflow: 'hidden' }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: 'calc(100vh - 64px - 1px - 32px)',
+        overflow: 'hidden',
+      }}
+    >
       <Tabs
         activeKey={activeTab}
         onChange={handleTabChange}
@@ -64,7 +80,9 @@ const ReferencesPage = () => {
         className="flex-tabs"
         renderTabBar={(props, DefaultTabBar) => (
           <div>
-            <Title level={2} style={{ marginBottom: 16 }}>Справочники</Title>
+            <Title level={2} style={{ marginBottom: 16 }}>
+              Справочники
+            </Title>
             <DefaultTabBar {...props} />
           </div>
         )}

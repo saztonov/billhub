@@ -1,9 +1,14 @@
 /**
  * EQUIVALENCE-тесты согласований (Phase 7, КРИТИЧНЫЙ): один и тот же сценарий машины состояний
  * выполняется на SupabaseApprovalRepository (FakeSupabase) и DrizzleApprovalRepository
- * (testcontainers PostgreSQL, baseline + миграции 001-007). Сравнивается наблюдаемый конечный
+ * (testcontainers PostgreSQL, baseline + миграции). Сравнивается наблюдаемый конечный
  * стейт: поля payment_requests, множество approval_decisions, порядок payment_request_logs,
  * события stage_history (без волатильных id/времени).
+ *
+ * ВНИМАНИЕ: этап «РП» (stage 3, миграции 0015/0016) реализован ТОЛЬКО в Drizzle —
+ * RP-сценарии сравнения удалены и покрываются drizzle-only тестом
+ * approval-rp-stage.integration.test.ts. Здесь остаются только пути без этапа РП
+ * (объекты без назначенцев в rp_stage_assignees).
  *
  * Запуск: `RUN_INTEGRATION=1 npm test` или CI. Без Docker — пропускается.
  */
@@ -147,7 +152,8 @@ describe.skipIf(!RUN)('Approvals equivalence (Supabase fake ↔ Drizzle testcont
 
   beforeEach(async () => {
     await sql`TRUNCATE TABLE payment_requests, approval_decisions, payment_request_logs, statuses,
-      users, counterparties, construction_sites, payment_request_field_options, suppliers, settings
+      users, counterparties, construction_sites, payment_request_field_options, suppliers, settings,
+      rp_stage_assignees
       RESTART IDENTITY CASCADE`;
   });
 
@@ -335,6 +341,8 @@ describe.skipIf(!RUN)('Approvals equivalence (Supabase fake ↔ Drizzle testcont
       action: 'approve' as const,
       comment: 'ок',
       userId: ID.u1,
+      // Серверная авторизация drizzle-стороны: этап 1 требует отдел Штаб (supabase игнорирует).
+      userDepartment: 'shtab',
       isAdmin: false,
     };
     await d.decide(input);
@@ -357,6 +365,8 @@ describe.skipIf(!RUN)('Approvals equivalence (Supabase fake ↔ Drizzle testcont
       action: 'reject' as const,
       comment: 'нет',
       userId: ID.u1,
+      // Этап 2 требует отдел ОМТС (drizzle-авторизация).
+      userDepartment: 'omts',
       isAdmin: false,
     };
     await d.decide(input);
@@ -407,35 +417,8 @@ describe.skipIf(!RUN)('Approvals equivalence (Supabase fake ↔ Drizzle testcont
     expect(await readDrizzle()).toEqual(readFake(fake));
   });
 
-  it('S12-rp: complete-revision из approved на ОМТС-РП эквивалентно', async () => {
-    const fake = new FakeSupabase();
-    await seedRefs(fake);
-    await seedScenario(
-      fake,
-      {
-        current_stage: null,
-        status_id: ID.stRevision,
-        previous_status_id: ID.stApproved,
-        request_type: 'contractor',
-        site_id: ID.siteRp,
-        omts_approved_at: '2026-02-01T00:00:00Z',
-      },
-      [
-        { id: ID.d1, stage_order: 2, department_id: 'omts', status: 'approved', is_omts_rp: false },
-        { id: ID.d2, stage_order: 2, department_id: 'omts', status: 'approved', is_omts_rp: true },
-      ],
-    );
-    const { d, s } = repos(fake);
-    const fu = {
-      deliveryDays: 7,
-      deliveryDaysType: 'working',
-      shippingConditionId: ID.ship,
-      invoiceAmount: 100,
-    };
-    await d.completeRevision(ID.pr, ID.u1, fu);
-    await s.completeRevision(ID.pr, ID.u1, fu);
-    expect(await readDrizzle()).toEqual(readFake(fake));
-  });
+  // S12-rp удалён: возврат на этап «РП» после доработки — drizzle-only поведение
+  // (stage 3, назначенцы в rp_stage_assignees); покрыт в approval-rp-stage.integration.test.ts.
 
   it('S12-auto: complete-revision из approved для авто-типа эквивалентно', async () => {
     const fake = new FakeSupabase();
@@ -497,6 +480,8 @@ describe.skipIf(!RUN)('Approvals equivalence (Supabase fake ↔ Drizzle testcont
       action: 'approve' as const,
       comment: 'ок',
       userId: ID.u1,
+      // Этап 2 требует отдел ОМТС (drizzle-авторизация).
+      userDepartment: 'omts',
       isAdmin: false,
     };
     const fu = {

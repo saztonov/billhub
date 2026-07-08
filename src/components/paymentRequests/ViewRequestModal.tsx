@@ -10,7 +10,7 @@ import { usePaymentRequestSettingsStore } from '@/store/paymentRequestSettingsSt
 import { useConstructionSiteStore } from '@/store/constructionSiteStore'
 import { useSupplierStore } from '@/store/supplierStore'
 import { useAssignmentStore } from '@/store/assignmentStore'
-import { useOmtsRpStore } from '@/store/omtsRpStore'
+import { useRpStageStore } from '@/store/rpStageStore'
 import { useDocumentTypeStore } from '@/store/documentTypeStore'
 import { downloadFileBlob } from '@/services/s3'
 // JSZip загружается динамически при скачивании архива
@@ -97,9 +97,8 @@ const ViewRequestModal = ({
     sendToRevision,
     completeRevision,
   } = useApprovalStore()
-  const omtsRpResponsibleUserId = useOmtsRpStore((s) => s.responsibleUserId)
-  const fetchOmtsRpConfig = useOmtsRpStore((s) => s.fetchConfig)
-  const fetchOmtsRpSites = useOmtsRpStore((s) => s.fetchSites)
+  const rpMySiteIds = useRpStageStore((s) => s.mySiteIds)
+  const fetchRpMy = useRpStageStore((s) => s.fetchMy)
   const user = useAuthStore((s) => s.user)
   const isCounterpartyUser = user?.role === 'counterparty_user'
   const {
@@ -156,8 +155,7 @@ const ViewRequestModal = ({
       fetchDocumentTypes()
       if (user?.role === 'admin') fetchOmtsUsers()
       if (user?.role !== 'counterparty_user') {
-        fetchOmtsRpConfig()
-        fetchOmtsRpSites()
+        fetchRpMy()
       }
       // Отмечаем комментарии как прочитанные
       if (user?.id) markAsRead(user.id, request.id)
@@ -175,8 +173,7 @@ const ViewRequestModal = ({
     fetchDocumentTypes,
     fetchOmtsUsers,
     user?.role,
-    fetchOmtsRpConfig,
-    fetchOmtsRpSites,
+    fetchRpMy,
     markAsRead,
     user?.id,
   ])
@@ -431,15 +428,16 @@ const ViewRequestModal = ({
   // Разрешение на отклонение файлов: согласующие ИЛИ редактирование согласованной заявки
   const canRejectFiles = canApprove || (isEditing && isApprovedRequest)
 
-  // Проверяем, может ли текущий пользователь отправить на доработку (ОМТС, ОМТС РП, admin)
+  // Проверяем, может ли текущий пользователь отправить на доработку (ОМТС, назначенец РП, admin)
   const isAdmin = user?.role === 'admin'
   const isOmtsUser = user?.department === 'omts'
-  const isOmtsRpResponsible = user?.id === omtsRpResponsibleUserId
-  const hasPendingOmtsOrOmtsRpDecision = currentDecisions.some(
-    (d) => d.status === 'pending' && (d.department === 'omts' || d.isOmtsRp),
+  const isRpAssigneeForRequest = rpMySiteIds.includes(request.siteId)
+  const hasPendingOmtsOrRpDecision = currentDecisions.some(
+    (d) =>
+      d.status === 'pending' && (d.department === 'omts' || d.department === 'rp' || d.isOmtsRp),
   )
   const canSendToRevision =
-    ((isAdmin || isOmtsUser || isOmtsRpResponsible) && hasPendingOmtsOrOmtsRpDecision) ||
+    ((isAdmin || isOmtsUser || isRpAssigneeForRequest) && hasPendingOmtsOrRpDecision) ||
     (!!canEdit && isApprovedRequest)
 
   // Заявка в статусе "На доработку" — previous_status_id заполнен. После корректного
