@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Modal, List, Button, Typography, Tag, Space, Empty, Spin, Popconfirm, App } from 'antd'
+import { Modal, List, Button, Typography, Space, Empty, Spin, Popconfirm, App } from 'antd'
 import {
   PlusOutlined,
   EyeOutlined,
@@ -13,6 +13,7 @@ import { logError } from '@/services/errorLogger'
 import { getMimeFromFileName } from '@/utils/mimeFromExtension'
 import FilePreviewModal from '@/components/paymentRequests/FilePreviewModal'
 import RpFilesDropModal, { type RpDropFile } from '@/components/rp/RpFilesDropModal'
+import RpAttachmentTypeTag from '@/components/rp/RpAttachmentTypeTag'
 import type { RpLetter, RpFilesResult } from '@/types'
 
 const { Text } = Typography
@@ -185,11 +186,7 @@ const RpFilesModal = ({ open, letter, canManage, onClose }: RpFilesModalProps) =
                   <Text style={{ marginLeft: 8 }} ellipsis>
                     {f.fileName}
                   </Text>
-                  {f.fileType === 'rp' && (
-                    <Tag color="blue" style={{ marginLeft: 8, flexShrink: 0 }}>
-                      РП
-                    </Tag>
-                  )}
+                  <RpAttachmentTypeTag fileType={f.fileType} />
                   <Text type="secondary" style={{ marginLeft: 8, flexShrink: 0 }}>
                     {fmtSize(f.sizeBytes)}
                   </Text>

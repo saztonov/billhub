@@ -9,7 +9,6 @@ import {
   Typography,
   List,
   Button,
-  Tag,
   Empty,
   Spin,
 } from 'antd'
@@ -20,6 +19,7 @@ import type { RpLetterAttachmentRef } from '@/store/rpStore'
 import { uploadRpLetterFile } from '@/services/s3'
 import { logError } from '@/services/errorLogger'
 import RpFilesDropModal, { type RpDropFile } from '@/components/rp/RpFilesDropModal'
+import RpAttachmentTypeTag from '@/components/rp/RpAttachmentTypeTag'
 import type { RpLetter, RpAttachmentView } from '@/types'
 
 const { Text } = Typography
@@ -206,11 +206,7 @@ const EditRpLetterModal = ({ open, letter, onClose, onSaved }: EditRpLetterModal
               <Text style={{ marginLeft: 8 }} ellipsis>
                 {f.fileName}
               </Text>
-              {f.fileType === 'rp' && (
-                <Tag color="blue" style={{ marginLeft: 8, flexShrink: 0 }}>
-                  РП
-                </Tag>
-              )}
+              <RpAttachmentTypeTag fileType={f.fileType} />
               <Text type="secondary" style={{ marginLeft: 8, flexShrink: 0 }}>
                 {fmtSize(f.sizeBytes)}
               </Text>
