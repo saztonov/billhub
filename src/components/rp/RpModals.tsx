@@ -26,6 +26,8 @@ export interface RpModalsProps {
   // Файлы РП
   filesLetter: RpLetter | null
   onFilesClose: () => void
+  /** Управление файлами РП (admin / назначенец РП); при false модалка файлов read-only. */
+  canManageFiles: boolean
 }
 
 /** Кластер модалок РП (создание в 2 шага, правка письма, файлы) на странице заявок. */
@@ -60,6 +62,7 @@ const RpModals = (props: RpModalsProps) => (
     <RpFilesModal
       open={!!props.filesLetter}
       letter={props.filesLetter}
+      canManage={props.canManageFiles}
       onClose={props.onFilesClose}
     />
   </>

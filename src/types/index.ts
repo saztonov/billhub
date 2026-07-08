@@ -835,6 +835,8 @@ export interface RpLetter {
   invoiceNumber: string | null
   requests: RpRequestRef[]
   paymentStatus: RpPaymentStatus
+  /** Дата последнего исполненного платежа; заполнена только при paymentStatus='paid'. */
+  paidAt: string | null
   // Письмо PayHub
   payhubLetterId: string | null
   payhubLetterRegNumber: string | null
@@ -845,6 +847,8 @@ export interface RpLetter {
   payhubLetterPayload: RpLetterPayload | null
   /** Всего файлов РП (вложения письма PayHub + служебные) — счётчик в реестре. */
   filesCount: number
+  /** Есть вложение письма типа 'rp' (скан чистовика) — зелёная скрепка в реестре. */
+  hasRpFile: boolean
 }
 
 /** Тип файла вложения письма РП: 'rp' — скан чистовика; 'other' — прочие. */

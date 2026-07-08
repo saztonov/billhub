@@ -94,24 +94,42 @@ export async function clearDpAndUnlink(tx: RpDb, rpLetterId: string): Promise<vo
 /*  Счётчик и списки файлов РП                                         */
 /* ------------------------------------------------------------------ */
 
-/** Число файлов на письмо (вложения PayHub + служебные) для колонки-счётчика реестра. */
+/** Агрегат файлов письма для реестра: счётчик + наличие скана чистовика (file_type='rp'). */
+export interface RpFileStats {
+  count: number;
+  hasRpFile: boolean;
+}
+
+/**
+ * Статистика файлов на письмо (вложения PayHub + служебные) для реестра.
+ * hasRpFile — только по вложениям письма (bool_or file_type='rp'); служебные
+ * файлы влияют исключительно на count.
+ */
 export async function countFilesByLetter(
   db: RpDb,
   letterIds: string[],
-): Promise<Map<string, number>> {
-  const map = new Map<string, number>();
+): Promise<Map<string, RpFileStats>> {
+  const map = new Map<string, RpFileStats>();
   if (letterIds.length === 0) return map;
   const att = await db
-    .select({ id: rpLetterAttachments.rpLetterId, c: sql<number>`count(*)::int` })
+    .select({
+      id: rpLetterAttachments.rpLetterId,
+      c: sql<number>`count(*)::int`,
+      hasRp: sql<boolean>`bool_or(${rpLetterAttachments.fileType} = 'rp')`,
+    })
     .from(rpLetterAttachments)
     .where(inArray(rpLetterAttachments.rpLetterId, letterIds))
     .groupBy(rpLetterAttachments.rpLetterId);
+  for (const r of att) map.set(r.id, { count: Number(r.c), hasRpFile: r.hasRp === true });
   const svc = await db
     .select({ id: rpLetterServiceFiles.rpLetterId, c: sql<number>`count(*)::int` })
     .from(rpLetterServiceFiles)
     .where(inArray(rpLetterServiceFiles.rpLetterId, letterIds))
     .groupBy(rpLetterServiceFiles.rpLetterId);
-  for (const r of [...att, ...svc]) map.set(r.id, (map.get(r.id) ?? 0) + Number(r.c));
+  for (const r of svc) {
+    const prev = map.get(r.id);
+    map.set(r.id, { count: (prev?.count ?? 0) + Number(r.c), hasRpFile: prev?.hasRpFile ?? false });
+  }
   return map;
 }
 

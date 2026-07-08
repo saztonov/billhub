@@ -20,6 +20,8 @@ const { Text } = Typography
 interface RpFilesModalProps {
   open: boolean
   letter: RpLetter | null
+  /** Управление файлами (admin / назначенец РП); при false — только просмотр/скачивание. */
+  canManage: boolean
   onClose: () => void
 }
 
@@ -35,8 +37,9 @@ const fmtSize = (bytes: number | null) =>
 /**
  * Модалка «Файлы РП»: список вложений письма PayHub (просмотр/скачивание) и отдельный
  * список служебных файлов РП (загрузка/просмотр/скачивание/удаление). Предпросмотр — в модалке.
+ * При canManage=false — read-only: без загрузки и удаления служебных файлов.
  */
-const RpFilesModal = ({ open, letter, onClose }: RpFilesModalProps) => {
+const RpFilesModal = ({ open, letter, canManage, onClose }: RpFilesModalProps) => {
   const { message } = App.useApp()
   const loadRpFiles = useRpStore((s) => s.loadRpFiles)
   const registerServiceFiles = useRpStore((s) => s.registerServiceFiles)
@@ -199,11 +202,13 @@ const RpFilesModal = ({ open, letter, onClose }: RpFilesModalProps) => {
 
           <div style={{ display: 'flex', alignItems: 'center', marginTop: 16, marginBottom: 4 }}>
             <Text strong>Служебные файлы</Text>
-            <Space style={{ marginLeft: 'auto' }}>
-              <Button size="small" icon={<PlusOutlined />} onClick={() => setDropOpen(true)}>
-                Добавить
-              </Button>
-            </Space>
+            {canManage && (
+              <Space style={{ marginLeft: 'auto' }}>
+                <Button size="small" icon={<PlusOutlined />} onClick={() => setDropOpen(true)}>
+                  Добавить
+                </Button>
+              </Space>
+            )}
           </div>
 
           {files && files.service.length > 0 ? (
@@ -215,22 +220,26 @@ const RpFilesModal = ({ open, letter, onClose }: RpFilesModalProps) => {
                   actions={[
                     previewBtn(f.fileKey, f.fileName, f.mimeType),
                     downloadBtn(f.fileKey, f.fileName),
-                    <Popconfirm
-                      key="del"
-                      title="Удалить файл из РП?"
-                      okText="Удалить"
-                      okButtonProps={{ danger: true }}
-                      cancelText="Отмена"
-                      onConfirm={() => handleDelete(f.id)}
-                    >
-                      <Button
-                        type="text"
-                        size="small"
-                        danger
-                        icon={<DeleteOutlined />}
-                        title="Удалить"
-                      />
-                    </Popconfirm>,
+                    ...(canManage
+                      ? [
+                          <Popconfirm
+                            key="del"
+                            title="Удалить файл из РП?"
+                            okText="Удалить"
+                            okButtonProps={{ danger: true }}
+                            cancelText="Отмена"
+                            onConfirm={() => handleDelete(f.id)}
+                          >
+                            <Button
+                              type="text"
+                              size="small"
+                              danger
+                              icon={<DeleteOutlined />}
+                              title="Удалить"
+                            />
+                          </Popconfirm>,
+                        ]
+                      : []),
                   ]}
                 >
                   <PaperClipOutlined />
@@ -257,12 +266,14 @@ const RpFilesModal = ({ open, letter, onClose }: RpFilesModalProps) => {
         mimeType={preview?.mimeType ?? null}
       />
 
-      <RpFilesDropModal
-        open={dropOpen}
-        title="Добавить служебные файлы"
-        onClose={() => setDropOpen(false)}
-        onSubmit={handleDropSubmit}
-      />
+      {canManage && (
+        <RpFilesDropModal
+          open={dropOpen}
+          title="Добавить служебные файлы"
+          onClose={() => setDropOpen(false)}
+          onSubmit={handleDropSubmit}
+        />
+      )}
     </Modal>
   )
 }

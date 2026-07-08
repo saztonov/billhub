@@ -45,6 +45,8 @@ export interface RpRegistryRow {
   invoiceNumber: string | null;
   requests: RpRequestRef[];
   paymentStatus: RpPaymentStatus;
+  /** Дата последнего исполненного платежа; заполняется только при paymentStatus='paid'. */
+  paidAt: string | null;
   // Письмо PayHub (0008)
   payhubLetterId: string | null;
   payhubLetterRegNumber: string | null;
@@ -55,6 +57,8 @@ export interface RpRegistryRow {
   payhubLetterPayload: RpLetterPayload | null;
   /** Всего файлов РП (вложения письма PayHub + служебные файлы) — для счётчика в реестре (0010). */
   filesCount: number;
+  /** Есть вложение письма типа 'rp' (скан чистовика) — зелёная скрепка в реестре. */
+  hasRpFile: boolean;
 }
 
 /** Документ договора для модалки создания РП. */

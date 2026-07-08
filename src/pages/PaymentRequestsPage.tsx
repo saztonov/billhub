@@ -687,7 +687,7 @@ const PaymentRequestsPage = () => {
           isShtabUser={!!isShtabUser}
         />
       )}
-      <RpModals {...rp.modalsProps} />
+      <RpModals {...rp.modalsProps} canManageFiles={canManageRp} />
     </div>
   )
 }

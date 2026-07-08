@@ -27,6 +27,7 @@ function letter(overrides: Partial<RpLetter>): RpLetter {
     invoiceNumber: null,
     requests: [],
     paymentStatus: 'unpaid',
+    paidAt: null,
     payhubLetterId: null,
     payhubLetterRegNumber: null,
     payhubLetterUrl: null,
@@ -34,6 +35,7 @@ function letter(overrides: Partial<RpLetter>): RpLetter {
     payhubLetterError: null,
     payhubLetterPayload: null,
     filesCount: 0,
+    hasRpFile: false,
     ...overrides,
   }
 }

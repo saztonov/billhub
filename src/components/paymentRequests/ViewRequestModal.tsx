@@ -11,6 +11,7 @@ import { useConstructionSiteStore } from '@/store/constructionSiteStore'
 import { useSupplierStore } from '@/store/supplierStore'
 import { useAssignmentStore } from '@/store/assignmentStore'
 import { useRpStageStore } from '@/store/rpStageStore'
+import { useRpStore } from '@/store/rpStore'
 import { useDocumentTypeStore } from '@/store/documentTypeStore'
 import { downloadFileBlob } from '@/services/s3'
 // JSZip загружается динамически при скачивании архива
@@ -761,7 +762,14 @@ const ViewRequestModal = ({
                     counterpartyName={request.counterpartyName ?? ''}
                     canManage={!!canManagePayments}
                     requestAmount={request.invoiceAmount}
-                    onTotalChanged={() => fetchRequests()}
+                    onTotalChanged={() => {
+                      fetchRequests()
+                      // Оплаты влияют на статус/дату оплаты РП: тихо обновляем реестр,
+                      // если он уже загружен (сам по себе он перечитывается только по
+                      // refreshTrigger/смене вкладки).
+                      const rp = useRpStore.getState()
+                      if (rp.letters.length > 0) void rp.loadRegistry({ silent: true })
+                    }}
                   />
                 ),
               },

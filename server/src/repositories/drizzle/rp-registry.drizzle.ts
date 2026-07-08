@@ -2,11 +2,12 @@
  * Read-запросы реестра РП: список реестра, документы для модалки, расчёт статуса оплаты.
  * Вынесены из rp.drizzle.ts (лимит 600 строк на файл). Функции принимают Db/Tx (RpDb).
  */
-import { and, eq, inArray, desc } from 'drizzle-orm';
+import { and, eq, inArray, desc, sql } from 'drizzle-orm';
 import {
   rpLetters,
   rpLetterRequests,
   paymentRequests,
+  paymentPayments,
   suppliers,
   counterparties,
   constructionSites,
@@ -102,16 +103,38 @@ export async function listRegistry(db: RpDb, siteIds: string[] | null): Promise<
     payByLetter.get(l.rpLetterId)!.push({ invoiceAmount: l.invoiceAmount, totalPaid: l.totalPaid });
   }
 
-  const fileCounts = await countFilesByLetter(db, letterIds);
+  // Дата оплаты: последний исполненный платёж по заявкам РП (для бейджа «Оплачено»).
+  const paidDates = await db
+    .select({
+      rpLetterId: rpLetterRequests.rpLetterId,
+      lastPaidAt: sql<string>`max(${paymentPayments.paymentDate})`,
+    })
+    .from(rpLetterRequests)
+    .innerJoin(
+      paymentPayments,
+      eq(paymentPayments.paymentRequestId, rpLetterRequests.paymentRequestId),
+    )
+    .where(
+      and(inArray(rpLetterRequests.rpLetterId, letterIds), eq(paymentPayments.isExecuted, true)),
+    )
+    .groupBy(rpLetterRequests.rpLetterId);
+  const paidAtByLetter = new Map(paidDates.map((r) => [r.rpLetterId, r.lastPaidAt]));
 
-  return letters.map((l) => ({
-    ...l,
-    totalAmount: l.totalAmount ?? 0,
-    payhubLetterStatus: (l.payhubLetterStatus as RpLetterSyncStatus | null) ?? null,
-    requests: refsByLetter.get(l.id) ?? [],
-    paymentStatus: computePaymentStatus(payByLetter.get(l.id) ?? []),
-    filesCount: fileCounts.get(l.id) ?? 0,
-  }));
+  const fileStats = await countFilesByLetter(db, letterIds);
+
+  return letters.map((l) => {
+    const paymentStatus = computePaymentStatus(payByLetter.get(l.id) ?? []);
+    return {
+      ...l,
+      totalAmount: l.totalAmount ?? 0,
+      payhubLetterStatus: (l.payhubLetterStatus as RpLetterSyncStatus | null) ?? null,
+      requests: refsByLetter.get(l.id) ?? [],
+      paymentStatus,
+      paidAt: paymentStatus === 'paid' ? (paidAtByLetter.get(l.id) ?? null) : null,
+      filesCount: fileStats.get(l.id)?.count ?? 0,
+      hasRpFile: fileStats.get(l.id)?.hasRpFile ?? false,
+    };
+  });
 }
 
 /** Документы (договор + учредительные поставщика) для модалки создания РП. */

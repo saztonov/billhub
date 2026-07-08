@@ -19,7 +19,7 @@ const fmtAmount = (v: number) => `${(v ?? 0).toLocaleString('ru-RU')} ₽`
 interface RpRegistryTableProps {
   letters: RpLetter[]
   isLoading: boolean
-  /** Управление РП (admin / ОМТС РП). При false реестр read-only: без действий и кнопок письма. */
+  /** Управление РП (admin / ОМТС РП). При false реестр read-only: только скрепка с файлами. */
   canManage: boolean
   onOpenRequest: (requestId: string) => void
   /** «Создать письмо» (uploading) / «Повторить» (failed) — постановка в очередь */
@@ -147,9 +147,19 @@ const StatusCell = ({ letter }: { letter: RpLetter }) => {
   const annulled = letter.status === 'annulled'
   const pay = PAYMENT_STATUS_META[letter.paymentStatus] ?? PAYMENT_STATUS_META.unpaid
   const synced = letter.payhubLetterStatus === 'synced'
+  // Дата оплаты в бейдже «Оплачено»: date-only строка форматируется через dayjs
+  // (new Date парсит YYYY-MM-DD как UTC и может сдвинуть день).
+  const paidSuffix =
+    letter.paymentStatus === 'paid' && letter.paidAt
+      ? ` ${dayjs(letter.paidAt).format('DD.MM.YYYY')}`
+      : ''
   return (
     <Space direction="vertical" size={2}>
-      {annulled ? <Tag color="red">Аннулировано</Tag> : <Tag color={pay.color}>{pay.label}</Tag>}
+      {annulled ? (
+        <Tag color="red">Аннулировано</Tag>
+      ) : (
+        <Tag color={pay.color}>{`${pay.label}${paidSuffix}`}</Tag>
+      )}
       <Tag color={synced ? 'green' : 'default'}>{synced ? 'Синхронизировано' : 'Черновик'}</Tag>
     </Space>
   )
@@ -182,20 +192,14 @@ const RpRegistryTable = ({
         render: (_: unknown, __: RpLetter, index: number) => (page - 1) * pageSize + index + 1,
       },
       {
-        // Основной номер — рег.номер письма PayHub; у черновика пусто.
-        // Локальный номер РП остаётся внутренним идентификатором (вторая строка).
+        // Номер — только рег.номер письма PayHub; у черновика пусто.
+        // Локальный номер РП остаётся внутренним идентификатором (в реестре не показывается).
         title: 'Номер',
         key: 'number',
         width: 170,
         fixed: 'left',
-        render: (_: unknown, r: RpLetter) => (
-          <div>
-            <div>{r.payhubLetterRegNumber ?? <Text type="secondary">—</Text>}</div>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              {r.number}
-            </Text>
-          </div>
-        ),
+        render: (_: unknown, r: RpLetter) =>
+          r.payhubLetterRegNumber ?? <Text type="secondary">—</Text>,
       },
       {
         title: (
@@ -289,73 +293,77 @@ const RpRegistryTable = ({
       {
         title: 'Статус',
         key: 'status',
-        width: 150,
+        width: 170,
         render: (_: unknown, r: RpLetter) => <StatusCell letter={r} />,
       },
     ]
 
-    // Колонка действий управления РП — только admin / ОМТС РП; иначе реестр read-only.
-    if (canManage) {
-      cols.push({
-        title: 'Действия',
-        key: 'actions',
-        width: 150,
-        fixed: 'right',
-        render: (_: unknown, r: RpLetter) => {
-          const annulled = r.status === 'annulled'
-          const canAnnul = !annulled && r.paymentStatus === 'unpaid'
-          return (
-            <Space size={0}>
-              <Tooltip title="Файлы РП">
-                <Badge count={r.filesCount} size="small" color="blue" offset={[-4, 4]}>
+    // Скрепка с файлами доступна всем; кнопки управления РП — только admin / ОМТС РП.
+    cols.push({
+      title: canManage ? 'Действия' : 'Файлы',
+      key: 'actions',
+      width: canManage ? 150 : 56,
+      fixed: 'right',
+      render: (_: unknown, r: RpLetter) => {
+        const annulled = r.status === 'annulled'
+        const canAnnul = !annulled && r.paymentStatus === 'unpaid'
+        return (
+          <Space size={0}>
+            <Tooltip title={r.hasRpFile ? 'Файлы РП (есть скан РП)' : 'Файлы РП'}>
+              <Badge count={r.filesCount} size="small" color="blue" offset={[-4, 4]}>
+                <Button
+                  type="text"
+                  size="small"
+                  icon={
+                    <PaperClipOutlined style={r.hasRpFile ? { color: '#52c41a' } : undefined} />
+                  }
+                  onClick={() => onFiles(r)}
+                />
+              </Badge>
+            </Tooltip>
+            {canManage && (
+              <>
+                <Tooltip title="Редактировать письмо">
                   <Button
                     type="text"
                     size="small"
-                    icon={<PaperClipOutlined />}
-                    onClick={() => onFiles(r)}
+                    icon={<EditOutlined />}
+                    disabled={annulled}
+                    onClick={() => onEdit(r)}
                   />
-                </Badge>
-              </Tooltip>
-              <Tooltip title="Редактировать письмо">
-                <Button
-                  type="text"
-                  size="small"
-                  icon={<EditOutlined />}
-                  disabled={annulled}
-                  onClick={() => onEdit(r)}
-                />
-              </Tooltip>
-              <Tooltip
-                title={
-                  canAnnul
-                    ? 'Аннулировать'
-                    : annulled
-                      ? 'Уже аннулирована'
-                      : 'Аннулировать можно только полностью неоплаченную РП'
-                }
-              >
-                <Button
-                  type="text"
-                  size="small"
-                  icon={<StopOutlined />}
-                  disabled={!canAnnul}
-                  onClick={() => onAnnul(r)}
-                />
-              </Tooltip>
-              <Tooltip title="Удалить РП">
-                <Button
-                  type="text"
-                  size="small"
-                  danger
-                  icon={<DeleteOutlined />}
-                  onClick={() => onDelete(r)}
-                />
-              </Tooltip>
-            </Space>
-          )
-        },
-      })
-    }
+                </Tooltip>
+                <Tooltip
+                  title={
+                    canAnnul
+                      ? 'Аннулировать'
+                      : annulled
+                        ? 'Уже аннулирована'
+                        : 'Аннулировать можно только полностью неоплаченную РП'
+                  }
+                >
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<StopOutlined />}
+                    disabled={!canAnnul}
+                    onClick={() => onAnnul(r)}
+                  />
+                </Tooltip>
+                <Tooltip title="Удалить РП">
+                  <Button
+                    type="text"
+                    size="small"
+                    danger
+                    icon={<DeleteOutlined />}
+                    onClick={() => onDelete(r)}
+                  />
+                </Tooltip>
+              </>
+            )}
+          </Space>
+        )
+      },
+    })
 
     return cols
   }, [
@@ -378,7 +386,7 @@ const RpRegistryTable = ({
       rowKey="id"
       loading={isLoading}
       size="small"
-      scroll={{ x: canManage ? 1694 : 1544, y: 'calc(100vh - 320px)' }}
+      scroll={{ x: canManage ? 1714 : 1620, y: 'calc(100vh - 320px)' }}
       pagination={{
         current: page,
         pageSize,
