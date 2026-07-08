@@ -21,7 +21,7 @@ import {
   userConstructionSitesMapping,
   rpLetterRequests,
 } from '../../db/schema/index.js';
-import { joinedPaymentRequests } from './payment-request-projection.js';
+import { joinedPaymentRequests, stripAmountHistory } from './payment-request-projection.js';
 import type {
   PaymentRequestRepository,
   PaymentRequestListFilter,
@@ -96,7 +96,7 @@ export class DrizzlePaymentRequestRepository implements PaymentRequestRepository
         .limit(filter.pagination.pageSize)
         .offset((filter.pagination.page - 1) * filter.pagination.pageSize);
     }
-    return (await q) as PaymentRequestRow[];
+    return stripAmountHistory((await q) as PaymentRequestRow[]);
   }
 
   async getById(id: string): Promise<PaymentRequestRow | null> {

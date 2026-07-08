@@ -1,12 +1,17 @@
 import { create } from 'zustand'
 import { api } from '@/services/api'
+import { isFresh, REFERENCE_TTL_MS, singleFlight } from '@/store/fetchGuard'
 import type { Status } from '@/types'
 
 interface StatusStoreState {
   statuses: Status[]
   isLoading: boolean
   error: string | null
-  fetchStatuses: (entityType: string) => Promise<void>
+  /**
+   * TTL-кэш с ключом по entityType: переходы «Заявки ↔ Договора» отдаются из кэша
+   * без сети, публичный контракт (один массив statuses текущей сущности) сохранён.
+   */
+  fetchStatuses: (entityType: string, force?: boolean) => Promise<void>
   createStatus: (data: {
     entity_type: string
     code: string
@@ -19,27 +24,40 @@ interface StatusStoreState {
   deleteStatus: (id: string) => Promise<void>
 }
 
+// Кэш статусов по типу сущности (payment_request / contract_request / ...)
+const statusCache = new Map<string, { data: Status[]; fetchedAt: number }>()
+
 export const useStatusStore = create<StatusStoreState>((set, get) => ({
   statuses: [],
   isLoading: false,
   error: null,
 
-  fetchStatuses: async (entityType) => {
-    set({ isLoading: true, error: null })
-    try {
-      const data = await api.get<Status[]>('/api/references/statuses', { entityType })
-      set({ statuses: data ?? [], isLoading: false })
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Ошибка загрузки статусов'
-      set({ error: message, isLoading: false })
+  fetchStatuses: async (entityType, force = false) => {
+    const cached = statusCache.get(entityType)
+    if (!force && cached && isFresh(cached.fetchedAt, REFERENCE_TTL_MS)) {
+      // Отдаём из кэша синхронно (ссылка та же — лишнего ререндера не будет)
+      if (get().statuses !== cached.data) set({ statuses: cached.data })
+      return
     }
+    await singleFlight(`references-statuses|${entityType}`, async () => {
+      // Спиннер только на первой загрузке этого типа сущности
+      if (!cached) set({ isLoading: true, error: null })
+      try {
+        const data = (await api.get<Status[]>('/api/references/statuses', { entityType })) ?? []
+        statusCache.set(entityType, { data, fetchedAt: Date.now() })
+        set({ statuses: data, isLoading: false })
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Ошибка загрузки статусов'
+        set({ error: message, isLoading: false })
+      }
+    })
   },
 
   createStatus: async (data) => {
     set({ isLoading: true, error: null })
     try {
       await api.post('/api/references/statuses', data)
-      await get().fetchStatuses(data.entity_type)
+      await get().fetchStatuses(data.entity_type, true)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка создания статуса'
       set({ error: message, isLoading: false })
@@ -52,7 +70,7 @@ export const useStatusStore = create<StatusStoreState>((set, get) => ({
       await api.put(`/api/references/statuses/${id}`, data)
       // Перезагружаем статусы текущей сущности
       const current = get().statuses[0]
-      if (current) await get().fetchStatuses(current.entityType)
+      if (current) await get().fetchStatuses(current.entityType, true)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка обновления статуса'
       set({ error: message, isLoading: false })
@@ -64,7 +82,7 @@ export const useStatusStore = create<StatusStoreState>((set, get) => ({
     try {
       await api.delete(`/api/references/statuses/${id}`)
       const current = get().statuses[0]
-      if (current) await get().fetchStatuses(current.entityType)
+      if (current) await get().fetchStatuses(current.entityType, true)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка удаления статуса'
       set({ error: message, isLoading: false })

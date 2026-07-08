@@ -7,6 +7,7 @@ import {
   approvalFieldUpdatesSchema,
   approvalDecisionFileByPathBodySchema,
 } from '../schemas/approval.js';
+import { resolveSiteScope } from '../services/site-scope.js';
 
 /* ------------------------------------------------------------------ */
 /*  Дополнительные маршруты согласований (через fastify.repos.approvals) */
@@ -102,10 +103,10 @@ async function approvalExtraRoutes(fastify: FastifyInstance): Promise<void> {
   /* ---------- GET /api/approvals/approved-requests ---------- */
   fastify.get('/api/approvals/approved-requests', adminOrUser, async (request) => {
     const user = request.user!;
-    const query = request.query as { allSites?: string; siteIds?: string; showDeleted?: string };
+    const query = request.query as { showDeleted?: string };
+    const scope = await resolveSiteScope(request);
     return request.server.repos.approvals.listApprovedArray({
-      allSites: query.allSites === 'true' || user.role === 'admin',
-      siteIds: query.siteIds ? query.siteIds.split(',') : [],
+      ...scope,
       showDeleted: user.role === 'admin' && query.showDeleted === 'true',
     });
   });
@@ -113,10 +114,10 @@ async function approvalExtraRoutes(fastify: FastifyInstance): Promise<void> {
   /* ---------- GET /api/approvals/rejected-requests ---------- */
   fastify.get('/api/approvals/rejected-requests', adminOrUser, async (request) => {
     const user = request.user!;
-    const query = request.query as { allSites?: string; siteIds?: string; showDeleted?: string };
+    const query = request.query as { showDeleted?: string };
+    const scope = await resolveSiteScope(request);
     return request.server.repos.approvals.listRejectedArray({
-      allSites: query.allSites === 'true' || user.role === 'admin',
-      siteIds: query.siteIds ? query.siteIds.split(',') : [],
+      ...scope,
       showDeleted: user.role === 'admin' && query.showDeleted === 'true',
     });
   });
@@ -136,12 +137,8 @@ async function approvalExtraRoutes(fastify: FastifyInstance): Promise<void> {
 
   /* ---------- GET /api/approvals/all-count ---------- */
   fastify.get('/api/approvals/all-count', adminOrUser, async (request) => {
-    const user = request.user!;
-    const query = request.query as { allSites?: string; siteIds?: string };
-    const count = await request.server.repos.approvals.countAll({
-      allSites: query.allSites === 'true' || user.role === 'admin',
-      siteIds: query.siteIds ? query.siteIds.split(',') : [],
-    });
+    const scope = await resolveSiteScope(request);
+    const count = await request.server.repos.approvals.countAll(scope);
     return { count };
   });
 

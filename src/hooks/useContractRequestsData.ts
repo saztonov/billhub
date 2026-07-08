@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useEffect, useCallback } from 'react'
 import { useAuthStore } from '@/store/authStore'
 import { useContractRequestStore } from '@/store/contractRequestStore'
 import { useContractCommentStore } from '@/store/contractCommentStore'
@@ -6,18 +6,9 @@ import { useCounterpartyStore } from '@/store/counterpartyStore'
 import { useConstructionSiteStore } from '@/store/constructionSiteStore'
 import { useSupplierStore } from '@/store/supplierStore'
 import { useStatusStore } from '@/store/statusStore'
-import { api } from '@/services/api'
 
 interface UseContractRequestsDataParams {
   showDeleted: boolean
-}
-
-/** Загрузить объекты пользователя через API */
-async function loadUserSiteIds(userId: string): Promise<{ allSites: boolean; siteIds: string[] }> {
-  const data = await api.get<{ allSites: boolean; siteIds: string[] }>(
-    `/api/users/${userId}/site-ids`,
-  )
-  return data ?? { allSites: true, siteIds: [] }
 }
 
 /**
@@ -61,40 +52,17 @@ export function useContractRequestsData({ showDeleted }: UseContractRequestsData
 
   const { fetchUnreadCounts, unreadCounts } = useContractCommentStore()
 
-  // Объекты пользователя (для role=user)
-  const [userSiteIds, setUserSiteIds] = useState<string[]>([])
-  const [userAllSites, setUserAllSites] = useState(true)
-  const [sitesLoaded, setSitesLoaded] = useState(false)
-
-  // Загружаем объекты пользователя для role=user
-  useEffect(() => {
-    if (!user?.id || !isUser) {
-      setSitesLoaded(true)
-      return
-    }
-    loadUserSiteIds(user.id).then(({ allSites, siteIds }) => {
-      setUserAllSites(allSites)
-      setUserSiteIds(siteIds)
-      setSitesLoaded(true)
-    })
-  }, [user?.id, isUser])
-
-  // Загрузка заявок
+  // Загрузка заявок. Скоупинг по объектам (для user без all_sites) выполняет сервер —
+  // клиентские siteIds/allSites и ожидание /site-ids (водопад) больше не нужны.
   const loadRequests = useCallback(() => {
-    if (!sitesLoaded) return
     if (isCounterpartyUser && user?.counterpartyId) {
       fetchRequests(user.counterpartyId)
     } else if (isAdmin) {
-      fetchRequests(undefined, undefined, undefined, showDeleted)
+      fetchRequests(undefined, showDeleted)
     } else if (isUser) {
-      // Штаб видит только по своим объектам
-      if (isShtabUser) {
-        fetchRequests(undefined, userSiteIds, userAllSites)
-      } else {
-        fetchRequests(undefined, undefined, undefined)
-      }
+      fetchRequests()
     }
-  }, [sitesLoaded, isCounterpartyUser, isAdmin, isUser, isShtabUser, user?.counterpartyId, showDeleted, userSiteIds, userAllSites, fetchRequests])
+  }, [isCounterpartyUser, isAdmin, isUser, user?.counterpartyId, showDeleted, fetchRequests])
 
   useEffect(() => {
     loadRequests()
@@ -118,16 +86,19 @@ export function useContractRequestsData({ showDeleted }: UseContractRequestsData
   }, [user?.id, fetchUnreadCounts])
 
   // Проверка прав на редактирование
-  const canEditRequest = useCallback((record: { statusCode?: string } | null): boolean => {
-    if (!record) return false
-    if (isAdmin) return true
-    // Подрядчик может редактировать шапку до перехода в "Согласовано. Ожидание оригинала" / "Заключен"
-    if (isCounterpartyUser) {
-      return record.statusCode !== 'approved_waiting' && record.statusCode !== 'concluded'
-    }
-    if (isOmtsUser) return true
-    return false
-  }, [isAdmin, isCounterpartyUser, isOmtsUser])
+  const canEditRequest = useCallback(
+    (record: { statusCode?: string } | null): boolean => {
+      if (!record) return false
+      if (isAdmin) return true
+      // Подрядчик может редактировать шапку до перехода в "Согласовано. Ожидание оригинала" / "Заключен"
+      if (isCounterpartyUser) {
+        return record.statusCode !== 'approved_waiting' && record.statusCode !== 'concluded'
+      }
+      if (isOmtsUser) return true
+      return false
+    },
+    [isAdmin, isCounterpartyUser, isOmtsUser],
+  )
 
   return {
     // Пользователь и роли

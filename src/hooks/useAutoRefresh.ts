@@ -16,6 +16,8 @@ interface UseAutoRefreshParams {
   refetchOnFocus?: boolean
   /** Мин. интервал между обновлениями (антидубль focus+visibilitychange и refetch сразу после действий), мс. */
   minRefetchGapMs?: number
+  /** Порог устаревания для focus-рефетча: обновляем только если с последнего обновления прошло больше, мс. */
+  focusStaleMs?: number
   /** Колбэк при достижении капа опроса (для логирования). */
   onPollingCapReached?: () => void
 }
@@ -38,6 +40,7 @@ export function useAutoRefresh({
   maxTicks = 120,
   refetchOnFocus = false,
   minRefetchGapMs = 5000,
+  focusStaleMs = 60_000,
   onPollingCapReached,
 }: UseAutoRefreshParams): void {
   const refreshRef = useRef(refresh)
@@ -45,9 +48,10 @@ export function useAutoRefresh({
   const capCbRef = useRef(onPollingCapReached)
   capCbRef.current = onPollingCapReached
 
-  // Флаг «идёт запрос» — не допускаем наложения. Время последнего запуска — для min-gap.
+  // Флаг «идёт запрос» — не допускаем наложения. Время последнего запуска — для min-gap;
+  // стартует от монтирования: страница только что загрузила данные своими эффектами.
   const inFlightRef = useRef(false)
-  const lastRunRef = useRef(0)
+  const lastRunRef = useRef(Date.now())
 
   const run = useCallback(async (minGapMs?: number) => {
     if (inFlightRef.current) return
@@ -79,11 +83,14 @@ export function useAutoRefresh({
     return () => window.clearInterval(id)
   }, [enabled, polling, intervalMs, maxTicks, run])
 
-  // Обновление при возврате фокуса/видимости вкладки.
+  // Обновление при возврате фокуса/видимости вкладки — только если данные успели
+  // устареть (focusStaleMs): частые переключения окон не порождают запросов.
   useEffect(() => {
     if (!enabled || !refetchOnFocus) return
     const onFocus = () => {
-      if (document.visibilityState === 'visible') void run(minRefetchGapMs)
+      if (document.visibilityState === 'visible') {
+        void run(Math.max(minRefetchGapMs, focusStaleMs))
+      }
     }
     document.addEventListener('visibilitychange', onFocus)
     window.addEventListener('focus', onFocus)
@@ -91,5 +98,5 @@ export function useAutoRefresh({
       document.removeEventListener('visibilitychange', onFocus)
       window.removeEventListener('focus', onFocus)
     }
-  }, [enabled, refetchOnFocus, minRefetchGapMs, run])
+  }, [enabled, refetchOnFocus, minRefetchGapMs, focusStaleMs, run])
 }

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { api } from '@/services/api'
 import { logError } from '@/services/errorLogger'
+import { singleFlight } from '@/store/fetchGuard'
 import type { ContractRequest, ContractRequestFile, RevisionTarget } from '@/types'
 
 interface CreateContractRequestData {
@@ -26,10 +27,17 @@ interface ContractRequestStoreState {
   requests: ContractRequest[]
   currentRequestFiles: ContractRequestFile[]
   isLoading: boolean
+  /** Список хотя бы раз загружен — дальше рефетчи тихие, без спиннера. */
+  requestsLoaded: boolean
   isSubmitting: boolean
   error: string | null
-  fetchRequests: (counterpartyId?: string, userSiteIds?: string[], allSites?: boolean, includeDeleted?: boolean) => Promise<void>
-  createRequest: (data: CreateContractRequestData, userId: string) => Promise<{ requestId: string; requestNumber: string }>
+  // Фильтрация по объектам (siteIds/allSites) выполняется на сервере по профилю
+  // пользователя — клиент её больше не передаёт.
+  fetchRequests: (counterpartyId?: string, includeDeleted?: boolean) => Promise<void>
+  createRequest: (
+    data: CreateContractRequestData,
+    userId: string,
+  ) => Promise<{ requestId: string; requestNumber: string }>
   updateRequest: (id: string, data: EditContractRequestData, userId: string) => Promise<void>
   deleteRequest: (id: string) => Promise<void>
   fetchRequestFiles: (requestId: string) => Promise<void>
@@ -42,37 +50,46 @@ interface ContractRequestStoreState {
   revertToPreviousStatus: (id: string, userId: string, comment?: string) => Promise<void>
   rejectRequest: (id: string, userId: string, comment: string) => Promise<void>
   assignToMe: (id: string) => Promise<void>
-  updateContractDetails: (id: string, data: { contractNumber?: string | null; contractSigningDate?: string | null }) => Promise<void>
+  updateContractDetails: (
+    id: string,
+    data: { contractNumber?: string | null; contractSigningDate?: string | null },
+  ) => Promise<void>
 }
+
+// Порядковый номер последнего инициированного запроса списка: применяем только
+// самый свежий ответ (защита от гонки при смене параметров на лету).
+let requestsSeq = 0
 
 export const useContractRequestStore = create<ContractRequestStoreState>((set, get) => ({
   requests: [],
   currentRequestFiles: [],
   isLoading: false,
+  requestsLoaded: false,
   isSubmitting: false,
   error: null,
 
-  fetchRequests: async (counterpartyId?, userSiteIds?, allSites?, includeDeleted?) => {
-    set({ isLoading: true, error: null })
-    try {
-      const params: Record<string, string | number | boolean | undefined> = {}
-      if (counterpartyId) params.counterpartyId = counterpartyId
-      if (includeDeleted) params.includeDeleted = true
-      if (allSites !== undefined) params.allSites = allSites
-      if (userSiteIds && userSiteIds.length > 0) params.siteIds = userSiteIds.join(',')
+  fetchRequests: async (counterpartyId?, includeDeleted?) => {
+    const key = `contract-requests|${counterpartyId ?? ''}|${includeDeleted ? 1 : 0}`
+    await singleFlight(key, async () => {
+      const seq = ++requestsSeq
+      // Спиннер — только на первой загрузке; дальше тихий фоновый рефетч
+      if (!get().requestsLoaded) set({ isLoading: true, error: null })
+      try {
+        const params: Record<string, string | number | boolean | undefined> = {}
+        if (counterpartyId) params.counterpartyId = counterpartyId
+        // Сервер ожидает showDeleted (ранее клиент слал includeDeleted — параметр игнорировался)
+        if (includeDeleted) params.showDeleted = true
 
-      if (allSites === false && userSiteIds && userSiteIds.length === 0) {
-        set({ requests: [], isLoading: false })
-        return
+        const data = await api.get<ContractRequest[]>('/api/contract-requests', params)
+
+        if (seq === requestsSeq) {
+          set({ requests: data ?? [], requestsLoaded: true, isLoading: false })
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Ошибка загрузки заявок на договор'
+        if (seq === requestsSeq) set({ error: message, isLoading: false })
       }
-
-      const data = await api.get<ContractRequest[]>('/api/contract-requests', params)
-
-      set({ requests: data ?? [], isLoading: false })
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Ошибка загрузки заявок на договор'
-      set({ error: message, isLoading: false })
-    }
+    })
   },
 
   createRequest: async (data, userId) => {
@@ -87,7 +104,12 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
       return result
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка создания заявки на договор'
-      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'createContractRequest' } })
+      logError({
+        errorType: 'api_error',
+        errorMessage: message,
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'createContractRequest' },
+      })
       set({ error: message, isSubmitting: false })
       throw err
     }
@@ -102,7 +124,12 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
       set({ isSubmitting: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка обновления заявки'
-      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'updateContractRequest', id } })
+      logError({
+        errorType: 'api_error',
+        errorMessage: message,
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'updateContractRequest', id },
+      })
       set({ error: message, isSubmitting: false })
       throw err
     }
@@ -122,14 +149,17 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
 
   fetchRequestFiles: async (requestId) => {
     try {
-      const data = await api.get<ContractRequestFile[]>(
-        `/api/contract-requests/${requestId}/files`,
-      )
+      const data = await api.get<ContractRequestFile[]>(`/api/contract-requests/${requestId}/files`)
 
       set({ currentRequestFiles: data ?? [] })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка загрузки файлов'
-      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'fetchContractRequestFiles' } })
+      logError({
+        errorType: 'api_error',
+        errorMessage: message,
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'fetchContractRequestFiles' },
+      })
     }
   },
 
@@ -149,12 +179,22 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
       set({
         currentRequestFiles: files.map((f) =>
           f.id === fileId
-            ? { ...f, isRejected: newRejected, rejectedBy: newRejected ? userId : null, rejectedAt: newRejected ? new Date().toISOString() : null }
+            ? {
+                ...f,
+                isRejected: newRejected,
+                rejectedBy: newRejected ? userId : null,
+                rejectedAt: newRejected ? new Date().toISOString() : null,
+              }
             : f,
         ),
       })
     } catch (err) {
-      logError({ errorType: 'api_error', errorMessage: err instanceof Error ? err.message : 'Ошибка', errorStack: null, metadata: { action: 'toggleContractFileRejection', fileId } })
+      logError({
+        errorType: 'api_error',
+        errorMessage: err instanceof Error ? err.message : 'Ошибка',
+        errorStack: null,
+        metadata: { action: 'toggleContractFileRejection', fileId },
+      })
     }
   },
 
@@ -165,10 +205,17 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
       currentRequestFiles: files.map((f) => (f.id === fileId ? { ...f, isSignedContract } : f)),
     })
     try {
-      await api.patch(`/api/contract-requests/files/${fileId}/signed-contract`, { isSignedContract })
+      await api.patch(`/api/contract-requests/files/${fileId}/signed-contract`, {
+        isSignedContract,
+      })
     } catch (err) {
       set({ currentRequestFiles: prev })
-      logError({ errorType: 'api_error', errorMessage: err instanceof Error ? err.message : 'Ошибка', errorStack: null, metadata: { action: 'setContractFileSignedContract', fileId } })
+      logError({
+        errorType: 'api_error',
+        errorMessage: err instanceof Error ? err.message : 'Ошибка',
+        errorStack: null,
+        metadata: { action: 'setContractFileSignedContract', fileId },
+      })
     }
   },
 
@@ -181,7 +228,12 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
       set({ isSubmitting: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка отправки на доработку'
-      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'sendContractToRevision', id } })
+      logError({
+        errorType: 'api_error',
+        errorMessage: message,
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'sendContractToRevision', id },
+      })
       set({ error: message, isSubmitting: false })
       throw err
     }
@@ -196,7 +248,12 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
       set({ isSubmitting: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка завершения доработки'
-      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'completeContractRevision', id } })
+      logError({
+        errorType: 'api_error',
+        errorMessage: message,
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'completeContractRevision', id },
+      })
       set({ error: message, isSubmitting: false })
       throw err
     }
@@ -211,7 +268,12 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
       set({ isSubmitting: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка согласования'
-      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'approveContractRequest', id } })
+      logError({
+        errorType: 'api_error',
+        errorMessage: message,
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'approveContractRequest', id },
+      })
       set({ error: message, isSubmitting: false })
       throw err
     }
@@ -226,7 +288,12 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
       set({ isSubmitting: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка подтверждения оригинала'
-      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'markOriginalReceived', id } })
+      logError({
+        errorType: 'api_error',
+        errorMessage: message,
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'markOriginalReceived', id },
+      })
       set({ error: message, isSubmitting: false })
       throw err
     }
@@ -235,13 +302,21 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
   revertToPreviousStatus: async (id, userId, comment) => {
     set({ isSubmitting: true, error: null })
     try {
-      await api.post(`/api/contract-requests/${id}/revert-to-previous`, { userId, comment: comment ?? null })
+      await api.post(`/api/contract-requests/${id}/revert-to-previous`, {
+        userId,
+        comment: comment ?? null,
+      })
 
       await get().fetchRequests()
       set({ isSubmitting: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка смены статуса'
-      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'revertContractToPreviousStatus', id } })
+      logError({
+        errorType: 'api_error',
+        errorMessage: message,
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'revertContractToPreviousStatus', id },
+      })
       set({ error: message, isSubmitting: false })
       throw err
     }
@@ -256,7 +331,12 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
       set({ isSubmitting: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка отклонения заявки'
-      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'rejectContractRequest', id } })
+      logError({
+        errorType: 'api_error',
+        errorMessage: message,
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'rejectContractRequest', id },
+      })
       set({ error: message, isSubmitting: false })
       throw err
     }
@@ -271,7 +351,12 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
       set({ isSubmitting: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка назначения ответственного'
-      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'assignContractRequest', id } })
+      logError({
+        errorType: 'api_error',
+        errorMessage: message,
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'assignContractRequest', id },
+      })
       set({ error: message, isSubmitting: false })
       throw err
     }
@@ -286,7 +371,9 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
           ? {
               ...r,
               ...(data.contractNumber !== undefined ? { contractNumber: data.contractNumber } : {}),
-              ...(data.contractSigningDate !== undefined ? { contractSigningDate: data.contractSigningDate } : {}),
+              ...(data.contractSigningDate !== undefined
+                ? { contractSigningDate: data.contractSigningDate }
+                : {}),
             }
           : r,
       ),
@@ -297,7 +384,12 @@ export const useContractRequestStore = create<ContractRequestStoreState>((set, g
       // Откат при ошибке
       set({ requests: prev })
       const message = err instanceof Error ? err.message : 'Ошибка обновления данных договора'
-      logError({ errorType: 'api_error', errorMessage: message, errorStack: err instanceof Error ? err.stack : null, metadata: { action: 'updateContractDetails', id } })
+      logError({
+        errorType: 'api_error',
+        errorMessage: message,
+        errorStack: err instanceof Error ? err.stack : null,
+        metadata: { action: 'updateContractDetails', id },
+      })
       throw err
     }
   },

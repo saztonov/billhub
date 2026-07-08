@@ -27,6 +27,18 @@ import {
 
 type Db = PostgresJsDatabase<typeof schema>;
 
+/**
+ * Убирает тяжёлый jsonb истории сумм из строк СПИСКОВ: в таблицах он не используется,
+ * а деталь заявки (getById -> GET /api/payment-requests/:id) отдаёт его по-прежнему —
+ * модалка просмотра дозагружает полную запись оттуда.
+ */
+export function stripAmountHistory<T extends Record<string, unknown>>(rows: T[]): T[] {
+  return rows.map((r) => {
+    const { invoiceAmountHistory: _hist, ...rest } = r;
+    return rest as T;
+  });
+}
+
 /** Базовый select заявок с join-полями (без where/order — их навешивает вызывающий). */
 export function joinedPaymentRequests(db: Db) {
   const statusT = alias(statuses, 'status_t');

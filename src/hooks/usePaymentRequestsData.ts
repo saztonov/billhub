@@ -53,9 +53,9 @@ export function usePaymentRequestsData({
   const isOmtsUser = user?.department === 'omts'
   const isShtabUser = user?.department === 'shtab'
 
-  const [userSiteIds, setUserSiteIds] = useState<string[]>([])
-  const [userAllSites, setUserAllSites] = useState(true)
-  const [sitesLoaded, setSitesLoaded] = useState(false)
+  // Объекты пользователя нужны только для canEditRequest; загрузка неблокирующая,
+  // null = ответ ещё не пришёл (до этого редактирование запрещено — безопасный дефолт).
+  const [siteScope, setSiteScope] = useState<{ allSites: boolean; siteIds: string[] } | null>(null)
 
   const {
     requests,
@@ -85,7 +85,7 @@ export function usePaymentRequestsData({
     rpPendingRequests,
     approvedCount,
     rejectedCount,
-    isLoading: approvalLoading,
+    listLoading: approvalListLoading,
     fetchPendingRequests,
     fetchRpPendingRequests,
     fetchApprovedRequests,
@@ -107,12 +107,6 @@ export function usePaymentRequestsData({
     return user.department === 'shtab' || user.department === 'omts'
   }, [isAdmin, user?.department])
 
-  // Параметры фильтрации для role=user
-  const siteFilterParams = useCallback((): [string[]?, boolean?] => {
-    if (!isUser) return [undefined, undefined]
-    return [userSiteIds, userAllSites]
-  }, [isUser, userSiteIds, userAllSites])
-
   // Устанавливаем фильтры по умолчанию для ОМТС (если не восстановлены из localStorage)
   useEffect(() => {
     if (isUser && isOmtsUser && !isMobile && !skipDefaultMyFilter) {
@@ -122,58 +116,17 @@ export function usePaymentRequestsData({
     }
   }, [isUser, isOmtsUser, isMobile, setFilters, skipDefaultMyFilter])
 
-  // Загружаем объекты пользователя для role=user
+  // Загружаем объекты пользователя для role=user — неблокирующе, только для canEditRequest
   useEffect(() => {
-    if (!user?.id || !isUser) {
-      setSitesLoaded(true)
-      return
-    }
-    loadUserSiteIds(user.id).then(({ allSites, siteIds }) => {
-      setUserAllSites(allSites)
-      setUserSiteIds(siteIds)
-      setSitesLoaded(true)
+    if (!user?.id || !isUser) return
+    let cancelled = false
+    loadUserSiteIds(user.id).then((scope) => {
+      if (!cancelled) setSiteScope(scope)
     })
+    return () => {
+      cancelled = true
+    }
   }, [user?.id, isUser])
-
-  // Загрузка заявок
-  useEffect(() => {
-    if (!sitesLoaded) return
-    if (isCounterpartyUser && user?.counterpartyId) {
-      fetchRequests(user.counterpartyId)
-    } else if (isAdmin) {
-      fetchRequests(undefined, undefined, undefined, showDeleted)
-    } else if (isUser) {
-      fetchRequests(undefined, userSiteIds, userAllSites)
-    }
-  }, [
-    fetchRequests,
-    isCounterpartyUser,
-    isAdmin,
-    isUser,
-    user?.counterpartyId,
-    sitesLoaded,
-    userSiteIds,
-    userAllSites,
-    showDeleted,
-  ])
-
-  // Загружаем pendingRequests для счетчика вкладки
-  useEffect(() => {
-    if (isCounterpartyUser || !sitesLoaded || !user?.id) return
-    const department = isAdmin ? adminSelectedStage : user?.department
-    if (department && userDeptInChain) {
-      fetchPendingRequests(department, user.id, isAdmin)
-    }
-  }, [
-    isCounterpartyUser,
-    sitesLoaded,
-    user?.id,
-    user?.department,
-    isAdmin,
-    adminSelectedStage,
-    userDeptInChain,
-    fetchPendingRequests,
-  ])
 
   // Загружаем свои назначения РП (определяет видимость вкладки «РП»)
   useEffect(() => {
@@ -181,30 +134,25 @@ export function usePaymentRequestsData({
     fetchRpMy()
   }, [isAdmin, isUser, fetchRpMy])
 
-  // Загружаем заявки этапа РП для счетчика вкладки
+  // Стал известен статус назначенца РП (fetchRpMy резолвился) — подгружаем только
+  // счётчик вкладки «РП», не перезапуская остальные загрузки.
   useEffect(() => {
-    if (!isRpAssignee && !isAdmin) return
+    if (!isRpAssignee) return
     fetchRpPendingRequests()
-  }, [isRpAssignee, isAdmin, fetchRpPendingRequests])
+  }, [isRpAssignee, fetchRpPendingRequests])
 
-  // Загружаем данные при переключении вкладок и обновляем все счетчики
+  // Загружаем данные при монтировании/переключении вкладок и обновляем все счетчики.
+  // Скоупинг по объектам выполняет сервер — клиентских siteIds/allSites больше нет.
   useEffect(() => {
-    if (!sitesLoaded) return
-
     if (isCounterpartyUser && user?.counterpartyId) {
       fetchRequests(user.counterpartyId)
       return
     }
-
-    const [sIds, allS] = siteFilterParams()
+    if (!isUser && !isAdmin) return
 
     // Загружаем данные активной вкладки
     if (activeTab === 'all') {
-      if (isUser) {
-        fetchRequests(undefined, sIds, allS)
-      } else if (isAdmin) {
-        fetchRequests(undefined, undefined, undefined, showDeleted)
-      }
+      fetchRequests(undefined, isAdmin && showDeleted)
     } else if (activeTab === 'pending') {
       if (user?.id && userDeptInChain) {
         const department = isAdmin ? adminSelectedStage : user?.department
@@ -215,40 +163,37 @@ export function usePaymentRequestsData({
     } else if (activeTab === 'rp') {
       fetchRpPendingRequests()
     } else if (activeTab === 'approved') {
-      fetchApprovedRequests(sIds, allS, showDeleted)
+      fetchApprovedRequests(showDeleted)
     } else if (activeTab === 'rejected') {
-      fetchRejectedRequests(sIds, allS, showDeleted)
+      fetchRejectedRequests(showDeleted)
     }
 
     // Обновляем счетчики всех вкладок
-    fetchApprovedCount(sIds, allS, showDeleted)
-    fetchRejectedCount(sIds, allS, showDeleted)
+    fetchApprovedCount(showDeleted)
+    fetchRejectedCount(showDeleted)
     if (activeTab !== 'all') {
-      if (isUser) fetchRequests(undefined, sIds, allS)
-      else if (isAdmin) fetchRequests(undefined, undefined, undefined, showDeleted)
+      fetchRequests(undefined, isAdmin && showDeleted)
     }
     if (activeTab !== 'pending' && user?.id && userDeptInChain) {
       const department = isAdmin ? adminSelectedStage : user?.department
       if (department) fetchPendingRequests(department, user.id, isAdmin)
     }
-    if (activeTab !== 'rp' && (isRpAssignee || isAdmin)) {
+    // isRpAssignee читаем в момент выполнения: его резолв не должен перезапускать весь эффект
+    const rpAssignee = useRpStageStore.getState().mySiteIds.length > 0
+    if (activeTab !== 'rp' && (rpAssignee || isAdmin)) {
       fetchRpPendingRequests()
     }
   }, [
     activeTab,
     refreshTrigger,
-    sitesLoaded,
     isCounterpartyUser,
     user?.counterpartyId,
     user?.id,
     user?.department,
     isUser,
     isAdmin,
-    isRpAssignee,
     adminSelectedStage,
     userDeptInChain,
-    userSiteIds,
-    userAllSites,
     showDeleted,
     fetchRequests,
     fetchPendingRequests,
@@ -257,7 +202,6 @@ export function usePaymentRequestsData({
     fetchRejectedRequests,
     fetchApprovedCount,
     fetchRejectedCount,
-    siteFilterParams,
   ])
 
   // Загружаем справочники для фильтров
@@ -283,12 +227,14 @@ export function usePaymentRequestsData({
       if (!record || isCounterpartyUser) return false
       if (isAdmin) return true
       if (isUser) {
-        if (userAllSites) return true
-        return userSiteIds.includes(record.siteId)
+        if (user?.allSites) return true
+        // Объекты ещё не загружены — запрещаем (безопасный дефолт до прихода ответа)
+        if (!siteScope) return false
+        return siteScope.allSites || siteScope.siteIds.includes(record.siteId)
       }
       return false
     },
-    [isAdmin, isCounterpartyUser, isUser, userAllSites, userSiteIds],
+    [isAdmin, isCounterpartyUser, isUser, user?.allSites, siteScope],
   )
 
   return {
@@ -311,7 +257,7 @@ export function usePaymentRequestsData({
     approvedCount,
     rejectedCount,
     isLoading,
-    approvalLoading,
+    approvalListLoading,
     counterparties,
     sites,
     statuses,
@@ -319,7 +265,6 @@ export function usePaymentRequestsData({
     omtsUsers,
     uploadTasks,
     // Функции
-    siteFilterParams,
     canEditRequest,
     fetchRequests,
     fetchCounterparties,

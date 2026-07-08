@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { api } from '@/services/api'
 import { logError } from '@/services/errorLogger'
+import { singleFlight } from '@/store/fetchGuard'
 import type { PaymentRequest, PaymentRequestFile, PaymentRequestType } from '@/types'
 
 interface CreateRequestData {
@@ -33,14 +34,13 @@ interface PaymentRequestStoreState {
   requests: PaymentRequest[]
   currentRequestFiles: PaymentRequestFile[]
   isLoading: boolean
+  /** Список хотя бы раз загружен — дальше рефетчи тихие, без спиннера. */
+  requestsLoaded: boolean
   isSubmitting: boolean
   error: string | null
-  fetchRequests: (
-    counterpartyId?: string,
-    userSiteIds?: string[],
-    allSites?: boolean,
-    includeDeleted?: boolean,
-  ) => Promise<void>
+  // Фильтрация по объектам (siteIds/allSites) выполняется на сервере по профилю
+  // пользователя — клиент её больше не передаёт.
+  fetchRequests: (counterpartyId?: string, includeDeleted?: boolean) => Promise<void>
   createRequest: (
     data: CreateRequestData,
     counterpartyId: string,
@@ -83,35 +83,39 @@ interface PaymentRequestStoreState {
   ) => Promise<void>
 }
 
+// Порядковый номер последнего инициированного запроса списка: применяем только
+// самый свежий ответ (защита от гонки при смене параметров на лету).
+let requestsSeq = 0
+
 export const usePaymentRequestStore = create<PaymentRequestStoreState>((set, get) => ({
   requests: [],
   currentRequestFiles: [],
   isLoading: false,
+  requestsLoaded: false,
   isSubmitting: false,
   error: null,
 
-  fetchRequests: async (counterpartyId?, userSiteIds?, allSites?, includeDeleted?) => {
-    set({ isLoading: true, error: null })
-    try {
-      // Формируем query-параметры для API
-      const params: Record<string, string | number | boolean | undefined> = {}
-      if (counterpartyId) params.counterpartyId = counterpartyId
-      if (includeDeleted) params.showDeleted = true
-      if (allSites !== undefined) params.allSites = allSites
-      if (userSiteIds && userSiteIds.length > 0) params.siteIds = userSiteIds.join(',')
-      // Если allSites=false и нет объектов — пустой список
-      if (allSites === false && userSiteIds && userSiteIds.length === 0) {
-        set({ requests: [], isLoading: false })
-        return
+  fetchRequests: async (counterpartyId?, includeDeleted?) => {
+    const key = `payment-requests|${counterpartyId ?? ''}|${includeDeleted ? 1 : 0}`
+    await singleFlight(key, async () => {
+      const seq = ++requestsSeq
+      // Спиннер — только на первой загрузке; дальше тихий фоновый рефетч
+      if (!get().requestsLoaded) set({ isLoading: true, error: null })
+      try {
+        const params: Record<string, string | number | boolean | undefined> = {}
+        if (counterpartyId) params.counterpartyId = counterpartyId
+        if (includeDeleted) params.showDeleted = true
+
+        const data = await api.get<PaymentRequest[]>('/api/payment-requests', params)
+
+        if (seq === requestsSeq) {
+          set({ requests: data ?? [], requestsLoaded: true, isLoading: false })
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Ошибка загрузки заявок'
+        if (seq === requestsSeq) set({ error: message, isLoading: false })
       }
-
-      const data = await api.get<PaymentRequest[]>('/api/payment-requests', params)
-
-      set({ requests: data ?? [], isLoading: false })
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Ошибка загрузки заявок'
-      set({ error: message, isLoading: false })
-    }
+    })
   },
 
   createRequest: async (data, counterpartyId, userId) => {

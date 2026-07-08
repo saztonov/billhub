@@ -46,7 +46,7 @@ import {
   rpAssigneeSiteIds,
   userMayActOnStage,
 } from './approval-stage-flow.js';
-import { joinedPaymentRequests } from './payment-request-projection.js';
+import { joinedPaymentRequests, stripAmountHistory } from './payment-request-projection.js';
 import type {
   ApprovalRepository,
   ApprovalDecideInput,
@@ -217,9 +217,11 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
       isNull(paymentRequests.previousStatusId),
     ];
     if (!allSites) conds.push(inArray(paymentRequests.siteId, userSiteIds));
-    return (await joinedPaymentRequests(this.db)
-      .where(and(...conds))
-      .orderBy(desc(paymentRequests.createdAt))) as Row[];
+    return stripAmountHistory(
+      (await joinedPaymentRequests(this.db)
+        .where(and(...conds))
+        .orderBy(desc(paymentRequests.createdAt))) as Row[],
+    );
   }
 
   async listPendingByDepartment(opts: {
@@ -248,9 +250,11 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
     if (!allSites && siteIds.length === 0) return { data: [], total: 0 };
     const conds = [isNotNull(paymentRequests.approvedAt), eq(paymentRequests.isDeleted, false)];
     if (!allSites) conds.push(inArray(paymentRequests.siteId, siteIds));
-    const data = (await joinedPaymentRequests(this.db)
-      .where(and(...conds))
-      .orderBy(desc(paymentRequests.approvedAt))) as Row[];
+    const data = stripAmountHistory(
+      (await joinedPaymentRequests(this.db)
+        .where(and(...conds))
+        .orderBy(desc(paymentRequests.approvedAt))) as Row[],
+    );
     return { data, total: data.length };
   }
 
@@ -259,9 +263,11 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
     if (!allSites && siteIds.length === 0) return { data: [], total: 0 };
     const conds = [isNotNull(paymentRequests.rejectedAt), eq(paymentRequests.isDeleted, false)];
     if (!allSites) conds.push(inArray(paymentRequests.siteId, siteIds));
-    const data = (await joinedPaymentRequests(this.db)
-      .where(and(...conds))
-      .orderBy(desc(paymentRequests.rejectedAt))) as Row[];
+    const data = stripAmountHistory(
+      (await joinedPaymentRequests(this.db)
+        .where(and(...conds))
+        .orderBy(desc(paymentRequests.rejectedAt))) as Row[],
+    );
     return { data, total: data.length };
   }
 
@@ -274,9 +280,11 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
     const conds = [isNotNull(paymentRequests.approvedAt)];
     if (!opts.showDeleted) conds.push(eq(paymentRequests.isDeleted, false));
     if (!opts.allSites) conds.push(inArray(paymentRequests.siteId, opts.siteIds));
-    return (await joinedPaymentRequests(this.db)
-      .where(and(...conds))
-      .orderBy(desc(paymentRequests.approvedAt))) as Row[];
+    return stripAmountHistory(
+      (await joinedPaymentRequests(this.db)
+        .where(and(...conds))
+        .orderBy(desc(paymentRequests.approvedAt))) as Row[],
+    );
   }
 
   async listRejectedArray(opts: QueryScope): Promise<Row[]> {
@@ -284,9 +292,11 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
     const conds = [isNotNull(paymentRequests.rejectedAt)];
     if (!opts.showDeleted) conds.push(eq(paymentRequests.isDeleted, false));
     if (!opts.allSites) conds.push(inArray(paymentRequests.siteId, opts.siteIds));
-    return (await joinedPaymentRequests(this.db)
-      .where(and(...conds))
-      .orderBy(desc(paymentRequests.rejectedAt))) as Row[];
+    return stripAmountHistory(
+      (await joinedPaymentRequests(this.db)
+        .where(and(...conds))
+        .orderBy(desc(paymentRequests.rejectedAt))) as Row[],
+    );
   }
 
   /* ================================================================== */

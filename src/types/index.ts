@@ -265,7 +265,9 @@ export interface PaymentRequest {
   resubmitComment: string | null
   resubmitCount: number
   invoiceAmount: number | null // Сумма счета в рублях
-  invoiceAmountHistory: { amount: number; changedAt: string }[] // История изменения сумм при повторных отправках
+  // История изменения сумм при повторных отправках; в списочных ответах отсутствует
+  // (облегчённая проекция) — приходит только в детали GET /api/payment-requests/:id
+  invoiceAmountHistory?: { amount: number; changedAt: string }[]
   previousStatusId: string | null // Статус до перевода на доработку
   stageHistory: StageHistoryEntry[] // Хронология этапов согласования
   isDeleted: boolean // Мягкое удаление

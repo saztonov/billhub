@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { api } from '@/services/api'
+import { isFresh, REFERENCE_TTL_MS, singleFlight } from '@/store/fetchGuard'
 import type { PaymentRequestAssignment } from '@/types'
 import { notifyRequestAssigned } from '@/utils/notificationService'
 
@@ -25,6 +26,9 @@ interface AssignmentStoreState {
     assignedByUserId: string,
   ) => Promise<void>
 }
+
+// Момент последней успешной загрузки списка ОМТС (TTL-кэш)
+let omtsUsersFetchedAt: number | null = null
 
 export const useAssignmentStore = create<AssignmentStoreState>((set, get) => ({
   currentAssignment: null,
@@ -60,14 +64,19 @@ export const useAssignmentStore = create<AssignmentStoreState>((set, get) => ({
   },
 
   fetchOmtsUsers: async () => {
-    try {
-      const data = await api.get<OmtsUser[]>('/api/assignments/omts-users')
+    // TTL-кэш: список ОМТС меняется редко, при свежих данных сеть не дёргается
+    if (isFresh(omtsUsersFetchedAt, REFERENCE_TTL_MS)) return
+    await singleFlight('assignments-omts-users', async () => {
+      try {
+        const data = await api.get<OmtsUser[]>('/api/assignments/omts-users')
 
-      set({ omtsUsers: data ?? [] })
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Ошибка загрузки пользователей'
-      set({ error: message })
-    }
+        omtsUsersFetchedAt = Date.now()
+        set({ omtsUsers: data ?? [] })
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Ошибка загрузки пользователей'
+        set({ error: message })
+      }
+    })
   },
 
   assignResponsible: async (paymentRequestId, assignedUserId, assignedByUserId) => {

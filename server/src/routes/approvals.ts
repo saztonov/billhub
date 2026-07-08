@@ -7,6 +7,7 @@ import {
   approvalCompleteRevisionBodySchema,
   approvalDecisionFileBodySchema,
 } from '../schemas/approval.js';
+import { resolveSiteScope } from '../services/site-scope.js';
 
 /* ------------------------------------------------------------------ */
 /*  Плагин маршрутов согласований (через fastify.repos.approvals)      */
@@ -149,10 +150,10 @@ async function approvalRoutes(fastify: FastifyInstance): Promise<void> {
   /* ---------- GET /api/approvals/approved-count ---------- */
   fastify.get('/api/approvals/approved-count', adminOrUser, async (request) => {
     const user = request.user!;
-    const query = request.query as { allSites?: string; siteIds?: string; showDeleted?: string };
+    const query = request.query as { showDeleted?: string };
+    const scope = await resolveSiteScope(request);
     const count = await request.server.repos.approvals.countApproved({
-      allSites: query.allSites === 'true' || user.role === 'admin',
-      siteIds: query.siteIds ? query.siteIds.split(',') : [],
+      ...scope,
       showDeleted: user.role === 'admin' && query.showDeleted === 'true',
     });
     return { count };
@@ -167,10 +168,10 @@ async function approvalRoutes(fastify: FastifyInstance): Promise<void> {
   /* ---------- GET /api/approvals/rejected-count ---------- */
   fastify.get('/api/approvals/rejected-count', adminOrUser, async (request) => {
     const user = request.user!;
-    const query = request.query as { allSites?: string; siteIds?: string; showDeleted?: string };
+    const query = request.query as { showDeleted?: string };
+    const scope = await resolveSiteScope(request);
     const count = await request.server.repos.approvals.countRejected({
-      allSites: query.allSites === 'true' || user.role === 'admin',
-      siteIds: query.siteIds ? query.siteIds.split(',') : [],
+      ...scope,
       showDeleted: user.role === 'admin' && query.showDeleted === 'true',
     });
     return { count };

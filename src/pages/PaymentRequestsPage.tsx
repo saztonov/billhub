@@ -72,14 +72,13 @@ const PaymentRequestsPage = () => {
     approvedCount,
     rejectedCount,
     isLoading,
-    approvalLoading,
+    approvalListLoading,
     counterparties,
     sites,
     statuses,
     suppliers,
     omtsUsers,
     uploadTasks,
-    siteFilterParams,
     canEditRequest,
     fetchRequests,
     fetchCounterparties,
@@ -243,7 +242,6 @@ const PaymentRequestsPage = () => {
       resubmitRequest,
       updateRequest,
       assignResponsible,
-      siteFilterParams,
     },
     uiSetters: { setViewRecord, setResubmitRecord },
     roleFlags: {
@@ -430,7 +428,7 @@ const PaymentRequestsPage = () => {
           )}
           <RequestsTable
             requests={filteredPendingRequests}
-            isLoading={approvalLoading}
+            isLoading={approvalListLoading.pending}
             onView={setViewRecord}
             showApprovalActions
             onApprove={handleApprove}
@@ -459,7 +457,7 @@ const PaymentRequestsPage = () => {
       children: (
         <RequestsTable
           requests={filteredRpPendingRequests}
-          isLoading={approvalLoading}
+          isLoading={approvalListLoading.rp}
           onView={setViewRecord}
           showApprovalActions
           onApprove={handleApprove}
@@ -485,7 +483,7 @@ const PaymentRequestsPage = () => {
       children: (
         <RequestsTable
           requests={rp.approvedForTable}
-          isLoading={approvalLoading}
+          isLoading={approvalListLoading.approved}
           onView={setViewRecord}
           showApprovedDate={!isMobile}
           showResponsibleColumn={!isMobile && (isOmtsUser || isAdmin)}
@@ -507,7 +505,7 @@ const PaymentRequestsPage = () => {
       children: (
         <RequestsTable
           requests={filteredRejectedRequests}
-          isLoading={approvalLoading}
+          isLoading={approvalListLoading.rejected}
           onView={setViewRecord}
           showRejectedDate={!isMobile}
           showResponsibleColumn={!isMobile && (isOmtsUser || isAdmin)}
@@ -633,9 +631,7 @@ const PaymentRequestsPage = () => {
         open={isCreateOpen}
         onClose={() => {
           setIsCreateOpen(false)
-          const [sIds, allS] = siteFilterParams()
-          if (isUser) fetchRequests(undefined, sIds, allS)
-          else fetchRequests()
+          fetchRequests()
         }}
       />
       <ViewRequestModal
@@ -668,9 +664,7 @@ const PaymentRequestsPage = () => {
           setViewRecord(null)
         }}
         onRevisionComplete={() => {
-          const [sIds, allS] = siteFilterParams()
-          if (isCounterpartyUser) fetchRequests(user?.counterpartyId ?? undefined, sIds, allS)
-          else if (isUser) fetchRequests(undefined, sIds, allS)
+          if (isCounterpartyUser) fetchRequests(user?.counterpartyId ?? undefined)
           else fetchRequests()
         }}
       />

@@ -30,7 +30,7 @@ async function contractRequestRoutes(fastify: FastifyInstance): Promise<void> {
     const repo = request.server.repos.contractRequests;
 
     const filter: ContractRequestListFilter = {
-      showDeleted: query.showDeleted === 'true',
+      showDeleted: user.role === 'admin' && query.showDeleted === 'true',
       supplierId: query.supplierId,
       siteId: query.siteId,
       statusId: query.statusId,

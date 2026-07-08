@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Button, Switch, Flex, App } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
@@ -94,7 +94,14 @@ const ContractRequestsPage = () => {
   // Фильтрация
   const { filteredRequests } = useContractRequestFiltering({ requests, filters })
 
-  // Загрузка счётчиков статусов (обновляются при изменении набора заявок)
+  // Отпечаток статусов списка: счётчики перезапрашиваем только когда реально изменился
+  // состав/статусы заявок, а не на каждую перезагрузку массива (focus-рефетч и т.п.)
+  const statusFingerprint = useMemo(
+    () => requests.map((r) => `${r.id}:${r.statusId ?? ''}`).join('|'),
+    [requests],
+  )
+
+  // Загрузка счётчиков статусов
   useEffect(() => {
     let cancelled = false
     api
@@ -110,7 +117,7 @@ const ContractRequestsPage = () => {
     return () => {
       cancelled = true
     }
-  }, [requests])
+  }, [statusFingerprint])
 
   // Открытие заявки по навигации (из уведомлений)
   useEffect(() => {
@@ -193,6 +200,8 @@ const ContractRequestsPage = () => {
 
   const handleViewClose = useCallback(() => {
     setViewRecord(null)
+    // Тихий фоновый рефетч (мутации модалки сами обновляют список; здесь — подстраховка
+    // для загрузки файлов, влияющей на индикаторы в таблице). Спиннера не будет.
     loadRequests()
   }, [loadRequests])
 

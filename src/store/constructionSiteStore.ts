@@ -1,12 +1,14 @@
 import { create } from 'zustand'
 import { api } from '@/services/api'
+import { isFresh, REFERENCE_TTL_MS, singleFlight } from '@/store/fetchGuard'
 import type { ConstructionSite } from '@/types'
 
 interface ConstructionSiteStoreState {
   sites: ConstructionSite[]
   isLoading: boolean
   error: string | null
-  fetchSites: () => Promise<void>
+  /** TTL-кэш: при свежих данных сеть не дёргается; force — принудительный рефетч. */
+  fetchSites: (force?: boolean) => Promise<void>
   createSite: (data: Partial<ConstructionSite>) => Promise<void>
   /** Обновляет объект; возвращает true при успехе. Мержит ответ в sites без полного refetch. */
   updateSite: (id: string, data: Partial<ConstructionSite>) => Promise<boolean>
@@ -33,20 +35,28 @@ function buildUpdateBody(data: Partial<ConstructionSite>): Record<string, unknow
   return body
 }
 
+// Момент последней успешной загрузки справочника (TTL-кэш)
+let sitesFetchedAt: number | null = null
+
 export const useConstructionSiteStore = create<ConstructionSiteStoreState>((set, get) => ({
   sites: [],
   isLoading: false,
   error: null,
 
-  fetchSites: async () => {
-    set({ isLoading: true, error: null })
-    try {
-      const data = await api.get<ConstructionSite[]>('/api/references/construction-sites')
-      set({ sites: data ?? [], isLoading: false })
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Ошибка загрузки объектов'
-      set({ error: message, isLoading: false })
-    }
+  fetchSites: async (force = false) => {
+    if (!force && isFresh(sitesFetchedAt, REFERENCE_TTL_MS)) return
+    await singleFlight('references-construction-sites', async () => {
+      // Спиннер только на первой загрузке
+      if (sitesFetchedAt === null) set({ isLoading: true, error: null })
+      try {
+        const data = await api.get<ConstructionSite[]>('/api/references/construction-sites')
+        sitesFetchedAt = Date.now()
+        set({ sites: data ?? [], isLoading: false })
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Ошибка загрузки объектов'
+        set({ error: message, isLoading: false })
+      }
+    })
   },
 
   createSite: async (data) => {
@@ -56,7 +66,7 @@ export const useConstructionSiteStore = create<ConstructionSiteStoreState>((set,
         name: data.name,
         isActive: data.isActive ?? true,
       })
-      await get().fetchSites()
+      await get().fetchSites(true)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка создания объекта'
       set({ error: message, isLoading: false })
@@ -84,7 +94,7 @@ export const useConstructionSiteStore = create<ConstructionSiteStoreState>((set,
     set({ isLoading: true, error: null })
     try {
       await api.delete(`/api/references/construction-sites/${id}`)
-      await get().fetchSites()
+      await get().fetchSites(true)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка удаления объекта'
       set({ error: message, isLoading: false })

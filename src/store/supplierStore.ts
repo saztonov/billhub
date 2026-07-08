@@ -1,33 +1,46 @@
 import { create } from 'zustand'
 import { api } from '@/services/api'
+import { isFresh, REFERENCE_TTL_MS, singleFlight } from '@/store/fetchGuard'
 import type { Supplier, ImportSupplierRow } from '@/types'
 
 interface SupplierStoreState {
   suppliers: Supplier[]
   isLoading: boolean
   error: string | null
-  fetchSuppliers: () => Promise<void>
+  /** TTL-кэш: при свежих данных сеть не дёргается; force — принудительный рефетч. */
+  fetchSuppliers: (force?: boolean) => Promise<void>
   createSupplier: (data: Partial<Supplier>) => Promise<void>
   updateSupplier: (id: string, data: Partial<Supplier>) => Promise<void>
   deleteSupplier: (id: string) => Promise<void>
-  batchInsertSuppliers: (rows: ImportSupplierRow[], onProgress?: (done: number, total: number) => void) => Promise<number>
+  batchInsertSuppliers: (
+    rows: ImportSupplierRow[],
+    onProgress?: (done: number, total: number) => void,
+  ) => Promise<number>
   updateSupplierForImport: (id: string, name: string, alternativeNames: string[]) => Promise<void>
 }
+
+// Момент последней успешной загрузки справочника (TTL-кэш)
+let suppliersFetchedAt: number | null = null
 
 export const useSupplierStore = create<SupplierStoreState>((set, get) => ({
   suppliers: [],
   isLoading: false,
   error: null,
 
-  fetchSuppliers: async () => {
-    set({ isLoading: true, error: null })
-    try {
-      const data = await api.get<Supplier[]>('/api/references/suppliers')
-      set({ suppliers: data ?? [], isLoading: false })
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Ошибка загрузки'
-      set({ error: message, isLoading: false })
-    }
+  fetchSuppliers: async (force = false) => {
+    if (!force && isFresh(suppliersFetchedAt, REFERENCE_TTL_MS)) return
+    await singleFlight('references-suppliers', async () => {
+      // Спиннер только на первой загрузке
+      if (suppliersFetchedAt === null) set({ isLoading: true, error: null })
+      try {
+        const data = await api.get<Supplier[]>('/api/references/suppliers')
+        suppliersFetchedAt = Date.now()
+        set({ suppliers: data ?? [], isLoading: false })
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Ошибка загрузки'
+        set({ error: message, isLoading: false })
+      }
+    })
   },
 
   createSupplier: async (data) => {
@@ -38,7 +51,7 @@ export const useSupplierStore = create<SupplierStoreState>((set, get) => ({
         inn: data.inn,
         alternativeNames: data.alternativeNames ?? [],
       })
-      await get().fetchSuppliers()
+      await get().fetchSuppliers(true)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка создания'
       set({ error: message, isLoading: false })
@@ -53,7 +66,7 @@ export const useSupplierStore = create<SupplierStoreState>((set, get) => ({
         inn: data.inn,
         alternativeNames: data.alternativeNames,
       })
-      await get().fetchSuppliers()
+      await get().fetchSuppliers(true)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка обновления'
       set({ error: message, isLoading: false })
@@ -64,7 +77,7 @@ export const useSupplierStore = create<SupplierStoreState>((set, get) => ({
     set({ isLoading: true, error: null })
     try {
       await api.delete(`/api/references/suppliers/${id}`)
-      await get().fetchSuppliers()
+      await get().fetchSuppliers(true)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка удаления'
       set({ error: message, isLoading: false })
@@ -80,7 +93,7 @@ export const useSupplierStore = create<SupplierStoreState>((set, get) => ({
       created += batch.length
       onProgress?.(created, rows.length)
     }
-    await get().fetchSuppliers()
+    await get().fetchSuppliers(true)
     return created
   },
 

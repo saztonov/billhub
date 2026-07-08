@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Modal, Button, Typography, Space, Input, Form, App, Collapse, Alert } from 'antd'
 import { SendOutlined, EditOutlined, CheckOutlined, StopOutlined } from '@ant-design/icons'
+import { api } from '@/services/api'
 import { usePaymentRequestStore } from '@/store/paymentRequestStore'
 import { usePaymentPaymentStore } from '@/store/paymentPaymentStore'
 import type { EditRequestData } from '@/store/paymentRequestStore'
@@ -114,6 +115,9 @@ const ViewRequestModal = ({
   } = useAssignmentStore()
   const [downloading, setDownloading] = useState<string | null>(null)
   const [downloadingAll, setDownloadingAll] = useState(false)
+  // Полная запись заявки: списочные ответы не содержат историю сумм (облегчённая
+  // проекция), деталь дозагружается при открытии модалки
+  const [fullRequest, setFullRequest] = useState<PaymentRequest | null>(null)
   const [previewFile, setPreviewFile] = useState<{
     fileKey: string
     fileName: string
@@ -179,6 +183,26 @@ const ViewRequestModal = ({
     markAsRead,
     user?.id,
   ])
+
+  // Дозагрузка полной записи (история сумм есть только в детали, не в списках)
+  useEffect(() => {
+    if (!open || !request?.id) {
+      setFullRequest(null)
+      return
+    }
+    let cancelled = false
+    api
+      .get<PaymentRequest>(`/api/payment-requests/${request.id}`)
+      .then((data) => {
+        if (!cancelled && data) setFullRequest(data)
+      })
+      .catch(() => {
+        /* деталь некритична — модалка работает на данных строки списка */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, request?.id])
 
   useEffect(() => {
     if (!open) {
@@ -422,6 +446,9 @@ const ViewRequestModal = ({
   }
 
   if (!request) return null
+
+  // История сумм приходит только в детали (в списочных ответах поле отсечено)
+  const invoiceAmountHistory = fullRequest?.invoiceAmountHistory ?? request.invoiceAmountHistory
 
   // Согласованная заявка (не на доработке)
   const isApprovedRequest = !!request.approvedAt && !request.previousStatusId
@@ -688,12 +715,12 @@ const ViewRequestModal = ({
           />
         )}
 
-        {request.invoiceAmountHistory && request.invoiceAmountHistory.length > 0 && (
+        {invoiceAmountHistory && invoiceAmountHistory.length > 0 && (
           <div style={{ marginBottom: 16 }}>
             <Text strong style={{ display: 'block', marginBottom: 8 }}>
               История сумм
             </Text>
-            {request.invoiceAmountHistory.map((entry, idx) => (
+            {invoiceAmountHistory.map((entry, idx) => (
               <div key={idx} style={{ marginBottom: 4 }}>
                 <Text type="secondary">
                   Сумма {idx + 1}-й заявки:{' '}

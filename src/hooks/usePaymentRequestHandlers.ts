@@ -13,19 +13,14 @@ interface UserInfo {
   department?: Department | null
 }
 
-/** Функции сторов, необходимые обработчикам */
+/** Функции сторов, необходимые обработчикам (скоупинг по объектам — на сервере) */
 interface StoreFunctions {
-  fetchRequests: (
-    counterpartyId?: string,
-    siteIds?: string[],
-    allSites?: boolean,
-    showDeleted?: boolean,
-  ) => void
+  fetchRequests: (counterpartyId?: string, showDeleted?: boolean) => void
   fetchCounterparties: () => Promise<void>
   fetchPendingRequests: (department: Department, userId: string, isAdmin?: boolean) => void
   fetchRpPendingRequests: () => void
-  fetchApprovedCount: (siteIds?: string[], allSites?: boolean) => void
-  fetchRejectedCount: (siteIds?: string[], allSites?: boolean) => void
+  fetchApprovedCount: (showDeleted?: boolean) => void
+  fetchRejectedCount: (showDeleted?: boolean) => void
   approveRequest: (
     requestId: string,
     department: Department,
@@ -61,7 +56,6 @@ interface StoreFunctions {
     filesCount?: number,
   ) => Promise<void>
   assignResponsible: (requestId: string, userId: string, assignedBy: string) => Promise<void>
-  siteFilterParams: () => [string[]?, boolean?]
 }
 
 /** UI-сеттеры для обработчиков */
@@ -127,11 +121,10 @@ export function usePaymentRequestHandlers({
     resubmitRequest,
     updateRequest,
     assignResponsible,
-    siteFilterParams,
   } = storeFunctions
 
   const { setViewRecord, setResubmitRecord } = uiSetters
-  const { isUser, isAdmin, isCounterpartyUser, isRpAssignee, adminSelectedStage } = roleFlags
+  const { isAdmin, isCounterpartyUser, isRpAssignee, adminSelectedStage } = roleFlags
   const { requests, counterparties, resubmitRecord } = contextData
 
   // Обновить заявку (редактирование + загрузка файлов)
@@ -167,9 +160,7 @@ export function usePaymentRequestHandlers({
 
       message.success('Заявка обновлена')
       setViewRecord(null)
-      const [sIds, allS] = siteFilterParams()
-      if (isUser) fetchRequests(undefined, sIds, allS)
-      else fetchRequests()
+      fetchRequests()
     } catch (err) {
       message.error(err instanceof Error ? err.message : 'Ошибка обновления')
     }
@@ -193,11 +184,9 @@ export function usePaymentRequestHandlers({
     const department = isAdmin ? adminSelectedStage : user?.department
     if (department && user?.id) fetchPendingRequests(department, user.id, isAdmin)
     if (isRpAssignee || isAdmin) fetchRpPendingRequests()
-    const [sIds, allS] = siteFilterParams()
-    if (isUser) fetchRequests(undefined, sIds, allS)
-    else fetchRequests()
-    fetchApprovedCount(sIds, allS)
-    fetchRejectedCount(sIds, allS)
+    fetchRequests()
+    fetchApprovedCount()
+    fetchRejectedCount()
   }
 
   // Согласовать заявку
@@ -231,14 +220,12 @@ export function usePaymentRequestHandlers({
       try {
         await assignResponsible(requestId, userId, user.id)
         message.success('Ответственный назначен')
-        const [sIds, allS] = siteFilterParams()
-        if (isUser) fetchRequests(undefined, sIds, allS)
-        else fetchRequests()
+        fetchRequests()
       } catch {
         message.error('Ошибка назначения')
       }
     },
-    [user?.id, assignResponsible, isUser, siteFilterParams, fetchRequests, message],
+    [user?.id, assignResponsible, fetchRequests, message],
   )
 
   // Повторная отправка заявки (контрагент)
