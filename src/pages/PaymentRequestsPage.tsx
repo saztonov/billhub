@@ -153,7 +153,6 @@ const PaymentRequestsPage = () => {
   const bumpRefresh = useCallback(() => setRefreshTrigger((n) => n + 1), [])
   const rp = useRpManagement({
     enabled: !isCounterpartyUser,
-    activeTab,
     approvedRequests,
     filteredApprovedRequests,
     sites,
@@ -525,7 +524,7 @@ const PaymentRequestsPage = () => {
     },
     {
       key: 'rp_registry',
-      label: isMobile ? 'Реестр' : `Реестр РП (${rp.filteredLetters.length})`,
+      label: isMobile ? 'Реестр' : `Реестр РП (${rp.lettersLoaded ? rp.lettersTotal : '…'})`,
       children: (
         <RpRegistryTable
           letters={rp.filteredLetters}

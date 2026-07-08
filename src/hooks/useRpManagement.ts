@@ -16,8 +16,6 @@ const comboKey = (r: PaymentRequest) => `${r.supplierId ?? ''}|${r.counterpartyI
 interface UseRpManagementParams {
   /** !isCounterpartyUser — вся РП-логика активна только для внутренних сотрудников. */
   enabled: boolean
-  /** Активная вкладка страницы (для ленивой загрузки реестра). */
-  activeTab: string
   /** Сырые согласованные заявки (для комбинации и состава РП). */
   approvedRequests: PaymentRequest[]
   /** Отфильтрованные согласованные заявки (для таблицы «Согласовано»). */
@@ -40,12 +38,11 @@ interface UseRpManagementParams {
  * Ядро логики РП на странице «Заявки на оплату»: реестр писем, членство заявок в РП,
  * режим выбора согласованных заявок и двухшаговый мастер создания РП, а также
  * действия реестра (повтор письма, редактирование, файлы, аннулирование, удаление).
- * Загружает реестр только для внутренних сотрудников и только на вкладках
- * «Согласовано»/«Реестр РП», чтобы не дёргать /api/rp зря.
+ * Реестр грузится для внутренних сотрудников сразу (независимо от вкладки) — от него
+ * зависит счётчик вкладки «Реестр РП»; фильтры влияют только на таблицу.
  */
 export function useRpManagement({
   enabled,
-  activeTab,
   approvedRequests,
   filteredApprovedRequests,
   sites,
@@ -60,6 +57,7 @@ export function useRpManagement({
   // Реестр РП + членство заявок в РП
   const letters = useRpStore((s) => s.letters)
   const lettersLoading = useRpStore((s) => s.lettersLoading)
+  const lettersLoaded = useRpStore((s) => s.lettersLoaded)
   const loadRegistry = useRpStore((s) => s.loadRegistry)
   const finalizeLetter = useRpStore((s) => s.finalizeLetter)
   const deleteRp = useRpStore((s) => s.deleteRp)
@@ -79,10 +77,13 @@ export function useRpManagement({
   // Модалка файлов РП (вложения PayHub + служебные)
   const [filesLetter, setFilesLetter] = useState<RpLetter | null>(null)
 
-  // Реестр грузим лениво: только внутренним и только там, где он виден/нужен.
-  const shouldLoad = enabled && (activeTab === 'approved' || activeTab === 'rp_registry')
+  // Реестр грузим сразу (только внутренним): счётчик вкладки «Реестр РП» и focus-refetch
+  // должны работать с любой вкладки. Первая загрузка — со спиннером, повторные — silent
+  // (без мигания таблицы); признак читаем из стора, а не из deps, чтобы первый успешный
+  // ответ не запускал лишний повторный fetch.
+  const shouldLoad = enabled
   useEffect(() => {
-    if (shouldLoad) loadRegistry()
+    if (shouldLoad) loadRegistry({ silent: useRpStore.getState().lettersLoaded })
   }, [shouldLoad, loadRegistry, refreshTrigger])
 
   // Есть ли письмо в переходном статусе (синхронизация идёт в фоновом воркере).
@@ -313,6 +314,9 @@ export function useRpManagement({
   return {
     // Вкладка «Реестр РП»
     filteredLetters,
+    // Счётчик вкладки — общее число писем (без фильтров), как у остальных вкладок
+    lettersTotal: letters.length,
+    lettersLoaded,
     lettersLoading,
     registryHandlers: {
       onOpenRequest: openRequestById,

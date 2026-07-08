@@ -80,6 +80,8 @@ export type RpStage1Response =
 interface RpStoreState {
   letters: RpLetter[]
   lettersLoading: boolean
+  /** Был ли хотя бы один успешный ответ /api/rp (устойчив к пустому реестру). */
+  lettersLoaded: boolean
   documents: RpDocumentsResult | null
   documentsLoading: boolean
 
@@ -127,6 +129,7 @@ function bumpFilesCount(letters: RpLetter[], id: string, delta: number): RpLette
 export const useRpStore = create<RpStoreState>((set, get) => ({
   letters: [],
   lettersLoading: false,
+  lettersLoaded: false,
   documents: null,
   documentsLoading: false,
 
@@ -135,7 +138,7 @@ export const useRpStore = create<RpStoreState>((set, get) => ({
     if (!silent) set({ lettersLoading: true })
     try {
       const data = await api.get<RpLetter[]>('/api/rp')
-      set({ letters: data ?? [] })
+      set({ letters: data ?? [], lettersLoaded: true })
     } catch (err) {
       logError({
         errorType: 'api_error',
