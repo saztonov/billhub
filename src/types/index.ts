@@ -833,6 +833,8 @@ export interface RpLetter {
   siteId: string
   siteName: string
   createdBy: string
+  /** ФИО автора РП; null при пустом ФИО или отсутствии пользователя. */
+  createdByName: string | null
   /** Номер счёта (ручной ввод при создании РП; в реестре справа от суммы). */
   invoiceNumber: string | null
   requests: RpRequestRef[]

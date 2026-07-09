@@ -11,6 +11,7 @@ import {
   suppliers,
   counterparties,
   constructionSites,
+  users,
   contractRequests,
   contractRequestFiles,
   supplierFoundingDocuments,
@@ -64,6 +65,8 @@ export async function listRegistry(db: RpDb, siteIds: string[] | null): Promise<
       siteId: rpLetters.siteId,
       siteName: constructionSites.name,
       createdBy: rpLetters.createdBy,
+      // ФИО автора РП (для второй строки в столбце «Номер»); NULL при пустом ФИО/отсутствии пользователя.
+      createdByName: sql<string | null>`nullif(trim(${users.fullName}), '')`,
       invoiceNumber: rpLetters.invoiceNumber,
       payhubLetterId: rpLetters.payhubLetterId,
       payhubLetterRegNumber: rpLetters.payhubLetterRegNumber,
@@ -76,6 +79,7 @@ export async function listRegistry(db: RpDb, siteIds: string[] | null): Promise<
     .innerJoin(suppliers, eq(suppliers.id, rpLetters.supplierId))
     .innerJoin(counterparties, eq(counterparties.id, rpLetters.counterpartyId))
     .innerJoin(constructionSites, eq(constructionSites.id, rpLetters.siteId))
+    .leftJoin(users, eq(users.id, rpLetters.createdBy))
     .where(siteIds === null ? undefined : inArray(rpLetters.siteId, siteIds))
     .orderBy(desc(rpLetters.createdAt));
 

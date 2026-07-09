@@ -41,6 +41,8 @@ export interface RpRegistryRow {
   siteId: string;
   siteName: string;
   createdBy: string;
+  /** ФИО автора РП (users.full_name); null при пустом ФИО или отсутствии пользователя. */
+  createdByName: string | null;
   /** Номер счёта (0011): ручной ввод в форме создания РП; в реестре справа от суммы. */
   invoiceNumber: string | null;
   requests: RpRequestRef[];

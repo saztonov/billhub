@@ -198,8 +198,14 @@ const RpRegistryTable = ({
         key: 'number',
         width: 170,
         fixed: 'left',
-        render: (_: unknown, r: RpLetter) =>
-          r.payhubLetterRegNumber ?? <Text type="secondary">—</Text>,
+        render: (_: unknown, r: RpLetter) => (
+          <div>
+            <div>{r.payhubLetterRegNumber ?? <Text type="secondary">—</Text>}</div>
+            {r.createdByName && (
+              <div style={{ fontSize: 12, color: '#888' }}>{r.createdByName}</div>
+            )}
+          </div>
+        ),
       },
       {
         title: (
@@ -280,7 +286,9 @@ const RpRegistryTable = ({
         dataIndex: 'description',
         key: 'description',
         width: 260,
-        ellipsis: true,
+        render: (v: string) => (
+          <div style={{ whiteSpace: 'normal', overflowWrap: 'anywhere' }}>{v}</div>
+        ),
       },
       {
         title: 'Письмо',
