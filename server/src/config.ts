@@ -40,6 +40,28 @@ interface Config {
   /** Таймаут запросов к PayHub (мс). */
   payhubTimeoutMs: number;
 
+  /**
+   * Интеграция EstiMat ↔ BillHub (путь 1, заявки на оплату по РП). Авторизация — Api-Key.
+   *   estimatInboundToken     — токен, которым EstiMat вызывает BillHub /api/external/v1 (BillHub
+   *                             проверяет; пусто = входящий сервисный API выключен, всегда 401).
+   *   estimatBaseUrl/estimatIntegrationToken — исходящий канал событий BillHub → EstiMat
+   *                             (POST {ESTIMAT}/api/integration/events, Api-Key). Пусто = не настроено.
+   *   estimatSyncEnabled      — отдельный рубильник отправки (безопасный поэтапный rollout).
+   */
+  estimatInboundToken: string;
+  estimatBaseUrl: string;
+  estimatIntegrationToken: string;
+  estimatTimeoutMs: number;
+  estimatSyncEnabled: boolean;
+
+  /**
+   * Тендерный портал (путь 2). BillHub — инициатор (создать тендер, опрос результатов).
+   * Авторизация — Bearer. Портал строится в отдельном проекте; пусто = интеграция не настроена.
+   */
+  tenderBaseUrl: string;
+  tenderApiToken: string;
+  tenderTimeoutMs: number;
+
   /** Redis */
   redisUrl: string;
 
@@ -240,6 +262,16 @@ export const config: Config = {
   payhubBaseUrl: envOptional('PAYHUB_BASE_URL'),
   payhubApiToken: envOptional('PAYHUB_API_TOKEN'),
   payhubTimeoutMs: parseInt(envOptional('PAYHUB_TIMEOUT_MS', '15000'), 10),
+
+  estimatInboundToken: envOptional('ESTIMAT_INBOUND_TOKEN'),
+  estimatBaseUrl: envOptional('ESTIMAT_BASE_URL'),
+  estimatIntegrationToken: envOptional('ESTIMAT_INTEGRATION_TOKEN'),
+  estimatTimeoutMs: parseInt(envOptional('ESTIMAT_TIMEOUT_MS', '15000'), 10),
+  estimatSyncEnabled: envOptional('ESTIMAT_SYNC_ENABLED', 'false').toLowerCase() === 'true',
+
+  tenderBaseUrl: envOptional('TENDER_BASE_URL'),
+  tenderApiToken: envOptional('TENDER_API_TOKEN'),
+  tenderTimeoutMs: parseInt(envOptional('TENDER_TIMEOUT_MS', '15000'), 10),
 
   redisUrl: envOptional('REDIS_URL', 'redis://localhost:6379'),
 

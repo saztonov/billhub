@@ -62,6 +62,10 @@ export const paymentRequests = pgTable('payment_requests', {
   closedAt: timestamp('closed_at', { withTimezone: true, mode: 'string' }),
   // Тип заявки (0012): contractor | contractor_work | own_purchase
   requestType: text('request_type').notNull().default('contractor'),
+  // Интеграция EstiMat (0019): связь с внешней заявкой + монотонная версия исходящих событий.
+  sourceSystem: text('source_system'),
+  externalRef: text('external_ref'),
+  estimatAggregateVersion: integer('estimat_aggregate_version').notNull().default(0),
 });
 
 export const paymentRequestFiles = pgTable('payment_request_files', {
