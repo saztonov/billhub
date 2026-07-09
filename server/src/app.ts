@@ -36,6 +36,8 @@ import repositoriesPlugin from './plugins/repositories.js';
 import authPlugin from './plugins/auth.js';
 import csrfPlugin from './plugins/csrf.js';
 import payhubPlugin from './plugins/payhub.js';
+import estimatPlugin from './plugins/estimat.js';
+import tenderPlugin from './plugins/tender.js';
 
 /** Маршруты */
 import healthRoutes from './routes/health.js';
@@ -243,6 +245,13 @@ export async function createApp(opts: CreateAppOptions = {}): Promise<FastifyIns
    * открывает соединений, а без PAYHUB_* декорирует payhub = null («не настроено»).
    */
   await fastify.register(payhubPlugin);
+
+  /**
+   * Клиенты интеграций EstiMat (исходящие события) и тендерного портала. Как и PayHub,
+   * регистрируются всегда: без env-переменных декорируют null («не настроено»).
+   */
+  await fastify.register(estimatPlugin);
+  await fastify.register(tenderPlugin);
 
   /** Маршруты (health всегда; остальные — если не skipRoutes) */
   await fastify.register(healthRoutes);

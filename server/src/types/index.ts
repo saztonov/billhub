@@ -2,6 +2,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { S3Client } from '@aws-sdk/client-s3';
 import type IORedis from 'ioredis';
 import type { PayHubClient } from '../services/payhub/payhub-client.js';
+import type { EstimatClient } from '../services/estimat/estimat-client.js';
+import type { TenderClient } from '../services/tender/tender-client.js';
 
 /** Роли пользователей системы */
 export type UserRole = 'admin' | 'user' | 'counterparty_user' | 'security';
@@ -33,5 +35,9 @@ declare module 'fastify' {
     redis: IORedis.default;
     /** Клиент внешнего API PayHub; null — интеграция не настроена */
     payhub: PayHubClient | null;
+    /** Клиент исходящих событий EstiMat; null — не настроено/выключено */
+    estimat: EstimatClient | null;
+    /** Клиент тендерного портала; null — интеграция не настроена */
+    tender: TenderClient | null;
   }
 }
