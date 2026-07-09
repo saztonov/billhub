@@ -23,7 +23,9 @@ function makeClient(fetchImpl: typeof fetch) {
 
 describe('createTenderClient', () => {
   it('createTender шлёт POST /api/external/v1/tenders с Bearer и externalRef', async () => {
-    const fetchImpl = vi.fn(async () => jsonResponse({ id: 't-1', status: 'draft' }));
+    const fetchImpl = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) =>
+      jsonResponse({ id: 't-1', status: 'draft' }),
+    );
     const client = makeClient(fetchImpl as unknown as typeof fetch);
 
     const tender = await client.createTender({
@@ -35,7 +37,7 @@ describe('createTenderClient', () => {
 
     const [url, init] = fetchImpl.mock.calls[0]!;
     expect(String(url)).toBe('https://tender.example/api/external/v1/tenders');
-    const headers = (init as RequestInit).headers as Record<string, string>;
+    const headers = init?.headers as Record<string, string>;
     expect(headers.Authorization).toBe('Bearer tender-token');
   });
 

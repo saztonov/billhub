@@ -28,7 +28,9 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 describe('createEstimatClient.sendEvent', () => {
   it('отправляет событие с Api-Key на /api/integration/events и возвращает статус', async () => {
-    const fetchImpl = vi.fn(async () => jsonResponse({ data: { status: 'applied' } }));
+    const fetchImpl = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) =>
+      jsonResponse({ data: { status: 'applied' } }),
+    );
     const client = createEstimatClient({
       baseUrl: 'https://estimat.example',
       token: 'secret-token',
@@ -41,8 +43,8 @@ describe('createEstimatClient.sendEvent', () => {
 
     const [url, init] = fetchImpl.mock.calls[0]!;
     expect(String(url)).toBe('https://estimat.example/api/integration/events');
-    expect((init as RequestInit).method).toBe('POST');
-    const headers = (init as RequestInit).headers as Record<string, string>;
+    expect(init?.method).toBe('POST');
+    const headers = init?.headers as Record<string, string>;
     expect(headers.Authorization).toBe('Api-Key secret-token');
   });
 
