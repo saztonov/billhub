@@ -31,6 +31,7 @@ const ReferencesPage = lazyWithRetry(() => import('@/pages/ReferencesPage'))
 const AdminPage = lazyWithRetry(() => import('@/pages/AdminPage'))
 const MaterialsPage = lazyWithRetry(() => import('@/pages/MaterialsPage'))
 const MaterialsDetailPage = lazyWithRetry(() => import('@/pages/MaterialsDetailPage'))
+const ProcurementsPage = lazyWithRetry(() => import('@/pages/ProcurementsPage'))
 const ProfilePage = lazyWithRetry(() => import('@/pages/ProfilePage'))
 
 const App = () => {
@@ -148,6 +149,22 @@ const App = () => {
                     }
                   >
                     <MaterialsDetailPage />
+                  </Suspense>
+                }
+              />
+              {/* Раздел «Закупки» намеренно скрыт из навигации (пункт меню в MainLayout
+                  не добавляется, как для /materials) — маршрут доступен по прямому URL. */}
+              <Route
+                path="/procurements"
+                element={
+                  <Suspense
+                    fallback={
+                      <Flex align="center" justify="center" style={{ padding: 48 }}>
+                        <Spin size="large" />
+                      </Flex>
+                    }
+                  >
+                    <ProcurementsPage />
                   </Suspense>
                 }
               />
