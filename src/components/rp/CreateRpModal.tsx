@@ -10,7 +10,8 @@ import type { RpDocumentRef } from '@/types'
 const { Text } = Typography
 
 export interface RpCombo {
-  supplierId: string
+  /** null — РП по СМР без поставщика. */
+  supplierId: string | null
   counterpartyId: string
   siteId: string
 }

@@ -225,6 +225,7 @@ export async function listInvoiceCandidates(
       requestId: paymentRequests.id,
       requestNumber: paymentRequests.requestNumber,
       fileId: paymentRequestFiles.id,
+      fileKey: paymentRequestFiles.fileKey,
       fileName: paymentRequestFiles.fileName,
       mimeType: paymentRequestFiles.mimeType,
       sizeBytes: paymentRequestFiles.fileSize,
@@ -253,6 +254,7 @@ export async function listInvoiceCandidates(
     }
     g.files.push({
       id: r.fileId,
+      fileKey: r.fileKey,
       fileName: r.fileName,
       mimeType: r.mimeType,
       sizeBytes: r.sizeBytes,

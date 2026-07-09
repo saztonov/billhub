@@ -22,7 +22,8 @@ export const rpLetterBlockSchema = z.object({
 });
 
 export const createRpBodySchema = z.object({
-  supplierId: z.string().uuid(),
+  // null — РП по СМР без поставщика (0018); наследуется rpStage1BodySchema.
+  supplierId: z.string().uuid().nullable(),
   counterpartyId: z.string().uuid(),
   siteId: z.string().uuid(),
   paymentRequestIds: z.array(z.string().uuid()).min(1),

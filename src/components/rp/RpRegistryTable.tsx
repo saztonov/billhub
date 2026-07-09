@@ -263,12 +263,17 @@ const RpRegistryTable = ({
         title: 'Поставщик',
         key: 'supplier',
         width: 200,
-        render: (_: unknown, r: RpLetter) => (
-          <div>
-            <div>{r.supplierName}</div>
-            <div style={{ fontSize: 12, color: '#888' }}>ИНН: {r.supplierInn}</div>
-          </div>
-        ),
+        render: (_: unknown, r: RpLetter) =>
+          r.supplierName ? (
+            <div>
+              <div>{r.supplierName}</div>
+              {r.supplierInn && (
+                <div style={{ fontSize: 12, color: '#888' }}>ИНН: {r.supplierInn}</div>
+              )}
+            </div>
+          ) : (
+            <span style={{ color: '#888' }}>—</span>
+          ),
       },
       {
         title: 'Подрядчик',

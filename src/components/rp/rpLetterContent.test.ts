@@ -36,4 +36,15 @@ describe('buildRpLetterContent', () => {
   it('пустой список — пустая строка', () => {
     expect(buildRpLetterContent([])).toBe('')
   })
+
+  it('без поставщика (СМР): сумма + описания, поставщик пропущен', () => {
+    expect(buildRpLetterContent([req(150000, '', 'демонтаж')])).toBe(`${rub(150000)}, демонтаж`)
+    // null-поставщик тоже не добавляется
+    const nullSupplier = {
+      invoiceAmount: 1000,
+      supplierName: null,
+      comment: 'работы',
+    } as unknown as PaymentRequest
+    expect(buildRpLetterContent([nullSupplier])).toBe(`${rub(1000)}, работы`)
+  })
 })

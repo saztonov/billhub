@@ -76,7 +76,8 @@ export async function listRegistry(db: RpDb, siteIds: string[] | null): Promise<
       payhubLetterPayload: rpLetters.payhubLetterPayload,
     })
     .from(rpLetters)
-    .innerJoin(suppliers, eq(suppliers.id, rpLetters.supplierId))
+    // leftJoin: у РП по СМР поставщика нет (0018) — иначе такие РП исчезнут из реестра.
+    .leftJoin(suppliers, eq(suppliers.id, rpLetters.supplierId))
     .innerJoin(counterparties, eq(counterparties.id, rpLetters.counterpartyId))
     .innerJoin(constructionSites, eq(constructionSites.id, rpLetters.siteId))
     .leftJoin(users, eq(users.id, rpLetters.createdBy))

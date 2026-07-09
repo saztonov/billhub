@@ -151,10 +151,10 @@ export function useRpManagement({
       onChange: (keys: React.Key[]) => setSelectedKeys(keys as string[]),
       getCheckboxProps: (record: PaymentRequest) => ({
         // record.dpNumber заполнено => заявка уже в РП (или ручной РП): в новую РП нельзя.
+        // Поставщик не требуется: РП по СМР создаётся без поставщика (комбо связывает по '').
         disabled:
           membership.has(record.id) ||
           !!record.dpNumber ||
-          !record.supplierId ||
           (firstCombo !== null && comboKey(record) !== firstCombo),
       }),
     }
@@ -176,12 +176,9 @@ export function useRpManagement({
       return
     }
     const first = selected[0]
-    if (!first.supplierId) {
-      message.error('У заявки не указан поставщик')
-      return
-    }
+    // Поставщик необязателен: РП по СМР создаётся без поставщика.
     setCreateCombo({
-      supplierId: first.supplierId,
+      supplierId: first.supplierId ?? null,
       counterpartyId: first.counterpartyId,
       siteId: first.siteId,
     })

@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { renderHook, waitFor } from '@testing-library/react'
+import { renderHook, waitFor, act } from '@testing-library/react'
 import { App } from 'antd'
 import type { ReactNode } from 'react'
 import { useRpManagement } from './useRpManagement'
 import { useRpStore } from '@/store/rpStore'
 import { api } from '@/services/api'
-import type { RpLetter } from '@/types'
+import type { RpLetter, PaymentRequest } from '@/types'
 import type { FilterValues } from '@/components/paymentRequests/RequestFilters'
 
 vi.mock('@/services/api', () => ({
@@ -112,5 +112,28 @@ describe('useRpManagement — загрузка реестра и счётчик'
     await waitFor(() => expect(result.current.lettersLoaded).toBe(true))
     expect(result.current.lettersTotal).toBe(2)
     expect(result.current.filteredLetters.map((l) => l.id)).toEqual(['2'])
+  })
+})
+
+describe('useRpManagement — выбор заявок без поставщика (СМР, 0018)', () => {
+  beforeEach(() => {
+    vi.mocked(api.get).mockReset()
+    vi.mocked(api.get).mockResolvedValue([])
+    useRpStore.setState({ letters: [], lettersLoaded: false, lettersLoading: false })
+  })
+
+  const smrRequest = {
+    id: 'r-smr',
+    supplierId: null,
+    counterpartyId: 'cp-1',
+    siteId: 'site-1',
+  } as unknown as PaymentRequest
+
+  it('getCheckboxProps не блокирует заявку без поставщика', async () => {
+    const { result } = run(true)
+    await waitFor(() => expect(result.current.lettersLoaded).toBe(true))
+    act(() => result.current.startSelection())
+    const props = result.current.rowSelection!.getCheckboxProps(smrRequest)
+    expect(props.disabled).toBe(false)
   })
 })

@@ -824,9 +824,10 @@ export interface RpLetter {
   status: string
   totalAmount: number
   description: string
-  supplierId: string
-  supplierName: string
-  supplierInn: string
+  // Поставщик необязателен: РП по СМР создаётся без поставщика (0018).
+  supplierId: string | null
+  supplierName: string | null
+  supplierInn: string | null
   counterpartyId: string
   counterpartyName: string
   counterpartyInn: string

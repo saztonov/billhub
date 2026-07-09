@@ -29,7 +29,8 @@ export const rpLetters = pgTable('rp_letters', {
   id: uuid('id').primaryKey().notNull().defaultRandom(),
   number: text('number').notNull(),
   letterDate: date('letter_date', { mode: 'string' }),
-  supplierId: uuid('supplier_id').notNull(),
+  // Необязателен: РП по СМР создаётся без поставщика (миграция 0018).
+  supplierId: uuid('supplier_id'),
   counterpartyId: uuid('counterparty_id').notNull(),
   siteId: uuid('site_id').notNull(),
   totalAmount: numeric('total_amount', { precision: 15, scale: 2, mode: 'number' })

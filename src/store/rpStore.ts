@@ -14,7 +14,8 @@ export interface RpLetterFormBlock {
 
 /** Вход создания РП. */
 export interface CreateRpPayload {
-  supplierId: string
+  /** null — РП по СМР без поставщика. */
+  supplierId: string | null
   counterpartyId: string
   siteId: string
   paymentRequestIds: string[]
@@ -28,6 +29,8 @@ export interface CreateRpPayload {
 /** Файл-счёт заявки — кандидат для прикрепления к РП. */
 export interface RpInvoiceCandidateFile {
   id: string
+  /** Ключ S3 (для просмотра файла в окне выбора счетов). */
+  fileKey: string
   fileName: string
   mimeType: string | null
   sizeBytes: number | null
@@ -87,7 +90,11 @@ interface RpStoreState {
 
   /** Загрузить реестр РП. silent — обновить данные без табличного loading (для авто-опроса). */
   loadRegistry: (opts?: { silent?: boolean }) => Promise<void>
-  loadDocuments: (supplierId: string, counterpartyId: string, siteId: string) => Promise<void>
+  loadDocuments: (
+    supplierId: string | null,
+    counterpartyId: string,
+    siteId: string,
+  ) => Promise<void>
   clearDocuments: () => void
   createLetter: (payload: CreateRpPayload) => Promise<RpLetter | null>
   /** 1 этап: создать РП и синхронно письмо PayHub (рег.номер + QR) либо async-fallback. */
@@ -152,6 +159,12 @@ export const useRpStore = create<RpStoreState>((set, get) => ({
   },
 
   loadDocuments: async (supplierId, counterpartyId, siteId) => {
+    // РП по СМР без поставщика: документы договора/поставщика не запрашиваем (0018) —
+    // сразу пустой набор, чтобы шаг «Документы» не блокировал кнопку «Далее».
+    if (!supplierId) {
+      set({ documents: { contract: [], founding: [] }, documentsLoading: false })
+      return
+    }
     set({ documentsLoading: true, documents: null })
     try {
       const params = new URLSearchParams({ supplierId, counterpartyId, siteId })

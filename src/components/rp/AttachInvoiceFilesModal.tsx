@@ -1,11 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Modal, Button, Checkbox, List, Typography, Empty, Spin, Space, App } from 'antd'
-import { PaperClipOutlined } from '@ant-design/icons'
+import { PaperClipOutlined, EyeOutlined } from '@ant-design/icons'
 import { useRpStore } from '@/store/rpStore'
 import { logError } from '@/services/errorLogger'
+import FilePreviewModal from '@/components/paymentRequests/FilePreviewModal'
+import { getMimeFromFileName } from '@/utils/mimeFromExtension'
 import type { RpInvoiceCandidateGroup } from '@/store/rpStore'
 
 const { Text } = Typography
+
+/** Файл для предпросмотра в окне выбора счетов. */
+interface PreviewTarget {
+  fileKey: string
+  fileName: string
+  mimeType: string | null
+}
 
 /** Выбранный счёт для прикрепления к РП (передаётся в форму создания). */
 export interface SelectedInvoiceFile {
@@ -45,6 +54,7 @@ const AttachInvoiceFilesModal = ({
   const [groups, setGroups] = useState<RpInvoiceCandidateGroup[]>([])
   const [loading, setLoading] = useState(false)
   const [checked, setChecked] = useState<Set<string>>(new Set())
+  const [preview, setPreview] = useState<PreviewTarget | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -89,56 +99,82 @@ const AttachInvoiceFilesModal = ({
   }
 
   return (
-    <Modal
-      open={open}
-      title="Счета из заявок"
-      width={620}
-      centered
-      onCancel={onClose}
-      styles={{ body: { maxHeight: 'calc(90vh - 110px)', overflowY: 'auto' } }}
-      footer={[
-        <Button key="cancel" onClick={onClose}>
-          Отмена
-        </Button>,
-        <Button key="attach" type="primary" disabled={checked.size === 0} onClick={handleAttach}>
-          Прикрепить ({checked.size})
-        </Button>,
-      ]}
-    >
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: 40 }}>
-          <Spin />
-        </div>
-      ) : total === 0 ? (
-        <Empty
-          image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description="Нет активных счетов в выбранных заявках"
-        />
-      ) : (
-        <Space direction="vertical" size={12} style={{ width: '100%' }}>
-          {groups.map((g) => (
-            <div key={g.requestId}>
-              <Text strong>Заявка {g.requestNumber}</Text>
-              <List
-                size="small"
-                dataSource={g.files}
-                renderItem={(f) => (
-                  <List.Item>
-                    <Checkbox checked={checked.has(f.id)} onChange={() => toggle(f.id)}>
-                      <Space size={6}>
-                        <PaperClipOutlined />
-                        <Text>{f.fileName}</Text>
-                        <Text type="secondary">{fmtSize(f.sizeBytes)}</Text>
-                      </Space>
-                    </Checkbox>
-                  </List.Item>
-                )}
-              />
-            </div>
-          ))}
-        </Space>
-      )}
-    </Modal>
+    <>
+      <Modal
+        open={open}
+        title="Счета из заявок"
+        width={620}
+        centered
+        onCancel={onClose}
+        styles={{ body: { maxHeight: 'calc(90vh - 110px)', overflowY: 'auto' } }}
+        footer={[
+          <Button key="cancel" onClick={onClose}>
+            Отмена
+          </Button>,
+          <Button key="attach" type="primary" disabled={checked.size === 0} onClick={handleAttach}>
+            Прикрепить ({checked.size})
+          </Button>,
+        ]}
+      >
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: 40 }}>
+            <Spin />
+          </div>
+        ) : total === 0 ? (
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description="Нет активных счетов в выбранных заявках"
+          />
+        ) : (
+          <Space direction="vertical" size={12} style={{ width: '100%' }}>
+            {groups.map((g) => (
+              <div key={g.requestId}>
+                <Text strong>Заявка {g.requestNumber}</Text>
+                <List
+                  size="small"
+                  dataSource={g.files}
+                  renderItem={(f) => (
+                    <List.Item
+                      actions={[
+                        <Button
+                          key="view"
+                          type="text"
+                          size="small"
+                          icon={<EyeOutlined />}
+                          title="Просмотр"
+                          onClick={() =>
+                            setPreview({
+                              fileKey: f.fileKey,
+                              fileName: f.fileName,
+                              mimeType: f.mimeType ?? getMimeFromFileName(f.fileName),
+                            })
+                          }
+                        />,
+                      ]}
+                    >
+                      <Checkbox checked={checked.has(f.id)} onChange={() => toggle(f.id)}>
+                        <Space size={6}>
+                          <PaperClipOutlined />
+                          <Text>{f.fileName}</Text>
+                          <Text type="secondary">{fmtSize(f.sizeBytes)}</Text>
+                        </Space>
+                      </Checkbox>
+                    </List.Item>
+                  )}
+                />
+              </div>
+            ))}
+          </Space>
+        )}
+      </Modal>
+      <FilePreviewModal
+        open={!!preview}
+        onClose={() => setPreview(null)}
+        fileKey={preview?.fileKey ?? null}
+        fileName={preview?.fileName ?? ''}
+        mimeType={preview?.mimeType ?? null}
+      />
+    </>
   )
 }
 

@@ -32,9 +32,10 @@ export interface RpRegistryRow {
   status: string;
   totalAmount: number;
   description: string;
-  supplierId: string;
-  supplierName: string;
-  supplierInn: string;
+  // Поставщик необязателен: РП по СМР создаётся без поставщика (0018).
+  supplierId: string | null;
+  supplierName: string | null;
+  supplierInn: string | null;
   counterpartyId: string;
   counterpartyName: string;
   counterpartyInn: string;
@@ -101,7 +102,8 @@ export interface RpDocumentRef {
 
 /** Вход создания РП. */
 export interface CreateRpInput {
-  supplierId: string;
+  /** null — РП по СМР без поставщика (0018). */
+  supplierId: string | null;
   counterpartyId: string;
   siteId: string;
   paymentRequestIds: string[];
@@ -141,6 +143,8 @@ export interface RpServiceFileRef {
 /** Файл-счёт заявки — кандидат для прикрепления к РП (0011). */
 export interface RpInvoiceCandidateFile {
   id: string;
+  /** Ключ S3 (для просмотра файла в окне выбора счетов). */
+  fileKey: string;
   fileName: string;
   mimeType: string | null;
   sizeBytes: number | null;
