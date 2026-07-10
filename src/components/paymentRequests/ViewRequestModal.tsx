@@ -60,8 +60,12 @@ interface ViewRequestModalProps {
   onEdit?: (id: string, data: EditRequestData, files: FileItem[]) => void
   canApprove?: boolean
   canReject?: boolean
-  onApprove?: (requestId: string, comment: string) => void
-  onReject?: (requestId: string, comment: string, files?: { id: string; file: File }[]) => void
+  onApprove?: (requestId: string, comment: string) => Promise<boolean>
+  onReject?: (
+    requestId: string,
+    comment: string,
+    files?: { id: string; file: File }[],
+  ) => Promise<boolean>
   onRevisionComplete?: () => void
 }
 
@@ -481,13 +485,18 @@ const ViewRequestModal = ({
           .length
       : 0
 
+    const confirmApproval = async () => {
+      const success = await onApprove?.(request.id, '')
+      if (!success) return Promise.reject()
+    }
+
     if (isOmtsStage && activeInvoiceCount > 1) {
       Modal.confirm({
         title: 'Согласование заявки',
         content: 'В заявке больше 1 действующего счета. Вы уверены, что нужно согласовать заявку?',
         okText: 'Согласовать',
         cancelText: 'Отмена',
-        onOk: () => onApprove?.(request.id, ''),
+        onOk: confirmApproval,
       })
     } else {
       Modal.confirm({
@@ -495,7 +504,7 @@ const ViewRequestModal = ({
         content: 'Подтвердите корректность всех файлов и условий',
         okText: 'Согласовать',
         cancelText: 'Отмена',
-        onOk: () => onApprove?.(request.id, ''),
+        onOk: confirmApproval,
       })
     }
   }
@@ -878,9 +887,11 @@ const ViewRequestModal = ({
 
       <RejectModal
         open={rejectModalOpen}
-        onConfirm={(comment, files) => {
-          onReject?.(request.id, comment, files.length > 0 ? files : undefined)
-          setRejectModalOpen(false)
+        onConfirm={async (comment, files) => {
+          if (!onReject) return false
+          const success = await onReject(request.id, comment, files.length > 0 ? files : undefined)
+          if (success) setRejectModalOpen(false)
+          return success
         }}
         onCancel={() => setRejectModalOpen(false)}
       />

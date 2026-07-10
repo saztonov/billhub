@@ -130,15 +130,6 @@ const registerCounterpartySchema = z.object({
 /* --------------------------------- Плагин ---------------------------------- */
 
 async function keycloakAuthRoutes(fastify: FastifyInstance): Promise<void> {
-  /** GET /api/auth/config — публичный признак режима для фронта. */
-  fastify.get('/api/auth/config', async () => {
-    return {
-      mode: 'keycloak' as const,
-      loginUrl: '/api/auth/login',
-      accountUrl: `${config.oidcIssuer}/account`,
-    };
-  });
-
   /** GET /api/auth/csrf — выдать CSRF-токен (double-submit). */
   fastify.get('/api/auth/csrf', async (request) => {
     return { csrfToken: request.csrfToken ?? null };

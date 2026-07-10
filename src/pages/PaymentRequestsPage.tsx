@@ -655,13 +655,15 @@ const PaymentRequestsPage = () => {
               (pendingRequests.some((r) => r.id === viewRecord.id) ||
                 rpPendingRequests.some((r) => r.id === viewRecord.id)))
         }
-        onApprove={(requestId, comment) => {
-          handleApprove(requestId, comment)
-          setViewRecord(null)
+        onApprove={async (requestId, comment) => {
+          const ok = await handleApprove(requestId, comment)
+          if (ok) setViewRecord(null)
+          return ok
         }}
-        onReject={(requestId, comment, files) => {
-          handleReject(requestId, comment, files)
-          setViewRecord(null)
+        onReject={async (requestId, comment, files) => {
+          const ok = await handleReject(requestId, comment, files)
+          if (ok) setViewRecord(null)
+          return ok
         }}
         onRevisionComplete={() => {
           if (isCounterpartyUser) fetchRequests(user?.counterpartyId ?? undefined)

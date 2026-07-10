@@ -1,12 +1,5 @@
-import {
-  Modal,
-  Input,
-  Form,
-  Select,
-  InputNumber,
-  Row,
-  Col,
-} from 'antd'
+import { useState } from 'react'
+import { Modal, Input, Form, Select, InputNumber, Row, Col } from 'antd'
 import type { FormInstance } from 'antd'
 import { invoiceAmountMask, invoiceAmountValidator } from './RequestDetailsSection'
 import type { PaymentRequest } from '@/types'
@@ -19,7 +12,7 @@ interface RevisionModalsProps {
   revisionModalOpen: boolean
   revisionComment: string
   setRevisionComment: (comment: string) => void
-  handleSendToRevision: () => void
+  handleSendToRevision: () => Promise<void>
   setRevisionModalOpen: (open: boolean) => void
   onRevisionCommentRequired: () => void
   // Модалка "Проверьте данные"
@@ -31,7 +24,7 @@ interface RevisionModalsProps {
     shippingConditionId: string
     invoiceAmount: number
     supplierId?: string | null
-  }) => void
+  }) => Promise<void>
   setRevisionCompleteModalOpen: (open: boolean) => void
   shippingOptions: { id: string; value: string }[]
   supplierOptions: { label: string; value: string }[]
@@ -53,6 +46,9 @@ const RevisionModals = ({
   supplierOptions,
 }: RevisionModalsProps) => {
   const shippingSelectOptions = shippingOptions.map((o) => ({ label: o.value, value: o.id }))
+  // Блокировка повторной отправки + индикация загрузки для обеих модалок доработки
+  const [sendingRevision, setSendingRevision] = useState(false)
+  const [completingRevision, setCompletingRevision] = useState(false)
 
   return (
     <>
@@ -60,14 +56,25 @@ const RevisionModals = ({
       <Modal
         title="На доработку"
         open={revisionModalOpen}
-        onOk={() => {
+        onOk={async () => {
           if (!revisionComment.trim()) {
             onRevisionCommentRequired()
             return
           }
-          handleSendToRevision()
+          if (sendingRevision) return
+          setSendingRevision(true)
+          try {
+            await handleSendToRevision()
+          } finally {
+            setSendingRevision(false)
+          }
         }}
-        onCancel={() => { setRevisionModalOpen(false); setRevisionComment('') }}
+        confirmLoading={sendingRevision}
+        onCancel={() => {
+          setRevisionModalOpen(false)
+          setRevisionComment('')
+        }}
+        cancelButtonProps={{ disabled: sendingRevision }}
         okText="Отправить"
         cancelText="Отмена"
       >
@@ -85,7 +92,12 @@ const RevisionModals = ({
         title="Проверьте данные"
         open={revisionCompleteModalOpen}
         onOk={() => revisionCompleteForm.submit()}
-        onCancel={() => { setRevisionCompleteModalOpen(false); revisionCompleteForm.resetFields() }}
+        confirmLoading={completingRevision}
+        onCancel={() => {
+          setRevisionCompleteModalOpen(false)
+          revisionCompleteForm.resetFields()
+        }}
+        cancelButtonProps={{ disabled: completingRevision }}
         okText="Подтвердить"
         cancelText="Отмена"
         afterOpenChange={(open) => {
@@ -95,9 +107,13 @@ const RevisionModals = ({
               deliveryDaysType: request.deliveryDaysType || 'working',
               shippingConditionId: request.shippingConditionId,
               supplierId: request.supplierId ?? undefined,
-              invoiceAmount: request.invoiceAmount != null
-                ? request.invoiceAmount.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                : '',
+              invoiceAmount:
+                request.invoiceAmount != null
+                  ? request.invoiceAmount.toLocaleString('ru-RU', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })
+                  : '',
             })
           }
         }}
@@ -105,15 +121,25 @@ const RevisionModals = ({
         <Form
           form={revisionCompleteForm}
           layout="vertical"
-          onFinish={(values) => {
-            const amount = Number(String(values.invoiceAmount ?? '').replace(/\s/g, '').replace(',', '.'))
-            handleCompleteRevision({
-              deliveryDays: values.deliveryDays,
-              deliveryDaysType: values.deliveryDaysType,
-              shippingConditionId: values.shippingConditionId,
-              invoiceAmount: amount,
-              supplierId: values.supplierId ?? null,
-            })
+          onFinish={async (values) => {
+            if (completingRevision) return
+            const amount = Number(
+              String(values.invoiceAmount ?? '')
+                .replace(/\s/g, '')
+                .replace(',', '.'),
+            )
+            setCompletingRevision(true)
+            try {
+              await handleCompleteRevision({
+                deliveryDays: values.deliveryDays,
+                deliveryDaysType: values.deliveryDaysType,
+                shippingConditionId: values.shippingConditionId,
+                invoiceAmount: amount,
+                supplierId: values.supplierId ?? null,
+              })
+            } finally {
+              setCompletingRevision(false)
+            }
           }}
         >
           <Form.Item name="supplierId" label="Поставщик">
@@ -130,22 +156,42 @@ const RevisionModals = ({
             <Col xs={24} sm={12}>
               <Form.Item label="Срок поставки, дней" required style={{ marginBottom: 12 }}>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <Form.Item name="deliveryDays" noStyle rules={[{ required: true, message: 'Укажите срок' }]}>
+                  <Form.Item
+                    name="deliveryDays"
+                    noStyle
+                    rules={[{ required: true, message: 'Укажите срок' }]}
+                  >
                     <InputNumber min={1} style={{ flex: 1 }} />
                   </Form.Item>
                   <Form.Item name="deliveryDaysType" noStyle>
-                    <Select style={{ flex: 1, minWidth: 100 }} options={[{ label: 'рабочих', value: 'working' }, { label: 'календарных', value: 'calendar' }]} />
+                    <Select
+                      style={{ flex: 1, minWidth: 100 }}
+                      options={[
+                        { label: 'рабочих', value: 'working' },
+                        { label: 'календарных', value: 'calendar' },
+                      ]}
+                    />
                   </Form.Item>
                 </div>
               </Form.Item>
             </Col>
             <Col xs={24} sm={12}>
-              <Form.Item name="shippingConditionId" label="Условия отгрузки" rules={[{ required: true, message: 'Выберите условия' }]}>
+              <Form.Item
+                name="shippingConditionId"
+                label="Условия отгрузки"
+                rules={[{ required: true, message: 'Выберите условия' }]}
+              >
                 <Select placeholder="Выберите условия" options={shippingSelectOptions} />
               </Form.Item>
             </Col>
           </Row>
-          <Form.Item name="invoiceAmount" label="Сумма счета" required rules={[{ validator: invoiceAmountValidator }]} getValueFromEvent={invoiceAmountMask}>
+          <Form.Item
+            name="invoiceAmount"
+            label="Сумма счета"
+            required
+            rules={[{ validator: invoiceAmountValidator }]}
+            getValueFromEvent={invoiceAmountMask}
+          >
             <Input suffix="₽" style={{ width: '100%' }} placeholder="Сумма" />
           </Form.Item>
         </Form>

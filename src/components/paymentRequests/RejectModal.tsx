@@ -10,18 +10,20 @@ const ACCEPT_EXTENSIONS = '.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.tiff,.tif,.bmp
 
 interface RejectModalProps {
   open: boolean
-  onConfirm: (comment: string, files: { id: string; file: File }[]) => void
+  onConfirm: (comment: string, files: { id: string; file: File }[]) => Promise<boolean>
   onCancel: () => void
 }
 
 const RejectModal = ({ open, onConfirm, onCancel }: RejectModalProps) => {
   const [comment, setComment] = useState('')
   const [files, setFiles] = useState<{ id: string; file: File }[]>([])
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     if (!open) {
       setComment('')
       setFiles([])
+      setIsSubmitting(false)
     }
   }, [open])
 
@@ -31,9 +33,14 @@ const RejectModal = ({ open, onConfirm, onCancel }: RejectModalProps) => {
 
   const { ref: dropZoneRef, isDragOver } = useNativeDropZone(addFiles)
 
-  const handleOk = () => {
-    if (!comment.trim()) return
-    onConfirm(comment, files)
+  const handleOk = async () => {
+    if (!comment.trim() || isSubmitting) return
+    setIsSubmitting(true)
+    try {
+      await onConfirm(comment, files)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -43,7 +50,9 @@ const RejectModal = ({ open, onConfirm, onCancel }: RejectModalProps) => {
       onOk={handleOk}
       onCancel={onCancel}
       okText="Отклонить"
-      okButtonProps={{ danger: true, disabled: !comment.trim() }}
+      confirmLoading={isSubmitting}
+      okButtonProps={{ danger: true, disabled: !comment.trim() || isSubmitting }}
+      cancelButtonProps={{ disabled: isSubmitting }}
       width={600}
     >
       <Space direction="vertical" style={{ width: '100%' }} size="large">
@@ -69,7 +78,10 @@ const RejectModal = ({ open, onConfirm, onCancel }: RejectModalProps) => {
                 return false
               }}
               showUploadList={false}
-              style={{ borderColor: isDragOver ? '#1677ff' : undefined, background: isDragOver ? '#e6f4ff' : undefined }}
+              style={{
+                borderColor: isDragOver ? '#1677ff' : undefined,
+                background: isDragOver ? '#e6f4ff' : undefined,
+              }}
             >
               <p className="ant-upload-drag-icon">
                 <InboxOutlined />

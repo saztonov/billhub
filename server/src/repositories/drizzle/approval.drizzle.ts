@@ -53,6 +53,7 @@ import type {
   ApprovalDecideResult,
   ApprovalCreateDecisionResult,
   ApprovalOpResult,
+  ApprovalActor,
   AddDecisionFileInput,
   QueryScope,
   Row,
@@ -481,6 +482,15 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
     if (code === 'approved') {
       return { ok: false, status: 400, error: 'Нельзя отклонить согласованную заявку' };
     }
+    // Симметрично approve: заявку на доработке нельзя отклонить, пока доработка не завершена
+    // (иначе состояние previous_status_id рассинхронизируется с новым решением).
+    if (pr.previousStatusId) {
+      return {
+        ok: false,
+        status: 409,
+        error: 'Заявка находится на доработке — сначала завершите доработку',
+      };
+    }
     return this.reject(input, currentStage);
   }
 
@@ -797,6 +807,7 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
     paymentRequestId: string,
     userId: string,
     comment: string,
+    actor?: ApprovalActor,
   ): Promise<ApprovalOpResult> {
     return this.db.transaction(async (tx) => {
       const revisionStatusId = await this.statusIdByCode(tx, 'payment_request', 'revision');
@@ -805,11 +816,31 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
           statusId: paymentRequests.statusId,
           currentStage: paymentRequests.currentStage,
           approvedAt: paymentRequests.approvedAt,
+          siteId: paymentRequests.siteId,
         })
         .from(paymentRequests)
         .where(eq(paymentRequests.id, paymentRequestId))
         .limit(1);
       if (!cur) return { ok: false as const, status: 404, error: 'Заявка не найдена' };
+
+      // Серверная авторизация по этапу (как в decide): на доработку возвращает только согласующий
+      // текущего этапа (Штаб/ОМТС/назначенец РП), а не любой admin/user.
+      if (actor && cur.currentStage != null) {
+        const allowed = await userMayActOnStage(tx, {
+          stage: cur.currentStage,
+          siteId: cur.siteId,
+          userId,
+          userDepartment: actor.userDepartment ?? null,
+          isAdmin: actor.isAdmin,
+        });
+        if (!allowed) {
+          return {
+            ok: false as const,
+            status: 403,
+            error: 'Нет прав на отправку на доработку на текущем этапе',
+          };
+        }
+      }
 
       const code = await this.statusCodeById(tx, cur.statusId);
       if (code === 'rejected') {
@@ -854,6 +885,7 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
     paymentRequestId: string,
     userId: string,
     fieldUpdates: ApprovalFieldUpdates,
+    actor?: ApprovalActor,
   ): Promise<ApprovalOpResult> {
     return this.db.transaction(async (tx) => {
       const [cur] = await tx
@@ -866,11 +898,18 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
           supplierId: paymentRequests.supplierId,
           requestType: paymentRequests.requestType,
           siteId: paymentRequests.siteId,
+          counterpartyId: paymentRequests.counterpartyId,
         })
         .from(paymentRequests)
         .where(eq(paymentRequests.id, paymentRequestId))
         .limit(1);
       if (!cur) return { ok: false as const, status: 404, error: 'Заявка не найдена' };
+      // Завершить доработку может только владелец-контрагент своей заявки либо admin.
+      if (actor && !actor.isAdmin) {
+        if (!actor.counterpartyId || actor.counterpartyId !== cur.counterpartyId) {
+          return { ok: false as const, status: 403, error: 'Доступ запрещён' };
+        }
+      }
       if (!cur.previousStatusId) {
         return { ok: false as const, status: 400, error: 'Нет предыдущего статуса' };
       }
@@ -1068,6 +1107,7 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
         .select({
           currentStage: paymentRequests.currentStage,
           withdrawnAt: paymentRequests.withdrawnAt,
+          siteId: paymentRequests.siteId,
         })
         .from(paymentRequests)
         .where(eq(paymentRequests.id, input.paymentRequestId))
@@ -1079,6 +1119,21 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
           status: 400,
           error: 'Невозможно обработать отозванную заявку',
         };
+      }
+
+      // Серверная авторизация по этапу (как в decide) — закрывает legacy-обход userMayActOnStage:
+      // пометить pending-решение текущего этапа может только согласующий этого этапа либо admin.
+      if (pr.currentStage != null) {
+        const allowed = await userMayActOnStage(tx, {
+          stage: pr.currentStage,
+          siteId: pr.siteId,
+          userId: input.userId,
+          userDepartment: input.userDepartment ?? null,
+          isAdmin: input.isAdmin,
+        });
+        if (!allowed) {
+          return { ok: false as const, status: 403, error: 'Нет прав на решение на текущем этапе' };
+        }
       }
 
       const decisionUpdate: Record<string, unknown> = {

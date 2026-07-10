@@ -18,6 +18,8 @@ async function approvalRoutes(fastify: FastifyInstance): Promise<void> {
   const anyAuthenticated = {
     preHandler: [authenticate, requireRole('admin', 'user', 'counterparty_user')],
   };
+  // Завершение доработки — только владелец-контрагент своей заявки либо admin (проверка владельца в репозитории).
+  const ownerOrAdmin = { preHandler: [authenticate, requireRole('admin', 'counterparty_user')] };
 
   /* ---------- GET /api/approvals/payment-request/:requestId ---------- */
   fastify.get('/api/approvals/payment-request/:requestId', anyAuthenticated, async (request) => {
@@ -67,27 +69,25 @@ async function approvalRoutes(fastify: FastifyInstance): Promise<void> {
       body.paymentRequestId,
       user.id,
       body.comment ?? '',
+      { userDepartment: user.department ?? null, isAdmin: user.role === 'admin' },
     );
     if (!result.ok) return reply.status(result.status).send({ error: result.error });
     return reply.send({ success: true });
   });
 
   /* ---------- POST /api/approvals/complete-revision ---------- */
-  fastify.post(
-    '/api/approvals/complete-revision',
-    { preHandler: [authenticate] },
-    async (request, reply) => {
-      const user = request.user!;
-      const body = approvalCompleteRevisionBodySchema.parse(request.body);
-      const result = await request.server.repos.approvals.completeRevision(
-        body.paymentRequestId,
-        user.id,
-        body.fieldUpdates,
-      );
-      if (!result.ok) return reply.status(result.status).send({ error: result.error });
-      return reply.send({ success: true });
-    },
-  );
+  fastify.post('/api/approvals/complete-revision', ownerOrAdmin, async (request, reply) => {
+    const user = request.user!;
+    const body = approvalCompleteRevisionBodySchema.parse(request.body);
+    const result = await request.server.repos.approvals.completeRevision(
+      body.paymentRequestId,
+      user.id,
+      body.fieldUpdates,
+      { counterpartyId: user.counterpartyId ?? null, isAdmin: user.role === 'admin' },
+    );
+    if (!result.ok) return reply.status(result.status).send({ error: result.error });
+    return reply.send({ success: true });
+  });
 
   /* ---------- POST /api/approvals/decision-files ---------- */
   fastify.post('/api/approvals/decision-files', adminOrUser, async (request, reply) => {

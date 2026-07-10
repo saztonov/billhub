@@ -76,8 +76,8 @@ export interface RequestsTableProps {
   uploadTasks?: Record<string, { status: string }>
   totalStages?: number
   showApprovalActions?: boolean
-  onApprove?: (id: string, comment: string) => void
-  onReject?: (id: string, comment: string, files?: { id: string; file: File }[]) => void
+  onApprove?: (id: string, comment: string) => Promise<boolean>
+  onReject?: (id: string, comment: string, files?: { id: string; file: File }[]) => Promise<boolean>
   onResubmit?: (record: PaymentRequest) => void
   showApprovedDate?: boolean
   showRejectedDate?: boolean
@@ -187,7 +187,12 @@ function buildMobileActions(record: PaymentRequest, props: RequestsTableProps) {
   ]
 
   // Заявку на доработке согласовать нельзя (previousStatusId заполнен) — действие не показываем.
-  if (props.showApprovalActions && props.onApprove && !record.previousStatusId) {
+  if (
+    props.showApprovalActions &&
+    props.onApprove &&
+    !record.previousStatusId &&
+    record.supplierLastSecurityStatus !== 'rejected'
+  ) {
     items.push({
       key: 'approve',
       label: 'Согласовать',
@@ -844,12 +849,15 @@ const RequestsTable = (props: RequestsTableProps) => {
           </Tooltip>
           {showApprovalActions && (
             <>
-              {!record.previousStatusId && (
+              {!record.previousStatusId && record.supplierLastSecurityStatus !== 'rejected' && (
                 <Tooltip title="Согласовать">
                   <Popconfirm
                     title="Согласование заявки"
                     description="Подтвердите корректность всех файлов и условий"
-                    onConfirm={() => onApprove?.(record.id, '')}
+                    onConfirm={async () => {
+                      const success = await onApprove?.(record.id, '')
+                      if (!success) return Promise.reject()
+                    }}
                     okText="Согласовать"
                     cancelText="Отмена"
                   >
@@ -1026,9 +1034,11 @@ const RequestsTable = (props: RequestsTableProps) => {
 
       <RejectModal
         open={!!rejectModalId}
-        onConfirm={(comment, files) => {
-          if (rejectModalId) onReject?.(rejectModalId, comment, files)
-          setRejectModalId(null)
+        onConfirm={async (comment, files) => {
+          if (!rejectModalId || !onReject) return false
+          const success = await onReject(rejectModalId, comment, files)
+          if (success) setRejectModalId(null)
+          return success
         }}
         onCancel={() => setRejectModalId(null)}
       />

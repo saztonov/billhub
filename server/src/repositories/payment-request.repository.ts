@@ -85,8 +85,17 @@ export interface PaymentRequestRepository {
   /** Отзыв: статус withdrawn + withdrawn_at + comment. */
   withdraw(id: string, comment?: string | null): Promise<void>;
 
-  /** Повторная отправка: сброс на stage 1 Штаб, очистка withdrawn_at, пересоздание pending-решения. */
-  resubmit(id: string, input: ResubmitBody, userId: string): Promise<void>;
+  /**
+   * Повторная отправка: сброс на stage 1 Штаб, очистка withdrawn_at, пересоздание pending-решения.
+   * actor (опц.) — серверная авторизация: владелец-контрагент своей заявки либо admin, и только из
+   * статусов «отклонена»/«отозвана» (защита от сброса чужой/согласованной заявки на этап 1).
+   */
+  resubmit(
+    id: string,
+    input: ResubmitBody,
+    userId: string,
+    actor?: { counterpartyId?: string | null; isAdmin: boolean },
+  ): Promise<void>;
 
   /** Установить статус (verbatim). */
   setStatus(id: string, statusId: string): Promise<void>;

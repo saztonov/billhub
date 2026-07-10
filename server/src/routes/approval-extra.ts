@@ -15,6 +15,8 @@ import { resolveSiteScope } from '../services/site-scope.js';
 
 async function approvalExtraRoutes(fastify: FastifyInstance): Promise<void> {
   const adminOrUser = { preHandler: [authenticate, requireRole('admin', 'user')] };
+  // Завершение доработки — только владелец-контрагент своей заявки либо admin (проверка владельца в репозитории).
+  const ownerOrAdmin = { preHandler: [authenticate, requireRole('admin', 'counterparty_user')] };
 
   /* ---------- POST /api/approvals/payment-request/:paymentRequestId/stage-history ---------- */
   fastify.post(
@@ -40,6 +42,7 @@ async function approvalExtraRoutes(fastify: FastifyInstance): Promise<void> {
         paymentRequestId,
         user.id,
         body.comment ?? '',
+        { userDepartment: user.department ?? null, isAdmin: user.role === 'admin' },
       );
       if (!result.ok) return reply.status(result.status).send({ error: result.error });
       return reply.send({ success: true });
@@ -49,7 +52,7 @@ async function approvalExtraRoutes(fastify: FastifyInstance): Promise<void> {
   /* ---------- POST /api/approvals/payment-request/:paymentRequestId/revision-complete ---------- */
   fastify.post(
     '/api/approvals/payment-request/:paymentRequestId/revision-complete',
-    { preHandler: [authenticate] },
+    ownerOrAdmin,
     async (request, reply) => {
       const user = request.user!;
       const { paymentRequestId } = request.params as { paymentRequestId: string };
@@ -58,6 +61,7 @@ async function approvalExtraRoutes(fastify: FastifyInstance): Promise<void> {
         paymentRequestId,
         user.id,
         fieldUpdates,
+        { counterpartyId: user.counterpartyId ?? null, isAdmin: user.role === 'admin' },
       );
       if (!result.ok) return reply.status(result.status).send({ error: result.error });
       return reply.send({ success: true });

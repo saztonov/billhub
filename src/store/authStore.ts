@@ -162,7 +162,7 @@ export const useAuthStore = create<AuthStoreState>((set) => ({
 
   loadAuthConfig: async () => {
     try {
-      // /api/auth/config существует только в keycloak-режиме; 404/ошибка → non-keycloak.
+      // Единый endpoint сообщает режим аутентификации без пересборки frontend.
       const res = await api.get<AuthConfigResponse>('/api/auth/config', undefined, {
         skipAuthRedirect: true,
       })

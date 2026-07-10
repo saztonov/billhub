@@ -10,6 +10,7 @@
  * плагином plugins/auth.ts; CSRF — plugins/csrf.ts (активна в standalone и keycloak).
  */
 import type { FastifyInstance } from 'fastify';
+import { config } from '../config.js';
 import { resolveAuthMode } from '../plugins/auth.js';
 import legacyAuthRoutes from './auth-legacy.js';
 import standaloneAuthRoutes from './auth-standalone.js';
@@ -17,6 +18,19 @@ import keycloakAuthRoutes from './auth-keycloak.js';
 
 async function authRoutes(fastify: FastifyInstance): Promise<void> {
   const mode = resolveAuthMode(process.env);
+
+  /** Единый публичный endpoint: сообщает фронту режим аутентификации без пересборки (rollback-safe). */
+  fastify.get('/api/auth/config', async () => {
+    if (mode === 'keycloak') {
+      return {
+        mode,
+        loginUrl: '/api/auth/login',
+        accountUrl: `${config.oidcIssuer}/account`,
+      };
+    }
+    return { mode };
+  });
+
   if (mode === 'standalone') {
     await fastify.register(standaloneAuthRoutes);
   } else if (mode === 'keycloak') {

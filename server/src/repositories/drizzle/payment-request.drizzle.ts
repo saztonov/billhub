@@ -34,7 +34,7 @@ import type {
   DpDataBody,
   AddPaymentRequestFileBody,
 } from '../../schemas/payment-request.js';
-import { NotFoundError, ForbiddenError } from '../types.js';
+import { NotFoundError, ForbiddenError, ConflictError } from '../types.js';
 
 type Db = PostgresJsDatabase<typeof schema>;
 type AnyTx = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -325,7 +325,12 @@ export class DrizzlePaymentRequestRepository implements PaymentRequestRepository
     });
   }
 
-  async resubmit(id: string, input: ResubmitBody, userId: string): Promise<void> {
+  async resubmit(
+    id: string,
+    input: ResubmitBody,
+    userId: string,
+    actor?: { counterpartyId?: string | null; isAdmin: boolean },
+  ): Promise<void> {
     await this.db.transaction(async (tx) => {
       const statusId = await statusIdByCode(tx, 'payment_request', 'approv_shtab');
 
@@ -334,11 +339,30 @@ export class DrizzlePaymentRequestRepository implements PaymentRequestRepository
           resubmitCount: paymentRequests.resubmitCount,
           invoiceAmount: paymentRequests.invoiceAmount,
           invoiceAmountHistory: paymentRequests.invoiceAmountHistory,
+          statusId: paymentRequests.statusId,
+          counterpartyId: paymentRequests.counterpartyId,
         })
         .from(paymentRequests)
         .where(eq(paymentRequests.id, id))
         .limit(1);
       if (!cur) throw new NotFoundError('PaymentRequest', id);
+
+      // Владелец-контрагент своей заявки либо admin (защита от сброса чужой заявки на этап 1).
+      if (actor && !actor.isAdmin) {
+        if (!actor.counterpartyId || actor.counterpartyId !== cur.counterpartyId) {
+          throw new ForbiddenError();
+        }
+      }
+      // Повторно отправлять можно только отклонённую или отозванную заявку (не согласованную/в работе).
+      if (actor) {
+        const rejectedId = await statusIdByCode(tx, 'payment_request', 'rejected');
+        const withdrawnId = await statusIdByCode(tx, 'payment_request', 'withdrawn');
+        if (cur.statusId !== rejectedId && cur.statusId !== withdrawnId) {
+          throw new ConflictError(
+            'Повторная отправка возможна только для отклонённой или отозванной заявки',
+          );
+        }
+      }
 
       const newCount = (cur.resubmitCount ?? 0) + 1;
       const updateData: Partial<typeof paymentRequests.$inferInsert> = {

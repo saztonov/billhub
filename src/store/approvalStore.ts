@@ -229,6 +229,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => {
           metadata: { action: 'approveRequest', paymentRequestId },
         })
         set({ error: message, isLoading: false })
+        throw err
       }
     },
 

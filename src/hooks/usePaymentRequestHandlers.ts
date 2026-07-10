@@ -179,8 +179,13 @@ export function usePaymentRequestHandlers({
     message.success('Заявка перемещена в удаленные')
   }
 
-  // Вспомогательная функция обновления списков после согласования/отклонения
-  const refreshAfterApproval = () => {
+  // Обновить очереди и счётчики после любого изменения workflow
+  const refreshWorkflowData = () => {
+    if (isCounterpartyUser) {
+      if (user?.counterpartyId) fetchRequests(user.counterpartyId)
+      return
+    }
+
     const department = isAdmin ? adminSelectedStage : user?.department
     if (department && user?.id) fetchPendingRequests(department, user.id, isAdmin)
     if (isRpAssignee || isAdmin) fetchRpPendingRequests()
@@ -190,13 +195,19 @@ export function usePaymentRequestHandlers({
   }
 
   // Согласовать заявку
-  const handleApprove = async (requestId: string, comment: string) => {
-    if (!user?.id) return
+  const handleApprove = async (requestId: string, comment: string): Promise<boolean> => {
+    if (!user?.id) return false
     const department = isAdmin ? adminSelectedStage : user?.department
-    if (!department) return
-    await approveRequest(requestId, department, user.id, comment)
-    message.success('Заявка согласована')
-    refreshAfterApproval()
+    if (!department) return false
+    try {
+      await approveRequest(requestId, department, user.id, comment)
+      message.success('Заявка согласована')
+      refreshWorkflowData()
+      return true
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : 'Ошибка согласования')
+      return false
+    }
   }
 
   // Отклонить заявку
@@ -204,13 +215,19 @@ export function usePaymentRequestHandlers({
     requestId: string,
     comment: string,
     files?: { id: string; file: File }[],
-  ) => {
-    if (!user?.id) return
+  ): Promise<boolean> => {
+    if (!user?.id) return false
     const department = isAdmin ? adminSelectedStage : user?.department
-    if (!department) return
-    await rejectRequest(requestId, department, user.id, comment, files)
-    message.success('Заявка отклонена')
-    refreshAfterApproval()
+    if (!department) return false
+    try {
+      await rejectRequest(requestId, department, user.id, comment, files)
+      message.success('Заявка отклонена')
+      refreshWorkflowData()
+      return true
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : 'Ошибка отклонения')
+      return false
+    }
   }
 
   // Назначить ответственного
@@ -293,6 +310,7 @@ export function usePaymentRequestHandlers({
     handleDelete,
     handleApprove,
     handleReject,
+    refreshWorkflowData,
     handleAssignResponsible,
     handleResubmit,
   }

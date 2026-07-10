@@ -41,6 +41,17 @@ export type ApprovalCreateDecisionResult =
 /** Результат send-to-revision / complete-revision. */
 export type ApprovalOpResult = { ok: true } | { ok: false; status: number; error: string };
 
+/**
+ * Контекст вызывающего для серверной авторизации операций доработки.
+ * send-to-revision — по этапу (userMayActOnStage), complete-revision — по владельцу заявки.
+ * Опционален для обратной совместимости (legacy/supabase-путь не передаёт — проверка пропускается).
+ */
+export interface ApprovalActor {
+  userDepartment?: string | null;
+  counterpartyId?: string | null;
+  isAdmin: boolean;
+}
+
 /** Сайт-скоуп из query-параметров (admin override уже учтён вызывающим). */
 export interface QueryScope {
   allSites: boolean;
@@ -97,11 +108,13 @@ export interface ApprovalRepository {
     paymentRequestId: string,
     userId: string,
     comment: string,
+    actor?: ApprovalActor,
   ): Promise<ApprovalOpResult>;
   completeRevision(
     paymentRequestId: string,
     userId: string,
     fieldUpdates: ApprovalFieldUpdates,
+    actor?: ApprovalActor,
   ): Promise<ApprovalOpResult>;
   appendStageHistory(paymentRequestId: string, entry: Row): Promise<void>;
   createDecisionOnly(input: ApprovalDecideInput): Promise<ApprovalCreateDecisionResult>;

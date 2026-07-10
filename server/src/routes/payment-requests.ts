@@ -22,6 +22,8 @@ import {
 async function paymentRequestRoutes(fastify: FastifyInstance): Promise<void> {
   const auth = { preHandler: [authenticate] };
   const adminOrUser = { preHandler: [authenticate, requireRole('admin', 'user')] };
+  // Повторная отправка — только владелец-контрагент своей заявки либо admin (проверка владельца в репозитории).
+  const ownerOrAdmin = { preHandler: [authenticate, requireRole('admin', 'counterparty_user')] };
 
   /* ---------- GET /api/payment-requests ---------- */
   fastify.get('/api/payment-requests', auth, async (request, reply) => {
@@ -175,11 +177,14 @@ async function paymentRequestRoutes(fastify: FastifyInstance): Promise<void> {
   });
 
   /* ---------- POST /api/payment-requests/:id/resubmit ---------- */
-  fastify.post('/api/payment-requests/:id/resubmit', auth, async (request) => {
+  fastify.post('/api/payment-requests/:id/resubmit', ownerOrAdmin, async (request) => {
     const { id } = request.params as { id: string };
     const user = request.user!;
     const body = resubmitBodySchema.parse(request.body);
-    await request.server.repos.paymentRequests.resubmit(id, body, user.id);
+    await request.server.repos.paymentRequests.resubmit(id, body, user.id, {
+      counterpartyId: user.counterpartyId ?? null,
+      isAdmin: user.role === 'admin',
+    });
     return { success: true };
   });
 
