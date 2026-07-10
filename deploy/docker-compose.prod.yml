@@ -13,6 +13,11 @@
 #
 # BILLHUB_TAG — immutable commit-SHA тег образов (выставляет deploy-скрипт; default latest).
 
+# Имя проекта закреплено: чтобы ad-hoc `docker compose -f deploy/docker-compose.prod.yml ...`
+# (без -p) не создавал дубль-стек в проекте по имени каталога (deploy). deploy-billhub.sh
+# также передаёт -p billhub — значения совпадают, конфликта нет.
+name: billhub
+
 services:
   # --- API: Fastify, только обработка HTTP (без воркеров) ---
   billhub-api:
