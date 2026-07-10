@@ -33,6 +33,35 @@ EstiMat уже закоммичена). Этот скилл описывает *
 выключенный рубильник = исходящие события копятся в `integration_outbox` (waiting_config).
 Ротация — current/previous с окном перекрытия.
 
+## Подключение (онбординг, прод)
+
+Базовый адрес BillHub — **`https://rp.su10.ru`** (origin без пути; клиент EstiMat сам добавляет
+префикс `/api/external/v1`). То есть EstiMat зовёт `https://rp.su10.ru/api/external/v1/...`.
+
+Пара секретов (одинаковое значение по разные стороны, генерить `openssl rand -base64 48`):
+
+| Значение          | BillHub env (`/etc/billhub/runtime.env`)   | EstiMat env                           |
+| ----------------- | ------------------------------------------ | ------------------------------------- |
+| секрет входящего  | `ESTIMAT_INBOUND_TOKEN`                    | `BILLHUB_API_TOKEN`                   |
+| секрет исходящего | `ESTIMAT_INTEGRATION_TOKEN`                | `INTEGRATION_API_KEY`                 |
+| адрес EstiMat     | `ESTIMAT_BASE_URL=https://estimat.su10.ru` | —                                     |
+| адрес BillHub     | —                                          | `BILLHUB_BASE_URL=https://rp.su10.ru` |
+
+Применение env на VPS BillHub: правки в `/etc/billhub/runtime.env`, затем **пересоздать** контейнеры
+(`restart` НЕ перечитывает env_file):
+`docker compose -f deploy/docker-compose.prod.yml -p billhub up -d billhub-api billhub-worker`.
+
+Проверка связности:
+
+- `curl -s -o /dev/null -w '%{http_code}' https://rp.su10.ru/api/health` → `200` (базовый ingress жив).
+- `curl -H 'Authorization: Api-Key <ESTIMAT_INBOUND_TOKEN>' https://rp.su10.ru/api/external/v1/references/suppliers`
+  → `{data:[...]}` (когда маршруты реализованы). Без/с неверным токеном → `401 {error:{code:'api_key_invalid'}}`.
+
+Порядок включения: (1) накатить миграцию `0019` (`deploy-billhub --migrate`); (2) реализовать и
+задеплоить маршруты `/api/external/v1` + продюсеры событий; (3) прогнать на стенде; (4) только затем
+на стороне EstiMat выставить `BILLHUB_SYNC_ENABLED=true`. До этого держать оба рубильника выключенными
+(маршруты ещё дают 404 — это ожидаемо).
+
 ## Направление 1. EstiMat → BillHub (реализует BillHub, префикс `/api/external/v1`)
 
 Принципал `source_system='estimat'`. Отдельный preHandler Api-Key, изоляция от cookie-сессий,
