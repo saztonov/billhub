@@ -160,21 +160,29 @@ body::before {
 }
 
 /* --- Позиционирование карточки (десктоп ≥1200px): hero слева, форма справа.
-   keycloak.v2 = PatternFly v5: .pf-v5-c-login центрирует .__container через flex/grid
-   alignment, а .__main имеет свой max-width — поэтому margin:auto не двигает карточку.
-   Надёжно: фиксируем .__main справа (position:fixed выходит из потока и игнорирует
-   любое центрирование родителей). Пустой KC-заголовок над формой прячем — брендинг в hero. --- */
+   keycloak.v2 = PatternFly v5: .pf-v5-c-login — это flex-row (justify-content:center),
+   внутри .__container при ≥1200px раскрывается в центрированный grid "main header" —
+   поэтому карточка тянется к центру и налезает на hero. Надёжно (без position:fixed и
+   без knife-edge брейкпоинта): схлопываем .__container в один блок по ширине карточки и
+   прижимаем flex-родитель к правому краю (justify-content:flex-end + правый отступ).
+   Пустой KC-заголовок прячем — брендинг в hero. Порог тот же, что у скрытия hero. --- */
 @media (min-width: 1200px) {
   #kc-header,
   .pf-v5-c-login__header {
     display: none !important;
   }
+  .pf-v5-c-login {
+    justify-content: flex-end !important;
+  }
+  .pf-v5-c-login__container {
+    display: block !important;
+    width: auto !important;
+    max-width: none !important;
+    padding-inline-start: 0 !important;
+    padding-inline-end: clamp(32px, 6vw, 120px) !important;
+  }
   .pf-v5-c-login__main,
   .pf-c-login__main {
-    position: fixed !important;
-    top: 50% !important;
-    right: clamp(32px, 6vw, 120px) !important;
-    transform: translateY(-50%) !important;
     width: min(440px, 40vw) !important;
     max-width: 440px !important;
     max-height: 92vh !important;
@@ -184,21 +192,35 @@ body::before {
   }
 }
 
-/* Поля ввода */
-input[type='text'],
-input[type='email'],
-input[type='password'],
+/* Поля ввода. PF5 (keycloak.v2): рамка/фон живут на обёртке-span .pf-v5-c-form-control,
+   а сам <input> внутри прозрачный и позиционируется гридом. Стилизуем ТОЛЬКО обёртку —
+   иначе на поле пароля (оно в input-group: span.pf-v5-c-form-control > input) появляется
+   вторая рамка на сыром input, из-за чего съезжает подпись «Пароль» и ломается ширина. */
 .pf-v5-c-form-control,
 .pf-c-form-control,
-#kc-form input {
+.login-pf .form-control {
   background: var(--bh-input-bg) !important;
   border: 1px solid var(--bh-input-border) !important;
-  color: var(--bh-fg) !important;
   border-radius: 8px !important;
+  color: var(--bh-fg) !important;
 }
-input:focus {
+.pf-v5-c-form-control > input,
+.pf-v5-c-form-control > select,
+.pf-v5-c-form-control > textarea {
+  background: transparent !important;
+  border: 0 !important;
+  color: var(--bh-fg) !important;
+}
+.pf-v5-c-form-control:focus-within {
   border-color: var(--bh-brand) !important;
-  outline: none !important;
+}
+/* Input-group пароля тянем на всю ширину, чтобы кнопка-глаз не сжимала поле. */
+.pf-v5-c-input-group {
+  width: 100% !important;
+}
+.pf-v5-c-input-group__item.pf-m-fill {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 /* Основная кнопка «Войти» */
@@ -228,8 +250,9 @@ a,
   color: var(--bh-brand) !important;
 }
 
-/* Ниже 1200px: прячем hero, карточка возвращается в центр (база PatternFly). */
-@media (max-width: 1199px) {
+/* Ниже 1200px: прячем hero, карточка возвращается в центр (база PatternFly).
+   Порог 1199.98px парен к десктопному min-width:1200px — без «дырки» на дробной ширине. */
+@media (max-width: 1199.98px) {
   .billhub-hero {
     display: none;
   }
