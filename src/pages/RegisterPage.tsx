@@ -3,6 +3,7 @@ import { Button, Card, Form, Input, Result, Spin, Flex, Typography, message } fr
 import { useSearchParams } from 'react-router-dom'
 import { api } from '@/services/api'
 import { useAuthStore } from '@/store/authStore'
+import { minPasswordLengthRule } from '@/utils/passwordPolicy'
 
 interface ValidateTokenResponse {
   valid: boolean
@@ -149,10 +150,7 @@ const RegisterPage = () => {
           <Form.Item
             name="password"
             label="Пароль"
-            rules={[
-              { required: true, message: 'Укажите пароль' },
-              { min: 8, message: 'Минимум 8 символов' },
-            ]}
+            rules={[{ required: true, message: 'Укажите пароль' }, minPasswordLengthRule]}
           >
             <Input.Password autoComplete="new-password" />
           </Form.Item>

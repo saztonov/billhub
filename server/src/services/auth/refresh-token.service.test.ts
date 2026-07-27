@@ -191,6 +191,41 @@ describe('RefreshTokenService — logout', () => {
   });
 });
 
+describe('RefreshTokenService — revokeAllForUser (админская смена/reset пароля)', () => {
+  it('ревокает ВСЕ family пользователя, не трогая чужие сессии', async () => {
+    const { svc, store } = setup();
+    // Две независимые сессии (family) целевого пользователя + сессия другого пользователя.
+    const s1 = await svc.issueForLogin('user-1');
+    const s2 = await svc.issueForLogin('user-1');
+    const other = await svc.issueForLogin('user-2');
+
+    const n = await svc.revokeAllForUser('user-1');
+    expect(n).toBe(2);
+
+    const rows = store.snapshot();
+    expect(rows.filter((r) => r.userId === 'user-1').every((r) => r.revokedAt !== null)).toBe(true);
+    expect(rows.find((r) => r.userId === 'user-2')!.revokedAt).toBeNull();
+
+    // Обе сессии user-1 больше не обмениваются, сессия user-2 работает.
+    expect((await svc.rotate(s1.refreshToken)).ok).toBe(false);
+    expect((await svc.rotate(s2.refreshToken)).ok).toBe(false);
+    expect((await svc.rotate(other.refreshToken)).ok).toBe(true);
+  });
+
+  it('чистит grace-cache: токен в пределах grace не проходит fast-path после ревокации', async () => {
+    const { svc } = setup();
+    const issued = await svc.issueForLogin('user-1');
+    // Ротация заполняет grace-cache для issued.refreshToken.
+    const r1 = await svc.rotate(issued.refreshToken);
+    expect(r1.ok).toBe(true);
+
+    await svc.revokeAllForUser('user-1');
+
+    // Без чистки grace старый токен вернул бы закешированный результат — теперь это reuse/invalid.
+    expect((await svc.rotate(issued.refreshToken)).ok).toBe(false);
+  });
+});
+
 describe('RefreshTokenService — grep: отсутствие секретов в audit', () => {
   let captured: string;
   beforeEach(async () => {

@@ -1,15 +1,9 @@
 import { useState } from 'react'
-import {
-  Modal,
-  Form,
-  Input,
-  Select,
-  Checkbox,
-  App,
-} from 'antd'
+import { Modal, Form, Input, Select, Checkbox, App } from 'antd'
 import { useUserStore } from '@/store/userStore'
 import { useCounterpartyStore } from '@/store/counterpartyStore'
 import { useConstructionSiteStore } from '@/store/constructionSiteStore'
+import { minPasswordLengthRule } from '@/utils/passwordPolicy'
 import type { UserRole, Department } from '@/types'
 import { DEPARTMENT_LABELS } from '@/types'
 
@@ -47,7 +41,7 @@ const CreateUserModal = ({ open, onClose, onSuccess }: CreateUserModalProps) => 
         full_name: values.full_name,
         role: values.role,
         counterparty_id: values.role === 'counterparty_user' ? values.counterparty_id : null,
-        department: values.role === 'security' ? null : (values.department || null),
+        department: values.role === 'security' ? null : values.department || null,
         all_sites: valuesLimited ? false : (values.all_sites ?? false),
         site_ids: valuesLimited ? [] : (values.site_ids ?? []),
       })
@@ -104,10 +98,7 @@ const CreateUserModal = ({ open, onClose, onSuccess }: CreateUserModalProps) => 
         <Form.Item
           name="password"
           label="Пароль"
-          rules={[
-            { required: true, message: 'Введите пароль' },
-            { min: 6, message: 'Минимум 6 символов' },
-          ]}
+          rules={[{ required: true, message: 'Введите пароль' }, minPasswordLengthRule]}
         >
           <Input.Password />
         </Form.Item>
@@ -129,19 +120,17 @@ const CreateUserModal = ({ open, onClose, onSuccess }: CreateUserModalProps) => 
         >
           <Input.Password />
         </Form.Item>
-        <Form.Item
-          name="role"
-          label="Роль"
-          rules={[{ required: true, message: 'Выберите роль' }]}
-        >
-          <Select onChange={(value: UserRole) => {
-            setSelectedRole(value)
-            if (value === 'counterparty_user' || value === 'security') {
-              setAllSitesChecked(false)
-              setSelectedDepartment(null)
-              form.setFieldsValue({ all_sites: false, site_ids: [], department: undefined })
-            }
-          }}>
+        <Form.Item name="role" label="Роль" rules={[{ required: true, message: 'Выберите роль' }]}>
+          <Select
+            onChange={(value: UserRole) => {
+              setSelectedRole(value)
+              if (value === 'counterparty_user' || value === 'security') {
+                setAllSitesChecked(false)
+                setSelectedDepartment(null)
+                form.setFieldsValue({ all_sites: false, site_ids: [], department: undefined })
+              }
+            }}
+          >
             <Select.Option value="admin">Администратор</Select.Option>
             <Select.Option value="user">Пользователь</Select.Option>
             <Select.Option value="counterparty_user">Подрядчик</Select.Option>
@@ -154,11 +143,7 @@ const CreateUserModal = ({ open, onClose, onSuccess }: CreateUserModalProps) => 
             label="Подрядчик"
             rules={[{ required: true, message: 'Выберите подрядчика' }]}
           >
-            <Select
-              placeholder="Выберите подрядчика"
-              showSearch
-              optionFilterProp="children"
-            >
+            <Select placeholder="Выберите подрядчика" showSearch optionFilterProp="children">
               {counterparties.map((c) => (
                 <Select.Option key={c.id} value={c.id}>
                   {c.name}
@@ -208,17 +193,26 @@ const CreateUserModal = ({ open, onClose, onSuccess }: CreateUserModalProps) => 
               <Form.Item
                 name="site_ids"
                 label="Объекты строительства"
-                rules={isShtab ? [
-                  { required: true, message: 'Для подразделения Штаб выберите объекты (1-2)' },
-                  () => ({
-                    validator(_, value) {
-                      if (value && value.length > 2) {
-                        return Promise.reject(new Error('Для подразделения Штаб максимум 2 объекта'))
-                      }
-                      return Promise.resolve()
-                    },
-                  }),
-                ] : []}
+                rules={
+                  isShtab
+                    ? [
+                        {
+                          required: true,
+                          message: 'Для подразделения Штаб выберите объекты (1-2)',
+                        },
+                        () => ({
+                          validator(_, value) {
+                            if (value && value.length > 2) {
+                              return Promise.reject(
+                                new Error('Для подразделения Штаб максимум 2 объекта'),
+                              )
+                            }
+                            return Promise.resolve()
+                          },
+                        }),
+                      ]
+                    : []
+                }
               >
                 <Select
                   mode="multiple"

@@ -185,4 +185,16 @@ export class RefreshTokenService {
     if (!familyId) return 0;
     return this.store.revokeFamily(familyId, this.nowIso());
   }
+
+  /**
+   * Ревокация ВСЕХ сессий пользователя (админская смена пароля / reset confirm).
+   * Дополнительно чистит grace-cache этого пользователя: иначе недавно обменянный токен
+   * ещё graceMs проходил бы fast-path в обход ревокации в БД. Возвращает число строк.
+   */
+  async revokeAllForUser(userId: string): Promise<number> {
+    for (const [hash, entry] of this.grace) {
+      if (entry.userId === userId) this.grace.delete(hash);
+    }
+    return this.store.revokeAllForUser(userId, this.nowIso());
+  }
 }

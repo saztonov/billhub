@@ -167,6 +167,15 @@ export class DrizzleRefreshTokenStore implements RefreshTokenStore {
     return revokeFamilyRows(this.db, familyId, atIso);
   }
 
+  async revokeAllForUser(userId: string, atIso: string): Promise<number> {
+    const res = await this.db
+      .update(refreshTokens)
+      .set({ revokedAt: atIso })
+      .where(and(eq(refreshTokens.userId, userId), isNull(refreshTokens.revokedAt)))
+      .returning({ id: refreshTokens.id });
+    return res.length;
+  }
+
   async findFamilyByHash(tokenHash: string): Promise<string | null> {
     const [r] = await this.db
       .select({ familyId: refreshTokens.familyId })

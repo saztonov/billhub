@@ -18,6 +18,7 @@ import { config } from '../config.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { requireRole } from '../middleware/requireRole.js';
 import { createRateLimiter, emailHmac, ipEmailKey } from '../middleware/rate-limit.js';
+import { MIN_PASSWORD_LENGTH } from '../services/auth/password.service.js';
 
 const isProduction = config.nodeEnv === 'production';
 
@@ -36,6 +37,10 @@ interface ResetRequestBody {
 }
 interface ResetConfirmBody {
   token: string;
+  newPassword: string;
+}
+interface AdminChangePasswordBody {
+  userId: string;
   newPassword: string;
 }
 
@@ -105,6 +110,18 @@ const changePasswordSchema = {
     properties: {
       currentPassword: { type: 'string' as const, minLength: 1 },
       newPassword: { type: 'string' as const, minLength: 8 },
+    },
+    additionalProperties: false,
+  },
+};
+
+const adminChangePasswordSchema = {
+  body: {
+    type: 'object' as const,
+    required: ['userId', 'newPassword'],
+    properties: {
+      userId: { type: 'string' as const, minLength: 1 },
+      newPassword: { type: 'string' as const, minLength: MIN_PASSWORD_LENGTH },
     },
     additionalProperties: false,
   },
@@ -297,6 +314,36 @@ async function standaloneAuthRoutes(fastify: FastifyInstance): Promise<void> {
     },
   );
 
+  /** POST /api/auth/admin-change-password — admin задаёт пароль пользователю напрямую. */
+  fastify.post<{ Body: AdminChangePasswordBody }>(
+    '/api/auth/admin-change-password',
+    { schema: adminChangePasswordSchema, preHandler: [authenticate, requireRole('admin')] },
+    async (request, reply) => {
+      const { userId, newPassword } = request.body;
+      const admin = request.user!;
+      const { authServices } = request.server;
+
+      const rec = await authServices.users.findById(userId);
+      if (!rec) {
+        return reply.status(404).send({ error: 'Пользователь не найден' });
+      }
+
+      const newHash = await authServices.passwords.hash(newPassword);
+      await authServices.users.setPasswordHash(userId, newHash, new Date().toISOString());
+      // Отзыв активных сессий целевого пользователя: старые refresh-токены перестают работать.
+      await authServices.refresh.revokeAllForUser(userId);
+      // Audit: actor — администратор (userId), цель — пользователь (targetId/targetType).
+      authServices.audit.emit('password_change', {
+        userId: admin.id,
+        targetType: 'user',
+        targetId: userId,
+        emailHmac: emailHmac(rec.email, config.auditHmacKey),
+        reason: 'admin_change',
+      });
+      return { success: true };
+    },
+  );
+
   /** POST /api/auth/password/reset/request — admin-only, copy-once plain-токен. */
   fastify.post<{ Body: ResetRequestBody }>(
     '/api/auth/password/reset/request',
@@ -351,7 +398,8 @@ async function standaloneAuthRoutes(fastify: FastifyInstance): Promise<void> {
     { schema: resetConfirmSchema },
     async (request, reply) => {
       const { token, newPassword } = request.body;
-      const result = await request.server.authServices.passwordReset.confirm(token, newPassword);
+      const { authServices } = request.server;
+      const result = await authServices.passwordReset.confirm(token, newPassword);
       if (!result.ok) {
         const message =
           result.reason === 'expired'
@@ -361,6 +409,8 @@ async function standaloneAuthRoutes(fastify: FastifyInstance): Promise<void> {
               : 'Токен недействителен';
         return reply.status(400).send({ error: message });
       }
+      // Отзыв активных сессий: после сброса пароля старые refresh-токены недействительны.
+      await authServices.refresh.revokeAllForUser(result.userId);
       return { success: true };
     },
   );

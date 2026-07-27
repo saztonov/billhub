@@ -22,6 +22,7 @@ import { useCounterpartyStore } from '@/store/counterpartyStore'
 import { useConstructionSiteStore } from '@/store/constructionSiteStore'
 import CreateUserModal from '@/components/users/CreateUserModal'
 import ImportCounterpartyUsersModal from '@/components/users/ImportCounterpartyUsersModal'
+import { minPasswordLengthRule } from '@/utils/passwordPolicy'
 import type { UserRole, Department } from '@/types'
 import { DEPARTMENT_LABELS } from '@/types'
 import type { UserRecord } from '@/store/userStore'
@@ -603,10 +604,7 @@ const UsersTab = () => {
           <Form.Item
             name="new_password"
             label="Новый пароль"
-            rules={[
-              { required: true, message: 'Введите пароль' },
-              { min: 6, message: 'Минимум 6 символов' },
-            ]}
+            rules={[{ required: true, message: 'Введите пароль' }, minPasswordLengthRule]}
           >
             <Input.Password />
           </Form.Item>

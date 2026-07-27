@@ -1,21 +1,12 @@
 import { useState, useMemo, useCallback } from 'react'
-import {
-  Modal,
-  Upload,
-  Table,
-  App,
-  Typography,
-  Tag,
-  Progress,
-  Space,
-  Button,
-} from 'antd'
+import { Modal, Upload, Table, App, Typography, Tag, Progress, Space, Button } from 'antd'
 import { InboxOutlined, DownloadOutlined } from '@ant-design/icons'
 import { useNativeDropZone } from '@/hooks/useNativeDropZone'
 // ExcelJS загружается динамически при использовании
 import { useCounterpartyStore } from '@/store/counterpartyStore'
 import { useUserStore } from '@/store/userStore'
 import type { BatchImportUserResult } from '@/store/userStore'
+import { MIN_PASSWORD_LENGTH } from '@/utils/passwordPolicy'
 
 const { Text } = Typography
 
@@ -98,7 +89,7 @@ const ImportCounterpartyUsersModal = ({ open, onClose }: ImportCounterpartyUsers
 
   const handleNativeDrop = useCallback((files: File[]) => {
     if (files.length > 0) handleFile(files[0])
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   const { ref: dropZoneRef, isDragOver } = useNativeDropZone(handleNativeDrop)
 
@@ -123,7 +114,9 @@ const ImportCounterpartyUsersModal = ({ open, onClose }: ImportCounterpartyUsers
     const ws = wb.addWorksheet('Шаблон')
     ws.addRow(['Название подрядчика', 'ИНН', 'ФИО', 'Email', 'Пароль'])
     const buffer = await wb.xlsx.writeBuffer()
-    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -144,13 +137,16 @@ const ImportCounterpartyUsersModal = ({ open, onClose }: ImportCounterpartyUsers
         const arrayBuffer = e.target?.result as ArrayBuffer
         await wb.xlsx.load(arrayBuffer)
         const sheet = wb.worksheets[0]
-        if (!sheet) { message.error('Файл пуст'); return }
+        if (!sheet) {
+          message.error('Файл пуст')
+          return
+        }
         // Преобразуем строки ExcelJS в массив массивов строк
         const json: string[][] = []
         sheet.eachRow((row) => {
           const values = row.values as (string | number | null | undefined)[]
           // ExcelJS row.values начинается с индекса 1
-          json.push(values.slice(1).map(v => (v ?? '').toString()))
+          json.push(values.slice(1).map((v) => (v ?? '').toString()))
         })
 
         if (json.length === 0) {
@@ -219,9 +215,9 @@ const ImportCounterpartyUsersModal = ({ open, onClose }: ImportCounterpartyUsers
           } else if (!password) {
             status = 'error'
             statusDetail = 'Не указан пароль'
-          } else if (password.length < 6) {
+          } else if (password.length < MIN_PASSWORD_LENGTH) {
             status = 'error'
-            statusDetail = 'Пароль должен содержать минимум 6 символов'
+            statusDetail = `Пароль должен содержать минимум ${MIN_PASSWORD_LENGTH} символов`
           } else if (seenEmails.has(email)) {
             status = 'duplicate_email'
             statusDetail = STATUS_LABELS.duplicate_email
@@ -271,10 +267,10 @@ const ImportCounterpartyUsersModal = ({ open, onClose }: ImportCounterpartyUsers
   // Статистика по строкам
   const stats = useMemo(() => {
     const ready = parsedRows.filter(
-      (r) => r.status === 'new_counterparty' || r.status === 'existing_counterparty'
+      (r) => r.status === 'new_counterparty' || r.status === 'existing_counterparty',
     ).length
     const skipped = parsedRows.filter(
-      (r) => r.status === 'conflict_email' || r.status === 'duplicate_email'
+      (r) => r.status === 'conflict_email' || r.status === 'duplicate_email',
     ).length
     const errors = parsedRows.filter((r) => r.status === 'error').length
     return { ready, skipped, errors, total: parsedRows.length }
@@ -283,7 +279,7 @@ const ImportCounterpartyUsersModal = ({ open, onClose }: ImportCounterpartyUsers
   // Запуск импорта
   const handleImport = async () => {
     const readyRows = parsedRows.filter(
-      (r) => r.status === 'new_counterparty' || r.status === 'existing_counterparty'
+      (r) => r.status === 'new_counterparty' || r.status === 'existing_counterparty',
     )
     if (readyRows.length === 0) {
       message.warning('Нет записей для импорта')
@@ -308,7 +304,7 @@ const ImportCounterpartyUsersModal = ({ open, onClose }: ImportCounterpartyUsers
       const innToId = new Map<string, string>(
         readyRows
           .filter((r) => r.existingCounterpartyId)
-          .map((r) => [r.inn, r.existingCounterpartyId!])
+          .map((r) => [r.inn, r.existingCounterpartyId!]),
       )
 
       // Создаём новых подрядчиков и добавляем ID в маппинг
@@ -439,7 +435,10 @@ const ImportCounterpartyUsersModal = ({ open, onClose }: ImportCounterpartyUsers
               accept=".xlsx,.xls"
               beforeUpload={handleFile}
               showUploadList={false}
-              style={{ borderColor: isDragOver ? '#1677ff' : undefined, background: isDragOver ? '#e6f4ff' : undefined }}
+              style={{
+                borderColor: isDragOver ? '#1677ff' : undefined,
+                background: isDragOver ? '#e6f4ff' : undefined,
+              }}
             >
               <p className="ant-upload-drag-icon">
                 <InboxOutlined />

@@ -98,6 +98,8 @@ export interface RefreshTokenStore {
   create(token: NewRefreshToken): Promise<string>;
   /** Ревокнуть всю family (logout). Возвращает число ревокнутых строк. */
   revokeFamily(familyId: string, atIso: string): Promise<number>;
+  /** Ревокнуть ВСЕ незаревоканные токены пользователя (админская смена/reset пароля). Возвращает число строк. */
+  revokeAllForUser(userId: string, atIso: string): Promise<number>;
   /** family_id по tokenHash (для logout). */
   findFamilyByHash(tokenHash: string): Promise<string | null>;
 }

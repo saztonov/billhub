@@ -178,7 +178,16 @@ export const useAuthStore = create<AuthStoreState>((set) => ({
     const state = useAuthStore.getState()
     if (!state.user) throw new Error('Пользователь не авторизован')
 
-    await api.post('/api/auth/change-password', { currentPassword, newPassword })
+    // Путь смены пароля зависит от режима авторизации (rollback-safe):
+    // standalone — сегментный путь; supabase-bridge (legacy) — старый путь; keycloak — недоступно.
+    if (state.authMode === 'keycloak') {
+      throw new Error('В режиме Keycloak пароль меняется в корпоративном аккаунте')
+    }
+    const path =
+      state.authMode === 'supabase-bridge'
+        ? '/api/auth/change-password'
+        : '/api/auth/password/change'
+    await api.post(path, { currentPassword, newPassword })
   },
 
   setAccessTokenExpiresAt: (expiresAt) => set({ accessTokenExpiresAt: expiresAt }),

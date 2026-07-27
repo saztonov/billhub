@@ -104,6 +104,17 @@ export class InMemoryRefreshTokenStore implements RefreshTokenStore {
     return this.revokeFamilySync(familyId, atIso);
   }
 
+  async revokeAllForUser(userId: string, atIso: string): Promise<number> {
+    let n = 0;
+    for (const r of this.rows) {
+      if (r.userId === userId && r.revokedAt === null) {
+        r.revokedAt = atIso;
+        n += 1;
+      }
+    }
+    return n;
+  }
+
   async findFamilyByHash(tokenHash: string): Promise<string | null> {
     const r = this.rows.find((x) => x.tokenHash === tokenHash);
     return r ? r.familyId : null;

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Typography, Card, Descriptions, Form, Input, Button, App, Space } from 'antd'
 import { useAuthStore } from '@/store/authStore'
+import { minPasswordLengthRule } from '@/utils/passwordPolicy'
 import type { UserRole, Department } from '@/types'
 import { DEPARTMENT_LABELS } from '@/types'
 
@@ -86,10 +87,7 @@ const ProfilePage = () => {
               <Form.Item
                 name="new_password"
                 label="Новый пароль"
-                rules={[
-                  { required: true, message: 'Введите новый пароль' },
-                  { min: 6, message: 'Минимум 6 символов' },
-                ]}
+                rules={[{ required: true, message: 'Введите новый пароль' }, minPasswordLengthRule]}
               >
                 <Input.Password />
               </Form.Item>

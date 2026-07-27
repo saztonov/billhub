@@ -76,6 +76,27 @@ async function getCsrf(app: FastifyInstance): Promise<string> {
   return cookieVal(res, 'csrf_token')!;
 }
 
+/** Логин + извлечение csrf/access/refresh для авторизованных запросов в тестах. */
+async function loginAs(
+  app: FastifyInstance,
+  email: string,
+  password: string,
+): Promise<{ csrf: string; access: string; refresh: string }> {
+  const csrf = await getCsrf(app);
+  const login = await app.inject({
+    method: 'POST',
+    url: '/api/auth/login',
+    cookies: { csrf_token: csrf },
+    headers: { 'x-csrf-token': csrf },
+    payload: { email, password },
+  });
+  return {
+    csrf,
+    access: cookieVal(login, 'access_token')!,
+    refresh: cookieVal(login, 'refresh_token')!,
+  };
+}
+
 describe('standalone auth routes', () => {
   let savedMode: string | undefined;
   let savedMail: string | undefined;
@@ -308,6 +329,153 @@ describe('standalone auth routes', () => {
       payload: { email: 'admin@example.com' },
     });
     expect(res.statusCode).toBe(403);
+  });
+
+  it('password/change: верный текущий → 200, старый пароль не работает, новый работает', async () => {
+    const { csrf, access } = await loginAs(app, 'admin@example.com', PASSWORD);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/auth/password/change',
+      cookies: { csrf_token: csrf, access_token: access },
+      headers: { 'x-csrf-token': csrf },
+      payload: { currentPassword: PASSWORD, newPassword: 'new-strong-pass-1' },
+    });
+    expect(res.statusCode).toBe(200);
+
+    const oldLogin = await app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      cookies: { csrf_token: csrf },
+      headers: { 'x-csrf-token': csrf },
+      payload: { email: 'admin@example.com', password: PASSWORD },
+    });
+    expect(oldLogin.statusCode).toBe(401);
+    const newLogin = await app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      cookies: { csrf_token: csrf },
+      headers: { 'x-csrf-token': csrf },
+      payload: { email: 'admin@example.com', password: 'new-strong-pass-1' },
+    });
+    expect(newLogin.statusCode).toBe(200);
+  });
+
+  it('password/change: неверный текущий пароль → 400', async () => {
+    const { csrf, access } = await loginAs(app, 'admin@example.com', PASSWORD);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/auth/password/change',
+      cookies: { csrf_token: csrf, access_token: access },
+      headers: { 'x-csrf-token': csrf },
+      payload: { currentPassword: 'wrong-password', newPassword: 'new-strong-pass-1' },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('password/change: короткий новый пароль (<8) → 400', async () => {
+    const { csrf, access } = await loginAs(app, 'admin@example.com', PASSWORD);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/auth/password/change',
+      cookies: { csrf_token: csrf, access_token: access },
+      headers: { 'x-csrf-token': csrf },
+      payload: { currentPassword: PASSWORD, newPassword: 'short7!' },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('password/change без авторизации → 401', async () => {
+    const csrf = await getCsrf(app);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/auth/password/change',
+      cookies: { csrf_token: csrf },
+      headers: { 'x-csrf-token': csrf },
+      payload: { currentPassword: PASSWORD, newPassword: 'new-strong-pass-1' },
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('admin-change-password: admin задаёт пароль пользователю → 200, вход новым паролем', async () => {
+    await seed(app, { id: 'user-2', email: 'user@example.com', role: 'user' });
+    const { csrf, access } = await loginAs(app, 'admin@example.com', PASSWORD);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/auth/admin-change-password',
+      cookies: { csrf_token: csrf, access_token: access },
+      headers: { 'x-csrf-token': csrf },
+      payload: { userId: 'user-2', newPassword: 'user2-strong-pass' },
+    });
+    expect(res.statusCode).toBe(200);
+    const newLogin = await app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      cookies: { csrf_token: csrf },
+      headers: { 'x-csrf-token': csrf },
+      payload: { email: 'user@example.com', password: 'user2-strong-pass' },
+    });
+    expect(newLogin.statusCode).toBe(200);
+  });
+
+  it('admin-change-password: не-admin → 403', async () => {
+    await seed(app, { id: 'user-2', email: 'user@example.com', role: 'user' });
+    const { csrf, access } = await loginAs(app, 'user@example.com', PASSWORD);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/auth/admin-change-password',
+      cookies: { csrf_token: csrf, access_token: access },
+      headers: { 'x-csrf-token': csrf },
+      payload: { userId: 'admin-1', newPassword: 'hacked-strong-pass' },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('admin-change-password: несуществующий userId → 404', async () => {
+    const { csrf, access } = await loginAs(app, 'admin@example.com', PASSWORD);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/auth/admin-change-password',
+      cookies: { csrf_token: csrf, access_token: access },
+      headers: { 'x-csrf-token': csrf },
+      payload: { userId: 'missing-user', newPassword: 'whatever-strong-1' },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('admin-change-password: короткий пароль (<8) → 400', async () => {
+    const { csrf, access } = await loginAs(app, 'admin@example.com', PASSWORD);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/auth/admin-change-password',
+      cookies: { csrf_token: csrf, access_token: access },
+      headers: { 'x-csrf-token': csrf },
+      payload: { userId: 'admin-1', newPassword: 'short7!' },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('admin-change-password отзывает активные сессии целевого пользователя', async () => {
+    await seed(app, { id: 'user-2', email: 'user@example.com', role: 'user' });
+    // Целевой пользователь логинится — получает refresh-сессию.
+    const { refresh: userRefresh } = await loginAs(app, 'user@example.com', PASSWORD);
+    // Админ меняет ему пароль.
+    const { csrf, access } = await loginAs(app, 'admin@example.com', PASSWORD);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/auth/admin-change-password',
+      cookies: { csrf_token: csrf, access_token: access },
+      headers: { 'x-csrf-token': csrf },
+      payload: { userId: 'user-2', newPassword: 'user2-strong-pass' },
+    });
+    expect(res.statusCode).toBe(200);
+    // Старый refresh целевого пользователя больше не обменивается (сессия отозвана).
+    const refreshRes = await app.inject({
+      method: 'POST',
+      url: '/api/auth/refresh',
+      cookies: { csrf_token: csrf, refresh_token: userRefresh },
+      headers: { 'x-csrf-token': csrf },
+    });
+    expect(refreshRes.statusCode).toBe(401);
   });
 
   it('rate-limit: 6-я попытка login в окне → 429', async () => {
