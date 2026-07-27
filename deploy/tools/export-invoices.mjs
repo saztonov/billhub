@@ -12,13 +12,14 @@
  *
  * ТОЛЬКО ЧТЕНИЕ: в БД — SELECT, в S3 — GetObject/HeadObject. Ничего не изменяет.
  *
- * Запуск на VPS (из /opt/portals/billhub, после git pull):
+ * Запуск на VPS (из /opt/portals/billhub, после git pull). Монтируется весь каталог tools —
+ * скрипт использует общие модули из tools/lib:
  *   mkdir -p /var/lib/billhub/export && chmod 700 /var/lib/billhub/export
  *   docker compose -f deploy/docker-compose.prod.yml -p billhub run --rm \
  *     --user "$(id -u):$(id -g)" \
- *     -v /opt/portals/billhub/deploy/tools/export-invoices.mjs:/app/export-invoices.mjs:ro \
+ *     -v /opt/portals/billhub/deploy/tools:/app/tools:ro \
  *     -v /var/lib/billhub/export:/export \
- *     billhub-api node /app/export-invoices.mjs --out /export --dry-run
+ *     billhub-api node /app/tools/export-invoices.mjs --out /export --dry-run
  *
  * Флаги:
  *   --out <dir>           каталог выгрузки (обязателен)
@@ -30,20 +31,22 @@
  *   --doc-type <name>     тип документа (по умолчанию «Счет»)
  *   --concurrency N       параллельных скачиваний (по умолчанию 4)
  */
-import { createWriteStream } from 'node:fs';
-import { mkdir, rename, stat, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { pipeline } from 'node:stream/promises';
 import { pathToFileURL } from 'node:url';
 import postgres from 'postgres';
-import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import {
+  createProgressLogger,
+  csvContent,
+  csvDate,
+  formatSize,
+  sanitizeFsName,
+  uniqueName,
+} from './lib/export-common.mjs';
+import { createS3Client, downloadAll } from './lib/s3-download.mjs';
 
 /** Тип документа по умолчанию — в справочнике document_types он называется «Счет». */
 const DEFAULT_DOC_TYPE = 'Счет';
-/** Максимальная длина имени файла/папки (запас до лимита ext4 в 255 байт при кириллице). */
-const MAX_NAME_LENGTH = 100;
-/** Число попыток скачивания одного объекта. */
-const MAX_ATTEMPTS = 3;
 
 /* ------------------------------- Аргументы -------------------------------- */
 
@@ -109,70 +112,6 @@ function parseArgs(argv) {
     }
   }
   return opts;
-}
-
-/* ------------------------------ Имена файлов ------------------------------ */
-
-/**
- * Приводит строку к безопасному имени файла/папки, сохраняя кириллицу.
- * Убирает обход каталогов, разделители пути, управляющие и запрещённые в Windows символы.
- */
-export function sanitizeFsName(name, fallback = 'file') {
-  const cleaned = String(name ?? '')
-    // Серии точек схлопываем в одну: и обход каталогов исключён, и расширение не склеивается
-    // с именем (в БД встречаются имена вида «счет от 20 мая 2026 г..pdf»)
-    .replace(/\.{2,}/g, '.')
-    .replace(/[\u0000-\u001f\u007f]/g, '')
-    // Кавычки в названиях («ООО "Ромашка"») просто убираем — подчёркивания вместо них читаются хуже
-    .replace(/["']/g, '')
-    .replace(/[\\/:*?<>|]/g, '_')
-    .replace(/\s+/g, ' ')
-    .replace(/^[\s._]+|[\s.]+$/g, '')
-    .trim();
-
-  if (!cleaned) return fallback;
-  if (cleaned.length <= MAX_NAME_LENGTH) return cleaned;
-
-  // Длинное имя укорачиваем, сохраняя расширение
-  const ext = path.extname(cleaned).slice(0, 10);
-  const base = cleaned.slice(0, MAX_NAME_LENGTH - ext.length).replace(/[\s.]+$/, '');
-  return `${base || fallback}${ext}`;
-}
-
-/** Уникализирует имя внутри каталога суффиксом _2, _3, ... (в БД встречаются дубли ключей). */
-function uniqueName(name, usedNames) {
-  if (!usedNames.has(name)) {
-    usedNames.add(name);
-    return name;
-  }
-  const ext = path.extname(name);
-  const base = name.slice(0, name.length - ext.length);
-  for (let n = 2; ; n += 1) {
-    const candidate = `${base}_${n}${ext}`;
-    if (!usedNames.has(candidate)) {
-      usedNames.add(candidate);
-      return candidate;
-    }
-  }
-}
-
-/* ----------------------------------- CSV ---------------------------------- */
-
-/** Экранирование значения для CSV с разделителем «;». Хвостовые пробелы из БД срезаются. */
-function csvValue(value) {
-  if (value === null || value === undefined) return '';
-  const text = String(value).trim();
-  return /[";\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-}
-
-/** Строка CSV из массива значений. */
-function csvRow(values) {
-  return values.map(csvValue).join(';');
-}
-
-/** CSV-файл целиком: BOM + CRLF, чтобы Excel открыл в UTF-8 без плясок. */
-export function csvContent(header, rows) {
-  return `﻿${[csvRow(header), ...rows.map(csvRow)].join('\r\n')}\r\n`;
 }
 
 /* --------------------------------- Выборка -------------------------------- */
@@ -245,80 +184,7 @@ export function planLayout(rows) {
   });
 }
 
-/* ------------------------------- Скачивание ------------------------------- */
-
-/** Скачивает один объект S3 во временный .part и переименовывает после успеха. */
-export async function downloadOne(s3, bucket, item, outDir) {
-  const targetPath = path.join(outDir, item.folder, item.fileName);
-  const tempPath = `${targetPath}.part`;
-
-  // Повторный запуск не перекачивает уже готовые файлы совпадающего размера
-  if (item.file_size) {
-    try {
-      const existing = await stat(targetPath);
-      if (existing.size === Number(item.file_size)) return { skipped: true, size: existing.size };
-    } catch {
-      // файла нет — качаем
-    }
-  }
-
-  let lastError;
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
-    try {
-      const response = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: item.file_key }));
-      if (!response.Body) throw new Error('S3 вернул пустой Body');
-      await pipeline(response.Body, createWriteStream(tempPath));
-      const written = await stat(tempPath);
-      await rename(tempPath, targetPath);
-      return { skipped: false, size: written.size };
-    } catch (error) {
-      lastError = error;
-      await unlink(tempPath).catch(() => {});
-      const notFound = error?.name === 'NoSuchKey' || error?.$metadata?.httpStatusCode === 404;
-      if (notFound || attempt === MAX_ATTEMPTS) break;
-      await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
-    }
-  }
-  throw lastError ?? new Error('Неизвестная ошибка скачивания');
-}
-
-/** Пул воркеров с ограниченным параллелизмом; ошибки складываются в errors, прогон не прерывается. */
-export async function downloadAll(s3, bucket, items, outDir, concurrency, onProgress) {
-  const errors = [];
-  let downloaded = 0;
-  let skipped = 0;
-  let bytes = 0;
-  let cursor = 0;
-
-  const worker = async () => {
-    for (;;) {
-      const index = cursor;
-      cursor += 1;
-      if (index >= items.length) return;
-      const item = items[index];
-      try {
-        const result = await downloadOne(s3, bucket, item, outDir);
-        bytes += result.size;
-        if (result.skipped) skipped += 1;
-        else downloaded += 1;
-      } catch (error) {
-        errors.push({ item, message: error?.message ?? String(error) });
-      }
-      onProgress(downloaded + skipped + errors.length, items.length);
-    }
-  };
-
-  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
-  return { downloaded, skipped, bytes, errors };
-}
-
 /* ---------------------------------- Main ---------------------------------- */
-
-/** Человекочитаемый размер. */
-function formatSize(bytes) {
-  const mb = bytes / 1024 / 1024;
-  return mb >= 1024 ? `${(mb / 1024).toFixed(2)} ГБ` : `${mb.toFixed(1)} МБ`;
-}
 
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
@@ -380,8 +246,8 @@ async function main() {
     item.site_name,
     item.status_name,
     item.invoice_amount,
-    item.request_created_at ? new Date(item.request_created_at).toISOString().slice(0, 10) : '',
-    item.file_created_at ? new Date(item.file_created_at).toISOString().slice(0, 10) : '',
+    csvDate(item.request_created_at),
+    csvDate(item.file_created_at),
     item.file_name,
     item.file_size,
     item.relativePath,
@@ -396,26 +262,10 @@ async function main() {
     return;
   }
 
-  for (const folder of new Set(items.map((item) => item.folder))) {
-    await mkdir(path.join(opts.out, folder), { recursive: true });
-  }
-
-  const s3 = new S3Client({
-    endpoint,
-    region: process.env.S3_REGION || 'ru-central-1',
-    credentials: { accessKeyId, secretAccessKey },
-    forcePathStyle: true,
-    maxAttempts: 5,
-  });
+  const s3 = createS3Client();
 
   console.log(`Скачивание в ${opts.out} (параллельно: ${opts.concurrency})...`);
-  let lastReported = 0;
-  const result = await downloadAll(s3, bucket, items, opts.out, opts.concurrency, (done, total) => {
-    if (done - lastReported >= 50 || done === total) {
-      lastReported = done;
-      console.log(`  ${done}/${total}`);
-    }
-  });
+  const result = await downloadAll(s3, bucket, items, opts.out, opts.concurrency, createProgressLogger(50));
 
   if (result.errors.length > 0) {
     const errorsPath = path.join(opts.out, 'errors.csv');
