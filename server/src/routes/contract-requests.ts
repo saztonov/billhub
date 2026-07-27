@@ -22,6 +22,7 @@ import type { ContractRequestListFilter } from '../repositories/contract-request
 async function contractRequestRoutes(fastify: FastifyInstance): Promise<void> {
   const auth = { preHandler: [authenticate] };
   const adminOrUser = { preHandler: [authenticate, requireRole('admin', 'user')] };
+  const adminOnly = { preHandler: [authenticate, requireRole('admin')] };
 
   /* ---------- GET /api/contract-requests ---------- */
   fastify.get('/api/contract-requests', auth, async (request, reply) => {
@@ -145,7 +146,8 @@ async function contractRequestRoutes(fastify: FastifyInstance): Promise<void> {
   });
 
   /* ---------- DELETE /api/contract-requests/:id ---------- */
-  fastify.delete('/api/contract-requests/:id', auth, async (request) => {
+  // Удаление (мягкое) — только admin: в UI кнопка и так показывается лишь админу.
+  fastify.delete('/api/contract-requests/:id', adminOnly, async (request) => {
     const { id } = request.params as { id: string };
     await request.server.repos.contractRequests.softDelete(id);
     return { success: true };

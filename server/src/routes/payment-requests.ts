@@ -24,6 +24,7 @@ async function paymentRequestRoutes(fastify: FastifyInstance): Promise<void> {
   const adminOrUser = { preHandler: [authenticate, requireRole('admin', 'user')] };
   // Повторная отправка — только владелец-контрагент своей заявки либо admin (проверка владельца в репозитории).
   const ownerOrAdmin = { preHandler: [authenticate, requireRole('admin', 'counterparty_user')] };
+  const adminOnly = { preHandler: [authenticate, requireRole('admin')] };
 
   /* ---------- GET /api/payment-requests ---------- */
   fastify.get('/api/payment-requests', auth, async (request, reply) => {
@@ -162,7 +163,8 @@ async function paymentRequestRoutes(fastify: FastifyInstance): Promise<void> {
   });
 
   /* ---------- DELETE /api/payment-requests/:id ---------- */
-  fastify.delete('/api/payment-requests/:id', auth, async (request) => {
+  // Удаление (мягкое) — только admin: в UI кнопка и так показывается лишь админу.
+  fastify.delete('/api/payment-requests/:id', adminOnly, async (request) => {
     const { id } = request.params as { id: string };
     await request.server.repos.paymentRequests.softDelete(id);
     return { success: true };
