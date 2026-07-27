@@ -43,7 +43,7 @@ import {
   sanitizeFsName,
   uniqueName,
 } from './lib/export-common.mjs';
-import { createS3Client, downloadAll } from './lib/s3-download.mjs';
+import { downloadAll, resolveStorage } from './lib/s3-download.mjs';
 
 /** Тип документа по умолчанию — в справочнике document_types он называется «Счет». */
 const DEFAULT_DOC_TYPE = 'Счет';
@@ -192,13 +192,9 @@ async function main() {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error('Не задана переменная окружения DATABASE_URL');
 
-  const bucket = process.env.S3_BUCKET;
-  const endpoint = process.env.S3_ENDPOINT;
-  const accessKeyId = process.env.S3_ACCESS_KEY;
-  const secretAccessKey = process.env.S3_SECRET_KEY;
-  if (!opts.dryRun && (!bucket || !endpoint || !accessKeyId || !secretAccessKey)) {
-    throw new Error('Не заданы S3_ENDPOINT / S3_BUCKET / S3_ACCESS_KEY / S3_SECRET_KEY');
-  }
+  // Хранилище резолвим до похода в БД: незачем делать выборку, если выгружать некуда
+  const storage = opts.dryRun ? null : resolveStorage();
+  if (storage) console.log(`Хранилище: ${storage.provider}, бакет ${storage.bucket}`);
 
   const sql = postgres(databaseUrl, { prepare: false, max: 2, idle_timeout: 20 });
 
@@ -262,10 +258,15 @@ async function main() {
     return;
   }
 
-  const s3 = createS3Client();
-
   console.log(`Скачивание в ${opts.out} (параллельно: ${opts.concurrency})...`);
-  const result = await downloadAll(s3, bucket, items, opts.out, opts.concurrency, createProgressLogger(50));
+  const result = await downloadAll(
+    storage.client,
+    storage.bucket,
+    items,
+    opts.out,
+    opts.concurrency,
+    createProgressLogger(50),
+  );
 
   if (result.errors.length > 0) {
     const errorsPath = path.join(opts.out, 'errors.csv');

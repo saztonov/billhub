@@ -38,7 +38,7 @@ import {
   sanitizeFsName,
   uniqueName,
 } from './lib/export-common.mjs';
-import { createS3Client, downloadAll } from './lib/s3-download.mjs';
+import { downloadAll, resolveStorage } from './lib/s3-download.mjs';
 import { ZipWriter } from './lib/zip-writer.mjs';
 
 /** Код статуса «Заключен» в справочнике statuses (entity_type = 'contract_request'). */
@@ -234,6 +234,27 @@ export function buildMissingCsv(rows) {
   );
 }
 
+/** Отчёт о нескачанных файлах — рядом с архивом, внутрь он не кладётся. */
+async function writeErrorsCsv(outDir, errors) {
+  const errorsPath = path.join(outDir, 'errors.csv');
+  await writeFile(
+    errorsPath,
+    csvContent(
+      ['Объект', 'Поставщик', 'Номер заявки', 'Имя файла', 'Ключ в хранилище', 'Ошибка'],
+      errors.map(({ item, message }) => [
+        item.site_name,
+        item.supplier_name,
+        item.request_number,
+        item.file_name,
+        item.file_key,
+        message,
+      ]),
+    ),
+    'utf8',
+  );
+  return errorsPath;
+}
+
 /* --------------------------------- Упаковка ------------------------------- */
 
 /** Собирает архив: сначала реестры, затем файлы в порядке раскладки. */
@@ -256,10 +277,9 @@ async function main() {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error('Не задана переменная окружения DATABASE_URL');
 
-  const bucket = process.env.S3_BUCKET;
-  if (!opts.dryRun && (!bucket || !process.env.S3_ENDPOINT || !process.env.S3_ACCESS_KEY || !process.env.S3_SECRET_KEY)) {
-    throw new Error('Не заданы S3_ENDPOINT / S3_BUCKET / S3_ACCESS_KEY / S3_SECRET_KEY');
-  }
+  // Хранилище резолвим до похода в БД: незачем делать выборку, если выгружать некуда
+  const storage = opts.dryRun ? null : resolveStorage();
+  if (storage) console.log(`Хранилище: ${storage.provider}, бакет ${storage.bucket}`);
 
   const sql = postgres(databaseUrl, { prepare: false, max: 2, idle_timeout: 20 });
 
@@ -311,11 +331,23 @@ async function main() {
   const tempDir = path.join(opts.out, '.tmp-contracts');
   await mkdir(tempDir, { recursive: true });
 
-  const s3 = createS3Client();
   console.log(`Скачивание во временный каталог (параллельно: ${opts.concurrency})...`);
-  const result = await downloadAll(s3, bucket, items, tempDir, opts.concurrency, createProgressLogger());
+  const result = await downloadAll(
+    storage.client,
+    storage.bucket,
+    items,
+    tempDir,
+    opts.concurrency,
+    createProgressLogger(),
+  );
 
   const packed = items.filter((item) => !result.failed.has(item.relativePath));
+  if (packed.length === 0) {
+    await writeErrorsCsv(opts.out, result.errors);
+    throw new Error(
+      `Не скачался ни один файл (ошибок: ${result.errors.length}) — архив не создан, см. errors.csv`,
+    );
+  }
   const archiveName = `contracts-signed-${startedAt.toISOString().slice(0, 10)}.zip`;
   const zipPath = path.join(opts.out, archiveName);
   console.log(`Упаковка в ${zipPath}...`);
@@ -329,22 +361,7 @@ async function main() {
   );
 
   if (result.errors.length > 0) {
-    const errorsPath = path.join(opts.out, 'errors.csv');
-    await writeFile(
-      errorsPath,
-      csvContent(
-        ['Объект', 'Поставщик', 'Номер заявки', 'Имя файла', 'Ключ S3', 'Ошибка'],
-        result.errors.map(({ item, message }) => [
-          item.site_name,
-          item.supplier_name,
-          item.request_number,
-          item.file_name,
-          item.file_key,
-          message,
-        ]),
-      ),
-      'utf8',
-    );
+    const errorsPath = await writeErrorsCsv(opts.out, result.errors);
     console.log(`Ошибки записаны: ${errorsPath}. Временный каталог сохранён для повторного прогона: ${tempDir}`);
   } else {
     await rm(tempDir, { recursive: true, force: true });

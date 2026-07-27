@@ -15,15 +15,35 @@ import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 /** Число попыток скачивания одного объекта. */
 const MAX_ATTEMPTS = 3;
 
-/** Клиент S3 из env (Cloud.ru — S3-совместимый, path-style). */
-export function createS3Client(env = process.env) {
-  return new S3Client({
-    endpoint: env.S3_ENDPOINT,
-    region: env.S3_REGION || 'ru-central-1',
-    credentials: { accessKeyId: env.S3_ACCESS_KEY, secretAccessKey: env.S3_SECRET_KEY },
+/**
+ * Клиент и бакет по той же логике, что в server/src/plugins/s3.ts: при
+ * STORAGE_PROVIDER=cloudflare рабочее хранилище — R2 (регион «auto»), иначе Cloud.ru S3.
+ * Брать всегда S3_* нельзя: в проде обе группы переменных заданы, но файлы лежат в одной из них.
+ */
+export function resolveStorage(env = process.env) {
+  const provider = env.STORAGE_PROVIDER === 'cloudflare' ? 'cloudflare' : 'cloudru';
+  const cloudflare = provider === 'cloudflare';
+
+  const endpoint = cloudflare ? env.R2_ENDPOINT : env.S3_ENDPOINT;
+  const bucket = cloudflare ? env.R2_BUCKET : env.S3_BUCKET;
+  const accessKeyId = cloudflare ? env.R2_ACCESS_KEY : env.S3_ACCESS_KEY;
+  const secretAccessKey = cloudflare ? env.R2_SECRET_KEY : env.S3_SECRET_KEY;
+  const prefix = cloudflare ? 'R2' : 'S3';
+  if (!endpoint || !bucket || !accessKeyId || !secretAccessKey) {
+    throw new Error(
+      `Провайдер хранилища «${provider}»: не заданы ${prefix}_ENDPOINT / ${prefix}_BUCKET / ` +
+        `${prefix}_ACCESS_KEY / ${prefix}_SECRET_KEY`,
+    );
+  }
+
+  const client = new S3Client({
+    endpoint,
+    region: cloudflare ? 'auto' : env.S3_REGION || 'ru-1',
+    credentials: { accessKeyId, secretAccessKey },
     forcePathStyle: true,
     maxAttempts: 5,
   });
+  return { client, bucket, provider };
 }
 
 /**
