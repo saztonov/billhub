@@ -14,3 +14,19 @@ export function getPgErrorCode(err: unknown): string | undefined {
   }
   return undefined;
 }
+
+/**
+ * Имя нарушенного ограничения (postgres.js кладёт его в constraint_name).
+ * Нужно там, где в одной транзакции возможны конфликты по РАЗНЫМ уникальным индексам:
+ * один 23505 нельзя трактовать как «занят email», если рядом пишутся привязки к объектам.
+ */
+export function getPgConstraintName(err: unknown): string | undefined {
+  if (err && typeof err === 'object' && 'constraint_name' in err) {
+    const name = (err as { constraint_name?: unknown }).constraint_name;
+    return typeof name === 'string' ? name : undefined;
+  }
+  return undefined;
+}
+
+/** Уникальный функциональный индекс логина: UNIQUE (lower(email)) в public.users (миграция 0005). */
+export const USERS_EMAIL_UNIQUE_INDEX = 'users_email_lower_unique_idx';

@@ -166,6 +166,52 @@ export class KeycloakAdminClient {
     }
   }
 
+  /**
+   * Сменить логин: в realm su10 `username` = email, поэтому меняются оба поля сразу.
+   * Как и mergeUserAttributes, работает через GET полной репрезентации → PUT: точечный PUT
+   * затёр бы attributes (в т.ч. billhub_user_id) и профиль. Возвращает preimage {username, email,
+   * emailVerified} — он нужен для компенсации, если локальная транзакция не пройдёт.
+   * 409 (адрес занят другим KC-пользователем) → KcUserExistsError.
+   */
+  async updateUserEmail(
+    id: string,
+    email: string,
+    emailVerified = true,
+  ): Promise<{ username?: string; email?: string; emailVerified?: boolean }> {
+    const getRes = await this.adminFetch(`/users/${encodeURIComponent(id)}`);
+    if (!getRes.ok) throw new Error(`Keycloak get user (update email): HTTP ${getRes.status}`);
+    const user = (await getRes.json()) as Record<string, unknown>;
+    const preimage = {
+      username: user.username as string | undefined,
+      email: user.email as string | undefined,
+      emailVerified: user.emailVerified as boolean | undefined,
+    };
+
+    const putRes = await this.adminFetch(`/users/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ ...user, username: email, email, emailVerified }),
+    });
+    if (putRes.status === 409) throw new KcUserExistsError(email);
+    if (!putRes.ok && putRes.status !== 204) {
+      throw new Error(`Keycloak update user email: HTTP ${putRes.status}`);
+    }
+    return preimage;
+  }
+
+  /**
+   * Завершить все сессии пользователя (POST /users/{id}/logout). Нужен при смене логина:
+   * в keycloak-режиме refresh идёт напрямую в KC, локальный отзыв refresh_tokens там ни на что
+   * не влияет. Уже выданные access-токены живут до своего exp — это ограничение OIDC.
+   */
+  async logoutAllSessions(id: string): Promise<void> {
+    const res = await this.adminFetch(`/users/${encodeURIComponent(id)}/logout`, {
+      method: 'POST',
+    });
+    if (!res.ok && res.status !== 204) {
+      throw new Error(`Keycloak logout sessions: HTTP ${res.status}`);
+    }
+  }
+
   private async resolveGroupId(name: string): Promise<string> {
     const cached = this.groupIdCache.get(name);
     if (cached) return cached;

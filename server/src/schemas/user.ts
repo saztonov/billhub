@@ -2,7 +2,13 @@
  * zod-схемы для домена «Пользователь».
  */
 import { z } from 'zod';
-import { uuidSchema, nonEmptyString, emailSchema, paginationSchema } from './common.js';
+import {
+  uuidSchema,
+  nonEmptyString,
+  emailSchema,
+  canonicalEmailSchema,
+  paginationSchema,
+} from './common.js';
 
 /** Роли пользователей (синхронизировано с UserRole из src/types) */
 export const userRoleSchema = z.enum(['admin', 'user', 'counterparty_user', 'security']);
@@ -91,15 +97,27 @@ export type UserDetail = z.infer<typeof userDetailSchema>;
 
 /**
  * Тело PUT /api/users/:id — исторически в snake_case (фронтенд отправляет full_name/site_ids).
+ *
+ * email/expected_email — смена логина администратором. Оба адреса канонизируются (trim+lowercase).
+ * expected_email — оптимистическое предусловие: сервер меняет email только если текущее значение в
+ * БД совпадает с тем, что видел админ в форме. Это защищает от перезаписи чужого изменения из
+ * устаревшей карточки. Оба поля опциональны (старый фронт присылает тело без них).
  */
-export const updateUserWithSitesBodySchema = z.object({
-  full_name: nonEmptyString.max(255),
-  role: userRoleSchema,
-  counterparty_id: z.string().nullable().optional(),
-  department: z.string().nullable().optional(),
-  all_sites: z.boolean(),
-  site_ids: z.array(z.string()),
-});
+export const updateUserWithSitesBodySchema = z
+  .object({
+    full_name: nonEmptyString.max(255),
+    role: userRoleSchema,
+    counterparty_id: z.string().nullable().optional(),
+    department: z.string().nullable().optional(),
+    all_sites: z.boolean(),
+    site_ids: z.array(z.string()),
+    email: canonicalEmailSchema.optional(),
+    expected_email: canonicalEmailSchema.optional(),
+  })
+  .refine((data) => data.email === undefined || data.expected_email !== undefined, {
+    message: 'Для смены email требуется expected_email (текущее значение из карточки)',
+    path: ['expected_email'],
+  });
 export type UpdateUserWithSitesBody = z.infer<typeof updateUserWithSitesBodySchema>;
 
 /** Тело PUT /api/users/:id/sites */

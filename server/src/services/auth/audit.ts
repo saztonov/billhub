@@ -20,6 +20,10 @@ export type AuditEvent =
   | 'admin_action'
   | 'user_created'
   | 'user_deactivated'
+  /** Админская смена логина. Адреса — только HMAC (old/new в payload), сырых email нет. */
+  | 'email_change'
+  /** Рассинхрон с внешним провайдером идентичности (например, неудачная компенсация в Keycloak). */
+  | 'identity_sync_failed'
   | 'mail_sent'
   | 'mail_failed';
 

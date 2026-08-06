@@ -7,6 +7,7 @@ import { requireRole } from '../middleware/requireRole.js';
 import { PasswordService } from '../services/auth/password.service.js';
 import { keycloakAdminClient } from '../services/auth/keycloak/admin-client.js';
 import { provisionPortalUser } from '../services/auth/keycloak/provisioning.js';
+import { UserEmailService } from '../services/users/user-email.service.js';
 import {
   updateUserWithSitesBodySchema,
   updateUserSitesBodySchema,
@@ -235,22 +236,45 @@ async function userRoutes(fastify: FastifyInstance): Promise<void> {
     },
   );
 
-  /** PUT /api/users/:id — обновление пользователя (+ объекты, + авторезолв уведомлений) */
+  /**
+   * PUT /api/users/:id — обновление пользователя (+ объекты, + авторезолв уведомлений).
+   * Опционально меняет логин (email + expected_email) — оркестрация в UserEmailService:
+   * смена затрагивает Keycloak, сессии и reset-токены, поэтому роут остаётся тонким.
+   */
   fastify.put<{ Params: IdParams }>(
     '/:id',
     { schema: idParamsSchema, preHandler: [authenticate, requireRole('admin')] },
     async (request) => {
       const b = updateUserWithSitesBodySchema.parse(request.body);
-      await request.server.repos.users.updateWithSites(request.params.id, {
-        fullName: b.full_name,
-        role: b.role,
-        counterpartyId: b.counterparty_id ?? null,
-        department: b.department ?? null,
-        allSites: b.all_sites,
-        siteIds: b.site_ids,
+      const admin = request.user!;
+      const service = new UserEmailService({
+        users: request.server.repos.users,
+        authMode: request.server.authMode,
+        identityLinks: request.server.authServices.identityLinks,
+        identityProvider: config.authIdentityProvider,
+        keycloak: keycloakAdminClient,
+        audit: request.server.authServices.audit,
+        auditHmacKey: config.auditHmacKey,
+        log: request.log,
+        invalidateUserCache,
       });
-      invalidateUserCache(request.params.id);
-      return { success: true };
+      const result = await service.updateProfile(
+        { id: admin.id, email: admin.email },
+        request.params.id,
+        {
+          profile: {
+            fullName: b.full_name,
+            role: b.role,
+            counterpartyId: b.counterparty_id ?? null,
+            department: b.department ?? null,
+            allSites: b.all_sites,
+            siteIds: b.site_ids,
+          },
+          email: b.email,
+          expectedEmail: b.expected_email,
+        },
+      );
+      return { success: true, emailChanged: result.emailChanged };
     },
   );
 

@@ -14,6 +14,16 @@ import type {
 } from '../schemas/user.js';
 import type { PaginatedResult } from './types.js';
 
+/**
+ * Смена логина в рамках обновления пользователя.
+ * `expected` — канонизированный email, который админ видел в карточке (оптимистическое
+ * предусловие), `next` — канонизированный новый адрес. Оба уже прошли trim+lowercase.
+ */
+export interface EmailChange {
+  expected: string;
+  next: string;
+}
+
 /** Нормализованные данные обновления пользователя с привязкой к объектам (PUT /users/:id). */
 export interface UserSitesUpdate {
   fullName: string;
@@ -22,6 +32,12 @@ export interface UserSitesUpdate {
   department: string | null;
   allSites: boolean;
   siteIds: string[];
+  /**
+   * Задаётся ТОЛЬКО когда адрес действительно меняется (сравнение по lower() выполняет
+   * вызывающий). Изменение одного лишь регистра — не смена: в БД есть 18 исторических записей
+   * с заглавными буквами, и их не должно «переписывать» рутинное сохранение карточки.
+   */
+  emailChange?: EmailChange;
 }
 
 /** Данные создания профиля пользователя-подрядчика. */
@@ -72,6 +88,11 @@ export interface UserRepository {
    * Обновление пользователя + переустановка привязок к объектам + авторезолв
    * уведомлений missing_specialist. Бросает ValidationError при нарушении правил Штаба.
    * Всё — в одной транзакции (Drizzle).
+   *
+   * При `input.emailChange` дополнительно и в ТОЙ ЖЕ транзакции: смена email, отзыв всех
+   * refresh-токенов и погашение неиспользованных password-reset токенов пользователя.
+   * Бросает ConflictError, если текущий email не совпал с `expected` (карточка устарела),
+   * и UniqueConstraintError, если новый адрес уже занят.
    */
   updateWithSites(id: string, input: UserSitesUpdate): Promise<void>;
 

@@ -36,6 +36,10 @@ interface UpdateUserData {
   department: Department | null
   all_sites: boolean
   site_ids: string[]
+  /** Новый email (логин). Передаётся только при фактической смене адреса. */
+  email?: string
+  /** Email, который админ видел в карточке — предусловие смены на сервере. */
+  expected_email?: string
 }
 
 export interface BatchImportUserRow {
@@ -136,6 +140,9 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка обновления пользователя'
       set({ error: message, isLoading: false })
+      // Ошибку обязан увидеть вызывающий: иначе UI показывал бы «Пользователь обновлён»
+      // при отказе сервера (например, занятый email или устаревшая карточка).
+      throw err
     }
   },
 

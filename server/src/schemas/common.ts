@@ -13,6 +13,18 @@ export const nonEmptyString = z.string().min(1, 'Поле не может быт
 /** Email (с валидацией ASCII-формата) */
 export const emailSchema = z.email({ message: 'Неверный формат email' }).max(255);
 
+/**
+ * Канонизированный email: trim + lowercase ДО проверки формата.
+ * Нормализация обязана идти раньше валидации — иначе адрес, введённый с пробелами по краям,
+ * будет отклонён валидатором и никогда не дойдёт до логики роута. Регистр приводится к нижнему,
+ * потому что уникальность в БД — функциональный индекс users_email_lower_unique_idx (lower(email)),
+ * и логин ищет пользователя тоже через lower().
+ */
+export const canonicalEmailSchema = z
+  .string()
+  .transform((value) => value.trim().toLowerCase())
+  .pipe(emailSchema);
+
 /** ИНН: 10 или 12 цифр */
 export const innSchema = z
   .string()

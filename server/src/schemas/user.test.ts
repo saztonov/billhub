@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { userSchema, createUserBodySchema, updateUserBodySchema } from './user.js';
+import {
+  userSchema,
+  createUserBodySchema,
+  updateUserBodySchema,
+  updateUserWithSitesBodySchema,
+} from './user.js';
 
 const VALID_UUID = '550e8400-e29b-41d4-a716-446655440000';
 
@@ -118,5 +123,46 @@ describe('updateUserBodySchema', () => {
   it('смена роли на security', () => {
     const parsed = updateUserBodySchema.parse({ role: 'security' });
     expect(parsed.role).toBe('security');
+  });
+});
+
+describe('updateUserWithSitesBodySchema — смена логина', () => {
+  const base = {
+    full_name: 'Иванов Иван',
+    role: 'user' as const,
+    all_sites: false,
+    site_ids: [] as string[],
+  };
+
+  it('тело без email валидно (совместимость со старым фронтом)', () => {
+    const parsed = updateUserWithSitesBodySchema.parse(base);
+    expect(parsed.email).toBeUndefined();
+    expect(parsed.expected_email).toBeUndefined();
+  });
+
+  it('email и expected_email канонизируются: trim + lowercase', () => {
+    const parsed = updateUserWithSitesBodySchema.parse({
+      ...base,
+      email: '  Petrov@SU10.RU ',
+      expected_email: 'IVANOV@su10.ru',
+    });
+    expect(parsed.email).toBe('petrov@su10.ru');
+    expect(parsed.expected_email).toBe('ivanov@su10.ru');
+  });
+
+  it('email без expected_email отклоняется', () => {
+    expect(() =>
+      updateUserWithSitesBodySchema.parse({ ...base, email: 'petrov@su10.ru' }),
+    ).toThrow();
+  });
+
+  it('неверный формат email отклоняется', () => {
+    expect(() =>
+      updateUserWithSitesBodySchema.parse({
+        ...base,
+        email: 'не-email',
+        expected_email: 'ivanov@su10.ru',
+      }),
+    ).toThrow();
   });
 });

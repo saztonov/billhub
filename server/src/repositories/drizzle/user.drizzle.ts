@@ -4,12 +4,11 @@
  * В отличие от Supabase-реализации, department маппится напрямую из колонки
  * users.department_id (тип department_enum), без отдельного JOIN.
  *
- * Примечание: в БД нет UNIQUE-ограничения на users.email (уникальность обеспечивается
- * на уровне Supabase auth.users и логики приложения). Маппинг 23505→email сохранён
- * как защитный на случай добавления ограничения в будущем.
+ * Уникальность email обеспечивает функциональный индекс users_email_lower_unique_idx
+ * (UNIQUE (lower(email)), миграция 0005) — сравнение регистронезависимое.
  */
 import { randomUUID } from 'node:crypto';
-import { and, desc, eq, ilike, or, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, ilike, isNull, or, sql, type SQL } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import * as schema from '../../db/schema/index.js';
 import {
@@ -18,10 +17,13 @@ import {
   counterparties,
   constructionSites,
   notifications,
+  refreshTokens,
+  passwordResetTokens,
 } from '../../db/schema/index.js';
 import type {
   UserRepository,
   UserSitesUpdate,
+  EmailChange,
   CounterpartyUserRecord,
 } from '../user.repository.js';
 import type {
@@ -35,12 +37,20 @@ import {
   NotFoundError,
   UniqueConstraintError,
   ForeignKeyConstraintError,
+  ConflictError,
   ValidationError,
   type PaginatedResult,
 } from '../types.js';
-import { getPgErrorCode, PG_UNIQUE_VIOLATION, PG_FOREIGN_KEY_VIOLATION } from './errors.js';
+import {
+  getPgErrorCode,
+  getPgConstraintName,
+  PG_UNIQUE_VIOLATION,
+  PG_FOREIGN_KEY_VIOLATION,
+  USERS_EMAIL_UNIQUE_INDEX,
+} from './errors.js';
 
 type Db = PostgresJsDatabase<typeof schema>;
+type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 type Row = typeof users.$inferSelect;
 type Department = User['department'];
 
@@ -307,8 +317,62 @@ export class DrizzleUserRepository implements UserRepository {
     return rows;
   }
 
+  /**
+   * Смена логина внутри транзакции обновления профиля.
+   *
+   * Порядок: блокируем строку (SELECT ... FOR UPDATE) → сверяем оптимистическое предусловие →
+   * пишем новый email → обесцениваем всё, что было выдано на старый адрес. Блокировка короткая:
+   * внутри транзакции нет обращений во внешние системы (синхронизация с Keycloak выполняется
+   * до/после транзакции, в сервисном слое).
+   */
+  private async applyEmailChange(tx: Tx, id: string, change: EmailChange): Promise<void> {
+    const [current] = await tx
+      .select({ email: users.email })
+      .from(users)
+      .where(eq(users.id, id))
+      .limit(1)
+      .for('update');
+    if (!current) throw new NotFoundError('User', id);
+    if (current.email.trim().toLowerCase() !== change.expected) {
+      throw new ConflictError(
+        'Email пользователя изменился в другой сессии. Обновите список и повторите',
+      );
+    }
+
+    try {
+      await tx
+        .update(users)
+        // email_hmac — производная от email; сбрасываем, чтобы не осталось значения от старого адреса.
+        .set({ email: change.next, emailHmac: null })
+        .where(eq(users.id, id));
+    } catch (err) {
+      // Только конфликт индекса логина: рядом в этой же транзакции пишутся привязки к объектам,
+      // и их 23505 нельзя выдавать за «email занят».
+      if (
+        getPgErrorCode(err) === PG_UNIQUE_VIOLATION &&
+        getPgConstraintName(err) === USERS_EMAIL_UNIQUE_INDEX
+      ) {
+        throw new UniqueConstraintError('User', 'email', change.next);
+      }
+      throw err;
+    }
+
+    // Смена логина обесценивает выданные сессии и ссылки сброса: refresh-токены отзываются,
+    // неиспользованные reset-токены гасятся (иначе ссылка, ушедшая на СТАРЫЙ адрес, сменит
+    // пароль аккаунту с НОВЫМ логином — токен привязан только к user_id).
+    const nowIso = new Date().toISOString();
+    await tx
+      .update(refreshTokens)
+      .set({ revokedAt: nowIso })
+      .where(and(eq(refreshTokens.userId, id), isNull(refreshTokens.revokedAt)));
+    await tx
+      .update(passwordResetTokens)
+      .set({ usedAt: nowIso })
+      .where(and(eq(passwordResetTokens.userId, id), isNull(passwordResetTokens.usedAt)));
+  }
+
   async updateWithSites(id: string, input: UserSitesUpdate): Promise<void> {
-    const { fullName, role, counterpartyId, department, allSites, siteIds } = input;
+    const { fullName, role, counterpartyId, department, allSites, siteIds, emailChange } = input;
     if (department === 'shtab' && !allSites) {
       if (siteIds.length === 0) {
         throw new ValidationError('Для подразделения Штаб необходимо выбрать хотя бы один объект');
@@ -319,6 +383,11 @@ export class DrizzleUserRepository implements UserRepository {
     }
 
     await this.db.transaction(async (tx) => {
+      // Сначала предусловие смены логина — быстрый отказ до записи профиля и привязок.
+      if (emailChange) {
+        await this.applyEmailChange(tx, id, emailChange);
+      }
+
       await tx
         .update(users)
         .set({

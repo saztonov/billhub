@@ -493,6 +493,21 @@ export class InMemoryUserRepository implements UserRepository {
     const idx = this.items.findIndex((x) => x.id === id);
     if (idx === -1) throw new NotFoundError('User', id);
     const u = this.items[idx]!;
+    // Смена логина: оптимистическое предусловие + регистронезависимая уникальность
+    // (эквивалент users_email_lower_unique_idx в PostgreSQL).
+    const change = input.emailChange;
+    if (change) {
+      if (u.email.trim().toLowerCase() !== change.expected) {
+        throw new ConflictError(
+          'Email пользователя изменился в другой сессии. Обновите список и повторите',
+        );
+      }
+      const taken = this.items.some(
+        (x) => x.id !== id && x.email.trim().toLowerCase() === change.next,
+      );
+      if (taken) throw new UniqueConstraintError('User', 'email', change.next);
+      u.email = change.next;
+    }
     u.fullName = input.fullName;
     u.role = input.role;
     u.counterpartyId = input.role === 'counterparty_user' ? input.counterpartyId : null;

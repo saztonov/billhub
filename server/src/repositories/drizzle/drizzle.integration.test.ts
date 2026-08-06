@@ -22,7 +22,12 @@ import { DrizzleSupplierRepository } from './supplier.drizzle.js';
 import { DrizzleUserRepository } from './user.drizzle.js';
 import { SupabaseCounterpartyRepository } from '../supabase/counterparty.supabase.js';
 import { FakeSupabase } from '../../test/fake-supabase.js';
-import { NotFoundError, UniqueConstraintError, ForeignKeyConstraintError } from '../types.js';
+import {
+  NotFoundError,
+  UniqueConstraintError,
+  ForeignKeyConstraintError,
+  ConflictError,
+} from '../types.js';
 import type { Counterparty } from '../../schemas/counterparty.js';
 
 const RUN = process.env.RUN_INTEGRATION === '1' || process.env.CI === 'true';
@@ -157,6 +162,101 @@ describe.skipIf(!RUN)('Drizzle integration (testcontainers PostgreSQL)', () => {
       expect((await repo.getById(u.id)).email).toBe('a@b.ru');
       const list = await repo.list({ page: 1, pageSize: 10, role: 'admin' });
       expect(list.totalCount).toBe(1);
+    });
+  });
+
+  describe('updateWithSites: смена логина', () => {
+    const PROFILE = {
+      fullName: 'Иванов',
+      role: 'user' as const,
+      counterpartyId: null,
+      department: null,
+      allSites: false,
+      siteIds: [] as string[],
+    };
+
+    async function seedUser(email: string) {
+      const repo = new DrizzleUserRepository(db);
+      const u = await repo.create({
+        email,
+        password: 'password1',
+        fullName: 'Иванов',
+        role: 'user',
+      });
+      return { repo, id: u.id };
+    }
+
+    it('индекс users_email_lower_unique_idx существует (регистронезависимая уникальность)', async () => {
+      const [r] = await sql<{ exists: boolean }[]>`
+        SELECT EXISTS (
+          SELECT 1 FROM pg_indexes
+          WHERE schemaname = 'public' AND indexname = 'users_email_lower_unique_idx'
+        ) AS exists`;
+      expect(r?.exists).toBe(true);
+    });
+
+    it('меняет email, отзывает refresh-токены и гасит reset-токены в одной транзакции', async () => {
+      const { repo, id } = await seedUser('ivanov@su10.ru');
+      await sql`UPDATE public.users SET email_hmac = 'stale-hmac' WHERE id = ${id}`;
+      await sql`
+        INSERT INTO public.refresh_tokens (user_id, token_hash, family_id, expires_at)
+        VALUES (${id}, 'hash-1', gen_random_uuid(), now() + interval '30 days')`;
+      await sql`
+        INSERT INTO public.password_reset_tokens (user_id, token_hash, expires_at)
+        VALUES (${id}, 'reset-1', now() + interval '1 hour')`;
+
+      await repo.updateWithSites(id, {
+        ...PROFILE,
+        emailChange: { expected: 'ivanov@su10.ru', next: 'petrov@su10.ru' },
+      });
+
+      expect((await repo.getById(id)).email).toBe('petrov@su10.ru');
+      const [row] = await sql<
+        { email_hmac: string | null }[]
+      >`SELECT email_hmac FROM public.users WHERE id = ${id}`;
+      expect(row?.email_hmac).toBeNull();
+      const [live] = await sql<{ count: number }[]>`
+        SELECT count(*)::int AS count FROM public.refresh_tokens
+        WHERE user_id = ${id} AND revoked_at IS NULL`;
+      expect(live?.count).toBe(0);
+      const [resets] = await sql<{ count: number }[]>`
+        SELECT count(*)::int AS count FROM public.password_reset_tokens
+        WHERE user_id = ${id} AND used_at IS NULL`;
+      expect(resets?.count).toBe(0);
+    });
+
+    it('несовпадение expected → ConflictError, профиль не изменён', async () => {
+      const { repo, id } = await seedUser('ivanov@su10.ru');
+
+      await expect(
+        repo.updateWithSites(id, {
+          ...PROFILE,
+          fullName: 'Петров',
+          emailChange: { expected: 'stale@su10.ru', next: 'petrov@su10.ru' },
+        }),
+      ).rejects.toBeInstanceOf(ConflictError);
+
+      const user = await repo.getById(id);
+      expect(user.email).toBe('ivanov@su10.ru');
+      expect(user.fullName).toBe('Иванов');
+    });
+
+    it('занятый адрес в другом регистре → UniqueConstraintError (маппинг по имени индекса)', async () => {
+      const { repo, id } = await seedUser('ivanov@su10.ru');
+      await repo.create({
+        email: 'SIDOROV@su10.ru',
+        password: 'password1',
+        fullName: 'Сидоров',
+        role: 'user',
+      });
+
+      await expect(
+        repo.updateWithSites(id, {
+          ...PROFILE,
+          emailChange: { expected: 'ivanov@su10.ru', next: 'sidorov@su10.ru' },
+        }),
+      ).rejects.toBeInstanceOf(UniqueConstraintError);
+      expect((await repo.getById(id)).email).toBe('ivanov@su10.ru');
     });
   });
 

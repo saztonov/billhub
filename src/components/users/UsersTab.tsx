@@ -8,7 +8,6 @@ import {
   Input,
   Select,
   Tag,
-  Checkbox,
   Alert,
   App,
   Segmented,
@@ -21,6 +20,7 @@ import { useAuthStore } from '@/store/authStore'
 import { useCounterpartyStore } from '@/store/counterpartyStore'
 import { useConstructionSiteStore } from '@/store/constructionSiteStore'
 import CreateUserModal from '@/components/users/CreateUserModal'
+import EditUserModal from '@/components/users/EditUserModal'
 import ImportCounterpartyUsersModal from '@/components/users/ImportCounterpartyUsersModal'
 import { minPasswordLengthRule } from '@/utils/passwordPolicy'
 import type { UserRole, Department } from '@/types'
@@ -51,9 +51,6 @@ const UsersTab = () => {
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false)
   const [passwordTarget, setPasswordTarget] = useState<UserRecord | null>(null)
   const [editingRecord, setEditingRecord] = useState<UserRecord | null>(null)
-  const [selectedRole, setSelectedRole] = useState<UserRole>('user')
-  const [allSitesChecked, setAllSitesChecked] = useState(false)
-  const [selectedDepartment, setSelectedDepartment] = useState<Department | null>(null)
   const [searchFullName, setSearchFullName] = useState('')
   const [searchCounterparty, setSearchCounterparty] = useState('')
   const [filterDepartment, setFilterDepartment] = useState<Department | undefined>(undefined)
@@ -61,22 +58,13 @@ const UsersTab = () => {
   // По умолчанию показываем всех, включая неактивных: новые пользователи заводятся неактивными,
   // админ находит их для активации.
   const [filterActive, setFilterActive] = useState<string>('all')
-  const [form] = Form.useForm()
   const [passwordForm] = Form.useForm()
 
-  const {
-    users,
-    isLoading,
-    error,
-    fetchUsers,
-    updateUser,
-    deactivateUser,
-    activateUser,
-    changePassword,
-  } = useUserStore()
+  const { users, isLoading, error, fetchUsers, deactivateUser, activateUser, changePassword } =
+    useUserStore()
   const currentUser = useAuthStore((s) => s.user)
   const authMode = useAuthStore((s) => s.authMode)
-  const { counterparties, fetchCounterparties } = useCounterpartyStore()
+  const { fetchCounterparties } = useCounterpartyStore()
   const { sites, fetchSites } = useConstructionSiteStore()
 
   useEffect(() => {
@@ -87,35 +75,7 @@ const UsersTab = () => {
 
   const handleEdit = (record: UserRecord) => {
     setEditingRecord(record)
-    setSelectedRole(record.role)
-    setAllSitesChecked(record.allSites)
-    setSelectedDepartment(record.department || null)
-    form.setFieldsValue({
-      full_name: record.fullName,
-      role: record.role,
-      counterparty_id: record.counterpartyId,
-      department: record.department,
-      all_sites: record.allSites,
-      site_ids: record.siteIds,
-    })
     setIsEditModalOpen(true)
-  }
-
-  const handleSubmit = async () => {
-    const values = await form.validateFields()
-    if (!editingRecord) return
-    const isLimitedRole = values.role === 'counterparty_user' || values.role === 'security'
-    await updateUser(editingRecord.id, {
-      full_name: values.full_name ?? '',
-      role: values.role,
-      counterparty_id: values.role === 'counterparty_user' ? values.counterparty_id : null,
-      department: values.role === 'security' ? null : values.department || null,
-      all_sites: isLimitedRole ? false : (values.all_sites ?? false),
-      site_ids: isLimitedRole ? [] : (values.site_ids ?? []),
-    })
-    message.success('Пользователь обновлён')
-    setIsEditModalOpen(false)
-    form.resetFields()
   }
 
   /** Переключатель активности пользователя (Switch в таблице). */
@@ -127,12 +87,6 @@ const UsersTab = () => {
       await deactivateUser(record.id)
       message.success('Пользователь деактивирован')
     }
-  }
-
-  const handleCancel = () => {
-    setIsEditModalOpen(false)
-    setSelectedDepartment(null)
-    form.resetFields()
   }
 
   const handlePasswordChange = (record: UserRecord) => {
@@ -334,11 +288,8 @@ const UsersTab = () => {
     },
   ]
 
-  // Только активные объекты в селекте
+  // Только активные объекты в фильтре по объектам
   const activeSites = sites.filter((s) => s.isActive)
-
-  const showSiteFields = selectedRole !== 'counterparty_user' && selectedRole !== 'security'
-  const isShtab = selectedDepartment === 'shtab'
 
   const { containerRef, scrollY } = useTableScrollY([filteredUsers.length])
 
@@ -455,140 +406,15 @@ const UsersTab = () => {
         open={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
       />
-      <Modal
-        title="Редактировать пользователя"
+      <EditUserModal
         open={isEditModalOpen}
-        onOk={handleSubmit}
-        onCancel={handleCancel}
-        okText="Сохранить"
-        cancelText="Отмена"
-      >
-        {editingRecord && (
-          <div style={{ marginBottom: 16 }}>
-            <strong>Email:</strong> {editingRecord.email}
-          </div>
-        )}
-        <Form form={form} layout="vertical">
-          <Form.Item name="full_name" label="ФИО">
-            <Input />
-          </Form.Item>
-          <Form.Item
-            name="role"
-            label="Роль"
-            rules={[{ required: true, message: 'Выберите роль' }]}
-          >
-            <Select
-              onChange={(value: UserRole) => {
-                setSelectedRole(value)
-                if (value === 'counterparty_user' || value === 'security') {
-                  setAllSitesChecked(false)
-                  setSelectedDepartment(null)
-                  form.setFieldsValue({ all_sites: false, site_ids: [], department: undefined })
-                }
-              }}
-            >
-              <Select.Option value="admin">Администратор</Select.Option>
-              <Select.Option value="user">Пользователь</Select.Option>
-              <Select.Option value="counterparty_user">Подрядчик</Select.Option>
-              <Select.Option value="security">Отдел СБ</Select.Option>
-            </Select>
-          </Form.Item>
-          {selectedRole === 'counterparty_user' && (
-            <Form.Item
-              name="counterparty_id"
-              label="Подрядчик"
-              rules={[{ required: true, message: 'Выберите подрядчика' }]}
-            >
-              <Select placeholder="Выберите подрядчика" showSearch optionFilterProp="children">
-                {counterparties.map((c) => (
-                  <Select.Option key={c.id} value={c.id}>
-                    {c.name}
-                  </Select.Option>
-                ))}
-              </Select>
-            </Form.Item>
-          )}
-          {selectedRole !== 'counterparty_user' && selectedRole !== 'security' && (
-            <Form.Item name="department" label="Подразделение">
-              <Select
-                placeholder="Выберите подразделение"
-                allowClear
-                onChange={(value: Department | undefined) => {
-                  setSelectedDepartment(value || null)
-                  if (value === 'shtab') {
-                    setAllSitesChecked(false)
-                    form.setFieldsValue({ all_sites: false })
-                    form.validateFields(['site_ids']).catch(() => {})
-                  }
-                }}
-              >
-                <Select.Option value="shtab">{DEPARTMENT_LABELS.shtab}</Select.Option>
-                <Select.Option value="omts">{DEPARTMENT_LABELS.omts}</Select.Option>
-                <Select.Option value="smetny">{DEPARTMENT_LABELS.smetny}</Select.Option>
-              </Select>
-            </Form.Item>
-          )}
-          {showSiteFields && (
-            <>
-              {!isShtab && (
-                <Form.Item name="all_sites" valuePropName="checked">
-                  <Checkbox
-                    onChange={(e) => {
-                      setAllSitesChecked(e.target.checked)
-                      if (e.target.checked) {
-                        form.setFieldsValue({ site_ids: [] })
-                      }
-                    }}
-                  >
-                    Все объекты
-                  </Checkbox>
-                </Form.Item>
-              )}
-              {!allSitesChecked && (
-                <Form.Item
-                  name="site_ids"
-                  label="Объекты строительства"
-                  rules={
-                    isShtab
-                      ? [
-                          {
-                            required: true,
-                            message: 'Для подразделения Штаб выберите объекты (1-2)',
-                          },
-                          () => ({
-                            validator(_, value) {
-                              if (value && value.length > 2) {
-                                return Promise.reject(
-                                  new Error('Для подразделения Штаб максимум 2 объекта'),
-                                )
-                              }
-                              return Promise.resolve()
-                            },
-                          }),
-                        ]
-                      : []
-                  }
-                >
-                  <Select
-                    mode="multiple"
-                    placeholder="Выберите объекты"
-                    showSearch
-                    optionFilterProp="children"
-                    allowClear
-                    maxCount={isShtab ? 2 : undefined}
-                  >
-                    {activeSites.map((s) => (
-                      <Select.Option key={s.id} value={s.id}>
-                        {s.name}
-                      </Select.Option>
-                    ))}
-                  </Select>
-                </Form.Item>
-              )}
-            </>
-          )}
-        </Form>
-      </Modal>
+        record={editingRecord}
+        onClose={() => setIsEditModalOpen(false)}
+        onSaved={() => {
+          setIsEditModalOpen(false)
+          fetchUsers()
+        }}
+      />
       <Modal
         title={`Смена пароля: ${passwordTarget?.fullName || passwordTarget?.email || ''}`}
         open={isPasswordModalOpen}

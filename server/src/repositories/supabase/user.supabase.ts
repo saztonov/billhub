@@ -337,6 +337,12 @@ export class SupabaseUserRepository implements UserRepository {
 
   async updateWithSites(id: string, input: UserSitesUpdate): Promise<void> {
     const { fullName, role, counterpartyId, department, allSites, siteIds } = input;
+    // Смена логина в supabase-bridge не поддерживается: источник правды для входа — auth.users
+    // (signInWithPassword), а не public.users. Правка одного профиля дала бы «старый адрес всё ещё
+    // логинит, новый не работает». Режим отсекается ещё в сервисе; это защита контракта.
+    if (input.emailChange) {
+      throw new ValidationError('Смена email недоступна в режиме supabase-bridge');
+    }
     if (department === 'shtab' && !allSites) {
       if (siteIds.length === 0) {
         throw new ValidationError('Для подразделения Штаб необходимо выбрать хотя бы один объект');
