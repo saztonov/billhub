@@ -38,9 +38,9 @@ import {
   UniqueConstraintError,
   ForeignKeyConstraintError,
   ConflictError,
-  ValidationError,
   type PaginatedResult,
 } from '../types.js';
+import { assertShtabSiteLimit } from '../user-site-rules.js';
 import {
   getPgErrorCode,
   getPgConstraintName,
@@ -373,14 +373,7 @@ export class DrizzleUserRepository implements UserRepository {
 
   async updateWithSites(id: string, input: UserSitesUpdate): Promise<void> {
     const { fullName, role, counterpartyId, department, allSites, siteIds, emailChange } = input;
-    if (department === 'shtab' && !allSites) {
-      if (siteIds.length === 0) {
-        throw new ValidationError('Для подразделения Штаб необходимо выбрать хотя бы один объект');
-      }
-      if (siteIds.length > 2) {
-        throw new ValidationError('Для подразделения Штаб можно выбрать не более 2 объектов');
-      }
-    }
+    assertShtabSiteLimit({ department, allSites, siteIds });
 
     await this.db.transaction(async (tx) => {
       // Сначала предусловие смены логина — быстрый отказ до записи профиля и привязок.
@@ -445,6 +438,20 @@ export class DrizzleUserRepository implements UserRepository {
 
   async setSiteMappings(id: string, siteIds: string[]): Promise<void> {
     await this.db.transaction(async (tx) => {
+      // Лимит «Штаба» проверяем по СОХРАНЁННОЙ карточке: подразделение в теле запроса не
+      // приходит, а без этой проверки правило обходится мимо UI (PUT /api/users/:id/sites).
+      const [target] = await tx
+        .select({ departmentId: users.departmentId, allSites: users.allSites })
+        .from(users)
+        .where(eq(users.id, id))
+        .limit(1);
+      if (!target) throw new NotFoundError('User', id);
+      assertShtabSiteLimit({
+        department: target.departmentId,
+        allSites: target.allSites,
+        siteIds,
+      });
+
       await tx
         .delete(userConstructionSitesMapping)
         .where(eq(userConstructionSitesMapping.userId, id));

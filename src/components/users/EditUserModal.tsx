@@ -5,7 +5,7 @@ import { useAuthStore } from '@/store/authStore'
 import { useCounterpartyStore } from '@/store/counterpartyStore'
 import { useConstructionSiteStore } from '@/store/constructionSiteStore'
 import type { Department, UserRole } from '@/types'
-import { DEPARTMENT_LABELS } from '@/types'
+import { DEPARTMENT_LABELS, SHTAB_MAX_SITES } from '@/types'
 
 interface EditUserModalProps {
   open: boolean
@@ -239,13 +239,15 @@ const EditUserModal = ({ open, record, onClose, onSaved }: EditUserModalProps) =
                     ? [
                         {
                           required: true,
-                          message: 'Для подразделения Штаб выберите объекты (1-2)',
+                          message: `Для подразделения Штаб выберите объекты (1-${SHTAB_MAX_SITES})`,
                         },
                         () => ({
                           validator(_, value) {
-                            if (value && value.length > 2) {
+                            if (value && value.length > SHTAB_MAX_SITES) {
                               return Promise.reject(
-                                new Error('Для подразделения Штаб максимум 2 объекта'),
+                                new Error(
+                                  `Для подразделения Штаб максимум ${SHTAB_MAX_SITES} объектов`,
+                                ),
                               )
                             }
                             return Promise.resolve()
@@ -261,7 +263,7 @@ const EditUserModal = ({ open, record, onClose, onSaved }: EditUserModalProps) =
                   showSearch
                   optionFilterProp="children"
                   allowClear
-                  maxCount={isShtab ? 2 : undefined}
+                  maxCount={isShtab ? SHTAB_MAX_SITES : undefined}
                 >
                   {activeSites.map((s) => (
                     <Select.Option key={s.id} value={s.id}>

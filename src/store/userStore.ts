@@ -1,6 +1,26 @@
 import { create } from 'zustand'
 import { api } from '@/services/api'
 import type { UserRole, Department } from '@/types'
+import { SHTAB_MAX_SITES } from '@/types'
+
+/**
+ * Правило «Штаба»: при выключенном «Все объекты» нужен непустой список не длиннее лимита.
+ * Дублирует серверную проверку (assertShtabSiteLimit) — здесь только ради быстрого отказа
+ * без запроса; источник правды остаётся на сервере.
+ */
+const assertShtabSites = (data: {
+  department: Department | null
+  all_sites: boolean
+  site_ids: string[]
+}): void => {
+  if (data.department !== 'shtab' || data.all_sites) return
+  if (data.site_ids.length === 0) {
+    throw new Error('Для подразделения Штаб необходимо выбрать хотя бы один объект')
+  }
+  if (data.site_ids.length > SHTAB_MAX_SITES) {
+    throw new Error(`Для подразделения Штаб можно выбрать не более ${SHTAB_MAX_SITES} объектов`)
+  }
+}
 
 /** Пользователь из таблицы users (с именем контрагента) */
 export interface UserRecord {
@@ -90,15 +110,7 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
   createUser: async (data) => {
     set({ isLoading: true, error: null })
     try {
-      // Валидация: для подразделения Штаб обязательно 1-2 объекта
-      if (data.department === 'shtab' && !data.all_sites) {
-        if (data.site_ids.length === 0) {
-          throw new Error('Для подразделения Штаб необходимо выбрать хотя бы один объект')
-        }
-        if (data.site_ids.length > 2) {
-          throw new Error('Для подразделения Штаб можно выбрать не более 2 объектов')
-        }
-      }
+      assertShtabSites(data)
 
       // Маппинг snake_case полей формы в camelCase для сервера
       const payload = {
@@ -125,15 +137,7 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
   updateUser: async (id, data) => {
     set({ isLoading: true, error: null })
     try {
-      // Валидация: для подразделения Штаб обязательно 1-2 объекта
-      if (data.department === 'shtab' && !data.all_sites) {
-        if (data.site_ids.length === 0) {
-          throw new Error('Для подразделения Штаб необходимо выбрать хотя бы один объект')
-        }
-        if (data.site_ids.length > 2) {
-          throw new Error('Для подразделения Штаб можно выбрать не более 2 объектов')
-        }
-      }
+      assertShtabSites(data)
 
       await api.put(`/api/users/${id}`, data)
       await get().fetchUsers()

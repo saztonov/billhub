@@ -26,6 +26,7 @@ import {
   ValidationError,
   type PaginatedResult,
 } from '../types.js';
+import { assertShtabSiteLimit } from '../user-site-rules.js';
 
 const DETAIL_FIELDS =
   'id, email, full_name, role, counterparty_id, department_id, all_sites, is_active, created_at';
@@ -343,14 +344,7 @@ export class SupabaseUserRepository implements UserRepository {
     if (input.emailChange) {
       throw new ValidationError('Смена email недоступна в режиме supabase-bridge');
     }
-    if (department === 'shtab' && !allSites) {
-      if (siteIds.length === 0) {
-        throw new ValidationError('Для подразделения Штаб необходимо выбрать хотя бы один объект');
-      }
-      if (siteIds.length > 2) {
-        throw new ValidationError('Для подразделения Штаб можно выбрать не более 2 объектов');
-      }
-    }
+    assertShtabSiteLimit({ department, allSites, siteIds });
 
     const { error } = await this.supabase
       .from('users')
@@ -404,6 +398,20 @@ export class SupabaseUserRepository implements UserRepository {
   }
 
   async setSiteMappings(id: string, siteIds: string[]): Promise<void> {
+    // Лимит «Штаба» проверяем по сохранённой карточке: подразделение в теле запроса не приходит.
+    const { data: target, error: targetErr } = await this.supabase
+      .from('users')
+      .select('department_id, all_sites')
+      .eq('id', id)
+      .maybeSingle();
+    if (targetErr) throw targetErr;
+    if (!target) throw new NotFoundError('User', id);
+    assertShtabSiteLimit({
+      department: target.department_id,
+      allSites: target.all_sites,
+      siteIds,
+    });
+
     const { error: delErr } = await this.supabase
       .from('user_construction_sites_mapping')
       .delete()

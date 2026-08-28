@@ -13,6 +13,9 @@ import {
   updateUserSitesBodySchema,
   type CreateUserBody,
 } from '../schemas/user.js';
+import { UniqueConstraintError, ValidationError } from '../repositories/types.js';
+import { assertShtabSiteLimit } from '../repositories/user-site-rules.js';
+import { getPgErrorCode, PG_UNIQUE_VIOLATION } from '../repositories/drizzle/errors.js';
 
 /**
  * В keycloak-режиме активность доступа к порталу — членство в группе billhub-active. При
@@ -172,6 +175,15 @@ async function userRoutes(fastify: FastifyInstance): Promise<void> {
         if (!b.password) return reply.status(400).send({ error: 'Пароль обязателен' });
         PasswordService.assertStrong(b.password);
       }
+      // Правило «Штаба» проверяем ДО записи: подразделение известно из тела, а setSiteMappings
+      // вызывается только при непустом списке объектов и нижнюю границу здесь не поймал бы.
+      if (b.role !== 'counterparty_user') {
+        assertShtabSiteLimit({
+          department: b.departmentId,
+          allSites: b.allSites ?? false,
+          siteIds: b.siteIds ?? [],
+        });
+      }
       try {
         if (mode === 'keycloak') {
           return await createUserKeycloak(request, b);
@@ -200,11 +212,16 @@ async function userRoutes(fastify: FastifyInstance): Promise<void> {
         }
         return { id: user.id, success: true };
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Ошибка создания пользователя';
-        const errorMessage = /unique|duplicate|users_email_lower_unique_idx/i.test(msg)
-          ? `Пользователь с email ${b.email} уже существует`
-          : msg;
-        return reply.status(400).send({ error: errorMessage });
+        // Занятый логин — единственный случай, который стоит переформулировать для админа.
+        // Всё остальное уходит в централизованный обработчик: он пишет детали в лог и отдаёт
+        // клиенту нейтральный текст. Возвращать err.message нельзя — в нём может быть текст
+        // SQL-запроса вместе с параметрами (email, ФИО).
+        if (err instanceof UniqueConstraintError) {
+          return reply
+            .status(409)
+            .send({ error: `Пользователь с email ${b.email} уже существует` });
+        }
+        throw err;
       }
     },
   );
@@ -362,11 +379,23 @@ async function userRoutes(fastify: FastifyInstance): Promise<void> {
           await authServices.users.setPasswordHash(id, passwordHash, new Date().toISOString());
           results.push({ email: row.email, status: 'success' });
         } catch (err) {
-          const msg = err instanceof Error ? err.message : 'Неизвестная ошибка';
-          // Регистронезависимый дубль email (индекс users_email_lower_unique_idx) → понятный текст.
-          const errorMessage = /users_email_lower_unique_idx|duplicate key|unique/i.test(msg)
-            ? `Пользователь с email ${row.email} уже существует`
-            : msg;
+          // Дубль логина определяем по SQLSTATE/доменной ошибке, а не по тексту: сообщение
+          // драйвера — это текст SQL-запроса с параметрами, отдавать его в отчёт нельзя.
+          const isDuplicate =
+            err instanceof UniqueConstraintError ||
+            getPgErrorCode(err) === PG_UNIQUE_VIOLATION ||
+            /users_email_lower_unique_idx|duplicate key/i.test(
+              err instanceof Error ? err.message : '',
+            );
+          let errorMessage: string;
+          if (isDuplicate) {
+            errorMessage = `Пользователь с email ${row.email} уже существует`;
+          } else if (err instanceof ValidationError) {
+            errorMessage = err.message;
+          } else {
+            request.log.error({ err, email: row.email }, 'batch-import: не удалось создать');
+            errorMessage = 'Не удалось создать пользователя';
+          }
           results.push({ email: row.email, status: 'error', errorMessage });
         }
       }

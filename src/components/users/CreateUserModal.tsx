@@ -5,7 +5,7 @@ import { useCounterpartyStore } from '@/store/counterpartyStore'
 import { useConstructionSiteStore } from '@/store/constructionSiteStore'
 import { minPasswordLengthRule } from '@/utils/passwordPolicy'
 import type { UserRole, Department } from '@/types'
-import { DEPARTMENT_LABELS } from '@/types'
+import { DEPARTMENT_LABELS, SHTAB_MAX_SITES } from '@/types'
 
 interface CreateUserModalProps {
   open: boolean
@@ -198,13 +198,15 @@ const CreateUserModal = ({ open, onClose, onSuccess }: CreateUserModalProps) => 
                     ? [
                         {
                           required: true,
-                          message: 'Для подразделения Штаб выберите объекты (1-2)',
+                          message: `Для подразделения Штаб выберите объекты (1-${SHTAB_MAX_SITES})`,
                         },
                         () => ({
                           validator(_, value) {
-                            if (value && value.length > 2) {
+                            if (value && value.length > SHTAB_MAX_SITES) {
                               return Promise.reject(
-                                new Error('Для подразделения Штаб максимум 2 объекта'),
+                                new Error(
+                                  `Для подразделения Штаб максимум ${SHTAB_MAX_SITES} объектов`,
+                                ),
                               )
                             }
                             return Promise.resolve()
@@ -220,7 +222,7 @@ const CreateUserModal = ({ open, onClose, onSuccess }: CreateUserModalProps) => 
                   showSearch
                   optionFilterProp="children"
                   allowClear
-                  maxCount={isShtab ? 2 : undefined}
+                  maxCount={isShtab ? SHTAB_MAX_SITES : undefined}
                 >
                   {activeSites.map((s) => (
                     <Select.Option key={s.id} value={s.id}>

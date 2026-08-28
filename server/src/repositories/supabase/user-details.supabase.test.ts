@@ -9,6 +9,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { FakeSupabase } from '../../test/fake-supabase.js';
 import { SupabaseUserRepository } from './user.supabase.js';
 import { NotFoundError, ValidationError } from '../types.js';
+import { SHTAB_MAX_SITES } from '../user-site-rules.js';
 
 function setup() {
   const fake = new FakeSupabase();
@@ -111,7 +112,7 @@ describe('SupabaseUserRepository — updateWithSites', () => {
     seedBase(s.fake);
   });
 
-  it('Штаб без allSites требует 1-2 объекта (ValidationError)', async () => {
+  it(`Штаб без allSites требует 1-${SHTAB_MAX_SITES} объектов (ValidationError)`, async () => {
     await expect(
       s.repo.updateWithSites('u1', {
         fullName: 'X',
@@ -129,9 +130,23 @@ describe('SupabaseUserRepository — updateWithSites', () => {
         counterpartyId: null,
         department: 'shtab',
         allSites: false,
-        siteIds: ['s1', 's2', 'sX'],
+        siteIds: Array.from({ length: SHTAB_MAX_SITES + 1 }, (_, i) => `sX${i}`),
       }),
     ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it(`Штаб принимает ровно ${SHTAB_MAX_SITES} объектов`, async () => {
+    const siteIds = Array.from({ length: SHTAB_MAX_SITES }, (_, i) => `sX${i}`);
+    await s.repo.updateWithSites('u1', {
+      fullName: 'X',
+      role: 'user',
+      counterpartyId: null,
+      department: 'shtab',
+      allSites: false,
+      siteIds,
+    });
+    const access = await s.repo.getSiteAccess('u1');
+    expect(access.siteIds.sort()).toEqual([...siteIds].sort());
   });
 
   it('обновляет поля и переустанавливает привязки', async () => {

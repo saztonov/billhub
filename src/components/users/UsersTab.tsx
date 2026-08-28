@@ -372,7 +372,7 @@ const UsersTab = () => {
       {error && (
         <Alert
           type="error"
-          message="Ошибка загрузки пользователей"
+          message="Ошибка"
           description={error}
           showIcon
           style={{ marginBottom: 16 }}

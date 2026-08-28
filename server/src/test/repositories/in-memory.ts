@@ -21,6 +21,7 @@ import {
   ValidationError,
   type PaginatedResult,
 } from '../../repositories/types.js';
+import { assertShtabSiteLimit } from '../../repositories/user-site-rules.js';
 import type {
   Counterparty,
   CreateCounterpartyBody,
@@ -482,14 +483,11 @@ export class InMemoryUserRepository implements UserRepository {
   }
 
   async updateWithSites(id: string, input: UserSitesUpdate): Promise<void> {
-    if (input.department === 'shtab' && !input.allSites) {
-      if (input.siteIds.length === 0) {
-        throw new ValidationError('Для подразделения Штаб необходимо выбрать хотя бы один объект');
-      }
-      if (input.siteIds.length > 2) {
-        throw new ValidationError('Для подразделения Штаб можно выбрать не более 2 объектов');
-      }
-    }
+    assertShtabSiteLimit({
+      department: input.department,
+      allSites: input.allSites,
+      siteIds: input.siteIds,
+    });
     const idx = this.items.findIndex((x) => x.id === id);
     if (idx === -1) throw new NotFoundError('User', id);
     const u = this.items[idx]!;
@@ -522,6 +520,9 @@ export class InMemoryUserRepository implements UserRepository {
   }
 
   async setSiteMappings(id: string, siteIds: string[]): Promise<void> {
+    const u = this.items.find((x) => x.id === id);
+    if (!u) throw new NotFoundError('User', id);
+    assertShtabSiteLimit({ department: u.department, allSites: u.allSites, siteIds });
     if (siteIds.length > 0) this.siteMappings.set(id, [...siteIds]);
     else this.siteMappings.delete(id);
   }

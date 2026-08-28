@@ -108,6 +108,13 @@ export const DEPARTMENT_LABELS: Record<Department, string> = {
   smetny: 'Сметный',
 }
 
+/**
+ * Максимум объектов строительства у сотрудника подразделения «Штаб».
+ * Серверная копия — SHTAB_MAX_SITES в server/src/repositories/user-site-rules.ts;
+ * значения обязаны совпадать (общего модуля у фронта и сервера нет).
+ */
+export const SHTAB_MAX_SITES = 6
+
 /** Департамент этапа согласования: отдел пользователя либо 'rp' (этап «РП», stage 3) */
 export type ApprovalDepartment = Department | 'rp'
 
