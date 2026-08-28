@@ -6,6 +6,7 @@ import {
   uuidSchema,
   nonEmptyString,
   innSchema,
+  innInputSchema,
   paginationSchema,
   searchSchema,
   paginatedResponseSchema,
@@ -33,7 +34,7 @@ export type Supplier = z.infer<typeof supplierSchema>;
 /** Создание */
 export const createSupplierBodySchema = z.object({
   name: nonEmptyString.max(500),
-  inn: innSchema,
+  inn: innInputSchema,
   alternativeNames: z.array(z.string()).optional(),
 });
 export type CreateSupplierBody = z.infer<typeof createSupplierBodySchema>;
@@ -41,7 +42,7 @@ export type CreateSupplierBody = z.infer<typeof createSupplierBodySchema>;
 /** Обновление */
 export const updateSupplierBodySchema = z.object({
   name: nonEmptyString.max(500).optional(),
-  inn: innSchema.optional(),
+  inn: innInputSchema.optional(),
   alternativeNames: z.array(z.string()).optional(),
   foundingDocumentsComment: z.string().nullable().optional(),
 });

@@ -29,6 +29,8 @@ import { useAuthStore } from '@/store/authStore'
 import { api } from '@/services/api'
 import { sendForSecurityReview } from '@/services/supplierSecurityCheckService'
 import { logError } from '@/services/errorLogger'
+import { INN_FORMAT_MESSAGE, isValidInn, normalizeInn } from '@/utils/inn'
+import { describeReferenceError, isInnFieldError } from '@/utils/referenceErrors'
 import ImportSuppliersModal from '@/components/suppliers/ImportSuppliersModal'
 import SupplierSbModal from '@/components/suppliers/SupplierSbModal'
 import type { Supplier } from '@/types'
@@ -78,12 +80,15 @@ const SuppliersPage = () => {
     return searchParams.get('sbFilter') === 'all' ? 'all' : 'pending'
   }, [isSecurity, searchParams])
 
-  const handleSbFilterChange = useCallback((val: SbFilter) => {
-    const next = new URLSearchParams(searchParams)
-    next.set('sbFilter', val)
-    setSearchParams(next, { replace: true })
-    setPage(1)
-  }, [searchParams, setSearchParams])
+  const handleSbFilterChange = useCallback(
+    (val: SbFilter) => {
+      const next = new URLSearchParams(searchParams)
+      next.set('sbFilter', val)
+      setSearchParams(next, { replace: true })
+      setPage(1)
+    },
+    [searchParams, setSearchParams],
+  )
 
   // Модалки
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
@@ -141,7 +146,8 @@ const SuppliersPage = () => {
       setSbModalOpen(true)
       return
     }
-    api.get<Supplier>(`/api/references/suppliers/${state.openSupplierId}`)
+    api
+      .get<Supplier>(`/api/references/suppliers/${state.openSupplierId}`)
       .then((data) => {
         if (data) {
           setSbSupplier(data)
@@ -160,48 +166,90 @@ const SuppliersPage = () => {
     setIsEditModalOpen(true)
   }, [form])
 
-  const handleEdit = useCallback((record: Supplier) => {
-    setEditingRecord(record)
-    form.setFieldsValue(record)
-    setIsEditModalOpen(true)
-  }, [form])
+  const handleEdit = useCallback(
+    (record: Supplier) => {
+      setEditingRecord(record)
+      form.setFieldsValue(record)
+      setIsEditModalOpen(true)
+    },
+    [form],
+  )
 
-  const handleDelete = useCallback(async (id: string) => {
-    await deleteSupplier(id)
-    message.success('Поставщик удалён')
-    fetchPage()
-  }, [deleteSupplier, message, fetchPage])
+  const handleDelete = useCallback(
+    async (id: string) => {
+      try {
+        await deleteSupplier(id)
+        message.success('Поставщик удалён')
+        fetchPage()
+      } catch (err) {
+        const text = describeReferenceError(err, 'Поставщик')
+        message.error(text)
+        logError({
+          errorType: 'api_error',
+          errorMessage: text,
+          component: 'SuppliersPage',
+          metadata: { action: 'deleteSupplier', supplierId: id },
+        })
+      }
+    },
+    [deleteSupplier, message, fetchPage],
+  )
 
+  // Ошибку сохранения обязательно показываем: раньше отказ сервера (400 — формат ИНН,
+  // 409 — дубль по ИНН) выглядел как успех, а введённые данные терялись.
   const handleSubmit = useCallback(async () => {
     const values = await form.validateFields()
-    if (editingRecord) {
-      await updateSupplier(editingRecord.id, values)
-      message.success('Поставщик обновлён')
-    } else {
-      await createSupplier(values)
-      message.success('Поставщик создан')
+    const payload = { ...values, inn: normalizeInn(values.inn ?? '') }
+    try {
+      if (editingRecord) {
+        await updateSupplier(editingRecord.id, payload)
+        message.success('Поставщик обновлён')
+      } else {
+        await createSupplier(payload)
+        message.success('Поставщик создан')
+      }
+    } catch (err) {
+      const text = describeReferenceError(err, 'Поставщик')
+      message.error(text)
+      if (isInnFieldError(err)) form.setFields([{ name: 'inn', errors: [text] }])
+      logError({
+        errorType: 'api_error',
+        errorMessage: text,
+        component: 'SuppliersPage',
+        metadata: {
+          action: editingRecord ? 'updateSupplier' : 'createSupplier',
+          inn: payload.inn,
+        },
+      })
+      return
     }
     setIsEditModalOpen(false)
     form.resetFields()
     fetchPage()
   }, [form, editingRecord, updateSupplier, createSupplier, message, fetchPage])
 
-  const handleSendForReview = useCallback(async (record: Supplier) => {
-    try {
-      await sendForSecurityReview(record.id)
-      message.success('Поставщик отправлен на проверку СБ')
-      fetchPage()
-    } catch (err) {
-      const text = err instanceof Error ? err.message : 'Ошибка отправки на проверку'
-      message.error(text)
-    }
-  }, [message, fetchPage])
+  const handleSendForReview = useCallback(
+    async (record: Supplier) => {
+      try {
+        await sendForSecurityReview(record.id)
+        message.success('Поставщик отправлен на проверку СБ')
+        fetchPage()
+      } catch (err) {
+        const text = err instanceof Error ? err.message : 'Ошибка отправки на проверку'
+        message.error(text)
+      }
+    },
+    [message, fetchPage],
+  )
 
-  const handleRowClick = useCallback((record: Supplier) => {
-    if (!canManage && !isSecurity) return
-    setSbSupplier(record)
-    setSbModalOpen(true)
-  }, [canManage, isSecurity])
+  const handleRowClick = useCallback(
+    (record: Supplier) => {
+      if (!canManage && !isSecurity) return
+      setSbSupplier(record)
+      setSbModalOpen(true)
+    },
+    [canManage, isSecurity],
+  )
 
   // Колонки таблицы
   const columns: ColumnsType<Supplier> = useMemo(() => {
@@ -227,7 +275,9 @@ const SuppliersPage = () => {
           const isApproved = last.status === 'approved'
           return (
             <div>
-              <Tag color={isApproved ? 'green' : 'red'}>{isApproved ? 'Согласовано' : 'Отклонено'}</Tag>
+              <Tag color={isApproved ? 'green' : 'red'}>
+                {isApproved ? 'Согласовано' : 'Отклонено'}
+              </Tag>
               <div style={{ fontSize: 12, color: '#999' }}>{formatDate(last.createdAt)}</div>
             </div>
           )
@@ -247,7 +297,9 @@ const SuppliersPage = () => {
               <Button icon={<DeleteOutlined />} danger size="small" />
             </Popconfirm>
             {canManage && (
-              <Tooltip title={record.hasPendingRequest ? 'Уже на проверке' : 'Отправить на проверку СБ'}>
+              <Tooltip
+                title={record.hasPendingRequest ? 'Уже на проверке' : 'Отправить на проверку СБ'}
+              >
                 <Popconfirm
                   title="Отправить поставщика на проверку СБ?"
                   onConfirm={() => handleSendForReview(record)}
@@ -284,7 +336,16 @@ const SuppliersPage = () => {
           onChange={(e) => setSearchText(e.target.value)}
           style={{ marginBottom: 16 }}
         />
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 8,
+            marginBottom: 16,
+            flexWrap: 'wrap',
+          }}
+        >
           {isSecurity ? (
             <Segmented<SbFilter>
               options={[
@@ -294,7 +355,9 @@ const SuppliersPage = () => {
               value={sbFilter}
               onChange={(v) => handleSbFilterChange(v)}
             />
-          ) : <div />}
+          ) : (
+            <div />
+          )}
           {canManage && (
             <Space>
               <Button icon={<UploadOutlined />} onClick={() => setIsImportModalOpen(true)}>
@@ -316,7 +379,7 @@ const SuppliersPage = () => {
           scroll={{ x: 900, y: scrollY }}
           onRow={(record) => ({
             onClick: () => handleRowClick(record),
-            style: (canManage || isSecurity) ? { cursor: 'pointer' } : undefined,
+            style: canManage || isSecurity ? { cursor: 'pointer' } : undefined,
           })}
           pagination={{
             current: page,
@@ -343,11 +406,27 @@ const SuppliersPage = () => {
         cancelText="Отмена"
       >
         <Form form={form} layout="vertical">
-          <Form.Item name="name" label="Наименование" rules={[{ required: true, message: 'Введите наименование' }]}>
+          <Form.Item
+            name="name"
+            label="Наименование"
+            rules={[{ required: true, message: 'Введите наименование' }]}
+          >
             <Input />
           </Form.Item>
-          <Form.Item name="inn" label="ИНН" rules={[{ required: true, message: 'Введите ИНН' }]}>
-            <Input />
+          <Form.Item
+            name="inn"
+            label="ИНН"
+            rules={[
+              { required: true, message: 'Введите ИНН' },
+              {
+                validator: (_, value: string) =>
+                  !value || isValidInn(value)
+                    ? Promise.resolve()
+                    : Promise.reject(new Error(INN_FORMAT_MESSAGE)),
+              },
+            ]}
+          >
+            <Input placeholder="10 или 12 цифр" />
           </Form.Item>
           <Form.List name="alternativeNames">
             {(fields, { add, remove }) => (
@@ -365,7 +444,11 @@ const SuppliersPage = () => {
                   </Button>
                 </div>
                 {fields.map((field) => (
-                  <Space key={field.key} align="baseline" style={{ display: 'flex', marginBottom: 8 }}>
+                  <Space
+                    key={field.key}
+                    align="baseline"
+                    style={{ display: 'flex', marginBottom: 8 }}
+                  >
                     <Form.Item
                       {...field}
                       rules={[{ required: true, message: 'Введите наименование' }]}

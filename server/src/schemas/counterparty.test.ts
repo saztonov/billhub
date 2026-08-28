@@ -69,6 +69,15 @@ describe('createCounterpartyBodySchema', () => {
   it('отклоняет невалидный ИНН', () => {
     expect(() => createCounterpartyBodySchema.parse({ name: 'X', inn: '123' })).toThrow();
   });
+
+  it('вырезает пробелы из ИНН, но не префикс «ИНН»', () => {
+    expect(createCounterpartyBodySchema.parse({ name: 'X', inn: ' 7710 140679 ' }).inn).toBe(
+      VALID_INN,
+    );
+    expect(() =>
+      createCounterpartyBodySchema.parse({ name: 'X', inn: `ИНН ${VALID_INN}` }),
+    ).toThrow();
+  });
 });
 
 describe('updateCounterpartyBodySchema', () => {

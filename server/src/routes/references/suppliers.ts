@@ -33,8 +33,11 @@ const idParamsSchema = {
   },
 };
 
+/** Импорт: фронтенд отправляет items, бэкенд исторически принимал rows — поддерживаем оба */
+const batchRowSchema = z.object({ name: nonEmptyString, inn: nonEmptyString });
 const batchImportBodySchema = z.object({
-  rows: z.array(z.object({ name: nonEmptyString, inn: nonEmptyString })).min(1),
+  items: z.array(batchRowSchema).optional(),
+  rows: z.array(batchRowSchema).optional(),
 });
 
 /* ------------------------------------------------------------------ */
@@ -116,8 +119,12 @@ async function supplierRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.post(
     '/batch-import',
     { preHandler: [authenticate, requireRole('admin', 'user')] },
-    async (request) => {
-      const { rows } = batchImportBodySchema.parse(request.body);
+    async (request, reply) => {
+      const parsed = batchImportBodySchema.parse(request.body);
+      const rows = parsed.items ?? parsed.rows ?? [];
+      if (rows.length === 0) {
+        return reply.status(400).send({ error: 'Нет данных для импорта' });
+      }
       const created = await request.server.repos.suppliers.batchCreate(rows);
       return { created };
     },

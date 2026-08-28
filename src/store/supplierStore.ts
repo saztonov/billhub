@@ -43,6 +43,8 @@ export const useSupplierStore = create<SupplierStoreState>((set, get) => ({
     })
   },
 
+  // Мутации пробрасывают ошибку наружу: страница обязана показать её пользователю.
+  // Поле error — только индикатор состояния стора, а не замена обработки.
   createSupplier: async (data) => {
     set({ isLoading: true, error: null })
     try {
@@ -55,6 +57,7 @@ export const useSupplierStore = create<SupplierStoreState>((set, get) => ({
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка создания'
       set({ error: message, isLoading: false })
+      throw err
     }
   },
 
@@ -70,6 +73,7 @@ export const useSupplierStore = create<SupplierStoreState>((set, get) => ({
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка обновления'
       set({ error: message, isLoading: false })
+      throw err
     }
   },
 
@@ -81,6 +85,7 @@ export const useSupplierStore = create<SupplierStoreState>((set, get) => ({
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка удаления'
       set({ error: message, isLoading: false })
+      throw err
     }
   },
 

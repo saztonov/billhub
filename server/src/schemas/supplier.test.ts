@@ -16,6 +16,28 @@ describe('supplier schemas', () => {
     expect(createSupplierBodySchema.safeParse({ name: 'A', inn: '123' }).success).toBe(false);
   });
 
+  it('createSupplierBodySchema вырезает пробелы из ИНН, но не прочий текст', () => {
+    const spaced = createSupplierBodySchema.safeParse({ name: 'A', inn: ' 7710 140679 ' });
+    expect(spaced.success).toBe(true);
+    expect(spaced.success && spaced.data.inn).toBe('7710140679');
+
+    // неразрывный пробел (копирование из PDF/письма)
+    const nbsp = createSupplierBodySchema.safeParse({ name: 'A', inn: '7710 140679' });
+    expect(nbsp.success).toBe(true);
+    expect(nbsp.success && nbsp.data.inn).toBe('7710140679');
+
+    // префикс «ИНН» по-прежнему отклоняется
+    expect(createSupplierBodySchema.safeParse({ name: 'A', inn: 'ИНН 7710140679' }).success).toBe(
+      false,
+    );
+  });
+
+  it('updateSupplierBodySchema вырезает пробелы из ИНН', () => {
+    const r = updateSupplierBodySchema.safeParse({ inn: '7710 140679' });
+    expect(r.success).toBe(true);
+    expect(r.success && r.data.inn).toBe('7710140679');
+  });
+
   it('createSupplierBodySchema принимает alternativeNames', () => {
     expect(
       createSupplierBodySchema.safeParse({ name: 'A', inn: '7710140679', alternativeNames: ['x'] })

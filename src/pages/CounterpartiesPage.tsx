@@ -12,6 +12,9 @@ import { useTableScrollY } from '@/hooks/useTableScrollY'
 import { useCounterpartyStore } from '@/store/counterpartyStore'
 import { useAuthStore } from '@/store/authStore'
 import { api } from '@/services/api'
+import { logError } from '@/services/errorLogger'
+import { INN_FORMAT_MESSAGE, isValidInn, normalizeInn } from '@/utils/inn'
+import { describeReferenceError, isInnFieldError } from '@/utils/referenceErrors'
 import ImportCounterpartiesModal from '@/components/counterparties/ImportCounterpartiesModal'
 import type { Counterparty } from '@/types'
 
@@ -89,18 +92,48 @@ const CounterpartiesPage = () => {
   }
 
   const handleDelete = async (id: string) => {
-    await deleteCounterparty(id)
-    message.success('Подрядчик удалён')
+    try {
+      await deleteCounterparty(id)
+      message.success('Подрядчик удалён')
+    } catch (err) {
+      const text = describeReferenceError(err, 'Подрядчик')
+      message.error(text)
+      logError({
+        errorType: 'api_error',
+        errorMessage: text,
+        component: 'CounterpartiesPage',
+        metadata: { action: 'deleteCounterparty', counterpartyId: id },
+      })
+    }
   }
 
+  // Ошибку сохранения обязательно показываем: раньше отказ сервера (400 — формат ИНН,
+  // 409 — дубль по ИНН) выглядел как успех, а введённые данные терялись.
   const handleSubmit = async () => {
     const values = await form.validateFields()
-    if (editingRecord) {
-      await updateCounterparty(editingRecord.id, values)
-      message.success('Подрядчик обновлён')
-    } else {
-      await createCounterparty(values)
-      message.success('Подрядчик создан')
+    const payload = { ...values, inn: normalizeInn(values.inn ?? '') }
+    try {
+      if (editingRecord) {
+        await updateCounterparty(editingRecord.id, payload)
+        message.success('Подрядчик обновлён')
+      } else {
+        await createCounterparty(payload)
+        message.success('Подрядчик создан')
+      }
+    } catch (err) {
+      const text = describeReferenceError(err, 'Подрядчик')
+      message.error(text)
+      if (isInnFieldError(err)) form.setFields([{ name: 'inn', errors: [text] }])
+      logError({
+        errorType: 'api_error',
+        errorMessage: text,
+        component: 'CounterpartiesPage',
+        metadata: {
+          action: editingRecord ? 'updateCounterparty' : 'createCounterparty',
+          inn: payload.inn,
+        },
+      })
+      return
     }
     setIsModalOpen(false)
     form.resetFields()
@@ -199,8 +232,20 @@ const CounterpartiesPage = () => {
           >
             <Input />
           </Form.Item>
-          <Form.Item name="inn" label="ИНН" rules={[{ required: true, message: 'Введите ИНН' }]}>
-            <Input />
+          <Form.Item
+            name="inn"
+            label="ИНН"
+            rules={[
+              { required: true, message: 'Введите ИНН' },
+              {
+                validator: (_, value: string) =>
+                  !value || isValidInn(value)
+                    ? Promise.resolve()
+                    : Promise.reject(new Error(INN_FORMAT_MESSAGE)),
+              },
+            ]}
+          >
+            <Input placeholder="10 или 12 цифр" />
           </Form.Item>
           <Form.List name="alternativeNames">
             {(fields, { add, remove }) => (

@@ -6,6 +6,7 @@ import {
   uuidSchema,
   nonEmptyString,
   innSchema,
+  innInputSchema,
   paginationSchema,
   searchSchema,
   paginatedResponseSchema,
@@ -34,7 +35,7 @@ export type Counterparty = z.infer<typeof counterpartySchema>;
 /** Создание контрагента (request body) */
 export const createCounterpartyBodySchema = z.object({
   name: nonEmptyString.max(500),
-  inn: innSchema,
+  inn: innInputSchema,
   address: z.string().optional(),
   alternativeNames: z.array(z.string()).optional(),
 });
@@ -43,7 +44,7 @@ export type CreateCounterpartyBody = z.infer<typeof createCounterpartyBodySchema
 /** Обновление контрагента (request body) */
 export const updateCounterpartyBodySchema = z.object({
   name: nonEmptyString.max(500).optional(),
-  inn: innSchema.optional(),
+  inn: innInputSchema.optional(),
   address: z.string().optional(),
   alternativeNames: z.array(z.string()).optional(),
 });
