@@ -68,6 +68,7 @@ import ocrRoutes from './routes/ocr.js';
 import fileProxyRoutes from './routes/file-proxy.js';
 import foundingDocumentRoutes from './routes/founding-documents.js';
 import payhubRoutes from './routes/payhub.js';
+import reportRoutes from './routes/reports.js';
 
 /** Импорт типов для расширения FastifyInstance */
 import './types/index.js';
@@ -279,6 +280,7 @@ export async function createApp(opts: CreateAppOptions = {}): Promise<FastifyIns
     await fastify.register(rpRoutes);
     await fastify.register(paymentRoutes);
     await fastify.register(errorLogRoutes);
+    await fastify.register(reportRoutes);
     await fastify.register(materialRoutes);
     await fastify.register(ocrRoutes);
     await fastify.register(fileProxyRoutes);

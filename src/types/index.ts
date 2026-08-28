@@ -929,3 +929,29 @@ export interface RpDocumentRef {
   contractNumber?: string | null
   contractDate?: string | null
 }
+
+// Отчёты (админка → Отчёты)
+
+/** Экономия одного сотрудника ОМТС внутри месяца */
+export interface SavingsByUser {
+  userId: string | null
+  fullName: string | null
+  count: number
+  saved: number
+}
+
+/** Итог месяца с разбивкой по сотрудникам */
+export interface SavingsMonth {
+  month: string
+  count: number
+  saved: number
+  byUser: SavingsByUser[]
+}
+
+/** Отчёт «Экономия по заявкам на оплату»: период, итог и помесячные данные */
+export interface SavingsReport {
+  from: string
+  to: string
+  total: { count: number; saved: number }
+  months: SavingsMonth[]
+}

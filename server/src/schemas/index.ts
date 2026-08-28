@@ -25,3 +25,4 @@ export * from './material.js';
 export * from './founding-document.js';
 export * from './ocr.js';
 export * from './observability.js';
+export * from './report.js';
