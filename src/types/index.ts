@@ -955,3 +955,23 @@ export interface SavingsReport {
   total: { count: number; saved: number }
   months: SavingsMonth[]
 }
+
+/** Одно снижение суммы: строка листа «Детализация» выгрузки отчёта */
+export interface SavingsDetailRow {
+  date: string
+  requestNumber: string | null
+  siteName: string | null
+  counterpartyName: string | null
+  supplierName: string | null
+  amountBefore: number
+  amountAfter: number
+  saved: number
+  fullName: string | null
+}
+
+/** Детализация отчёта об экономии за период */
+export interface SavingsDetails {
+  from: string
+  to: string
+  rows: SavingsDetailRow[]
+}

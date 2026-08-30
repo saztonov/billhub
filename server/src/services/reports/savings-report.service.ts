@@ -57,6 +57,26 @@ export interface SavingsReport {
   months: SavingsMonth[];
 }
 
+/** Одно снижение суммы: строка листа «Детализация» выгрузки. */
+export interface SavingsDetailRow {
+  date: string;
+  requestNumber: string | null;
+  siteName: string | null;
+  counterpartyName: string | null;
+  supplierName: string | null;
+  amountBefore: number;
+  amountAfter: number;
+  saved: number;
+  fullName: string | null;
+}
+
+/** Детализация отчёта: период и список снижений (свежие первыми). */
+export interface SavingsDetails {
+  from: string;
+  to: string;
+  rows: SavingsDetailRow[];
+}
+
 /** Строка агрегата из БД: месяц × сотрудник. */
 interface ReportRow {
   month: string;
@@ -101,17 +121,13 @@ export function resolvePeriod(
 }
 
 /**
- * Помесячная экономия за период с разбивкой по сотрудникам ОМТС.
- * Один запрос: разворот истории сумм → отбор снижений → атрибуция автора → агрегация.
+ * Общая часть обоих отчётов: разворот истории сумм → отбор снижений за период →
+ * отсев исправлений ошибки → атрибуция автора. Сводка и детализация обязаны считаться
+ * по одной методике, поэтому CTE один на двоих, а запросы отличаются финальной выборкой.
+ * Итоговый CTE `attributed` отдаёт: pr_id, changed_at, prev_amount, next_amount, saved, author_id.
  */
-export async function getSavingsReport(
-  db: BillhubDatabase,
-  query: { from?: string; to?: string },
-  now: Date = new Date(),
-): Promise<SavingsReport> {
-  const { from, to } = resolvePeriod(query, now);
-
-  const res = await db.execute(sql`
+function savingsEventsCte(from: string, to: string) {
+  return sql`
     WITH ev AS (
       SELECT pr.id AS pr_id,
              (h.value->>'amount')::numeric AS prev_amount,
@@ -127,12 +143,12 @@ export async function getSavingsReport(
         AND pr.approved_at IS NOT NULL
     ),
     down AS (
-      SELECT pr_id, changed_at, prev_amount - next_amount AS saved
+      SELECT pr_id, changed_at, prev_amount, next_amount, prev_amount - next_amount AS saved
       FROM ev
       WHERE next_amount < prev_amount
     ),
     filtered AS (
-      SELECT d.pr_id, d.changed_at, d.saved
+      SELECT d.pr_id, d.changed_at, d.prev_amount, d.next_amount, d.saved
       FROM down d
       WHERE d.changed_at >= (to_date(${from}::text, 'YYYY-MM')::timestamp AT TIME ZONE ${TZ_LITERAL})
         AND d.changed_at < ((to_date(${to}::text, 'YYYY-MM') + interval '1 month')::timestamp
@@ -145,7 +161,10 @@ export async function getSavingsReport(
         )
     ),
     attributed AS (
-      SELECT f.changed_at,
+      SELECT f.pr_id,
+             f.changed_at,
+             f.prev_amount,
+             f.next_amount,
              f.saved,
              COALESCE(
                (SELECT l.user_id
@@ -166,6 +185,22 @@ export async function getSavingsReport(
              ) AS author_id
       FROM filtered f
     )
+  `;
+}
+
+/**
+ * Помесячная экономия за период с разбивкой по сотрудникам ОМТС.
+ * Один запрос: события экономии (см. `savingsEventsCte`) → агрегация по месяцу и сотруднику.
+ */
+export async function getSavingsReport(
+  db: BillhubDatabase,
+  query: { from?: string; to?: string },
+  now: Date = new Date(),
+): Promise<SavingsReport> {
+  const { from, to } = resolvePeriod(query, now);
+
+  const res = await db.execute(sql`
+    ${savingsEventsCte(from, to)}
     SELECT to_char(a.changed_at AT TIME ZONE ${TZ_LITERAL}, 'YYYY-MM') AS month,
            a.author_id::text AS user_id,
            u.full_name AS full_name,
@@ -205,4 +240,63 @@ export async function getSavingsReport(
   );
 
   return { from, to, total, months };
+}
+
+/** Строка детализации из БД (snake_case, как отдаёт SQL). */
+interface DetailRow {
+  date: string;
+  request_number: string | null;
+  site_name: string | null;
+  counterparty_name: string | null;
+  supplier_name: string | null;
+  amount_before: number;
+  amount_after: number;
+  saved: number;
+  full_name: string | null;
+}
+
+/**
+ * Детализация экономии: строка на каждое снижение за период — для выгрузки в Excel.
+ * Считается тем же CTE, что и сводка, поэтому суммы сходятся с помесячными итогами.
+ */
+export async function getSavingsDetails(
+  db: BillhubDatabase,
+  query: { from?: string; to?: string },
+  now: Date = new Date(),
+): Promise<SavingsDetails> {
+  const { from, to } = resolvePeriod(query, now);
+
+  const res = await db.execute(sql`
+    ${savingsEventsCte(from, to)}
+    SELECT to_char(a.changed_at AT TIME ZONE ${TZ_LITERAL}, 'YYYY-MM-DD') AS date,
+           pr.request_number AS request_number,
+           cs.name AS site_name,
+           c.name AS counterparty_name,
+           s.name AS supplier_name,
+           a.prev_amount::float8 AS amount_before,
+           a.next_amount::float8 AS amount_after,
+           a.saved::float8 AS saved,
+           u.full_name AS full_name
+    FROM attributed a
+    JOIN payment_requests pr ON pr.id = a.pr_id
+    LEFT JOIN users u ON u.id = a.author_id
+    LEFT JOIN construction_sites cs ON cs.id = pr.site_id
+    LEFT JOIN counterparties c ON c.id = pr.counterparty_id
+    LEFT JOIN suppliers s ON s.id = pr.supplier_id
+    ORDER BY a.changed_at DESC
+  `);
+
+  const rows = (res as unknown as DetailRow[]).map((r) => ({
+    date: r.date,
+    requestNumber: r.request_number,
+    siteName: r.site_name,
+    counterpartyName: r.counterparty_name,
+    supplierName: r.supplier_name,
+    amountBefore: Number(r.amount_before),
+    amountAfter: Number(r.amount_after),
+    saved: Number(r.saved),
+    fullName: r.full_name,
+  }));
+
+  return { from, to, rows };
 }

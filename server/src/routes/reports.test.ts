@@ -19,6 +19,21 @@ const ROWS = [
   { month: '2026-07', user_id: 'u1', full_name: 'Иванов И.И.', cnt: 3, saved: 1000 },
 ];
 
+/** Строки детализации, которые вернул бы SQL-запрос деталей. */
+const DETAIL_ROWS = [
+  {
+    date: '2026-08-27',
+    request_number: '1163',
+    site_name: 'ЖК Волна',
+    counterparty_name: 'ООО Подрядчик',
+    supplier_name: 'ООО Поставщик',
+    amount_before: 15160,
+    amount_after: 13660,
+    saved: 1500,
+    full_name: 'Иванов И.И.',
+  },
+];
+
 /** Заглушка Drizzle: execute всегда отдаёт заранее заданные строки. */
 function fakeDb(rows: unknown[]): BillhubDatabase {
   return { execute: async () => rows } as unknown as BillhubDatabase;
@@ -113,6 +128,43 @@ describe('GET /api/reports/savings', () => {
     expect(body.months[0]).toMatchObject({ month: '2026-08', count: 3, saved: 2000.5 });
     expect(body.months[0].byUser).toHaveLength(2);
     expect(body.months[1]).toMatchObject({ month: '2026-07', count: 3, saved: 1000 });
+  });
+
+  it('детализация: admin получает строки со снижениями и ФИО', async () => {
+    const app = await buildApp(fakeDb(DETAIL_ROWS));
+    const token = await seedAndSign(app);
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/reports/savings/details?from=2026-08&to=2026-08',
+      cookies: { access_token: token },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body).toMatchObject({ from: '2026-08', to: '2026-08' });
+    expect(body.rows).toEqual([
+      {
+        date: '2026-08-27',
+        requestNumber: '1163',
+        siteName: 'ЖК Волна',
+        counterpartyName: 'ООО Подрядчик',
+        supplierName: 'ООО Поставщик',
+        amountBefore: 15160,
+        amountAfter: 13660,
+        saved: 1500,
+        fullName: 'Иванов И.И.',
+      },
+    ]);
+  });
+
+  it('детализация: не-admin -> 403', async () => {
+    const app = await buildApp(fakeDb(DETAIL_ROWS));
+    const token = await seedAndSign(app, { id: 'user-2', email: 'u2@example.com', role: 'user' });
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/reports/savings/details',
+      cookies: { access_token: token },
+    });
+    expect(res.statusCode).toBe(403);
   });
 
   it('пустой результат -> нулевой итог без месяцев', async () => {

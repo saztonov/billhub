@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { authenticate } from '../middleware/authenticate.js';
 import { requireRole } from '../middleware/requireRole.js';
 import { savingsReportQuerySchema } from '../schemas/report.js';
-import { getSavingsReport } from '../services/reports/savings-report.service.js';
+import { getSavingsReport, getSavingsDetails } from '../services/reports/savings-report.service.js';
 
 /* ------------------------------------------------------------------ */
 /*  Маршруты отчётов админки. Только Drizzle (без Supabase).           */
@@ -26,6 +26,12 @@ async function reportRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.get('/api/reports/savings', adminOnly, async (request) => {
     const query = savingsReportQuerySchema.parse(request.query);
     return getSavingsReport(getDb(), query);
+  });
+
+  /* ---------- GET /api/reports/savings/details (строки для выгрузки в Excel) ---------- */
+  fastify.get('/api/reports/savings/details', adminOnly, async (request) => {
+    const query = savingsReportQuerySchema.parse(request.query);
+    return getSavingsDetails(getDb(), query);
   });
 }
 

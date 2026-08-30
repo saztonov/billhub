@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Card, Col, DatePicker, Empty, Row, Statistic, Table, Typography } from 'antd'
+import { App, Button, Card, Col, DatePicker, Empty, Row, Statistic, Table, Typography } from 'antd'
+import { FileExcelOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs, { type Dayjs } from 'dayjs'
 import { api } from '@/services/api'
 import { logError } from '@/services/errorLogger'
 import { useTableScrollY } from '@/hooks/useTableScrollY'
-import type { SavingsByUser, SavingsMonth, SavingsReport } from '@/types'
+import { exportSavingsReportToExcel } from '@/utils/exportSavingsReport'
+import type { SavingsByUser, SavingsDetails, SavingsMonth, SavingsReport } from '@/types'
 
 const { RangePicker } = DatePicker
 const { Text } = Typography
@@ -67,12 +69,14 @@ const userColumns: ColumnsType<SavingsByUser> = [
 ]
 
 const SavingsReportSection = () => {
+  const { message } = App.useApp()
   const [range, setRange] = useState<[Dayjs, Dayjs]>([
     dayjs().subtract(DEFAULT_MONTHS_BACK, 'month'),
     dayjs(),
   ])
   const [report, setReport] = useState<SavingsReport | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
   const { containerRef, scrollY } = useTableScrollY([report])
 
   const fetchReport = useCallback(async (from: Dayjs, to: Dayjs) => {
@@ -103,6 +107,30 @@ const SavingsReportSection = () => {
     const from = value?.[0]
     const to = value?.[1]
     if (from && to) setRange([from, to])
+  }
+
+  // Выгрузка в Excel: сводка уже загружена, детализация запрашивается за тот же период
+  const handleExport = async () => {
+    if (!report) return
+    setIsExporting(true)
+    try {
+      const details = await api.get<SavingsDetails>('/api/reports/savings/details', {
+        from: report.from,
+        to: report.to,
+      })
+      await exportSavingsReportToExcel(report, details)
+    } catch (err) {
+      logError({
+        errorType: 'export_error',
+        errorMessage: err instanceof Error ? err.message : 'Ошибка выгрузки отчёта об экономии',
+        errorStack: err instanceof Error ? err.stack : null,
+        component: 'SavingsReportSection',
+        metadata: { action: 'exportSavingsReport', from: report.from, to: report.to },
+      })
+      message.error('Ошибка при выгрузке в Excel')
+    } finally {
+      setIsExporting(false)
+    }
   }
 
   const columns: ColumnsType<SavingsMonth> = [
@@ -169,6 +197,15 @@ const SavingsReportSection = () => {
               value={range}
               onChange={handleRangeChange}
             />
+            <Button
+              icon={<FileExcelOutlined />}
+              style={{ marginTop: 8, width: '100%' }}
+              loading={isExporting}
+              disabled={isLoading || !report || report.months.length === 0}
+              onClick={handleExport}
+            >
+              Экспорт в Excel
+            </Button>
           </Card>
         </Col>
       </Row>
