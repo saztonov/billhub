@@ -1,6 +1,12 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Typography, Input, Button, Space, Popconfirm, App, Select, Tag } from 'antd'
-import { SendOutlined, EditOutlined, DeleteOutlined, CloseOutlined, CheckOutlined } from '@ant-design/icons'
+import {
+  SendOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  CloseOutlined,
+  CheckOutlined,
+} from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { useCommentStore } from '@/store/commentStore'
 import { useAuthStore } from '@/store/authStore'
@@ -12,6 +18,7 @@ import { DEPARTMENT_LABELS } from '@/types'
 const RECIPIENT_LABELS: Record<string, string> = {
   omts: 'ОМТС',
   shtab: 'Штаб',
+  uok: 'УОК',
   counterparty: 'Подрядчик',
 }
 
@@ -24,7 +31,15 @@ interface CommentsChatProps {
 
 const CommentsChat = ({ paymentRequestId }: CommentsChatProps) => {
   const { message } = App.useApp()
-  const { comments, isLoading, isSubmitting, fetchComments, addComment, updateComment, deleteComment } = useCommentStore()
+  const {
+    comments,
+    isLoading,
+    isSubmitting,
+    fetchComments,
+    addComment,
+    updateComment,
+    deleteComment,
+  } = useCommentStore()
   const user = useAuthStore((s) => s.user)
   const isMobile = useIsMobile()
   const isAdmin = user?.role === 'admin'
@@ -40,27 +55,32 @@ const CommentsChat = ({ paymentRequestId }: CommentsChatProps) => {
     if (user?.role === 'counterparty_user') {
       options.push({ value: 'omts', label: 'ОМТС' })
       options.push({ value: 'shtab', label: 'Штаб' })
+      options.push({ value: 'uok', label: 'УОК' })
     } else if (user?.department === 'shtab') {
       options.push({ value: 'omts', label: 'ОМТС' })
+      options.push({ value: 'uok', label: 'УОК' })
       options.push({ value: 'counterparty', label: 'Подрядчик' })
     } else if (user?.department === 'omts') {
       options.push({ value: 'shtab', label: 'Штаб' })
+      options.push({ value: 'uok', label: 'УОК' })
+      options.push({ value: 'counterparty', label: 'Подрядчик' })
+    } else if (user?.department === 'uok') {
+      options.push({ value: 'shtab', label: 'Штаб' })
+      options.push({ value: 'omts', label: 'ОМТС' })
       options.push({ value: 'counterparty', label: 'Подрядчик' })
     } else if (user?.role === 'admin' || user?.role === 'user') {
       // Админ или пользователь без привязки к отделу — все варианты
       options.push({ value: 'omts', label: 'ОМТС' })
       options.push({ value: 'shtab', label: 'Штаб' })
+      options.push({ value: 'uok', label: 'УОК' })
       options.push({ value: 'counterparty', label: 'Подрядчик' })
     }
     return options
   }, [user?.role, user?.department])
 
-
   useEffect(() => {
     fetchComments(paymentRequestId)
   }, [paymentRequestId, fetchComments])
-
-
 
   const handleSend = async () => {
     if (!newText.trim() || !user) return
@@ -120,9 +140,7 @@ const CommentsChat = ({ paymentRequestId }: CommentsChatProps) => {
     if (comment.authorFullName) {
       const words = comment.authorFullName.trim().split(/\s+/)
       // 3+ слова — имя и отчество (2-е и 3-е), 2 слова — оба
-      const shortName = words.length >= 3
-        ? `${words[1]} ${words[2]}`
-        : words.join(' ')
+      const shortName = words.length >= 3 ? `${words[1]} ${words[2]}` : words.join(' ')
       parts.push(shortName)
     }
     return parts.join(', ') || comment.authorEmail || '—'
@@ -163,10 +181,28 @@ const CommentsChat = ({ paymentRequestId }: CommentsChatProps) => {
           </div>
         )}
         {comments.map((comment) => (
-          <div key={comment.id} style={{ marginBottom: 12, padding: '8px 12px', background: '#fff', borderRadius: 6, border: '1px solid #f0f0f0' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+          <div
+            key={comment.id}
+            style={{
+              marginBottom: 12,
+              padding: '8px 12px',
+              background: '#fff',
+              borderRadius: 6,
+              border: '1px solid #f0f0f0',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                marginBottom: 4,
+              }}
+            >
               <div>
-                <Text strong style={{ fontSize: 13 }}>{getAuthorDisplayName(comment)}</Text>
+                <Text strong style={{ fontSize: 13 }}>
+                  {getAuthorDisplayName(comment)}
+                </Text>
                 {comment.recipient && (
                   <Tag color="blue" style={{ marginLeft: 6, fontSize: 11 }}>
                     {RECIPIENT_LABELS[comment.recipient] ?? comment.recipient}
@@ -177,18 +213,29 @@ const CommentsChat = ({ paymentRequestId }: CommentsChatProps) => {
                   {comment.updatedAt && ' (ред.)'}
                 </Text>
               </div>
-              {(canEditComment(comment) || canDeleteComment(comment)) && editingId !== comment.id && (
-                <Space size={4}>
-                  {canEditComment(comment) && (
-                    <Button icon={<EditOutlined />} size="small" type="text" onClick={() => startEditing(comment)} />
-                  )}
-                  {canDeleteComment(comment) && (
-                    <Popconfirm title="Удалить комментарий?" onConfirm={() => handleDelete(comment.id)} okText="Да" cancelText="Нет">
-                      <Button icon={<DeleteOutlined />} size="small" type="text" danger />
-                    </Popconfirm>
-                  )}
-                </Space>
-              )}
+              {(canEditComment(comment) || canDeleteComment(comment)) &&
+                editingId !== comment.id && (
+                  <Space size={4}>
+                    {canEditComment(comment) && (
+                      <Button
+                        icon={<EditOutlined />}
+                        size="small"
+                        type="text"
+                        onClick={() => startEditing(comment)}
+                      />
+                    )}
+                    {canDeleteComment(comment) && (
+                      <Popconfirm
+                        title="Удалить комментарий?"
+                        onConfirm={() => handleDelete(comment.id)}
+                        okText="Да"
+                        cancelText="Нет"
+                      >
+                        <Button icon={<DeleteOutlined />} size="small" type="text" danger />
+                      </Popconfirm>
+                    )}
+                  </Space>
+                )}
             </div>
             {editingId === comment.id ? (
               <div>
@@ -199,8 +246,25 @@ const CommentsChat = ({ paymentRequestId }: CommentsChatProps) => {
                   style={{ marginBottom: 8 }}
                 />
                 <Space size={4}>
-                  <Button size="small" icon={<CheckOutlined />} type="primary" loading={isSubmitting} onClick={handleEditSave}>Сохранить</Button>
-                  <Button size="small" icon={<CloseOutlined />} onClick={() => { setEditingId(null); setEditText('') }}>Отмена</Button>
+                  <Button
+                    size="small"
+                    icon={<CheckOutlined />}
+                    type="primary"
+                    loading={isSubmitting}
+                    onClick={handleEditSave}
+                  >
+                    Сохранить
+                  </Button>
+                  <Button
+                    size="small"
+                    icon={<CloseOutlined />}
+                    onClick={() => {
+                      setEditingId(null)
+                      setEditText('')
+                    }}
+                  >
+                    Отмена
+                  </Button>
                 </Space>
               </div>
             ) : (
@@ -210,7 +274,14 @@ const CommentsChat = ({ paymentRequestId }: CommentsChatProps) => {
         ))}
       </div>
 
-      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 8, alignItems: isMobile ? 'stretch' : 'flex-end' }}>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: isMobile ? 'column' : 'row',
+          gap: 8,
+          alignItems: isMobile ? 'stretch' : 'flex-end',
+        }}
+      >
         {recipientOptions.length > 1 && (
           <Select
             value={recipient ?? ''}

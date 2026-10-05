@@ -14,7 +14,7 @@ const GREEN: RpStageRawState = {
   legacyPendingCount: 0,
   pendingRpWrongStageNumbers: [],
   statusRpWithoutPendingNumbers: [],
-  stage3WithoutPendingNumbers: [],
+  stageRpWithoutPendingNumbers: [],
 };
 
 describe('evaluateRpStageChecks', () => {
@@ -40,7 +40,7 @@ describe('evaluateRpStageChecks', () => {
     expect(byKey.get('status_without_pending')!.detail).toContain('803');
     // Остальные проверки не задеты
     expect(byKey.get('enum_rp')!.ok).toBe(true);
-    expect(byKey.get('stage3_without_pending')!.ok).toBe(true);
+    expect(byKey.get('stage_rp_without_pending')!.ok).toBe(true);
   });
 
   it('отсутствие enum/таблицы/статуса — красные проверки', () => {

@@ -23,7 +23,7 @@ export interface EstimatSnapshotDocument {
 
 /** Полный снимок проекции заявки на оплату (три независимые оси: согласование/РП/оплата). */
 export interface EstimatSnapshot {
-  statusCode?: string | null; // approv_shtab|approv_omts|approv_rp|approved|revision|rejected|withdrawn
+  statusCode?: string | null; // approv_shtab|approv_omts|approv_uok|approv_rp|approved|revision|rejected|withdrawn
   actionRequired?: boolean | null;
   revisionComment?: string | null;
   requestNumber?: string | null;

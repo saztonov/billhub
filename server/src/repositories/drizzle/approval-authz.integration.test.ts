@@ -195,10 +195,10 @@ describe.skipIf(!RUN)('Серверная авторизация доработ�
 
   /* ---------------- #2 complete-revision — гейт владельца ---------------- */
   it('#2 complete-revision: владелец-контрагент — ок; чужой контрагент — 403', async () => {
-    await seedPr({ id: ID.pr, currentStage: 3, statusId: ID.stRp });
+    await seedPr({ id: ID.pr, currentStage: 4, statusId: ID.stRp });
     await db.insert(approvalDecisions).values({
       paymentRequestId: ID.pr,
-      stageOrder: 3,
+      stageOrder: 4,
       departmentId: 'rp',
       status: 'pending',
       isOmtsRp: false,
@@ -221,10 +221,10 @@ describe.skipIf(!RUN)('Серверная авторизация доработ�
   });
 
   it('#2 complete-revision: admin — ок для любой заявки', async () => {
-    await seedPr({ id: ID.pr, currentStage: 3, statusId: ID.stRp, counterpartyId: ID.cp });
+    await seedPr({ id: ID.pr, currentStage: 4, statusId: ID.stRp, counterpartyId: ID.cp });
     await db.insert(approvalDecisions).values({
       paymentRequestId: ID.pr,
-      stageOrder: 3,
+      stageOrder: 4,
       departmentId: 'rp',
       status: 'pending',
       isOmtsRp: false,

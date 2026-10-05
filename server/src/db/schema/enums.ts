@@ -5,4 +5,5 @@ import { pgEnum } from 'drizzle-orm/pg-core';
 
 // 'rp' — департамент этапа согласования «РП» (миграция 0015): используется только
 // в approval_decisions.department_id, пользователям (users.department_id) не назначается.
-export const departmentEnum = pgEnum('department_enum', ['omts', 'shtab', 'smetny', 'rp']);
+// 'uok' — подразделение «УОК-офис» и департамент этапа согласования «УОК» (миграция 0021).
+export const departmentEnum = pgEnum('department_enum', ['omts', 'shtab', 'smetny', 'rp', 'uok']);

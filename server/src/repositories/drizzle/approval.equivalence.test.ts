@@ -418,7 +418,9 @@ describe.skipIf(!RUN)('Approvals equivalence (Supabase fake ↔ Drizzle testcont
   });
 
   // S12-rp удалён: возврат на этап «РП» после доработки — drizzle-only поведение
-  // (stage 3, назначенцы в rp_stage_assignees); покрыт в approval-rp-stage.integration.test.ts.
+  // (stage 4, назначенцы в rp_stage_assignees); покрыт в approval-rp-stage.integration.test.ts.
+  // Этап «УОК» (stage 3, сумма свыше порога) — тоже drizzle-only: сценарии здесь используют
+  // суммы не выше порога; УОК покрыт в approval-uok-stage.integration.test.ts.
 
   it('S12-auto: complete-revision из approved для авто-типа эквивалентно', async () => {
     const fake = new FakeSupabase();

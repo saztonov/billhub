@@ -73,6 +73,13 @@ function getShortName(fullName?: string, email?: string): string | undefined {
   return email
 }
 
+/** Цвет тега этапа: РП (и легаси ОМТС-РП) — фиолетовый, УОК — бирюзовый, прочие — по умолчанию */
+function stageTagColor(department: string, isOmtsRp?: boolean): string | undefined {
+  if (isOmtsRp || department === 'rp') return 'purple'
+  if (department === 'uok') return 'cyan'
+  return undefined
+}
+
 /** Формирует текст этапа (легаси-записи под-этапа ОМТС-РП сохраняют прежнюю подпись) */
 function stageLabel(entry: StageHistoryEntry): string {
   const dept = entry.isOmtsRp
@@ -101,7 +108,7 @@ const CounterpartyLog = ({
     for (const entry of request.stageHistory ?? []) {
       const config = EVENT_CONFIG[entry.event]
       if (!config) continue
-      // Для событий ОМТС и РП (stage>=2) показываем автора
+      // Для событий ОМТС, УОК и РП (stage>=2) показываем автора
       const isOmtsStage = entry.stage >= 2
       const authorName = isOmtsStage ? getShortName(entry.userFullName, entry.userEmail) : undefined
       let text = `${stageLabel(entry)} — ${config.label}`
@@ -219,7 +226,7 @@ const AdminLog = ({ request, decisions, logs }: Omit<ApprovalLogProps, 'isCounte
         userFullName: entry.userFullName,
         comment: entry.comment,
         tag: `Этап ${entry.stage}. ${dept}`,
-        tagColor: entry.isOmtsRp || entry.department === 'rp' ? 'purple' : undefined,
+        tagColor: stageTagColor(entry.department, entry.isOmtsRp),
       }
 
       // Для отклонений добавляем файлы из decisions
@@ -247,7 +254,7 @@ const AdminLog = ({ request, decisions, logs }: Omit<ApprovalLogProps, 'isCounte
         text: 'Ожидает',
         date: d.createdAt,
         tag: `Этап ${d.stageOrder}. ${dept}`,
-        tagColor: d.isOmtsRp || d.department === 'rp' ? 'purple' : undefined,
+        tagColor: stageTagColor(d.department, d.isOmtsRp),
         isPending: true,
       })
     }

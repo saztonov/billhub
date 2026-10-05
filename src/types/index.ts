@@ -99,13 +99,14 @@ export interface ConstructionSite {
 }
 
 /** Подразделение (enum) */
-export type Department = 'omts' | 'shtab' | 'smetny'
+export type Department = 'omts' | 'shtab' | 'smetny' | 'uok'
 
 /** Маппинг enum → название для UI */
 export const DEPARTMENT_LABELS: Record<Department, string> = {
   omts: 'ОМТС',
   shtab: 'Штаб',
   smetny: 'Сметный',
+  uok: 'УОК-офис',
 }
 
 /**
@@ -115,20 +116,30 @@ export const DEPARTMENT_LABELS: Record<Department, string> = {
  */
 export const SHTAB_MAX_SITES = 6
 
-/** Департамент этапа согласования: отдел пользователя либо 'rp' (этап «РП», stage 3) */
+/** Департамент этапа согласования: отдел пользователя либо 'rp' (этап «РП», stage 4) */
 export type ApprovalDepartment = Department | 'rp'
 
 /** Подписи департаментов этапов согласования (включая этап «РП») */
 export const STAGE_DEPARTMENT_LABELS: Record<ApprovalDepartment, string> = {
   ...DEPARTMENT_LABELS,
+  uok: 'УОК',
   rp: 'РП',
 }
 
+/** Номера этапов цепочки согласования (current_stage / rejected_stage / stage_order) */
+export const STAGE_SHTAB = 1
+export const STAGE_OMTS = 2
+/** Этап «УОК» — только для заявок с суммой счёта свыше порога (настройка в админке) */
+export const STAGE_UOK = 3
+/** Этап «РП» — только для объектов с назначенцем РП */
+export const STAGE_RP = 4
+
 /** Подписи этапов цепочки согласования по номеру стадии */
 export const STAGE_LABELS: Record<number, string> = {
-  1: 'Штаб',
-  2: 'ОМТС',
-  3: 'РП',
+  [STAGE_SHTAB]: 'Штаб',
+  [STAGE_OMTS]: 'ОМТС',
+  [STAGE_UOK]: 'УОК',
+  [STAGE_RP]: 'РП',
 }
 
 /** Категория типа документа */
@@ -268,7 +279,7 @@ export interface PaymentRequest {
   currentStage: number | null
   approvedAt: string | null
   rejectedAt: string | null
-  rejectedStage: number | null // Номер этапа (1=Штаб, 2=ОМТС, 3=РП), на котором была отклонена заявка
+  rejectedStage: number | null // Номер этапа (1=Штаб, 2=ОМТС, 3=УОК, 4=РП), на котором была отклонена заявка
   resubmitComment: string | null
   resubmitCount: number
   invoiceAmount: number | null // Сумма счета в рублях

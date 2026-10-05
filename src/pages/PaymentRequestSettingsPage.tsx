@@ -18,6 +18,7 @@ import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useStatusStore } from '@/store/statusStore'
 import { usePaymentRequestSettingsStore } from '@/store/paymentRequestSettingsStore'
 import RpSettingsTab from '@/components/admin/RpSettingsTab'
+import UokSettingsTab from '@/components/admin/UokSettingsTab'
 import type { Status, PaymentRequestFieldOption } from '@/types'
 
 const STATUS_ENTITY_TYPES = [
@@ -329,6 +330,11 @@ const PaymentRequestSettingsPage = () => {
           </div>
         </div>
       ),
+    },
+    {
+      key: 'uok',
+      label: 'УОК',
+      children: <UokSettingsTab />,
     },
     {
       key: 'rp',

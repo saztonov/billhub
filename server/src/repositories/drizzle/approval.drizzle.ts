@@ -1,7 +1,8 @@
 /**
  * DrizzleApprovalRepository — провайдер согласований по умолчанию (Iteration 5, Phase 7).
- * Машина состояний: Штаб (1) → ОМТС (2) → РП (3, только для объектов с назначенцем
- * в rp_stage_assignees) → Согласована; либо Отклонено / Доработка / Завершение доработки.
+ * Машина состояний: Штаб (1) → ОМТС (2) → УОК (3, только при сумме счёта свыше порога из
+ * settings) → РП (4, только для объектов с назначенцем в rp_stage_assignees) → Согласована;
+ * либо Отклонено / Доработка / Завершение доработки.
  * Pending-решение матчится по current_stage заявки (у заявки в один момент ровно одно
  * pending-решение); право действовать на этапе проверяется явно (approval-stage-flow).
  * Все write-операции выполняются в db.transaction() (атомарность переходов — принцип плана).
@@ -9,9 +10,9 @@
  * Уведомления (финальное согласование — создателю, вход на этап РП — назначенцу)
  * отправляются ПОСЛЕ коммита, best-effort (.catch).
  * Доработка согласованной contractor-заявки (approved → revision → complete): completeRevision
- * возвращает её НЕ в approved, а на повторное согласование (этап РП при наличии назначенца,
- * иначе ОМТС), чтобы заявка не согласовывалась без нового решения approver'а;
- * авто-типы восстанавливаются в approved.
+ * возвращает её НЕ в approved, а на повторное согласование (последний обязательный рубеж:
+ * РП / УОК / ОМТС — см. reopenStageFor), чтобы заявка не согласовывалась без нового решения
+ * approver'а; авто-типы восстанавливаются в approved.
  */
 import {
   and,
@@ -23,7 +24,6 @@ import {
   inArray,
   isNull,
   isNotNull,
-  or,
 } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import * as schema from '../../db/schema/index.js';
@@ -41,8 +41,14 @@ import {
 } from '../../db/schema/index.js';
 import { departmentEnum } from '../../db/schema/enums.js';
 import {
+  STAGE_OMTS,
+  STAGE_RP,
+  STAGE_SHTAB,
+  STAGE_UOK,
   stageDepartment,
-  rpAssigneeForSite,
+  stageStatusCode,
+  nextStageAfter,
+  reopenStageFor,
   rpAssigneeSiteIds,
   userMayActOnStage,
 } from './approval-stage-flow.js';
@@ -422,6 +428,7 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
         statusId: paymentRequests.statusId,
         supplierId: paymentRequests.supplierId,
         previousStatusId: paymentRequests.previousStatusId,
+        invoiceAmount: paymentRequests.invoiceAmount,
       })
       .from(paymentRequests)
       .where(eq(paymentRequests.id, input.paymentRequestId))
@@ -474,7 +481,7 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
           };
         }
       }
-      return this.approve(input, currentStage, siteId);
+      return this.approve(input, currentStage, siteId, pr.invoiceAmount ?? null);
     }
 
     const code = await this.statusCodeById(this.db, pr.statusId);
@@ -494,10 +501,34 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
     return this.reject(input, currentStage);
   }
 
+  /** Переводит заявку на этап: pending-решение этапа, «получено» в истории, статус этапа. */
+  private async enterStage(
+    tx: AnyTx,
+    paymentRequestId: string,
+    stage: number,
+    extraSet: Record<string, unknown> = {},
+  ): Promise<void> {
+    const department = stageDepartment(stage);
+    await tx.insert(approvalDecisions).values({
+      paymentRequestId,
+      stageOrder: stage,
+      departmentId: department,
+      status: 'pending',
+      isOmtsRp: false,
+    });
+    await this.appendHistory(tx, paymentRequestId, { stage, department, event: 'received' });
+    const statusId = await this.statusIdByCode(tx, 'payment_request', stageStatusCode(stage));
+    await tx
+      .update(paymentRequests)
+      .set({ currentStage: stage, statusId, previousStatusId: null, ...extraSet })
+      .where(eq(paymentRequests.id, paymentRequestId));
+  }
+
   private async approve(
     input: ApprovalDecideInput,
     currentStage: number,
     siteId: string,
+    invoiceAmount: number | null,
   ): Promise<ApprovalDecideResult> {
     // Уведомление (создателю при финале / назначенцу при входе на РП) — ПОСЛЕ коммита.
     let notify: { userId: string; type: string; title: string; message: string } | null = null;
@@ -544,62 +575,29 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
         ...(pending.isOmtsRp ? { isOmtsRp: true } : {}),
       });
 
-      if (currentStage === 1) {
-        await tx.insert(approvalDecisions).values({
-          paymentRequestId: input.paymentRequestId,
-          stageOrder: 2,
-          departmentId: 'omts',
-          status: 'pending',
-          isOmtsRp: false,
-        });
-        await this.appendHistory(tx, input.paymentRequestId, {
-          stage: 2,
-          department: 'omts',
-          event: 'received',
-        });
-        const omtsStatusId = await this.statusIdByCode(tx, 'payment_request', 'approv_omts');
-        await tx
-          .update(paymentRequests)
-          .set({
-            currentStage: 2,
-            statusId: omtsStatusId,
-            omtsEnteredAt: nowIso(),
-            previousStatusId: null,
-          })
-          .where(eq(paymentRequests.id, input.paymentRequestId));
+      if (currentStage === STAGE_SHTAB) {
+        await this.enterStage(tx, input.paymentRequestId, STAGE_OMTS, { omtsEnteredAt: nowIso() });
         return { ok: true as const };
       }
 
-      // Этап 2 (кроме легаси-pending под-этапа ОМТС-РП): при наличии назначенца РП
-      // по объекту заявка переходит на этап 3, иначе — финализация.
-      const rpAssigneeId =
-        currentStage === 2 && !pending.isOmtsRp ? await rpAssigneeForSite(tx, siteId) : null;
+      // Момент согласования ОМТС фиксируем при уходе с этапа 2 (на УОК, РП или в финал);
+      // при уходе с УОК/РП omts_approved_at уже установлен.
+      const omtsDone = currentStage === STAGE_OMTS ? { omtsApprovedAt: nowIso() } : {};
 
-      if (rpAssigneeId) {
-        await tx.insert(approvalDecisions).values({
-          paymentRequestId: input.paymentRequestId,
-          stageOrder: 3,
-          departmentId: 'rp',
-          status: 'pending',
-          isOmtsRp: false,
-        });
-        await this.appendHistory(tx, input.paymentRequestId, {
-          stage: 3,
-          department: 'rp',
-          event: 'received',
-        });
-        const rpStatusId = await this.statusIdByCode(tx, 'payment_request', 'approv_rp');
-        await tx
-          .update(paymentRequests)
-          .set({
-            currentStage: 3,
-            statusId: rpStatusId,
-            omtsApprovedAt: nowIso(),
-            previousStatusId: null,
-          })
-          .where(eq(paymentRequests.id, input.paymentRequestId));
+      // ОМТС → УОК (сумма свыше порога) / ОМТС, УОК → РП (назначенец объекта) / финализация.
+      // Легаси-pending под-этапа ОМТС-РП финализируется без дальнейших этапов.
+      const next = pending.isOmtsRp
+        ? null
+        : await nextStageAfter(tx, { stage: currentStage, siteId, invoiceAmount });
 
-        if (rpAssigneeId !== input.userId) {
+      if (next?.stage === STAGE_UOK) {
+        await this.enterStage(tx, input.paymentRequestId, STAGE_UOK, omtsDone);
+        return { ok: true as const };
+      }
+
+      if (next?.stage === STAGE_RP) {
+        await this.enterStage(tx, input.paymentRequestId, STAGE_RP, omtsDone);
+        if (next.assigneeId !== input.userId) {
           const [reqRow] = await tx
             .select({ requestNumber: paymentRequests.requestNumber })
             .from(paymentRequests)
@@ -607,7 +605,7 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
             .limit(1);
           const label = reqRow?.requestNumber ? ` N${reqRow.requestNumber}` : '';
           notify = {
-            userId: rpAssigneeId,
+            userId: next.assigneeId,
             type: 'rp_pending',
             title: 'Заявка на согласовании РП',
             message: `Заявка${label} поступила на согласование РП`,
@@ -616,16 +614,14 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
         return { ok: true as const };
       }
 
-      // Финализация (этап 3, обычный ОМТС без назначенца РП, легаси-под-этап ОМТС-РП).
+      // Финализация (этап РП, ОМТС/УОК без следующих этапов, легаси-под-этап ОМТС-РП).
       const finalSet: Record<string, unknown> = {
         statusId: await this.statusIdByCode(tx, 'payment_request', 'approved'),
         currentStage: null,
         approvedAt: nowIso(),
         previousStatusId: null,
+        ...omtsDone,
       };
-      // Момент согласования ОМТС фиксируем при финализации с этапа 2; при финализации
-      // с этапа 3 omts_approved_at уже установлен переходом 2 -> 3.
-      if (currentStage === 2) finalSet.omtsApprovedAt = nowIso();
       await tx
         .update(paymentRequests)
         .set(finalSet)
@@ -937,34 +933,16 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
       // цепочки согласования — им пересогласовывать нечего, сохраняем восстановление approved.
       const reopen = wasApproved && cur.requestType === 'contractor';
 
-      // Финальный шлюз: если заявка проходила этап «РП» (новый этап 3 либо легаси-под-этап
-      // ОМТС-РП) — возвращаем на РП, но только при наличии ТЕКУЩЕГО назначенца по объекту;
-      // если назначенца больше нет (или РП не проходила) — на повторное согласование ОМТС.
-      let reopenStage: 2 | 3 = 2;
-      if (reopen) {
-        const [rpApproved] = await tx
-          .select({ id: approvalDecisions.id })
-          .from(approvalDecisions)
-          .where(
-            and(
-              eq(approvalDecisions.paymentRequestId, paymentRequestId),
-              eq(approvalDecisions.status, 'approved'),
-              or(
-                eq(approvalDecisions.departmentId, 'rp'),
-                and(
-                  eq(approvalDecisions.stageOrder, 2),
-                  eq(approvalDecisions.departmentId, 'omts'),
-                  eq(approvalDecisions.isOmtsRp, true),
-                ),
-              ),
-            ),
-          )
-          .limit(1);
-        if (rpApproved) {
-          const assigneeId = await rpAssigneeForSite(tx, cur.siteId);
-          reopenStage = assigneeId ? 3 : 2;
-        }
-      }
+      // Финальный шлюз — последний обязательный рубеж с учётом суммы после доработки:
+      // РП (проходила РП, назначенец есть, УОК не требуется или уже согласовал) → УОК (сумма
+      // свыше порога) → ОМТС (см. reopenStageFor).
+      const reopenStage = reopen
+        ? await reopenStageFor(tx, {
+            paymentRequestId,
+            siteId: cur.siteId,
+            invoiceAmount: fieldUpdates.invoiceAmount ?? null,
+          })
+        : STAGE_OMTS;
 
       const updateData: Record<string, unknown> = {
         previousStatusId: null,
@@ -979,16 +957,16 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
         updateData.statusId = await this.statusIdByCode(
           tx,
           'payment_request',
-          reopenStage === 3 ? 'approv_rp' : 'approv_omts',
+          stageStatusCode(reopenStage),
         );
         updateData.currentStage = reopenStage;
         updateData.approvedAt = null;
-        if (reopenStage === 2) {
+        if (reopenStage === STAGE_OMTS) {
           // Возврат в обычное ОМТС: снимаем ОМТС-согласование и перезапускаем «Срок ОМТС».
           updateData.omtsApprovedAt = null;
           updateData.omtsEnteredAt = nowIso();
         }
-        // При возврате на РП обычное ОМТС уже согласовано — omts_approved_at/omts_entered_at не трогаем.
+        // При возврате на УОК/РП ОМТС уже согласовано — omts_approved_at/omts_entered_at не трогаем.
       } else {
         updateData.statusId = cur.previousStatusId;
         if (wasApproved) updateData.approvedAt = nowIso();
@@ -1076,7 +1054,7 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
           .values({
             paymentRequestId,
             stageOrder: reopenStage,
-            departmentId: reopenStage === 3 ? 'rp' : 'omts',
+            departmentId: stageDepartment(reopenStage),
             status: 'pending',
             isOmtsRp: false,
           })
@@ -1085,7 +1063,7 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
         if (inserted.length > 0) {
           await this.appendHistory(tx, paymentRequestId, {
             stage: reopenStage,
-            department: reopenStage === 3 ? 'rp' : 'omts',
+            department: stageDepartment(reopenStage),
             event: 'received',
           });
         }

@@ -4,7 +4,7 @@
  */
 import { z } from 'zod';
 
-const departmentValue = z.enum(['omts', 'shtab', 'smetny']);
+const departmentValue = z.enum(['omts', 'shtab', 'smetny', 'uok']);
 
 /* ----------------------------- Заявки на оплату ----------------------------- */
 

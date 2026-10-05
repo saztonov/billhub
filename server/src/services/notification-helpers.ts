@@ -11,7 +11,7 @@ export interface NotificationInsert {
   message: string;
   payment_request_id?: string;
   contract_request_id?: string;
-  department_id?: 'omts' | 'shtab' | 'smetny';
+  department_id?: 'omts' | 'shtab' | 'smetny' | 'uok';
   site_id?: string;
 }
 

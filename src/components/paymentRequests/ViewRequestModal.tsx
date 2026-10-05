@@ -461,16 +461,21 @@ const ViewRequestModal = ({
   // Разрешение на отклонение файлов: согласующие ИЛИ редактирование согласованной заявки
   const canRejectFiles = canApprove || (isEditing && isApprovedRequest)
 
-  // Проверяем, может ли текущий пользователь отправить на доработку (ОМТС, назначенец РП, admin)
+  // Проверяем, может ли текущий пользователь отправить на доработку (ОМТС, УОК, назначенец РП, admin)
   const isAdmin = user?.role === 'admin'
   const isOmtsUser = user?.department === 'omts'
+  const isUokUser = user?.department === 'uok'
   const isRpAssigneeForRequest = rpMySiteIds.includes(request.siteId)
   const hasPendingOmtsOrRpDecision = currentDecisions.some(
     (d) =>
       d.status === 'pending' && (d.department === 'omts' || d.department === 'rp' || d.isOmtsRp),
   )
+  const hasPendingUokDecision = currentDecisions.some(
+    (d) => d.status === 'pending' && d.department === 'uok',
+  )
   const canSendToRevision =
     ((isAdmin || isOmtsUser || isRpAssigneeForRequest) && hasPendingOmtsOrRpDecision) ||
+    ((isAdmin || isUokUser) && hasPendingUokDecision) ||
     (!!canEdit && isApprovedRequest)
 
   // Заявка в статусе "На доработку" — previous_status_id заполнен. После корректного

@@ -1,16 +1,16 @@
 /**
  * check-rp-stage — read-only проверка инвариантов этапа «РП» на боевой БД
- * ПОСЛЕ наката миграций 0015/0016 (`deploy-billhub --migrate`).
+ * ПОСЛЕ наката миграций 0015/0016 и 0022 (этап РП перенумерован 3 -> 4; `deploy-billhub --migrate`).
  *
  * Проверяет:
  *   1. enum department_enum содержит значение 'rp';
  *   2. таблица rp_stage_assignees существует (и сколько назначений перенесено);
  *   3. статус payment_request/approv_rp существует, approv_omts_rp не остался;
  *   4. не осталось pending-решений легаси-под-этапа (is_omts_rp=true) — все конвертированы;
- *   5. у заявок с pending-решением этапа 3 «РП» current_stage=3 (иначе матчинг по
+ *   5. у заявок с pending-решением этапа 4 «РП» current_stage=4 (иначе матчинг по
  *      current_stage их не найдёт — «залипание» класса миграции 0014);
- *   6. у заявок в статусе approv_rp (не на доработке) есть pending-решение этапа 3;
- *   7. у заявок с current_stage=3 есть pending-решение этапа 3.
+ *   6. у заявок в статусе approv_rp (не на доработке) есть pending-решение этапа 4;
+ *   7. у заявок с current_stage=4 есть pending-решение этапа 4.
  *
  * ТОЛЬКО чтение — можно запускать на проде без риска. Exit 0 — все проверки зелёные.
  * Запуск (на VPS): `npm --prefix server run check:rp-stage` (берёт DATABASE_URL).
@@ -37,7 +37,7 @@ export interface RpStageRawState {
   legacyPendingCount: number;
   pendingRpWrongStageNumbers: string[];
   statusRpWithoutPendingNumbers: string[];
-  stage3WithoutPendingNumbers: string[];
+  stageRpWithoutPendingNumbers: string[];
 }
 
 /** Чистая оценка сырого состояния БД → список проверок (unit-тестируется без БД). */
@@ -77,21 +77,21 @@ export function evaluateRpStageChecks(s: RpStageRawState): RpStageCheckRow[] {
     },
     {
       key: 'pending_rp_stage',
-      title: 'у pending-решений этапа «РП» current_stage=3 (нет залипания класса 0014)',
+      title: 'у pending-решений этапа «РП» current_stage=4 (нет залипания класса 0014)',
       ok: s.pendingRpWrongStageNumbers.length === 0,
       detail: list(s.pendingRpWrongStageNumbers),
     },
     {
       key: 'status_without_pending',
-      title: 'у заявок в статусе approv_rp (не на доработке) есть pending этапа 3',
+      title: 'у заявок в статусе approv_rp (не на доработке) есть pending этапа 4',
       ok: s.statusRpWithoutPendingNumbers.length === 0,
       detail: list(s.statusRpWithoutPendingNumbers),
     },
     {
-      key: 'stage3_without_pending',
-      title: 'у заявок с current_stage=3 есть pending этапа 3',
-      ok: s.stage3WithoutPendingNumbers.length === 0,
-      detail: list(s.stage3WithoutPendingNumbers),
+      key: 'stage_rp_without_pending',
+      title: 'у заявок с current_stage=4 есть pending этапа 4',
+      ok: s.stageRpWithoutPendingNumbers.length === 0,
+      detail: list(s.stageRpWithoutPendingNumbers),
     },
   ];
 }
@@ -121,16 +121,16 @@ export async function collectRpStageState(sql: postgres.Sql): Promise<RpStageRaw
     SELECT count(*)::int AS c FROM public.approval_decisions
     WHERE status = 'pending' AND is_omts_rp = true`;
 
-  // Pending этапа 3 «РП» у заявки, чей current_stage != 3 — решение «не находится» матчингом.
+  // Pending этапа 4 «РП» у заявки, чей current_stage != 4 — решение «не находится» матчингом.
   const wrongStage = await sql`
     SELECT DISTINCT pr.request_number AS n
     FROM public.approval_decisions ad
     JOIN public.payment_requests pr ON pr.id = ad.payment_request_id
     WHERE ad.status = 'pending' AND ad.department_id = 'rp'
-      AND pr.current_stage IS DISTINCT FROM 3
+      AND pr.current_stage IS DISTINCT FROM 4
     ORDER BY 1`;
 
-  // Статус approv_rp без pending этапа 3 (заявка не на доработке) — кнопка «Согласовать» пропадёт.
+  // Статус approv_rp без pending этапа 4 (заявка не на доработке) — кнопка «Согласовать» пропадёт.
   const withoutPending = await sql`
     SELECT pr.request_number AS n
     FROM public.payment_requests pr
@@ -144,10 +144,10 @@ export async function collectRpStageState(sql: postgres.Sql): Promise<RpStageRaw
       )
     ORDER BY 1`;
 
-  const stage3WithoutPending = await sql`
+  const stageRpWithoutPending = await sql`
     SELECT pr.request_number AS n
     FROM public.payment_requests pr
-    WHERE pr.current_stage = 3
+    WHERE pr.current_stage = 4
       AND NOT EXISTS (
         SELECT 1 FROM public.approval_decisions ad
         WHERE ad.payment_request_id = pr.id
@@ -164,7 +164,7 @@ export async function collectRpStageState(sql: postgres.Sql): Promise<RpStageRaw
     legacyPendingCount: Number(legacyPending?.c ?? 0),
     pendingRpWrongStageNumbers: wrongStage.map((r) => String(r.n)),
     statusRpWithoutPendingNumbers: withoutPending.map((r) => String(r.n)),
-    stage3WithoutPendingNumbers: stage3WithoutPending.map((r) => String(r.n)),
+    stageRpWithoutPendingNumbers: stageRpWithoutPending.map((r) => String(r.n)),
   };
 }
 
@@ -179,7 +179,7 @@ async function main(): Promise<void> {
   try {
     const state = await collectRpStageState(sql);
     const checks = evaluateRpStageChecks(state);
-    console.log('Проверка этапа «РП» (после миграций 0015/0016):');
+    console.log('Проверка этапа «РП» (после миграций 0015/0016/0022):');
     for (const c of checks) {
       console.log(`  ${c.ok ? '✓' : '✗'} ${c.title} — ${c.detail}`);
     }

@@ -32,11 +32,16 @@ import type {
 } from '../../schemas/notification-action.js';
 
 type Db = PostgresJsDatabase<typeof schema>;
-type Dept = 'omts' | 'shtab' | 'smetny';
+type Dept = 'omts' | 'shtab' | 'smetny' | 'uok';
 type NotifRow = typeof notifications.$inferInsert;
 
-const DEPT_LABELS: Record<string, string> = { omts: 'ОМТС', shtab: 'Штаб', smetny: 'Сметный' };
-const DEPARTMENT_RECIPIENTS = ['shtab', 'omts', 'smetny', 'counterparty'];
+const DEPT_LABELS: Record<string, string> = {
+  omts: 'ОМТС',
+  shtab: 'Штаб',
+  smetny: 'Сметный',
+  uok: 'УОК-офис',
+};
+const DEPARTMENT_RECIPIENTS = ['shtab', 'omts', 'smetny', 'uok', 'counterparty'];
 
 export class DrizzleNotificationActionRepository implements NotificationActionRepository {
   constructor(private readonly db: Db) {}
@@ -202,9 +207,11 @@ export class DrizzleNotificationActionRepository implements NotificationActionRe
       departmentId: 'shtab' as const,
     }));
 
-    if (rejectedStage === 2) {
-      const omtsIds = await this.usersByDeptAndSite('omts', pr.siteId, actorUserId);
-      for (const uid of omtsIds) {
+    // Отклонение на этапе ОМТС (stage 2) / УОК (stage 3): дополнительно уведомляем подразделение.
+    const rejectedDept = rejectedStage === 2 ? 'omts' : rejectedStage === 3 ? 'uok' : null;
+    if (rejectedDept) {
+      const deptIds = await this.usersByDeptAndSite(rejectedDept, pr.siteId, actorUserId);
+      for (const uid of deptIds) {
         rows.push({
           userId: uid,
           type: 'resubmitted',
@@ -212,13 +219,13 @@ export class DrizzleNotificationActionRepository implements NotificationActionRe
           message: `Заявка${label} отправлена повторно на согласование`,
           paymentRequestId,
           siteId: pr.siteId,
-          departmentId: 'omts' as const,
+          departmentId: rejectedDept,
         });
       }
     }
 
-    // Отклонение на этапе «РП» (stage 3): дополнительно уведомляем назначенца объекта.
-    if (rejectedStage === 3) {
+    // Отклонение на этапе «РП» (stage 4): дополнительно уведомляем назначенца объекта.
+    if (rejectedStage === 4) {
       const [assignee] = await this.db
         .select({ userId: rpStageAssignees.userId })
         .from(rpStageAssignees)

@@ -1,6 +1,7 @@
 /**
- * Drizzle-only интеграционные тесты этапа «РП» (stage 3, миграции 0015/0016):
- * переход ОМТС → РП по назначению rp_stage_assignees, финализация, авторизация по этапам,
+ * Drizzle-only интеграционные тесты этапа «РП» (stage 4; миграции 0015/0016, перенумерация 0022):
+ * переход ОМТС → РП по назначению rp_stage_assignees (сумма счёта не выше порога УОК — этап
+ * УОК пропускается, см. approval-uok-stage), финализация, авторизация по этапам,
  * доработка/возврат, reopen согласованной заявки, гейтинг очереди и счётчика.
  * Supabase-путь этап РП не поддерживает (legacy) — эквивалентность не сравнивается.
  *
@@ -59,7 +60,7 @@ const FU = {
   invoiceAmount: 100,
 };
 
-describe.skipIf(!RUN)('Этап «РП» (stage 3) — Drizzle-only', () => {
+describe.skipIf(!RUN)('Этап «РП» (stage 4) — Drizzle-only', () => {
   let container!: StartedPostgreSqlContainer;
   let sql!: postgres.Sql;
   let db!: PostgresJsDatabase<typeof schema>;
@@ -125,6 +126,7 @@ describe.skipIf(!RUN)('Этап «РП» (stage 3) — Drizzle-only', () => {
     approvedAt?: string | null;
     omtsApprovedAt?: string | null;
     requestType?: string;
+    invoiceAmount?: number | null;
   }) {
     await db.insert(paymentRequests).values({
       id: opts.id ?? ID.pr,
@@ -140,6 +142,8 @@ describe.skipIf(!RUN)('Этап «РП» (stage 3) — Drizzle-only', () => {
       approvedAt: opts.approvedAt ?? null,
       omtsApprovedAt: opts.omtsApprovedAt ?? null,
       requestType: opts.requestType ?? 'contractor',
+      // По умолчанию сумма не выше порога УОК (400 000) — этап УОК пропускается.
+      invoiceAmount: opts.invoiceAmount === undefined ? 100 : opts.invoiceAmount,
       stageHistory: [],
       invoiceAmountHistory: [],
     });
@@ -166,19 +170,19 @@ describe.skipIf(!RUN)('Этап «РП» (stage 3) — Drizzle-only', () => {
     });
   }
 
-  /** pending stage-3 РП для заявки. */
+  /** pending stage-4 РП для заявки. */
   async function seedRpPending(prId = ID.pr, decId = ID.d3) {
     await db.insert(approvalDecisions).values({
       id: decId,
       paymentRequestId: prId,
-      stageOrder: 3,
+      stageOrder: 4,
       departmentId: 'rp',
       status: 'pending',
       isOmtsRp: false,
     });
   }
 
-  it('approve ОМТС по объекту с назначенцем → этап 3 «РП», статус approv_rp, current_stage=3, уведомление назначенцу', async () => {
+  it('approve ОМТС по объекту с назначенцем → этап 4 «РП», статус approv_rp, current_stage=4, уведомление назначенцу', async () => {
     await seedPr({ currentStage: 2, statusId: ID.stOmts });
     await seedOmtsPending();
 
@@ -194,18 +198,19 @@ describe.skipIf(!RUN)('Этап «РП» (stage 3) — Drizzle-only', () => {
 
     const pr = await readPr();
     expect(pr.statusId).toBe(ID.stRp);
-    expect(pr.currentStage).toBe(3);
+    expect(pr.currentStage).toBe(4);
     expect(pr.omtsApprovedAt).toBeTruthy();
     expect(pr.approvedAt).toBeNull();
 
     const decs = await readDecisions();
     const rpDec = decs.find((d) => d.departmentId === 'rp');
     expect(rpDec).toBeTruthy();
-    expect(rpDec!.stageOrder).toBe(3);
+    expect(rpDec!.stageOrder).toBe(4);
     expect(rpDec!.status).toBe('pending');
+    expect(decs.some((d) => d.departmentId === 'uok')).toBe(false);
 
     const hist = pr.stageHistory as { event: string; stage: number; department: string }[];
-    expect(hist.at(-1)).toMatchObject({ event: 'received', stage: 3, department: 'rp' });
+    expect(hist.at(-1)).toMatchObject({ event: 'received', stage: 4, department: 'rp' });
 
     // Уведомление назначенцу — post-commit best-effort: даём микрозадержку.
     let notifs: { userId: string; type: string }[] = [];
@@ -218,7 +223,7 @@ describe.skipIf(!RUN)('Этап «РП» (stage 3) — Drizzle-only', () => {
     expect(notifs).toEqual([{ userId: ID.rpUser, type: 'rp_pending' }]);
   });
 
-  it('approve ОМТС по объекту без назначенца → сразу approved', async () => {
+  it('approve ОМТС (сумма не выше порога) по объекту без назначенца → сразу approved', async () => {
     await seedPr({ currentStage: 2, statusId: ID.stOmts, siteId: ID.site });
     await seedOmtsPending();
 
@@ -239,8 +244,8 @@ describe.skipIf(!RUN)('Этап «РП» (stage 3) — Drizzle-only', () => {
     expect((await readDecisions()).length).toBe(1);
   });
 
-  it('этап 3: согласовать может назначенец (в т.ч. из Штаба) и админ; ОМТС/чужой Штаб → 403', async () => {
-    await seedPr({ currentStage: 3, statusId: ID.stRp, omtsApprovedAt: '2026-01-01T00:00:00Z' });
+  it('этап 4: согласовать может назначенец (в т.ч. из Штаба) и админ; ОМТС/чужой Штаб → 403', async () => {
+    await seedPr({ currentStage: 4, statusId: ID.stRp, omtsApprovedAt: '2026-01-01T00:00:00Z' });
     await seedRpPending();
     const omtsApprovedBefore = (await readPr()).omtsApprovedAt;
 
@@ -278,12 +283,12 @@ describe.skipIf(!RUN)('Этап «РП» (stage 3) — Drizzle-only', () => {
     expect(pr.statusId).toBe(ID.stApproved);
     expect(pr.currentStage).toBeNull();
     expect(pr.approvedAt).toBeTruthy();
-    // omts_approved_at зафиксирован переходом 2→3 и финализацией этапа 3 не перезаписывается.
+    // omts_approved_at зафиксирован уходом с этапа 2 и финализацией этапа 4 не перезаписывается.
     expect(pr.omtsApprovedAt).toBe(omtsApprovedBefore);
   });
 
-  it('этап 3: reject назначенцем → rejected_stage=3, департамент истории rp', async () => {
-    await seedPr({ currentStage: 3, statusId: ID.stRp });
+  it('этап 4: reject назначенцем → rejected_stage=4, департамент истории rp', async () => {
+    await seedPr({ currentStage: 4, statusId: ID.stRp });
     await seedRpPending();
 
     const res = await repo.decide({
@@ -298,14 +303,14 @@ describe.skipIf(!RUN)('Этап «РП» (stage 3) — Drizzle-only', () => {
 
     const pr = await readPr();
     expect(pr.statusId).toBe(ID.stRejected);
-    expect(pr.rejectedStage).toBe(3);
+    expect(pr.rejectedStage).toBe(4);
     expect(pr.currentStage).toBeNull();
     const hist = pr.stageHistory as { event: string; stage: number; department: string }[];
-    expect(hist.at(-1)).toMatchObject({ event: 'rejected', stage: 3, department: 'rp' });
+    expect(hist.at(-1)).toMatchObject({ event: 'rejected', stage: 4, department: 'rp' });
   });
 
-  it('этап 3: доработка → блок согласования → «Доработано» возвращает на РП (pending сохраняется)', async () => {
-    await seedPr({ currentStage: 3, statusId: ID.stRp });
+  it('этап 4: доработка → блок согласования → «Доработано» возвращает на РП (pending сохраняется)', async () => {
+    await seedPr({ currentStage: 4, statusId: ID.stRp });
     await seedRpPending();
 
     expect(await repo.sendToRevision(ID.pr, ID.rpUser, 'дешевле')).toEqual({ ok: true });
@@ -329,10 +334,10 @@ describe.skipIf(!RUN)('Этап «РП» (stage 3) — Drizzle-only', () => {
     pr = await readPr();
     expect(pr.statusId).toBe(ID.stRp);
     expect(pr.previousStatusId).toBeNull();
-    expect(pr.currentStage).toBe(3);
+    expect(pr.currentStage).toBe(4);
     hist = pr.stageHistory as { event: string; department: string }[];
     expect(hist.at(-1)).toMatchObject({ event: 'revision_complete', department: 'rp' });
-    // Pending stage-3 «разморожен», новых решений не создано.
+    // Pending stage-4 «разморожен», новых решений не создано.
     const pending = (await readDecisions()).filter((d) => d.status === 'pending');
     expect(pending).toHaveLength(1);
     expect(pending[0]!.departmentId).toBe('rp');
@@ -349,7 +354,7 @@ describe.skipIf(!RUN)('Этап «РП» (stage 3) — Drizzle-only', () => {
     expect((await readPr()).statusId).toBe(ID.stApproved);
   });
 
-  it('reopen согласованной заявки, проходившей РП: с назначенцем → этап 3; без назначенца → этап 2', async () => {
+  it('reopen согласованной заявки, проходившей РП: с назначенцем → этап 4; без назначенца → этап 2', async () => {
     // Кейc 1: назначенец есть → возврат на РП.
     await seedPr({
       currentStage: null,
@@ -369,7 +374,7 @@ describe.skipIf(!RUN)('Этап «РП» (stage 3) — Drizzle-only', () => {
       {
         id: ID.d3,
         paymentRequestId: ID.pr,
-        stageOrder: 3,
+        stageOrder: 4,
         departmentId: 'rp',
         status: 'approved',
         isOmtsRp: false,
@@ -379,14 +384,14 @@ describe.skipIf(!RUN)('Этап «РП» (stage 3) — Drizzle-only', () => {
     expect(await repo.completeRevision(ID.pr, ID.rpUser, FU)).toEqual({ ok: true });
     const pr = await readPr();
     expect(pr.statusId).toBe(ID.stRp);
-    expect(pr.currentStage).toBe(3);
+    expect(pr.currentStage).toBe(4);
     expect(pr.approvedAt).toBeNull();
     // ОМТС уже согласовано — метрика не сброшена.
     expect(pr.omtsApprovedAt).toBe(omtsApprovedBefore);
     const pending = (await readDecisions()).filter((d) => d.status === 'pending');
     expect(pending).toHaveLength(1);
     expect(pending[0]!.departmentId).toBe('rp');
-    expect(pending[0]!.stageOrder).toBe(3);
+    expect(pending[0]!.stageOrder).toBe(4);
 
     // Кейс 2: назначенца больше нет → возврат на обычное ОМТС.
     await db.delete(rpStageAssignees).where(eq(rpStageAssignees.constructionSiteId, ID.siteRp));
@@ -399,7 +404,7 @@ describe.skipIf(!RUN)('Этап «РП» (stage 3) — Drizzle-only', () => {
     });
     await db.insert(approvalDecisions).values({
       paymentRequestId: ID.pr2,
-      stageOrder: 3,
+      stageOrder: 4,
       departmentId: 'rp',
       status: 'approved',
       isOmtsRp: false,
@@ -415,9 +420,9 @@ describe.skipIf(!RUN)('Этап «РП» (stage 3) — Drizzle-only', () => {
 
   it('очередь и счётчик РП: назначенец видит только свои объекты, админ — всё, доработка исключается', async () => {
     // pr — по siteRp (назначенец rpUser), pr2 — по site (назначенца нет, pending создан админом гипотетически).
-    await seedPr({ currentStage: 3, statusId: ID.stRp });
+    await seedPr({ currentStage: 4, statusId: ID.stRp });
     await seedRpPending(ID.pr, ID.d3);
-    await seedPr({ id: ID.pr2, siteId: ID.site, currentStage: 3, statusId: ID.stRp });
+    await seedPr({ id: ID.pr2, siteId: ID.site, currentStage: 4, statusId: ID.stRp });
     await seedRpPending(ID.pr2, ID.d2);
 
     const assigneeList = await repo.listRpPending({ userId: ID.rpUser, isAdmin: false });

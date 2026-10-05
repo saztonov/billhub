@@ -423,6 +423,7 @@ const PaymentRequestsPage = () => {
               >
                 <Radio.Button value="shtab">Объекты</Radio.Button>
                 <Radio.Button value="omts">ОМТС</Radio.Button>
+                <Radio.Button value="uok">УОК</Radio.Button>
               </Radio.Group>
             </div>
           )}

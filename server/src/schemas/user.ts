@@ -15,7 +15,7 @@ export const userRoleSchema = z.enum(['admin', 'user', 'counterparty_user', 'sec
 export type UserRole = z.infer<typeof userRoleSchema>;
 
 /** Отделы (для штатных user) */
-export const departmentSchema = z.enum(['omts', 'shtab', 'smetny']).nullable();
+export const departmentSchema = z.enum(['omts', 'shtab', 'smetny', 'uok']).nullable();
 export type Department = z.infer<typeof departmentSchema>;
 
 /** Полный DTO пользователя для UI (без password_hash и других секретов) */

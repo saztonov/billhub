@@ -220,6 +220,7 @@ const UsersTab = () => {
         { text: DEPARTMENT_LABELS.omts, value: 'omts' },
         { text: DEPARTMENT_LABELS.shtab, value: 'shtab' },
         { text: DEPARTMENT_LABELS.smetny, value: 'smetny' },
+        { text: DEPARTMENT_LABELS.uok, value: 'uok' },
         { text: 'Не указано', value: '__NULL__' },
       ],
       onFilter: (value: boolean | Key, record: UserRecord) => {
@@ -329,6 +330,7 @@ const UsersTab = () => {
           <Select.Option value="omts">{DEPARTMENT_LABELS.omts}</Select.Option>
           <Select.Option value="shtab">{DEPARTMENT_LABELS.shtab}</Select.Option>
           <Select.Option value="smetny">{DEPARTMENT_LABELS.smetny}</Select.Option>
+          <Select.Option value="uok">{DEPARTMENT_LABELS.uok}</Select.Option>
         </Select>
         <Select
           placeholder="Объект"

@@ -7,7 +7,6 @@ import {
   Tooltip,
   Popconfirm,
   Select,
-  Progress,
   Pagination,
   Badge,
   App,
@@ -26,6 +25,7 @@ import {
   MoreOutlined,
 } from '@ant-design/icons'
 import RejectModal from './RejectModal'
+import ApprovalProgressCell from './ApprovalProgressCell'
 import { formatDateShort, extractRequestNumber, calculateDays } from '@/utils/requestFormatters'
 import { useTableScrollY } from '@/hooks/useTableScrollY'
 import { applyColumnConfig } from '@/hooks/useColumnConfig'
@@ -34,7 +34,6 @@ import type { ColumnRegistryItem } from './ColumnConfigPopover'
 import type { PaymentRequest, StageHistoryEntry } from '@/types'
 import {
   STAGE_DEPARTMENT_LABELS,
-  STAGE_LABELS,
   PAYMENT_REQUEST_TYPE_BADGE_LABELS,
   PAYMENT_REQUEST_TYPE_BADGE_COLORS,
 } from '@/types'
@@ -147,7 +146,7 @@ function buildStatusTooltip(
           : (STAGE_DEPARTMENT_LABELS[entry.department as keyof typeof STAGE_DEPARTMENT_LABELS] ??
             entry.department)
         const date = formatDateShort(entry.at)
-        // Для counterparty автор виден только на стадиях ОМТС и РП
+        // Для counterparty автор виден только на стадиях ОМТС, УОК и РП
         const showAuthor = !isCounterparty || entry.stage >= 2
         const authorName = showAuthor
           ? getShortName(entry.userFullName, entry.userEmail)
@@ -782,57 +781,7 @@ const RequestsTable = (props: RequestsTableProps) => {
               </Tooltip>
             )
           }
-          if (record.approvedAt)
-            return (
-              <Tooltip title="Согласовано">
-                <div style={{ width: '80%' }}>
-                  <Progress percent={100} size={{ height: 5 }} status="success" showInfo={false} />
-                </div>
-              </Tooltip>
-            )
-          // Знаменатель — по фактическому пути заявки: этап «РП» существует (stage 3
-          // в решениях/истории или текущая/отклонённая стадия 3) → 3 этапа, иначе 2.
-          const requestTotalStages =
-            record.currentStage === 3 ||
-            record.rejectedStage === 3 ||
-            (record.stageHistory ?? []).some((e) => e.stage === 3)
-              ? 3
-              : totalStages
-          if (record.rejectedAt) {
-            const rejectedStage = record.rejectedStage ?? requestTotalStages
-            const rejectedPercent = Math.round((rejectedStage / requestTotalStages) * 100)
-            const rejectedLabel =
-              rejectedStage === 1 ? 'Штабе' : (STAGE_LABELS[rejectedStage] ?? 'ОМТС')
-            return (
-              <Tooltip title={`Отклонено на ${rejectedLabel}`}>
-                <div style={{ width: '80%' }}>
-                  <Progress
-                    percent={rejectedPercent}
-                    size={{ height: 5 }}
-                    status="exception"
-                    showInfo={false}
-                  />
-                </div>
-              </Tooltip>
-            )
-          }
-          if (record.withdrawnAt || !record.currentStage)
-            return <span style={{ color: '#bfbfbf' }}>—</span>
-          const completedStages = record.currentStage - 1
-          const percent = Math.round((completedStages / requestTotalStages) * 100)
-          const stageLabel = STAGE_LABELS[record.currentStage] ?? 'ОМТС'
-          return (
-            <Tooltip title={`На стадии ${stageLabel}`}>
-              <div style={{ width: '80%' }}>
-                <Progress
-                  percent={percent}
-                  size={{ height: 5 }}
-                  strokeColor="#fa8c16"
-                  showInfo={false}
-                />
-              </div>
-            </Tooltip>
-          )
+          return <ApprovalProgressCell record={record} />
         },
       })
     }

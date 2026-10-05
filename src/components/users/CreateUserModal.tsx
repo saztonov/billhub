@@ -170,6 +170,7 @@ const CreateUserModal = ({ open, onClose, onSuccess }: CreateUserModalProps) => 
               <Select.Option value="shtab">{DEPARTMENT_LABELS.shtab}</Select.Option>
               <Select.Option value="omts">{DEPARTMENT_LABELS.omts}</Select.Option>
               <Select.Option value="smetny">{DEPARTMENT_LABELS.smetny}</Select.Option>
+              <Select.Option value="uok">{DEPARTMENT_LABELS.uok}</Select.Option>
             </Select>
           </Form.Item>
         )}

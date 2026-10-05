@@ -89,7 +89,7 @@ EstiMat уже закоммичена). Этот скилл описывает *
 
 Типы: `payment_request.workflow_changed | document_attached | rp_changed | rp_unlinked | payment_summary_changed`.
 
-Snapshot (три независимые оси): `statusCode` (approv_shtab|approv_omts|approv_rp|approved|revision|
+Snapshot (три независимые оси): `statusCode` (approv_shtab|approv_omts|approv_uok|approv_rp|approved|revision|
 rejected|withdrawn), `actionRequired`, `revisionComment`, `requestNumber`, `requestUrl`, `rpNumber`,
 `rpDate`, `paidStatus` (not_paid|partially_paid|paid), `totalPaid`, `lastPaymentDate`, `documents[]`.
 `rp_unlinked` очищает `rpNumber` (полный snapshot очищает поля, не COALESCE).

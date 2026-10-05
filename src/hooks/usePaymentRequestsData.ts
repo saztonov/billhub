@@ -7,6 +7,7 @@ import { useConstructionSiteStore } from '@/store/constructionSiteStore'
 import { useStatusStore } from '@/store/statusStore'
 import { useAssignmentStore } from '@/store/assignmentStore'
 import { useRpStageStore } from '@/store/rpStageStore'
+import { useUokThresholdStore } from '@/store/uokThresholdStore'
 import { useSupplierStore } from '@/store/supplierStore'
 import { useUploadQueueStore } from '@/store/uploadQueueStore'
 import { api } from '@/services/api'
@@ -72,6 +73,7 @@ export function usePaymentRequestsData({
   const { statuses, fetchStatuses } = useStatusStore()
   const { suppliers, fetchSuppliers } = useSupplierStore()
   const { omtsUsers, fetchOmtsUsers, assignResponsible } = useAssignmentStore()
+  const fetchUokThreshold = useUokThresholdStore((s) => s.fetchThreshold)
   const { mySiteIds: rpMySiteIds, fetchMy: fetchRpMy } = useRpStageStore()
   // Назначенец этапа «РП» — есть хотя бы один объект в rp_stage_assignees
   const isRpAssignee = rpMySiteIds.length > 0
@@ -96,15 +98,15 @@ export function usePaymentRequestsData({
     rejectRequest,
   } = useApprovalStore()
 
-  // Базовое количество этапов согласования (Штаб -> ОМТС); этап «РП» добавляется
-  // по факту у конкретной заявки (см. getRequestTotalStages).
+  // Базовое количество этапов согласования (Штаб -> ОМТС); этапы «УОК» (по сумме) и «РП»
+  // добавляются у конкретной заявки (см. requestStagePath в utils/approvalStages).
   const totalStages = 2
 
   // Участвует ли подразделение пользователя в цепочке
   const userDeptInChain = useMemo(() => {
     if (isAdmin) return true
     if (!user?.department) return false
-    return user.department === 'shtab' || user.department === 'omts'
+    return user.department === 'shtab' || user.department === 'omts' || user.department === 'uok'
   }, [isAdmin, user?.department])
 
   // Устанавливаем фильтры по умолчанию для ОМТС (если не восстановлены из localStorage)
@@ -209,10 +211,19 @@ export function usePaymentRequestsData({
     fetchSites()
     fetchSuppliers()
     fetchStatuses('payment_request')
+    // Порог этапа УОК — для подсчёта этапов в прогрессе согласования заявки
+    fetchUokThreshold()
     if (!isCounterpartyUser) {
       fetchCounterparties()
     }
-  }, [isCounterpartyUser, fetchCounterparties, fetchSites, fetchStatuses, fetchSuppliers])
+  }, [
+    isCounterpartyUser,
+    fetchCounterparties,
+    fetchSites,
+    fetchStatuses,
+    fetchSuppliers,
+    fetchUokThreshold,
+  ])
 
   // Загружаем список ОМТС для назначения ответственного
   useEffect(() => {
