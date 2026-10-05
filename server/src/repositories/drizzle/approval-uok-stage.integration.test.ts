@@ -338,7 +338,13 @@ describe.skipIf(!RUN)('Этап «УОК» (stage 3) — Drizzle-only', () => {
   });
 
   it('«Доработано» по согласованной заявке: рубеж РП / УОК / ОМТС с учётом суммы', async () => {
-    const reopen = async (siteId: string, passed: [number, Dept][], amount: number) => {
+    // approvedAmount — сумма, по которой заявка была согласована; amount — сумма после доработки.
+    const reopen = async (
+      siteId: string,
+      passed: [number, Dept][],
+      amount: number,
+      approvedAmount = 100,
+    ) => {
       await sql`DELETE FROM approval_decisions`;
       await sql`DELETE FROM payment_requests`;
       await seedPr({
@@ -346,7 +352,7 @@ describe.skipIf(!RUN)('Этап «УОК» (stage 3) — Drizzle-only', () => {
         currentStage: null,
         statusId: ID.stRevision,
         previousStatusId: ID.stApproved,
-        invoiceAmount: 100,
+        invoiceAmount: approvedAmount,
       });
       for (const [stage, dept] of passed) await seedDecision(stage, dept, 'approved');
       expect(await repo.completeRevision(ID.pr, ID.admin, fu(amount))).toEqual({ ok: true });
@@ -358,7 +364,7 @@ describe.skipIf(!RUN)('Этап «УОК» (stage 3) — Drizzle-only', () => {
     expect([pr.currentStage, pr.statusId]).toEqual([3, ID.stUok]);
     expect(await pendingOf()).toEqual([[3, 'uok']]);
 
-    // Проходила УОК и РП, назначенец есть → РП.
+    // Проходила УОК и РП на 500 000, сумма не выросла, назначенец есть → РП.
     pr = await reopen(
       ID.siteRp,
       [
@@ -367,8 +373,22 @@ describe.skipIf(!RUN)('Этап «УОК» (stage 3) — Drizzle-only', () => {
         [4, 'rp'],
       ],
       500_000,
+      500_000,
     );
     expect(pr.currentStage).toBe(4);
+
+    // Проходила УОК и РП на 500 000, сумму подняли → УОК пересматривает новую сумму.
+    pr = await reopen(
+      ID.siteRp,
+      [
+        [2, 'omts'],
+        [3, 'uok'],
+        [4, 'rp'],
+      ],
+      600_000,
+      500_000,
+    );
+    expect(pr.currentStage).toBe(3);
 
     // Проходила РП без УОК, сумму подняли выше порога → УОК.
     pr = await reopen(
@@ -400,10 +420,52 @@ describe.skipIf(!RUN)('Этап «УОК» (stage 3) — Drizzle-only', () => {
         [3, 'uok'],
       ],
       100,
+      500_000,
     );
     expect([pr.currentStage, pr.statusId]).toEqual([2, ID.stOmts]);
     expect(pr.omtsApprovedAt).toBeNull();
     expect(pr.omtsEnteredAt).toBeTruthy();
+  });
+
+  it('доработка на этапе РП: рост суммы выше порога → обратно на УОК, затем РП', async () => {
+    // Заявка с суммой не выше порога прошла мимо УОК и стоит на РП.
+    await seedPr({ siteId: ID.siteRp, currentStage: 4, statusId: ID.stRp, invoiceAmount: 100 });
+    await seedDecision(2, 'omts', 'approved');
+    await seedDecision(4, 'rp');
+    const toRevision = () =>
+      repo.sendToRevision(ID.pr, ID.rpUser, 'x', { userDepartment: 'shtab', isAdmin: false });
+
+    expect(await toRevision()).toEqual({ ok: true });
+    expect(await repo.completeRevision(ID.pr, ID.creator, fu(700_000))).toEqual({ ok: true });
+    let pr = await readPr();
+    expect([pr.currentStage, pr.statusId, pr.previousStatusId]).toEqual([3, ID.stUok, null]);
+    expect(await pendingOf()).toEqual([[3, 'uok']]);
+    expect(await decide(ID.rpUser, 'shtab', 'approve')).toMatchObject({ ok: false, status: 403 });
+
+    expect((await decide(ID.uokSiteUser, 'uok', 'approve')).ok).toBe(true);
+    expect((await readPr()).currentStage).toBe(4);
+    expect(await pendingOf()).toEqual([[4, 'rp']]);
+
+    // Без роста суммы (УОК уже согласовал 700 000) доработка на РП оставляет заявку на РП.
+    expect(await toRevision()).toEqual({ ok: true });
+    expect(await repo.completeRevision(ID.pr, ID.creator, fu(700_000))).toEqual({ ok: true });
+    pr = await readPr();
+    expect([pr.currentStage, pr.statusId]).toEqual([4, ID.stRp]);
+  });
+
+  it('УОК согласует только по своим объектам; на чужом объекте — 403', async () => {
+    await seedPr({ siteId: ID.site, currentStage: 3, statusId: ID.stUok, invoiceAmount: 600_000 });
+    await seedDecision(3, 'uok');
+    expect(await decide(ID.uokSiteUser, 'uok', 'approve')).toMatchObject({
+      ok: false,
+      status: 403,
+    });
+    const revision = await repo.sendToRevision(ID.pr, ID.uokSiteUser, 'x', {
+      userDepartment: 'uok',
+      isAdmin: false,
+    });
+    expect(revision).toMatchObject({ ok: false, status: 403 });
+    expect((await decide(ID.uokUser, 'uok', 'approve')).ok).toBe(true);
   });
 
   it('очередь и счётчик УОК: все объекты / свои объекты / админ; доработка исключается', async () => {

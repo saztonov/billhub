@@ -8,7 +8,12 @@
 import { and, eq } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import * as schema from '../../db/schema/index.js';
-import { approvalDecisions, rpStageAssignees } from '../../db/schema/index.js';
+import {
+  approvalDecisions,
+  rpStageAssignees,
+  users,
+  userConstructionSitesMapping,
+} from '../../db/schema/index.js';
 import { getUokThreshold, requiresUokStage } from '../../services/uok/uok-threshold-setting.js';
 
 type Db = PostgresJsDatabase<typeof schema>;
@@ -56,11 +61,32 @@ export async function rpAssigneeSiteIds(db: DbOrTx, userId: string): Promise<str
   return rows.map((r) => r.siteId);
 }
 
+/** Доступен ли пользователю объект: «Все объекты» либо объект в личном списке. */
+async function userHasSite(db: DbOrTx, userId: string, siteId: string): Promise<boolean> {
+  const [u] = await db
+    .select({ allSites: users.allSites })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  if (u?.allSites) return true;
+  const [m] = await db
+    .select({ id: userConstructionSitesMapping.id })
+    .from(userConstructionSitesMapping)
+    .where(
+      and(
+        eq(userConstructionSitesMapping.userId, userId),
+        eq(userConstructionSitesMapping.constructionSiteId, siteId),
+      ),
+    )
+    .limit(1);
+  return !!m;
+}
+
 /**
  * Серверная авторизация решения по этапу: матчинг pending идёт по current_stage
  * (департамент из тела запроса не используется), поэтому право действовать проверяем явно.
- * Этап 1 — Штаб, этап 2 — ОМТС, этап 3 — УОК, этап 4 — назначенец объекта заявки;
- * админ — любой этап.
+ * Этап 1 — Штаб, этап 2 — ОМТС, этап 3 — УОК (только по своим объектам, как очередь УОК),
+ * этап 4 — назначенец объекта заявки; админ — любой этап.
  */
 export async function userMayActOnStage(
   db: DbOrTx,
@@ -75,7 +101,10 @@ export async function userMayActOnStage(
   if (opts.isAdmin) return true;
   if (opts.stage === STAGE_SHTAB) return opts.userDepartment === 'shtab';
   if (opts.stage === STAGE_OMTS) return opts.userDepartment === 'omts';
-  if (opts.stage === STAGE_UOK) return opts.userDepartment === 'uok';
+  if (opts.stage === STAGE_UOK) {
+    if (opts.userDepartment !== 'uok') return false;
+    return userHasSite(db, opts.userId, opts.siteId);
+  }
   if (opts.stage === STAGE_RP) {
     const [row] = await db
       .select({ id: rpStageAssignees.id })
@@ -118,16 +147,51 @@ export async function nextStageAfter(
 }
 
 /**
+ * Состояние этапа УОК для заявки после доработки (сумма newAmount; до доработки — oldAmount):
+ *  - required — сумма свыше порога (этап УОК обязателен);
+ *  - reviewNeeded — УОК должен (пере)смотреть сумму: заявку он ещё не согласовывал либо сумма
+ *    выросла при доработке (согласование меньшей суммы не распространяется на большую).
+ */
+export async function uokReviewState(
+  db: DbOrTx,
+  opts: { paymentRequestId: string; oldAmount: number | null; newAmount: number | null },
+): Promise<{ required: boolean; reviewNeeded: boolean }> {
+  const required = requiresUokStage(opts.newAmount, await getUokThreshold(db));
+  if (!required) return { required: false, reviewNeeded: false };
+  const increased =
+    opts.oldAmount == null || opts.newAmount == null || opts.newAmount > opts.oldAmount;
+  if (increased) return { required, reviewNeeded: true };
+  const [uokApproved] = await db
+    .select({ id: approvalDecisions.id })
+    .from(approvalDecisions)
+    .where(
+      and(
+        eq(approvalDecisions.paymentRequestId, opts.paymentRequestId),
+        eq(approvalDecisions.departmentId, 'uok'),
+        eq(approvalDecisions.status, 'approved'),
+      ),
+    )
+    .limit(1);
+  return { required, reviewNeeded: !uokApproved };
+}
+
+/**
  * Этап повторного согласования ранее согласованной заявки после «Доработано» — последний
  * обязательный рубеж с учётом суммы после доработки:
  *  - РП — если заявка проходила РП (этап 4 либо легаси-под-этап ОМТС-РП), назначенец по объекту
- *    есть сейчас, а УОК по сумме не требуется либо уже согласовал заявку;
- *  - УОК — если сумма свыше порога (в т.ч. сумму подняли при доработке, а УОК заявку не видел);
+ *    есть сейчас, а пересмотр УОК не нужен (сумма не выше порога либо УОК уже согласовал её
+ *    и при доработке она не выросла);
+ *  - УОК — если сумма свыше порога (в т.ч. сумму подняли при доработке); РП — следом по цепочке;
  *  - иначе ОМТС (дальше — обычная маршрутизация по порогу и назначенцу РП).
  */
 export async function reopenStageFor(
   db: DbOrTx,
-  opts: { paymentRequestId: string; siteId: string; invoiceAmount: number | null },
+  opts: {
+    paymentRequestId: string;
+    siteId: string;
+    oldAmount: number | null;
+    newAmount: number | null;
+  },
 ): Promise<number> {
   const approved = await db
     .select({ departmentId: approvalDecisions.departmentId, isOmtsRp: approvalDecisions.isOmtsRp })
@@ -141,12 +205,11 @@ export async function reopenStageFor(
   const passedRp = approved.some(
     (d) => d.departmentId === 'rp' || (d.departmentId === 'omts' && d.isOmtsRp),
   );
-  const passedUok = approved.some((d) => d.departmentId === 'uok');
-  const uokRequired = requiresUokStage(opts.invoiceAmount, await getUokThreshold(db));
+  const uok = await uokReviewState(db, opts);
 
-  if (passedRp && (!uokRequired || passedUok) && (await rpAssigneeForSite(db, opts.siteId))) {
+  if (passedRp && !uok.reviewNeeded && (await rpAssigneeForSite(db, opts.siteId))) {
     return STAGE_RP;
   }
-  if (uokRequired) return STAGE_UOK;
+  if (uok.required) return STAGE_UOK;
   return STAGE_OMTS;
 }

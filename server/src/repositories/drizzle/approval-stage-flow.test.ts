@@ -31,10 +31,10 @@ describe('approval-stage-flow: этапы Штаб → ОМТС → УОК → �
   });
 
   it('userMayActOnStage: этап 3 — только подразделение УОК или админ', async () => {
-    // Для этапов 1–3 БД не читается.
+    // Отказ по подразделению и допуск админа — без обращения к БД (объект УОК проверяется
+    // в интеграционных тестах approval-uok-stage).
     const db = {} as DbOrTx;
     const base = { stage: STAGE_UOK, siteId: 's', userId: 'u', isAdmin: false };
-    expect(await userMayActOnStage(db, { ...base, userDepartment: 'uok' })).toBe(true);
     expect(await userMayActOnStage(db, { ...base, userDepartment: 'omts' })).toBe(false);
     expect(await userMayActOnStage(db, { ...base, userDepartment: null })).toBe(false);
     expect(await userMayActOnStage(db, { ...base, userDepartment: null, isAdmin: true })).toBe(

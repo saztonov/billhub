@@ -49,6 +49,7 @@ import {
   stageStatusCode,
   nextStageAfter,
   reopenStageFor,
+  uokReviewState,
   rpAssigneeSiteIds,
   userMayActOnStage,
 } from './approval-stage-flow.js';
@@ -428,7 +429,6 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
         statusId: paymentRequests.statusId,
         supplierId: paymentRequests.supplierId,
         previousStatusId: paymentRequests.previousStatusId,
-        invoiceAmount: paymentRequests.invoiceAmount,
       })
       .from(paymentRequests)
       .where(eq(paymentRequests.id, input.paymentRequestId))
@@ -481,7 +481,7 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
           };
         }
       }
-      return this.approve(input, currentStage, siteId, pr.invoiceAmount ?? null);
+      return this.approve(input, currentStage, siteId);
     }
 
     const code = await this.statusCodeById(this.db, pr.statusId);
@@ -528,12 +528,19 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
     input: ApprovalDecideInput,
     currentStage: number,
     siteId: string,
-    invoiceAmount: number | null,
   ): Promise<ApprovalDecideResult> {
     // Уведомление (создателю при финале / назначенцу при входе на РП) — ПОСЛЕ коммита.
     let notify: { userId: string; type: string; title: string; message: string } | null = null;
 
     const result = await this.db.transaction(async (tx) => {
+      // Строку заявки блокируем до конца перехода: сумма для порога УОК читается здесь же,
+      // и параллельная правка суммы не проскочит между проверкой порога и сменой этапа.
+      const [locked] = await tx
+        .select({ invoiceAmount: paymentRequests.invoiceAmount })
+        .from(paymentRequests)
+        .where(eq(paymentRequests.id, input.paymentRequestId))
+        .for('update');
+      const invoiceAmount = locked?.invoiceAmount ?? null;
       const userInfo = await this.getUserInfo(tx, input.userId);
 
       // Единственное pending-решение текущей стадии; департамент этапа берём из него,
@@ -933,16 +940,20 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
       // цепочки согласования — им пересогласовывать нечего, сохраняем восстановление approved.
       const reopen = wasApproved && cur.requestType === 'contractor';
 
+      const oldAmount = cur.invoiceAmount ?? null;
+      const newAmount = fieldUpdates.invoiceAmount ?? null;
       // Финальный шлюз — последний обязательный рубеж с учётом суммы после доработки:
-      // РП (проходила РП, назначенец есть, УОК не требуется или уже согласовал) → УОК (сумма
-      // свыше порога) → ОМТС (см. reopenStageFor).
+      // РП (проходила РП, назначенец есть, пересмотр УОК не нужен) → УОК (сумма свыше порога)
+      // → ОМТС (см. reopenStageFor).
       const reopenStage = reopen
-        ? await reopenStageFor(tx, {
-            paymentRequestId,
-            siteId: cur.siteId,
-            invoiceAmount: fieldUpdates.invoiceAmount ?? null,
-          })
+        ? await reopenStageFor(tx, { paymentRequestId, siteId: cur.siteId, oldAmount, newAmount })
         : STAGE_OMTS;
+      // Доработка на этапе РП: если сумма теперь требует пересмотра УОК (УОК её не согласовывал
+      // либо она выросла), заявка уходит с РП на УОК — иначе РП согласовал бы её в обход УОК.
+      const rerouteToUok =
+        !reopen &&
+        cur.currentStage === STAGE_RP &&
+        (await uokReviewState(tx, { paymentRequestId, oldAmount, newAmount })).reviewNeeded;
 
       const updateData: Record<string, unknown> = {
         previousStatusId: null,
@@ -1045,6 +1056,21 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
         userFullName: userInfo.fullName,
         ...(supplierChanged ? { supplierChanged: true } : {}),
       });
+
+      if (rerouteToUok) {
+        // Припаркованное pending-решение РП снимаем (решения по нему не было): РП получит
+        // заявку заново после согласования УОК.
+        await tx
+          .delete(approvalDecisions)
+          .where(
+            and(
+              eq(approvalDecisions.paymentRequestId, paymentRequestId),
+              eq(approvalDecisions.departmentId, 'rp'),
+              eq(approvalDecisions.status, 'pending'),
+            ),
+          );
+        await this.enterStage(tx, paymentRequestId, STAGE_UOK);
+      }
 
       // Возврат на повторное согласование: создаём pending-строку этапа (очередь строится из
       // approval_decisions), фиксируем «получено». onConflictDoNothing — защита от двойного клика.
