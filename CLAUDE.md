@@ -149,6 +149,7 @@ server/src/         # Backend (Fastify)
 - **Cloud.ru S3:** хранение файлов счетов и документов (S3-совместимый API, presigned/chunked upload); ключи только на сервере (`server/src/services`).
 - **OpenRouter.ai:** OCR через vision-модели, вызывается на сервере; выбор модели в настройках.
 - **Redis + BullMQ:** очереди обработки файлов и OCR (`server/src/queues`), отдельный worker-процесс.
+- **SIGNAL DOCS (api.sgnl.pro):** выгрузка счетов заявок на оплату в `<Проект>/12. Снабжение/Счета/<Поставщик>` — очередь `sgnl-sync` в worker (расписание `SGNL_SYNC_CRON` + ручной запуск во вкладке админки «SIGNAL»), журнал `sgnl_file_exports`, проект объекта — `construction_sites.sgnl_project_id` (миграция 0023).
 - **Supabase:** только legacy/rollback-путь (`supabase-bridge`, `@supabase/supabase-js` сохранён по принципу 2). В активном standalone-пути обращений к Supabase нет.
 
 ## Инфраструктура / Этапы миграции
@@ -177,6 +178,7 @@ server/src/         # Backend (Fastify)
 - Авторизация: `AUTH_MODE=standalone`, `AUTH_JWT_SECRET`, `JWT_ISSUER`, `JWT_AUDIENCE`, `JWT_ACCESS_TTL_SECONDS`, `REFRESH_TTL_SECONDS`, `REFRESH_GRACE_MS`, `CSRF_SECRET`, `AUDIT_HMAC_KEY`
 - Хранилище: `STORAGE_PROVIDER=cloudru`, `S3_ENDPOINT`/`S3_REGION`/`S3_ACCESS_KEY`/`S3_SECRET_KEY`/`S3_BUCKET` (+ `R2_*` для миграции/rollback)
 - OCR/очереди: `OPENROUTER_API_KEY`, `REDIS_URL`, `RUN_WORKERS` (per-container), `OCR_CONCURRENCY`, `FILE_PROCESSING_CONCURRENCY`
+- SIGNAL DOCS: `SGNL_CLIENT_ID`, `SGNL_CLIENT_SECRET`, `SGNL_SYNC_ENABLED`, `SGNL_SYNC_CRON` (пусто — только вручную), `SGNL_BASE_URL`, `SGNL_TIMEOUT_MS`
 - Прочее: `MAX_FILE_SIZE_MB`, `MAIL_STUB_LOG_PATH`, `SENTRY_DSN`
 - Supabase (только legacy/rollback, принцип 2): `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`
 

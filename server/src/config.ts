@@ -62,6 +62,19 @@ interface Config {
   tenderApiToken: string;
   tenderTimeoutMs: number;
 
+  /**
+   * SIGNAL DOCS (docs.sgnl.pro) — ежедневная выгрузка счетов заявок на оплату.
+   * Авторизация: clientId + secret интеграции HUB → JWT на 1 час. Пусто = не настроено.
+   *   sgnlSyncEnabled — рубильник выгрузки (ручной запуск и расписание);
+   *   sgnlSyncCron    — cron расписания в worker; пусто = только ручной запуск из админки.
+   */
+  sgnlBaseUrl: string;
+  sgnlClientId: string;
+  sgnlClientSecret: string;
+  sgnlTimeoutMs: number;
+  sgnlSyncEnabled: boolean;
+  sgnlSyncCron: string;
+
   /** Redis */
   redisUrl: string;
 
@@ -272,6 +285,13 @@ export const config: Config = {
   tenderBaseUrl: envOptional('TENDER_BASE_URL'),
   tenderApiToken: envOptional('TENDER_API_TOKEN'),
   tenderTimeoutMs: parseInt(envOptional('TENDER_TIMEOUT_MS', '15000'), 10),
+
+  sgnlBaseUrl: envOptional('SGNL_BASE_URL', 'https://api.sgnl.pro'),
+  sgnlClientId: envOptional('SGNL_CLIENT_ID'),
+  sgnlClientSecret: envOptional('SGNL_CLIENT_SECRET'),
+  sgnlTimeoutMs: parseInt(envOptional('SGNL_TIMEOUT_MS', '30000'), 10),
+  sgnlSyncEnabled: envOptional('SGNL_SYNC_ENABLED', 'false').toLowerCase() === 'true',
+  sgnlSyncCron: envOptional('SGNL_SYNC_CRON').trim(),
 
   redisUrl: envOptional('REDIS_URL', 'redis://localhost:6379'),
 

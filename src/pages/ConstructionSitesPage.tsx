@@ -1,9 +1,22 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Table, Button, Space, Modal, Form, Input, Switch, Tag, Popconfirm, App } from 'antd'
+import {
+  Table,
+  Button,
+  Space,
+  Modal,
+  Form,
+  Input,
+  Switch,
+  Tag,
+  Popconfirm,
+  App,
+  Typography,
+} from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useTableScrollY } from '@/hooks/useTableScrollY'
 import { useConstructionSiteStore } from '@/store/constructionSiteStore'
 import { usePayHubCatalogStore } from '@/store/payhubCatalogStore'
+import { useSgnlCatalogStore } from '@/store/sgnlCatalogStore'
 import { useAuthStore } from '@/store/authStore'
 import { PayhubReferenceSelect } from '@/components/references/PayhubReferenceSelect'
 import { projectLabel, contractorLabel, type PayhubOption } from '@/utils/payhubLabels'
@@ -32,6 +45,15 @@ const ConstructionSitesPage = () => {
   } = usePayHubCatalogStore()
   const catalogReady = payhubConfigured && payhubOk
 
+  // Проекты SIGNAL DOCS (выгрузка счетов) — сопоставление задаёт только admin
+  const {
+    projects: sgnlProjects,
+    configured: sgnlConfigured,
+    ok: sgnlOk,
+    fetchProjects: fetchSgnlProjects,
+  } = useSgnlCatalogStore()
+  const sgnlReady = sgnlConfigured && sgnlOk
+
   useEffect(() => {
     fetchSites()
   }, [fetchSites])
@@ -40,6 +62,20 @@ const ConstructionSitesPage = () => {
   useEffect(() => {
     if (isAdmin) fetchCatalog()
   }, [isAdmin, fetchCatalog])
+
+  useEffect(() => {
+    if (isAdmin) fetchSgnlProjects()
+  }, [isAdmin, fetchSgnlProjects])
+
+  const sgnlOptions = useMemo<PayhubOption[]>(
+    () => sgnlProjects.map((p) => ({ value: p.id, label: p.name })),
+    [sgnlProjects],
+  )
+  const sgnlPlaceholder = sgnlReady
+    ? 'Выберите проект'
+    : sgnlConfigured
+      ? 'SIGNAL недоступен'
+      : 'SIGNAL не настроен'
 
   const projectOptions = useMemo<PayhubOption[]>(
     () => projects.map((p) => ({ value: p.id, label: projectLabel(p.code, p.name, p.id) })),
@@ -91,6 +127,20 @@ const ConstructionSitesPage = () => {
           },
     )
     if (!ok) message.error('Не удалось сохранить заказчика PayHub')
+  }
+
+  const handleSgnlProjectChange = async (
+    record: ConstructionSite,
+    value: number | string | undefined,
+  ) => {
+    const proj = value !== undefined ? sgnlProjects.find((p) => p.id === value) : undefined
+    const ok = await updateSite(
+      record.id,
+      value === undefined
+        ? { sgnlProjectId: null, sgnlProjectName: null }
+        : { sgnlProjectId: String(value), sgnlProjectName: proj?.name ?? null },
+    )
+    if (!ok) message.error('Не удалось сохранить проект SIGNAL')
   }
 
   const handleCreate = () => {
@@ -235,6 +285,43 @@ const ConstructionSitesPage = () => {
     ...(isAdmin
       ? [
           {
+            title: 'Проект SIGNAL',
+            key: 'sgnlProject',
+            width: 240,
+            render: (_: unknown, record: ConstructionSite) => {
+              const opts = [...sgnlOptions]
+              if (
+                record.sgnlProjectId &&
+                !sgnlProjects.some((p) => p.id === record.sgnlProjectId)
+              ) {
+                opts.unshift({
+                  value: record.sgnlProjectId,
+                  label: record.sgnlProjectName ?? record.sgnlProjectId,
+                })
+              }
+              return (
+                <Space direction="vertical" size={2} style={{ width: '100%' }}>
+                  <PayhubReferenceSelect
+                    value={record.sgnlProjectId}
+                    options={opts}
+                    disabled={!sgnlReady}
+                    placeholder={sgnlPlaceholder}
+                    onChange={(v) => handleSgnlProjectChange(record, v)}
+                  />
+                  {record.sgnlBasePath && (
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                      Подпапка: {record.sgnlBasePath}
+                    </Typography.Text>
+                  )}
+                </Space>
+              )
+            },
+          },
+        ]
+      : []),
+    ...(isAdmin
+      ? [
+          {
             title: 'Действия',
             key: 'actions',
             width: 120,
@@ -271,7 +358,7 @@ const ConstructionSitesPage = () => {
           dataSource={sites}
           rowKey="id"
           loading={isLoading}
-          scroll={{ x: canSeePayhub ? 1200 : 800, y: scrollY }}
+          scroll={{ x: isAdmin ? 1440 : canSeePayhub ? 1200 : 800, y: scrollY }}
           pagination={{
             defaultPageSize: 20,
             showSizeChanger: true,
@@ -300,6 +387,15 @@ const ConstructionSitesPage = () => {
           <Form.Item name="isActive" label="Активен" valuePropName="checked">
             <Switch />
           </Form.Item>
+          {isAdmin && editingRecord && (
+            <Form.Item
+              name="sgnlBasePath"
+              label="Подпапка в проекте SIGNAL"
+              extra="Папка проекта, внутри которой лежит «12. Снабжение» (например «Дом 56»). Пусто — корень проекта."
+            >
+              <Input allowClear maxLength={300} />
+            </Form.Item>
+          )}
         </Form>
       </Modal>
     </div>

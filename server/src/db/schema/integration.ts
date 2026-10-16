@@ -59,3 +59,28 @@ export const integrationOutbox = pgTable('integration_outbox', {
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
 });
+
+/**
+ * Журнал выгрузки счетов заявок на оплату в SIGNAL DOCS (0023): одна строка на файл счёта.
+ * object/version — промежуточные id цепочки загрузки (продолжение после сбоя без дубля).
+ */
+export const sgnlFileExports = pgTable('sgnl_file_exports', {
+  id: uuid('id').primaryKey().notNull().defaultRandom(),
+  paymentRequestFileId: uuid('payment_request_file_id'),
+  paymentRequestId: uuid('payment_request_id'),
+  siteId: uuid('site_id'),
+  supplierId: uuid('supplier_id'),
+  sgnlProjectId: uuid('sgnl_project_id').notNull(),
+  sgnlFolderId: uuid('sgnl_folder_id'),
+  sgnlObjectId: uuid('sgnl_object_id'),
+  sgnlVersionId: uuid('sgnl_version_id'),
+  sgnlItemId: uuid('sgnl_item_id'),
+  targetPath: text('target_path').notNull(),
+  targetName: text('target_name').notNull(),
+  status: text('status').notNull().default('pending'),
+  attempts: integer('attempts').notNull().default(0),
+  lastError: text('last_error'),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
+  exportedAt: timestamp('exported_at', { withTimezone: true, mode: 'string' }),
+});

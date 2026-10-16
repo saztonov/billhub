@@ -8,8 +8,8 @@ import {
 } from '../../schemas/reference.js';
 
 /**
- * Убирает поля сопоставления PayHub из объекта для роли counterparty_user
- * (внешний пользователь не должен видеть внутреннюю привязку к PayHub).
+ * Убирает поля сопоставления PayHub и SIGNAL из объекта для роли counterparty_user
+ * (внешний пользователь не должен видеть внутренние привязки к внешним системам).
  * Для admin/user поля отдаются как есть.
  */
 function stripPayhubForRole(site: ConstructionSite, role: string | undefined): ConstructionSite {
@@ -21,6 +21,9 @@ function stripPayhubForRole(site: ConstructionSite, role: string | undefined): C
     payhubContractorId: _cid,
     payhubContractorName: _cname,
     payhubContractorInn: _cinn,
+    sgnlProjectId: _sid,
+    sgnlProjectName: _sname,
+    sgnlBasePath: _spath,
     ...rest
   } = site;
   return rest as ConstructionSite;

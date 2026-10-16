@@ -38,6 +38,7 @@ import csrfPlugin from './plugins/csrf.js';
 import payhubPlugin from './plugins/payhub.js';
 import estimatPlugin from './plugins/estimat.js';
 import tenderPlugin from './plugins/tender.js';
+import sgnlPlugin from './plugins/sgnl.js';
 
 /** Маршруты */
 import healthRoutes from './routes/health.js';
@@ -68,6 +69,7 @@ import ocrRoutes from './routes/ocr.js';
 import fileProxyRoutes from './routes/file-proxy.js';
 import foundingDocumentRoutes from './routes/founding-documents.js';
 import payhubRoutes from './routes/payhub.js';
+import sgnlRoutes from './routes/sgnl.js';
 import reportRoutes from './routes/reports.js';
 
 /** Импорт типов для расширения FastifyInstance */
@@ -253,6 +255,8 @@ export async function createApp(opts: CreateAppOptions = {}): Promise<FastifyIns
    */
   await fastify.register(estimatPlugin);
   await fastify.register(tenderPlugin);
+  /** Клиент SIGNAL DOCS (выгрузка счетов); без SGNL_* — null («не настроено») */
+  await fastify.register(sgnlPlugin);
 
   /** Маршруты (health всегда; остальные — если не skipRoutes) */
   await fastify.register(healthRoutes);
@@ -286,6 +290,7 @@ export async function createApp(opts: CreateAppOptions = {}): Promise<FastifyIns
     await fastify.register(fileProxyRoutes);
     await fastify.register(foundingDocumentRoutes, { prefix: '/api/founding-documents' });
     await fastify.register(payhubRoutes);
+    await fastify.register(sgnlRoutes);
   }
 
   await fastify.ready();

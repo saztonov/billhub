@@ -321,6 +321,33 @@
               "position": 12,
               "max_length": null,
               "numeric_precision": null
+            },
+            {
+              "name": "sgnl_project_id",
+              "type": "uuid",
+              "default": null,
+              "nullable": true,
+              "position": 13,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "sgnl_project_name",
+              "type": "text",
+              "default": null,
+              "nullable": true,
+              "position": 14,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "sgnl_base_path",
+              "type": "text",
+              "default": null,
+              "nullable": true,
+              "position": 15,
+              "max_length": null,
+              "numeric_precision": null
             }
           ]
         },
@@ -4346,6 +4373,173 @@
               "numeric_precision": null
             }
           ]
+        },
+        {
+          "name": "sgnl_file_exports",
+          "columns": [
+            {
+              "name": "id",
+              "type": "uuid",
+              "default": "gen_random_uuid()",
+              "nullable": false,
+              "position": 1,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "payment_request_file_id",
+              "type": "uuid",
+              "default": null,
+              "nullable": true,
+              "position": 2,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "payment_request_id",
+              "type": "uuid",
+              "default": null,
+              "nullable": true,
+              "position": 3,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "site_id",
+              "type": "uuid",
+              "default": null,
+              "nullable": true,
+              "position": 4,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "supplier_id",
+              "type": "uuid",
+              "default": null,
+              "nullable": true,
+              "position": 5,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "sgnl_project_id",
+              "type": "uuid",
+              "default": null,
+              "nullable": false,
+              "position": 6,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "sgnl_folder_id",
+              "type": "uuid",
+              "default": null,
+              "nullable": true,
+              "position": 7,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "sgnl_object_id",
+              "type": "uuid",
+              "default": null,
+              "nullable": true,
+              "position": 8,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "sgnl_version_id",
+              "type": "uuid",
+              "default": null,
+              "nullable": true,
+              "position": 9,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "sgnl_item_id",
+              "type": "uuid",
+              "default": null,
+              "nullable": true,
+              "position": 10,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "target_path",
+              "type": "text",
+              "default": null,
+              "nullable": false,
+              "position": 11,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "target_name",
+              "type": "text",
+              "default": null,
+              "nullable": false,
+              "position": 12,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "status",
+              "type": "text",
+              "default": "'pending'::text",
+              "nullable": false,
+              "position": 13,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "attempts",
+              "type": "integer",
+              "default": "0",
+              "nullable": false,
+              "position": 14,
+              "max_length": null,
+              "numeric_precision": 32
+            },
+            {
+              "name": "last_error",
+              "type": "text",
+              "default": null,
+              "nullable": true,
+              "position": 15,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "created_at",
+              "type": "timestamp with time zone",
+              "default": "now()",
+              "nullable": false,
+              "position": 16,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "updated_at",
+              "type": "timestamp with time zone",
+              "default": "now()",
+              "nullable": false,
+              "position": 17,
+              "max_length": null,
+              "numeric_precision": null
+            },
+            {
+              "name": "exported_at",
+              "type": "timestamp with time zone",
+              "default": null,
+              "nullable": true,
+              "position": 18,
+              "max_length": null,
+              "numeric_precision": null
+            }
+          ]
         }
       ],
       "indexes": [
@@ -5108,6 +5302,26 @@
           "name": "idx_rp_stage_assignees_user",
           "definition": "CREATE INDEX idx_rp_stage_assignees_user ON public.rp_stage_assignees USING btree (user_id)",
           "table_name": "rp_stage_assignees"
+        },
+        {
+          "name": "sgnl_file_exports_pkey",
+          "definition": "CREATE UNIQUE INDEX sgnl_file_exports_pkey ON public.sgnl_file_exports USING btree (id)",
+          "table_name": "sgnl_file_exports"
+        },
+        {
+          "name": "sgnl_file_exports_payment_request_file_id_key",
+          "definition": "CREATE UNIQUE INDEX sgnl_file_exports_payment_request_file_id_key ON public.sgnl_file_exports USING btree (payment_request_file_id)",
+          "table_name": "sgnl_file_exports"
+        },
+        {
+          "name": "idx_sgnl_file_exports_status",
+          "definition": "CREATE INDEX idx_sgnl_file_exports_status ON public.sgnl_file_exports USING btree (status)",
+          "table_name": "sgnl_file_exports"
+        },
+        {
+          "name": "idx_sgnl_file_exports_project_supplier",
+          "definition": "CREATE INDEX idx_sgnl_file_exports_project_supplier ON public.sgnl_file_exports USING btree (sgnl_project_id, supplier_id) WHERE (status = 'done'::text)",
+          "table_name": "sgnl_file_exports"
         }
       ],
       "policies": [],
@@ -6198,6 +6412,50 @@
           "references_columns": [
             "id"
           ]
+        },
+        {
+          "columns": [
+            "payment_request_file_id"
+          ],
+          "table_name": "sgnl_file_exports",
+          "constraint_name": "sgnl_file_exports_payment_request_file_id_fkey",
+          "references_table": "payment_request_files",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "payment_request_id"
+          ],
+          "table_name": "sgnl_file_exports",
+          "constraint_name": "sgnl_file_exports_payment_request_id_fkey",
+          "references_table": "payment_requests",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "site_id"
+          ],
+          "table_name": "sgnl_file_exports",
+          "constraint_name": "sgnl_file_exports_site_id_fkey",
+          "references_table": "construction_sites",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "supplier_id"
+          ],
+          "table_name": "sgnl_file_exports",
+          "constraint_name": "sgnl_file_exports_supplier_id_fkey",
+          "references_table": "suppliers",
+          "references_columns": [
+            "id"
+          ]
         }
       ],
       "generated_at": "2026-06-01T00:00:00+00:00",
@@ -6545,6 +6803,13 @@
           ],
           "table_name": "rp_stage_assignees",
           "constraint_name": "rp_stage_assignees_pkey"
+        },
+        {
+          "columns": [
+            "id"
+          ],
+          "table_name": "sgnl_file_exports",
+          "constraint_name": "sgnl_file_exports_pkey"
         }
       ],
       "check_constraints": [
@@ -7872,6 +8137,11 @@
           "table_name": "supplier_security_checks",
           "check_clause": "(event_type = ANY (ARRAY['requested'::text, 'approved'::text, 'rejected'::text]))",
           "constraint_name": "supplier_security_checks_event_type_check"
+        },
+        {
+          "table_name": "sgnl_file_exports",
+          "check_clause": "status = ANY (ARRAY['pending'::text, 'done'::text, 'failed'::text, 'skipped'::text])",
+          "constraint_name": "sgnl_file_exports_status_check"
         }
       ],
       "unique_constraints": [
@@ -7957,6 +8227,13 @@
           ],
           "table_name": "rp_stage_assignees",
           "constraint_name": "rp_stage_assignees_construction_site_id_key"
+        },
+        {
+          "columns": [
+            "payment_request_file_id"
+          ],
+          "table_name": "sgnl_file_exports",
+          "constraint_name": "sgnl_file_exports_payment_request_file_id_key"
         }
       ]
     }

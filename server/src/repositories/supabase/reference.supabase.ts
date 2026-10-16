@@ -94,6 +94,10 @@ function siteToDto(r: ConstructionSiteRow): ConstructionSite {
     payhubContractorId: r.payhub_contractor_id,
     payhubContractorName: r.payhub_contractor_name,
     payhubContractorInn: r.payhub_contractor_inn,
+    // SIGNAL (0023) есть только в Yandex PG; legacy-путь Supabase сопоставление не поддерживает
+    sgnlProjectId: null,
+    sgnlProjectName: null,
+    sgnlBasePath: null,
   };
 }
 

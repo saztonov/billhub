@@ -4,6 +4,7 @@ import type IORedis from 'ioredis';
 import type { PayHubClient } from '../services/payhub/payhub-client.js';
 import type { EstimatClient } from '../services/estimat/estimat-client.js';
 import type { TenderClient } from '../services/tender/tender-client.js';
+import type { SgnlClient } from '../services/sgnl/sgnl-client.js';
 
 /** Роли пользователей системы */
 export type UserRole = 'admin' | 'user' | 'counterparty_user' | 'security';
@@ -39,5 +40,7 @@ declare module 'fastify' {
     estimat: EstimatClient | null;
     /** Клиент тендерного портала; null — интеграция не настроена */
     tender: TenderClient | null;
+    /** Клиент SIGNAL DOCS (выгрузка счетов); null — интеграция не настроена */
+    sgnl: SgnlClient | null;
   }
 }

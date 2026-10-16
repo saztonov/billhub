@@ -5,6 +5,7 @@ import UsersPage from './UsersPage'
 import ErrorLogsPage from './ErrorLogsPage'
 import OcrSettingsTab from '@/components/admin/OcrSettingsTab'
 import PayHubSettingsTab from '@/components/admin/PayHubSettingsTab'
+import SgnlSettingsTab from '@/components/admin/sgnl/SgnlSettingsTab'
 import ReportsTab from '@/components/admin/ReportsTab'
 
 const { Title } = Typography
@@ -28,6 +29,7 @@ const AdminPage = () => {
     { key: 'users', label: 'Пользователи', children: <UsersPage /> },
     { key: 'ocr', label: 'OCR', children: <OcrSettingsTab /> },
     { key: 'payhub', label: 'PayHub', children: <PayHubSettingsTab /> },
+    { key: 'sgnl', label: 'SIGNAL', children: <SgnlSettingsTab /> },
     { key: 'reports', label: 'Отчёты', children: <ReportsTab /> },
     { key: 'error-logs', label: 'Логи ошибок', children: <ErrorLogsPage /> },
   ]

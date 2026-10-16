@@ -69,3 +69,28 @@ export function rpLetterJobId(rpLetterId: string): string {
 export async function enqueueRpLetterSync(rpLetterId: string): Promise<void> {
   await payhubLetterQueue.add('sync', { rpLetterId }, { jobId: rpLetterJobId(rpLetterId) });
 }
+
+/** Данные задачи выгрузки счетов в SIGNAL: siteId — пилотный запуск по одному объекту */
+export interface SgnlSyncJobData {
+  siteId?: string;
+}
+
+/**
+ * Очередь выгрузки счетов в SIGNAL DOCS (0023). Один прогон обрабатывает всех кандидатов,
+ * повторы — следующим прогоном (журнал sgnl_file_exports), поэтому attempts: 1.
+ */
+export const sgnlSyncQueue = new Queue<SgnlSyncJobData>('sgnl-sync', {
+  connection,
+  defaultJobOptions: {
+    attempts: 1,
+    removeOnComplete: true,
+    removeOnFail: true,
+  },
+});
+
+/** Ручной запуск выгрузки (идемпотентно по jobId, пока предыдущий запуск в очереди) */
+export async function enqueueSgnlSync(siteId?: string): Promise<string> {
+  const jobId = siteId ? `sgnl-sync-manual-${siteId}` : 'sgnl-sync-manual';
+  await sgnlSyncQueue.add('run', siteId ? { siteId } : {}, { jobId });
+  return jobId;
+}

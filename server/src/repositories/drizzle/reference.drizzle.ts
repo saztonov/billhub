@@ -48,6 +48,9 @@ function siteToDto(r: typeof constructionSites.$inferSelect): ConstructionSite {
     payhubContractorId: r.payhubContractorId,
     payhubContractorName: r.payhubContractorName,
     payhubContractorInn: r.payhubContractorInn,
+    sgnlProjectId: r.sgnlProjectId,
+    sgnlProjectName: r.sgnlProjectName,
+    sgnlBasePath: r.sgnlBasePath,
   };
 }
 
@@ -63,6 +66,10 @@ function applyPayhubPatch(
   if (body.payhubContractorName !== undefined)
     patch.payhubContractorName = body.payhubContractorName;
   if (body.payhubContractorInn !== undefined) patch.payhubContractorInn = body.payhubContractorInn;
+  // Сопоставление с проектом SIGNAL (0023)
+  if (body.sgnlProjectId !== undefined) patch.sgnlProjectId = body.sgnlProjectId;
+  if (body.sgnlProjectName !== undefined) patch.sgnlProjectName = body.sgnlProjectName;
+  if (body.sgnlBasePath !== undefined) patch.sgnlBasePath = body.sgnlBasePath;
 }
 function costToDto(r: typeof costTypes.$inferSelect): CostType {
   return { id: r.id, name: r.name, isActive: r.isActive, createdAt: r.createdAt };

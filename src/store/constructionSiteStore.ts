@@ -25,6 +25,9 @@ const UPDATABLE_KEYS = [
   'payhubContractorId',
   'payhubContractorName',
   'payhubContractorInn',
+  'sgnlProjectId',
+  'sgnlProjectName',
+  'sgnlBasePath',
 ] as const
 
 function buildUpdateBody(data: Partial<ConstructionSite>): Record<string, unknown> {

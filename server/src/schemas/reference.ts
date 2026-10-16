@@ -30,12 +30,32 @@ const payhubMappingWriteShape = {
   payhubContractorInn: z.string().nullable().optional(),
 };
 
+/** Сопоставление с проектом SIGNAL DOCS (0023): ID проекта + снимок названия + подпапка */
+const sgnlMappingReadShape = {
+  sgnlProjectId: z.string().nullable(),
+  sgnlProjectName: z.string().nullable(),
+  sgnlBasePath: z.string().nullable(),
+};
+
+/** Те же поля для create/update: optional (не менять) + nullable (очистить); пустая подпапка = null */
+const sgnlMappingWriteShape = {
+  sgnlProjectId: uuidSchema.nullable().optional(),
+  sgnlProjectName: z.string().max(500).nullable().optional(),
+  sgnlBasePath: z
+    .string()
+    .max(300)
+    .transform((v) => (v.trim() === '' ? null : v.trim()))
+    .nullable()
+    .optional(),
+};
+
 export const constructionSiteSchema = z.object({
   id: uuidSchema,
   name: nonEmptyString,
   isActive: z.boolean(),
   createdAt: z.iso.datetime({ offset: true }),
   ...payhubMappingReadShape,
+  ...sgnlMappingReadShape,
 });
 export type ConstructionSite = z.infer<typeof constructionSiteSchema>;
 
@@ -43,6 +63,7 @@ export const createConstructionSiteBodySchema = z.object({
   name: nonEmptyString,
   isActive: z.boolean().optional(),
   ...payhubMappingWriteShape,
+  ...sgnlMappingWriteShape,
 });
 export type CreateConstructionSiteBody = z.infer<typeof createConstructionSiteBodySchema>;
 
@@ -50,6 +71,7 @@ export const updateConstructionSiteBodySchema = z.object({
   name: nonEmptyString.optional(),
   isActive: z.boolean().optional(),
   ...payhubMappingWriteShape,
+  ...sgnlMappingWriteShape,
 });
 export type UpdateConstructionSiteBody = z.infer<typeof updateConstructionSiteBodySchema>;
 

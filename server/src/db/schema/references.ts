@@ -50,6 +50,10 @@ export const constructionSites = pgTable('construction_sites', {
   payhubContractorInn: text('payhub_contractor_inn'),
   // Маппинг объекта EstiMat (projectCode) → объект BillHub (0019).
   estimatProjectCode: text('estimat_project_code'),
+  // Сопоставление с проектом SIGNAL DOCS (0023): ID проекта + снимок названия + подпапка
+  sgnlProjectId: uuid('sgnl_project_id'),
+  sgnlProjectName: text('sgnl_project_name'),
+  sgnlBasePath: text('sgnl_base_path'),
 });
 
 export const costTypes = pgTable('cost_types', {

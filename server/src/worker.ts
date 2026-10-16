@@ -21,7 +21,8 @@ import { resolveDbProvider } from './plugins/repositories.js';
 import { createFileProcessingWorker } from './queues/fileProcessingWorker.js';
 import { createOcrWorker } from './queues/ocrWorker.js';
 import { createPayhubLetterWorker } from './queues/payhubLetterWorker.js';
-import { fileProcessingQueue, ocrQueue, payhubLetterQueue } from './queues/index.js';
+import { createSgnlSyncWorker } from './queues/sgnlSyncWorker.js';
+import { fileProcessingQueue, ocrQueue, payhubLetterQueue, sgnlSyncQueue } from './queues/index.js';
 import { DrizzleJobsLogRepository } from './repositories/drizzle/jobs-log.drizzle.js';
 import type { JobsLogRepository } from './repositories/jobs-log.repository.js';
 import type { BillhubDatabase } from './plugins/database-drizzle.js';
@@ -52,6 +53,7 @@ async function main(): Promise<void> {
   const fileWorker = createFileProcessingWorker({ jobsLog, db });
   const ocrWorker = createOcrWorker({ jobsLog, db });
   const payhubLetterWorker = createPayhubLetterWorker({ jobsLog, db });
+  const sgnlSyncWorker = createSgnlSyncWorker({ jobsLog, db });
   logger.info(
     { ocrConcurrency: config.ocrConcurrency, fileConcurrency: config.fileProcessingConcurrency },
     'worker: BullMQ воркеры запущены',
@@ -80,9 +82,11 @@ async function main(): Promise<void> {
     await fileWorker.close();
     await ocrWorker.close();
     await payhubLetterWorker.close();
+    await sgnlSyncWorker.close();
     await fileProcessingQueue.close();
     await ocrQueue.close();
     await payhubLetterQueue.close();
+    await sgnlSyncQueue.close();
     if (pgClient) await pgClient.end({ timeout: 5 });
     logger.info('worker: остановлен');
     process.exit(0);

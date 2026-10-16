@@ -96,6 +96,11 @@ export interface ConstructionSite {
   payhubContractorId?: string | null
   payhubContractorName?: string | null
   payhubContractorInn?: string | null
+  // Сопоставление с проектом SIGNAL DOCS (выгрузка счетов): ID проекта + снимок названия +
+  // необязательная подпапка проекта, внутри которой лежит «12. Снабжение»
+  sgnlProjectId?: string | null
+  sgnlProjectName?: string | null
+  sgnlBasePath?: string | null
 }
 
 /** Подразделение (enum) */
