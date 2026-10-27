@@ -56,12 +56,13 @@ interface ApprovalStoreState {
   // Решения и логи
   fetchDecisions: (paymentRequestId: string) => Promise<void>
   fetchLogs: (paymentRequestId: string) => Promise<void>
+  /** autoRpLetterId — РП, созданная автоматически при согласовании на этапе «РП» */
   approveRequest: (
     paymentRequestId: string,
     department: Department,
     userId: string,
     comment: string,
-  ) => Promise<void>
+  ) => Promise<{ autoRpLetterId: string | null }>
   rejectRequest: (
     paymentRequestId: string,
     department: Department,
@@ -211,7 +212,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => {
     approveRequest: async (paymentRequestId, department, userId, comment) => {
       set({ isLoading: true, error: null })
       try {
-        await api.post('/api/approvals/decide', {
+        const result = await api.post<{ autoRpLetterId?: string | null }>('/api/approvals/decide', {
           paymentRequestId,
           department,
           userId,
@@ -220,6 +221,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => {
         })
 
         set({ isLoading: false })
+        return { autoRpLetterId: result?.autoRpLetterId ?? null }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Ошибка согласования'
         logError({

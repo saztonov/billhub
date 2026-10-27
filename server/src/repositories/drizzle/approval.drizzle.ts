@@ -9,6 +9,8 @@
  * Статусы резолвятся ТОЛЬКО по code (statusIdByCode); финальность — по коду статуса.
  * Уведомления (финальное согласование — создателю, вход на этап РП — назначенцу)
  * отправляются ПОСЛЕ коммита, best-effort (.catch).
+ * Согласование на этапе РП в той же транзакции (savepoint) автоматически создаёт РП с письмом
+ * PayHub (rp-auto.drizzle); итог возвращается в результате decide (autoRp).
  * Доработка согласованной contractor-заявки (approved → revision → complete): completeRevision
  * возвращает её НЕ в approved, а на повторное согласование (последний обязательный рубеж:
  * РП / УОК / ОМТС — см. reopenStageFor), чтобы заявка не согласовывалась без нового решения
@@ -54,6 +56,7 @@ import {
   userMayActOnStage,
 } from './approval-stage-flow.js';
 import { joinedPaymentRequests, stripAmountHistory } from './payment-request-projection.js';
+import { tryCreateAutoRpTx } from './rp-auto.drizzle.js';
 import type {
   ApprovalRepository,
   ApprovalDecideInput,
@@ -66,6 +69,7 @@ import type {
   Row,
 } from '../approval.repository.js';
 import type { ApprovalFieldUpdates } from '../../schemas/approval.js';
+import type { RpAutoCreateOutcome } from '../rp.repository.js';
 
 type Db = PostgresJsDatabase<typeof schema>;
 type AnyTx = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -634,6 +638,17 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
         .set(finalSet)
         .where(eq(paymentRequests.id, input.paymentRequestId));
 
+      // Согласование на этапе «РП» — автосоздание РП и письма PayHub (savepoint: сбой
+      // не откатывает согласование; синхронизацию письма ставит в очередь роут).
+      let autoRp: RpAutoCreateOutcome | undefined;
+      if (currentStage === STAGE_RP) {
+        autoRp = await tryCreateAutoRpTx(tx, {
+          paymentRequestId: input.paymentRequestId,
+          approverId: input.userId,
+          approverFullName: userInfo.fullName ?? null,
+        });
+      }
+
       const [creatorRow] = await tx
         .select({
           createdBy: paymentRequests.createdBy,
@@ -653,7 +668,7 @@ export class DrizzleApprovalRepository implements ApprovalRepository {
         };
       }
 
-      return { ok: true as const };
+      return { ok: true as const, ...(autoRp ? { autoRp } : {}) };
     });
 
     // Уведомление — после коммита, best-effort (как fire-and-forget в Supabase).

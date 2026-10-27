@@ -11,6 +11,7 @@ import type { PayHubClient } from '../services/payhub/payhub-client.js';
 import { createRpLetterStage1 } from '../services/rp/rp-letter-sync.js';
 import type { RpLetterSyncDeps } from '../services/rp/rp-letter-sync.js';
 import { getRpSenderSetting } from '../services/rp/rp-sender-setting.js';
+import { ownRpFileKeys } from '../services/rp/rp-file-scope.js';
 import { createObservabilityLogger } from '../services/observability/logger.js';
 import {
   createRpBodySchema,
@@ -557,7 +558,11 @@ async function rpRoutes(fastify: FastifyInstance): Promise<void> {
       await deletePayhubLetterStrict(fastify.payhub, ctx.payhubLetterId);
     }
     await repo.deleteRp(id);
-    await deleteStagingFiles([...ctx.attachmentFileKeys, ...ctx.serviceFileKeys]);
+    // Из S3 удаляем только файлы папки этой РП: вложения авто-РП ссылаются на исходные
+    // файлы заявки, договора и учредительных документов — их не трогаем.
+    await deleteStagingFiles(
+      ownRpFileKeys(id, [...ctx.attachmentFileKeys, ...ctx.serviceFileKeys]),
+    );
     return { success: true };
   });
 

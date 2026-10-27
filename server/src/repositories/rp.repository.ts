@@ -122,6 +122,16 @@ export interface CreateRpInput {
   letterInitialStatus?: 'uploading' | 'pending';
 }
 
+/**
+ * Итог автосоздания РП при согласовании заявки на этапе «РП»: created — РП создана, письмо в
+ * pending (роут ставит синхронизацию в очередь); skipped — выключено настройкой или заявка уже
+ * в РП; failed — сбой (согласование не откатывается, РП можно создать вручную из реестра).
+ */
+export type RpAutoCreateOutcome =
+  | { status: 'created'; rpLetterId: string }
+  | { status: 'skipped'; reason: 'disabled' | 'already_linked' }
+  | { status: 'failed'; error: string };
+
 /** Файл письма, зарегистрированный за РП (лежит в billhub S3). */
 export interface RpLetterAttachmentRef {
   fileKey: string;

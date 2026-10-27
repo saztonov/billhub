@@ -11,6 +11,7 @@
  * пробрасываются как исключения (центральный error-handler → 500).
  */
 import type { ApprovalFieldUpdates } from '../schemas/approval.js';
+import type { RpAutoCreateOutcome } from './rp.repository.js';
 
 export type Row = Record<string, unknown>;
 
@@ -28,9 +29,17 @@ export interface ApprovalDecideInput {
   isAdmin: boolean;
 }
 
-/** Результат decide: успех (для reject — с decisionId/requestNumber) либо доменная ошибка. */
+/**
+ * Результат decide: успех (для reject — с decisionId/requestNumber; для финального согласования
+ * на этапе «РП» — с итогом автосоздания РП) либо доменная ошибка.
+ */
 export type ApprovalDecideResult =
-  | { ok: true; decisionId?: string | null; requestNumber?: string }
+  | {
+      ok: true;
+      decisionId?: string | null;
+      requestNumber?: string;
+      autoRp?: RpAutoCreateOutcome;
+    }
   | { ok: false; status: number; error: string };
 
 /** Результат частичного решения (/create-decision): только запись в approval_decisions. */

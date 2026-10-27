@@ -3,7 +3,11 @@ import { authenticate } from '../middleware/authenticate.js';
 import { requireRole } from '../middleware/requireRole.js';
 import { PayHubApiError } from '../services/payhub/payhub-errors.js';
 import { getRpSenderSetting, setRpSenderSetting } from '../services/rp/rp-sender-setting.js';
-import { rpSenderPutBodySchema } from '../schemas/payhub.js';
+import {
+  getRpAutoCreateEnabled,
+  setRpAutoCreateEnabled,
+} from '../services/rp/rp-auto-create-setting.js';
+import { rpSenderPutBodySchema, rpAutoCreatePutBodySchema } from '../schemas/payhub.js';
 
 /**
  * Маршруты интеграции PayHub.
@@ -131,6 +135,22 @@ async function payhubRoutes(fastify: FastifyInstance): Promise<void> {
     const body = rpSenderPutBodySchema.parse(request.body);
     await setRpSenderSetting(db, body.sender);
     return reply.send({ sender: body.sender });
+  });
+
+  /* ---------- GET /api/payhub/rp-auto-create — автосоздание РП на этапе «РП» ---------- */
+  fastify.get('/api/payhub/rp-auto-create', adminOnly, async (_request, reply) => {
+    const db = fastify.db;
+    if (!db) return reply.status(500).send({ error: 'Настройки требуют DB_PROVIDER=drizzle' });
+    return reply.send({ enabled: await getRpAutoCreateEnabled(db) });
+  });
+
+  /* ---------- PUT /api/payhub/rp-auto-create — включить/выключить автосоздание РП ---------- */
+  fastify.put('/api/payhub/rp-auto-create', adminOnly, async (request, reply) => {
+    const db = fastify.db;
+    if (!db) return reply.status(500).send({ error: 'Настройки требуют DB_PROVIDER=drizzle' });
+    const body = rpAutoCreatePutBodySchema.parse(request.body);
+    await setRpAutoCreateEnabled(db, body.enabled);
+    return reply.send({ enabled: body.enabled });
   });
 
   /* ---------- GET /api/payhub/status ---------- */

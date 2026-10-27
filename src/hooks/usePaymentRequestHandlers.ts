@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { useCounterpartyStore } from '@/store/counterpartyStore'
 import { useUploadQueueStore } from '@/store/uploadQueueStore'
+import { useRpStore } from '@/store/rpStore'
 import { notifyRequestResubmitted } from '@/utils/notificationService'
 import type { EditRequestData } from '@/store/paymentRequestStore'
 import type { FileItem } from '@/components/paymentRequests/FileUploadList'
@@ -26,7 +27,7 @@ interface StoreFunctions {
     department: Department,
     userId: string,
     comment: string,
-  ) => Promise<void>
+  ) => Promise<{ autoRpLetterId: string | null }>
   rejectRequest: (
     requestId: string,
     department: Department,
@@ -200,8 +201,14 @@ export function usePaymentRequestHandlers({
     const department = isAdmin ? adminSelectedStage : user?.department
     if (!department) return false
     try {
-      await approveRequest(requestId, department, user.id, comment)
-      message.success('Заявка согласована')
+      const { autoRpLetterId } = await approveRequest(requestId, department, user.id, comment)
+      if (autoRpLetterId) {
+        // Согласование на этапе «РП» создало РП — реестр подтянет её и начнёт опрос статуса письма.
+        message.success('Заявка согласована. РП создана, письмо отправляется в PayHub')
+        void useRpStore.getState().loadRegistry({ silent: useRpStore.getState().lettersLoaded })
+      } else {
+        message.success('Заявка согласована')
+      }
       refreshWorkflowData()
       return true
     } catch (err) {

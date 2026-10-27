@@ -13,3 +13,8 @@ export const rpSenderPutBodySchema = z.object({
     })
     .nullable(),
 });
+
+/** Тело PUT /api/payhub/rp-auto-create: автосоздание РП при согласовании на этапе «РП». */
+export const rpAutoCreatePutBodySchema = z.object({
+  enabled: z.boolean(),
+});

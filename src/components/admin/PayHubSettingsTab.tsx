@@ -4,6 +4,7 @@ import { ReloadOutlined, ApiOutlined } from '@ant-design/icons'
 import { api } from '@/services/api'
 import { logError } from '@/services/errorLogger'
 import RpSenderSettingCard from '@/components/admin/RpSenderSettingCard'
+import RpAutoCreateSettingCard from '@/components/admin/RpAutoCreateSettingCard'
 
 const { Text, Paragraph } = Typography
 
@@ -123,6 +124,7 @@ const PayHubSettingsTab = () => {
         )}
       </Card>
       <RpSenderSettingCard />
+      <RpAutoCreateSettingCard />
     </>
   )
 }

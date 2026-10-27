@@ -8,6 +8,7 @@ import {
   approvalDecisionFileBodySchema,
 } from '../schemas/approval.js';
 import { resolveSiteScope } from '../services/site-scope.js';
+import { enqueueRpLetterSync } from '../queues/index.js';
 
 /* ------------------------------------------------------------------ */
 /*  Плагин маршрутов согласований (через fastify.repos.approvals)      */
@@ -51,6 +52,24 @@ async function approvalRoutes(fastify: FastifyInstance): Promise<void> {
       isAdmin: user.role === 'admin',
     });
     if (!result.ok) return reply.status(result.status).send({ error: result.error });
+
+    // Автосоздание РП при согласовании на этапе «РП»: письмо PayHub — в очередь синхронизации.
+    // Ответ не ждёт Redis; сбой постановки не критичен — письмо в pending подхватит sweep воркера.
+    const autoRp = result.autoRp;
+    if (autoRp?.status === 'created') {
+      enqueueRpLetterSync(autoRp.rpLetterId).catch((err: unknown) =>
+        request.log.error(
+          { err, rpLetterId: autoRp.rpLetterId },
+          'Автосоздание РП: постановка письма в очередь не удалась (подхватит sweep)',
+        ),
+      );
+    } else if (autoRp?.status === 'failed') {
+      request.log.error(
+        { paymentRequestId: body.paymentRequestId, error: autoRp.error },
+        'Автосоздание РП не удалось — заявка согласована, РП нужно создать вручную',
+      );
+    }
+
     if (body.action === 'reject') {
       return reply.send({
         success: true,
@@ -58,7 +77,10 @@ async function approvalRoutes(fastify: FastifyInstance): Promise<void> {
         requestNumber: result.requestNumber ?? '',
       });
     }
-    return reply.send({ success: true });
+    return reply.send({
+      success: true,
+      autoRpLetterId: autoRp?.status === 'created' ? autoRp.rpLetterId : null,
+    });
   });
 
   /* ---------- POST /api/approvals/send-to-revision ---------- */
